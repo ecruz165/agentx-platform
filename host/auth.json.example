@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "providers": {
+    "anthropic": {
+      "apiKey": "sk-ant-REPLACE_ME",
+      "createdAt": "2026-05-01T00:00:00Z"
+    },
+    "openai": {
+      "apiKey": "sk-REPLACE_ME_IF_NEEDED",
+      "createdAt": "2026-05-01T00:00:00Z"
+    },
+    "google": {
+      "apiKey": "AIza_REPLACE_ME_IF_NEEDED",
+      "createdAt": "2026-05-01T00:00:00Z"
+    }
+  },
+  "_note_github_copilot": "github-copilot is populated by `harness auth login github-copilot` (Device Flow). Do not paste manually."
+}

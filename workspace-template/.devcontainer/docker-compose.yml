@@ -1,0 +1,60 @@
+# MVP-1 — always-on triad orchestration.
+# Per prd-workspace-template.md F6: only the three peer servers belong here.
+# Workers are spawned per-job via @devcontainers/cli, NOT in this compose file.
+#
+# Networking + IPC model:
+#   - Shared bridge network `harness-net` for any future TCP/HTTP fallback.
+#   - Shared volume `../.harness/run` (= workspace-template/.harness/run/ on host)
+#     bind-mounted to /root/.harness/run inside every container.
+#   - All three servers create their UDS socket inside that shared dir, so
+#     cross-container IPC happens via socket files in the bind mount —
+#     no network hop, no auth proxy.
+#
+# Run from this directory:
+#   cd workspace-template/.devcontainer
+#   docker compose up --build
+#
+# Then from a sibling terminal:
+#   cd workspace-template
+#   pnpm harness server status   # shows ✓ for all three (sockets reachable from host)
+
+name: agentx-trio
+
+services:
+  harness-server:
+    build:
+      context: ../..
+      dockerfile: workspace-template/.devcontainer/harness-server/Dockerfile
+    container_name: agentx-harness-server
+    volumes:
+      - ../.harness/run:/root/.harness/run
+    networks:
+      - harness-net
+    restart: unless-stopped
+
+  edge-memory-server:
+    build:
+      context: ../..
+      dockerfile: workspace-template/.devcontainer/edge-memory-server/Dockerfile
+    container_name: agentx-edge-memory-server
+    volumes:
+      - ../.harness/run:/root/.harness/run
+    networks:
+      - harness-net
+    restart: unless-stopped
+
+  edge-context-server:
+    build:
+      context: ../..
+      dockerfile: workspace-template/.devcontainer/edge-context-server/Dockerfile
+    container_name: agentx-edge-context-server
+    volumes:
+      - ../.harness/run:/root/.harness/run
+    networks:
+      - harness-net
+    restart: unless-stopped
+
+networks:
+  harness-net:
+    driver: bridge
+    name: agentx-harness-net

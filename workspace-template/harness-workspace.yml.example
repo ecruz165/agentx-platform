@@ -1,0 +1,51 @@
+workspace:
+  id: my-team-workspace
+
+  # Three always-on peer servers (compose-managed in MVP-1+)
+  servers:
+    harness:
+      image: agentx/harness-server:0.0.0
+      port: 7700
+      unixSocket: .harness/run/harness.sock
+    memory:
+      image: agentx/edge-memory-server:0.0.0
+      port: 7710
+      unixSocket: .harness/run/memory.sock
+      backend: echo  # MVP-0; MVP-2+ uses sqlite-vec
+    context:
+      image: agentx/edge-context-server:0.0.0
+      port: 7720
+      unixSocket: .harness/run/context.sock
+      backend: echo  # MVP-0; MVP-2+ uses kuzu
+
+  # Default worker DevContainer template (instantiated per job — MVP-1+)
+  worker:
+    image: agentx/worker:0.0.0
+    devcontainerPath: .devcontainer/worker
+    namingPattern: "agentx-job-${jobId}"  # decision #1: named container per job
+    defaultResources:
+      memory: 4Gi
+      cpu: 2
+
+  # Worktree policy applies to every product's repos
+  worktree:
+    rootDir: .harness/wt
+    pathSchema: "${jobId}/${subagentId}/${repoName}"  # decision: subagent dimension reserved
+    keepOnSuccess: true
+    keepOnFailure: false
+    pruneAfter: 7d
+    branchTemplate: "agent/${jobId}"  # subagent: agent/${jobId}/${subagentId}
+
+  # Products: named bundles of repos. Every job is submitted against exactly one (decision #4).
+  products:
+    - id: mobile-app
+      description: "Sample product — replace with your own"
+      repos:
+        - name: web-app
+          cloneUrl: git@github.com:my-team/web-app.git
+          baseRef: main
+          path: /workspace/web-app
+        - name: api-gateway
+          cloneUrl: git@github.com:my-team/api-gateway.git
+          baseRef: main
+          path: /workspace/api-gateway

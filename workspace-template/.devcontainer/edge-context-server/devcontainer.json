@@ -1,0 +1,7 @@
+{
+  "name": "agentx-edge-context-server",
+  "dockerComposeFile": "../docker-compose.yml",
+  "service": "edge-context-server",
+  "workspaceFolder": "/app",
+  "shutdownAction": "stopCompose"
+}

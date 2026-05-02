@@ -1,0 +1,63 @@
+# Dependencies
+node_modules/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.pnpm-debug.log*
+
+# Editor swap / temp files
+*.swp
+*.swo
+*~
+
+# Sockets
+*.sock
+
+# Build output
+dist/
+build/
+out/
+*.tsbuildinfo
+
+# Test / coverage
+coverage/
+.nyc_output/
+
+# Caches
+.cache/
+.turbo/
+.parcel-cache/
+.eslintcache
+
+# Env / secrets
+.env
+.env.local
+.env.*.local
+
+# Per-user host-side files (auth.json lives at ~/.agentx/auth.json, never in repo)
+/host/auth.json
+
+# Repo-root workspace runtime state (when running examples from repo root)
+# Note: /.harness/config/ is intentionally tracked — it holds the committed pipeline catalog.
+/.harness/run/
+/.harness/wt/
+/.harness/captures/
+/.harness/repos/
+
+# Workspace-template runtime state (gitkeep'd structure preserved; runtime files ignored)
+/workspace-template/.harness/run/*
+!/workspace-template/.harness/run/.gitkeep
+/workspace-template/.harness/wt/*
+!/workspace-template/.harness/wt/.gitkeep
+/workspace-template/.harness/captures/*
+!/workspace-template/.harness/captures/.gitkeep
+/workspace-template/.harness/repos/*
+!/workspace-template/.harness/repos/.gitkeep

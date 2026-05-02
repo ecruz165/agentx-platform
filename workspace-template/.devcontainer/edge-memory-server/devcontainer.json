@@ -1,0 +1,7 @@
+{
+  "name": "agentx-edge-memory-server",
+  "dockerComposeFile": "../docker-compose.yml",
+  "service": "edge-memory-server",
+  "workspaceFolder": "/app",
+  "shutdownAction": "stopCompose"
+}

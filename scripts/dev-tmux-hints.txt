@@ -1,0 +1,51 @@
+=== agentx ops shell ===
+
+The "dash" window has an interactive TUI in the left pane —
+auth status, intent submit, product picker. Use that for the
+common flow. The cheat sheet below is for ad-hoc commands.
+
+Trust + auth gates
+  pnpm harness server status
+  pnpm harness auth status
+  pnpm harness auth login github-copilot
+  pnpm harness tui                  # same TUI, run standalone
+
+Project + submit
+  pnpm harness project list
+  pnpm harness project show skoolscout-com
+  pnpm harness session set productId skoolscout-com
+  pnpm harness submit feature-add --name "Office Hours" \
+       --input-text "scheduling UI on skoolscout-com + booking on jefelabs-com"
+
+Demos
+  pnpm dev:propagation-demo     # GitHub OAuth → broker → Copilot chat
+  pnpm dev:skill-demo           # combined SKILL.md → CLI
+  pnpm dev:per-skill-demo       # memory.md and context.md scoped separately
+  pnpm dev:submit-demo          # yaml gate → /v1/jobs (echo)
+  pnpm dev:worker-demo          # bare clone + worktrees + override config
+
+Capture leak gate
+  pnpm verify
+
+Type-check
+  pnpm typecheck
+
+Containerized trio (alternative to this tmux session)
+  cd workspace-template/.devcontainer && docker compose up --build
+
+Worker container (after a worker-spawn-demo or real submit)
+  devcontainer up --workspace-folder workspace-template/.devcontainer/worker \
+       --override-config <path-from-spawnWorker>
+
+Hotkeys (registered by scripts/dev-tmux.sh on every launch)
+  prefix + J        open the 3-column jobs viewer in a new tmux window
+  prefix + M        jump back to the main dash window
+  (default tmux prefix is Ctrl-b)
+
+Inside the jobs viewer
+  j or ↓     next job          k or ↑     previous job
+  enter / r  refresh selected  m          back to main (keep window alive)
+  q          quit (window auto-closes)
+
+Tear-down
+  tmux kill-session -t agentx        # all server panes get SIGHUP

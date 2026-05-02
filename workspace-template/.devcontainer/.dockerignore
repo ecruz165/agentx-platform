@@ -1,0 +1,12 @@
+**/node_modules
+**/.harness/run
+**/.harness/wt
+**/.harness/captures
+**/.harness/repos
+**/.git
+**/.idea
+**/.vscode
+**/*.tsbuildinfo
+**/*.log
+host/auth.json
+.plans

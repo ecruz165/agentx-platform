@@ -1,0 +1,10 @@
+{
+  "name": "agentx-worker-template",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": "../../.."
+  },
+  "workspaceFolder": "/workspace",
+  "overrideCommand": false,
+  "shutdownAction": "stopContainer"
+}

@@ -1,0 +1,62 @@
+# agentx repo's own workspace declaration — used for development testing
+# of the harness CLI flows. Real workspaces (cloned from workspace-template)
+# follow the same shape.
+#
+# Per prd-workspace-template.md §7.1.
+
+workspace:
+  id: agentx-dev
+
+  # Three peer servers. v1: bound to UDS sockets in <workspace>/.harness/run/.
+  servers:
+    harness:
+      unixSocket: .harness/run/harness.sock
+    memory:
+      unixSocket: .harness/run/memory.sock
+      backend: echo            # MVP-0; MVP-2+ uses sqlite-vec
+    context:
+      unixSocket: .harness/run/context.sock
+      backend: echo            # MVP-0; MVP-2+ uses kuzu
+
+  # Worker DevContainer template (instantiated per job — MVP-2+).
+  worker:
+    image: agentx/worker:0.0.0
+    devcontainerPath: workspace-template/.devcontainer/worker
+    namingPattern: "agentx-job-${jobId}"     # decision #1: named container per job
+    defaultResources:
+      memory: 4Gi
+      cpu: 2
+
+  # Worktree allocation (MVP-2+ once worker spawn lands).
+  worktree:
+    rootDir: .harness/wt
+    pathSchema: "${jobId}/${subagentId}/${repoName}"   # design.md §6.6
+    keepOnSuccess: true
+    keepOnFailure: false
+    pruneAfter: 7d
+    branchTemplate: "agent/${jobId}"
+
+  # Products: every `harness submit` runs against exactly one (decision #4).
+  products:
+    - id: agentx-dev
+      description: "agentx monorepo — self-reference for development testing"
+      repos:
+        - name: agentx
+          cloneUrl: ./
+          baseRef: main
+          path: /workspace/agentx
+
+    - id: skoolscout-com
+      description: "skoolscout.com + jefelabs.com — sibling sites under the skoolscout GitHub org"
+      repos:
+        - name: skoolscout-com
+          cloneUrl: https://github.com/skoolscout/skoolscout-com.git
+          baseRef: main
+          path: /workspace/skoolscout-com
+        - name: jefelabs-com
+          cloneUrl: https://github.com/skoolscout/jefelabs-com.git
+          baseRef: main
+          path: /workspace/jefelabs-com
+      resources:
+        memory: 8Gi
+        cpu: 4
