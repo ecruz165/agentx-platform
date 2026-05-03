@@ -3,11 +3,11 @@ import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { CredentialBroker, Provider } from '@agentx/auth-lib';
-import type { AgentAdapter, CaptureSink } from './types.ts';
+import { AdapterEventBus } from './events.ts';
+import type { AgentAdapter, InvocationSpec } from './types.ts';
 
 export interface OpenCodeCliAdapterOptions {
   broker: CredentialBroker;
-  capture: CaptureSink;
   bin?: string;
   model?: string;
   provider?: Provider;
@@ -23,9 +23,11 @@ const PROVIDER_ENV_VAR: Partial<Record<Provider, string>> = {
 };
 
 export class OpenCodeCliAdapter implements AgentAdapter {
+  readonly events = new AdapterEventBus();
+
   constructor(private readonly opts: OpenCodeCliAdapterOptions) {}
 
-  async invoke(prompt: string): Promise<string> {
+  async invoke(spec: InvocationSpec): Promise<string> {
     const provider: Provider = this.opts.provider ?? 'anthropic';
     const envVar = PROVIDER_ENV_VAR[provider];
     if (!envVar) {
@@ -49,21 +51,21 @@ export class OpenCodeCliAdapter implements AgentAdapter {
       HOME: process.env.HOME,
     };
 
-    await this.opts.capture.write({
-      ts: new Date().toISOString(),
+    // OpenCode CLI takes one positional prompt; we flatten system+user with
+    // a delimiter for the wire while emitting the structured shape to observers.
+    const wirePrompt = spec.system ? `${spec.system}\n\n${spec.user}` : spec.user;
+
+    this.events.emit({
       kind: 'request',
-      payload: {
-        bin,
-        model,
-        provider,
-        promptLength: prompt.length,
-        mcpSuppression: ['env:OPENCODE_DISABLE_MCP', 'config:empty-mcp', 'flag:--no-mcp'],
-        _credentialSource: cred.source,
-      },
+      ts: new Date().toISOString(),
+      system: spec.system,
+      user: spec.user,
+      model,
+      provider,
     });
 
     return await new Promise<string>((resolve, reject) => {
-      const child = spawn(bin, ['run', '--no-mcp', '--model', model, prompt], {
+      const child = spawn(bin, ['run', '--no-mcp', '--model', model, wirePrompt], {
         env,
         stdio: ['ignore', 'pipe', 'pipe'],
       });
@@ -83,30 +85,43 @@ export class OpenCodeCliAdapter implements AgentAdapter {
 
       child.on('error', (err) => {
         clearTimeout(timer);
-        reject(
+        const wrapped =
           err.message.includes('ENOENT')
             ? new Error(`opencode binary not found: \`${bin}\`. Install it or pass { bin: <path> }.`)
-            : err
-        );
+            : err;
+        this.events.emit({
+          kind: 'error',
+          ts: new Date().toISOString(),
+          message: wrapped.message,
+          cause: err,
+        });
+        reject(wrapped);
       });
 
-      child.on('close', async (code) => {
+      child.on('close', (code) => {
         clearTimeout(timer);
         if (killed) {
-          return reject(new Error(`opencode timed out after ${timeoutMs}ms`));
+          const err = new Error(`opencode timed out after ${timeoutMs}ms`);
+          this.events.emit({
+            kind: 'error',
+            ts: new Date().toISOString(),
+            message: err.message,
+          });
+          return reject(err);
         }
         if (code !== 0) {
-          await this.opts.capture.write({
-            ts: new Date().toISOString(),
+          const err = new Error(`opencode exited ${code}: ${stderr.slice(0, 500)}`);
+          this.events.emit({
             kind: 'error',
-            payload: { exitCode: code, stderr },
+            ts: new Date().toISOString(),
+            message: err.message,
           });
-          return reject(new Error(`opencode exited ${code}: ${stderr.slice(0, 500)}`));
+          return reject(err);
         }
-        await this.opts.capture.write({
-          ts: new Date().toISOString(),
+        this.events.emit({
           kind: 'response',
-          payload: { stdout },
+          ts: new Date().toISOString(),
+          text: stdout,
         });
         resolve(stdout);
       });

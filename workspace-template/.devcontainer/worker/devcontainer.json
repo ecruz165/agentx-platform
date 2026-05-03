@@ -6,5 +6,5 @@
   },
   "workspaceFolder": "/workspace",
   "overrideCommand": false,
-  "shutdownAction": "stopContainer"
+  "shutdownAction": "none"
 }

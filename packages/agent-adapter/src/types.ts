@@ -1,14 +1,11 @@
-export interface CaptureEvent {
-  ts: string;
-  kind: 'request' | 'response' | 'error';
-  payload: unknown;
-}
+import type { AdapterEventSource } from './events.ts';
 
-export interface CaptureSink {
-  write(event: CaptureEvent): Promise<void>;
-  close(): Promise<void>;
+export interface InvocationSpec {
+  system?: string;
+  user: string;
 }
 
 export interface AgentAdapter {
-  invoke(prompt: string): Promise<string>;
+  readonly events: AdapterEventSource;
+  invoke(spec: InvocationSpec): Promise<string>;
 }

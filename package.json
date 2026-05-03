@@ -6,6 +6,8 @@
   "packageManager": "pnpm@9.12.0",
   "scripts": {
     "typecheck": "pnpm -r typecheck",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "host-only": "tsx examples/01-host-only.ts",
     "opencode-only": "tsx examples/02-opencode-host-only.ts",
     "roundtrip": "tsx examples/03-uds-roundtrip.ts",
@@ -15,6 +17,8 @@
     "dev:per-skill-demo": "tsx examples/07-per-skill-demo.ts",
     "dev:submit-demo": "tsx examples/08-job-submit-demo.ts",
     "dev:worker-demo": "tsx examples/09-worker-spawn-demo.ts",
+    "dev:events-demo": "tsx examples/10-job-events-demo.ts",
+    "dev:orchestrator-demo": "tsx examples/11-orchestrated-pipeline-demo.ts",
     "verify": "tsx examples/verify-no-leak.ts",
     "harness": "pnpm --filter @agentx/harness-cli exec tsx src/index.ts",
     "tui": "pnpm --silent harness tui",
@@ -34,6 +38,7 @@
     "@types/node": "^22.7.0",
     "tsx": "^4.19.0",
     "typescript": "^5.6.0",
+    "vitest": "^4.1.5",
     "yaml": "^2.6.0"
   }
 }

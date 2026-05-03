@@ -3,5 +3,5 @@
   "dockerComposeFile": "../docker-compose.yml",
   "service": "harness-server",
   "workspaceFolder": "/app",
-  "shutdownAction": "stopCompose"
+  "shutdownAction": "none"
 }

@@ -106,7 +106,10 @@ export async function spawnWorker(spec: WorkerSpawnSpec): Promise<SpawnResult> {
     });
   }
 
-  const containerName = `agentx-job-${spec.jobId}`;
+  const containerName =
+    subagentId === 'main'
+      ? `agentx-job-${spec.jobId}`
+      : `agentx-job-${spec.jobId}-${subagentId}`;
   const overrideConfig = {
     name: containerName,
     image: 'agentx/worker:0.0.0',
@@ -138,8 +141,13 @@ export async function spawnWorker(spec: WorkerSpawnSpec): Promise<SpawnResult> {
   await writeFile(overridePath, JSON.stringify(overrideConfig, null, 2));
 
   const workerTemplate = join(spec.workspaceRoot, 'workspace-template/.devcontainer/worker');
+  // --id-label scopes devcontainer-cli's identity per (job, subagent), so concurrent
+  // jobs sharing this template folder don't collide and --remove-existing-container
+  // only affects retries of the same job, not other in-flight jobs.
   const spawnCommand =
     `devcontainer up --workspace-folder ${workerTemplate} ` +
+    `--id-label harness-job-id=${spec.jobId} ` +
+    `--id-label harness-subagent=${subagentId} ` +
     `--override-config ${overridePath} --remove-existing-container`;
 
   return {

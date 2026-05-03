@@ -10,6 +10,10 @@
   "scripts": {
     "typecheck": "tsc --noEmit"
   },
+  "dependencies": {
+    "@agentx/agent-adapter": "workspace:*",
+    "@agentx/auth-lib": "workspace:*"
+  },
   "devDependencies": {
     "@types/node": "^22.7.0",
     "typescript": "^5.6.0"

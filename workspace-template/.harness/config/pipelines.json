@@ -1,0 +1,28 @@
+{
+  "pipelines": [
+    {
+      "id": "feature-add",
+      "description": "Starter pipeline — plan, implement, review. CUSTOMIZE the system prompts and agent set for your team's actual workflow.",
+      "agents": [
+        {
+          "id": "planner",
+          "role": "Plan",
+          "adapter": "claude-sdk",
+          "systemPrompt": "TODO: replace with your planning system prompt. The planner reads the intent and produces a stepwise plan."
+        },
+        {
+          "id": "implementer",
+          "role": "Implement",
+          "adapter": "claude-sdk",
+          "systemPrompt": "TODO: replace with your implementation system prompt. The implementer follows the plan and produces concrete changes."
+        },
+        {
+          "id": "reviewer",
+          "role": "Review",
+          "adapter": "claude-sdk",
+          "systemPrompt": "TODO: replace with your review system prompt. The reviewer reads the diff and either approves or requests changes."
+        }
+      ]
+    }
+  ]
+}

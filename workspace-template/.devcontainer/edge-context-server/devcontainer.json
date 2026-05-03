@@ -3,5 +3,5 @@
   "dockerComposeFile": "../docker-compose.yml",
   "service": "edge-context-server",
   "workspaceFolder": "/app",
-  "shutdownAction": "stopCompose"
+  "shutdownAction": "none"
 }

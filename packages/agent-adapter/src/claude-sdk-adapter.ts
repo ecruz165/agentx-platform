@@ -1,46 +1,56 @@
 import Anthropic from '@anthropic-ai/sdk';
 import type { CredentialBroker } from '@agentx/auth-lib';
-import type { AgentAdapter, CaptureSink } from './types.ts';
+import { AdapterEventBus } from './events.ts';
+import type { AgentAdapter, InvocationSpec } from './types.ts';
 
 export interface ClaudeSdkAdapterOptions {
   broker: CredentialBroker;
-  capture: CaptureSink;
   model?: string;
 }
 
 export class ClaudeSdkAdapter implements AgentAdapter {
+  readonly events = new AdapterEventBus();
+
   constructor(private readonly opts: ClaudeSdkAdapterOptions) {}
 
-  async invoke(prompt: string): Promise<string> {
+  async invoke(spec: InvocationSpec): Promise<string> {
     const cred = await this.opts.broker.getCredential('anthropic');
     const client = new Anthropic({ apiKey: cred.apiKey });
+    const model = this.opts.model ?? 'claude-opus-4-7';
 
-    const request = {
-      model: this.opts.model ?? 'claude-opus-4-7',
-      max_tokens: 256,
-      messages: [{ role: 'user' as const, content: prompt }],
-    };
-
-    await this.opts.capture.write({
-      ts: new Date().toISOString(),
+    this.events.emit({
       kind: 'request',
-      payload: { ...request, _credentialSource: cred.source },
+      ts: new Date().toISOString(),
+      system: spec.system,
+      user: spec.user,
+      model,
+      provider: 'anthropic',
     });
 
     try {
-      const resp = await client.messages.create(request);
-      await this.opts.capture.write({
-        ts: new Date().toISOString(),
-        kind: 'response',
-        payload: resp,
+      const resp = await client.messages.create({
+        model,
+        max_tokens: 256,
+        ...(spec.system ? { system: spec.system } : {}),
+        messages: [{ role: 'user', content: spec.user }],
       });
       const block = resp.content[0];
-      return block?.type === 'text' ? block.text : '';
-    } catch (err) {
-      await this.opts.capture.write({
+      const text = block?.type === 'text' ? block.text : '';
+
+      this.events.emit({
+        kind: 'response',
         ts: new Date().toISOString(),
+        text,
+        raw: resp,
+      });
+
+      return text;
+    } catch (err) {
+      this.events.emit({
         kind: 'error',
-        payload: { message: (err as Error).message },
+        ts: new Date().toISOString(),
+        message: (err as Error).message,
+        cause: err,
       });
       throw err;
     }

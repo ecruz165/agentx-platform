@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@agentx/auth-lib": "workspace:*",
+    "@agentx/harness-server": "workspace:*",
     "yaml": "^2.6.0"
   },
   "devDependencies": {

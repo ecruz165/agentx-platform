@@ -1,6 +1,8 @@
 import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
+import type { Envelope, RegisteredAgent } from '@agentx/harness-server';
+import { connectSseStream } from './sse-client.ts';
 import { udsRequest } from './uds-client.ts';
 
 /**
@@ -47,12 +49,18 @@ interface JobSummary {
   status?: string;
   submittedAt?: string;
   input?: string;
+  agents?: RegisteredAgent[];
 }
+
+const EVENT_BUFFER_CAP = 200;
 
 const state = {
   jobs: [] as JobSummary[],
   selectedIndex: 0,
   selectedDetail: null as JobSummary | null,
+  selectedJobId: null as string | null,
+  events: [] as Envelope[], // newest at end, capped at EVENT_BUFFER_CAP
+  sseUnsubscribe: null as (() => void) | null,
   error: null as string | null,
   loading: true,
 };
@@ -91,10 +99,49 @@ async function fetchDetail(id: string): Promise<JobSummary | null> {
   return body?.job ?? null;
 }
 
+/**
+ * Switches the live SSE subscription to track `jobId`. Buffer is reset on
+ * every switch so the right column shows only the selected job's stream.
+ * No-op when `jobId` matches the currently-tracked job.
+ */
+function attachSse(jobId: string): void {
+  if (state.selectedJobId === jobId && state.sseUnsubscribe) return;
+  detachSse();
+  state.selectedJobId = jobId;
+  state.events = [];
+  state.sseUnsubscribe = connectSseStream<Envelope>(
+    HARNESS_SOCKET,
+    `/v1/jobs/${jobId}/events`,
+    (envelope) => {
+      state.events.push(envelope);
+      if (state.events.length > EVENT_BUFFER_CAP) {
+        state.events.splice(0, state.events.length - EVENT_BUFFER_CAP);
+      }
+      render();
+    },
+    (err) => {
+      state.error = `SSE: ${err.message}`;
+      render();
+    }
+  );
+}
+
+function detachSse(): void {
+  if (state.sseUnsubscribe) {
+    try {
+      state.sseUnsubscribe();
+    } catch {
+      // ignore
+    }
+    state.sseUnsubscribe = null;
+  }
+}
+
 async function refresh(): Promise<void> {
   if (!existsSync(HARNESS_SOCKET)) {
     state.jobs = [];
     state.selectedDetail = null;
+    detachSse();
     state.error = 'harness-server is down — start it with pnpm tmux';
     return;
   }
@@ -103,6 +150,7 @@ async function refresh(): Promise<void> {
     state.error = null;
     if (state.jobs.length === 0) {
       state.selectedDetail = null;
+      detachSse();
       return;
     }
     if (state.selectedIndex >= state.jobs.length) {
@@ -110,6 +158,7 @@ async function refresh(): Promise<void> {
     }
     const id = state.jobs[state.selectedIndex]!.jobId;
     state.selectedDetail = await fetchDetail(id);
+    attachSse(id);
   } catch (err) {
     state.error = err instanceof Error ? err.message : String(err);
   }
@@ -184,14 +233,16 @@ function render(): void {
 
   // ── Footer summary ──
   const leftFoot = ` ${state.jobs.length} active`;
-  const midFoot = state.selectedDetail?.productRepos
-    ? ` ${state.selectedDetail.productRepos.length} agents (= repos)`
+  const midFoot = state.selectedDetail?.agents
+    ? ` ${state.selectedDetail.agents.length} agents`
     : ' —';
   const rightFoot = state.error
     ? ` ${RED}${trunc(state.error, rightW - 2)}${RESET}`
     : state.loading
       ? ` ${YELLOW}loading…${RESET}`
-      : ` ${DIM}MVP-3+ streams live${RESET}`;
+      : state.sseUnsubscribe
+        ? ` ${GREEN}● live${RESET}  ${DIM}${state.events.length} events buffered${RESET}`
+        : ` ${DIM}— no stream${RESET}`;
   out += '│' + visualPad(leftFoot, leftW);
   out += '│' + visualPad(midFoot, midW);
   out += '│' + visualPad(rightFoot, rightW);
@@ -243,24 +294,34 @@ function renderAgentsCol(bodyRows: number): string[] {
     lines.push(visualPad(`  ${DIM}(no job selected)${RESET}`, w));
     return lines;
   }
-  // Header line
-  lines.push(visualPad(`  ${DIM}product:${RESET} ${trunc(job.productId ?? '?', w - 12)}`, w));
+  lines.push(visualPad(`  ${DIM}pipeline:${RESET} ${trunc(job.pipeline ?? '?', w - 12)}`, w));
+  lines.push(visualPad(`  ${DIM}product:${RESET}  ${trunc(job.productId ?? '?', w - 12)}`, w));
   lines.push(visualPad('', w));
-  // One row per repo (= agent territory in MVP-1)
-  const repos = job.productRepos ?? [];
-  if (repos.length === 0) {
-    lines.push(visualPad(`  ${DIM}(no repos)${RESET}`, w));
+
+  const agents = job.agents ?? [];
+  if (agents.length === 0) {
+    lines.push(visualPad(`  ${DIM}(no agents registered)${RESET}`, w));
+    while (lines.length < bodyRows) lines.push(visualPad('', w));
     return lines;
   }
-  lines.push(visualPad(`  ${BOLD}agent (worktree)${RESET}        status`, w));
-  for (const repo of repos) {
-    const dot = state.error ? `${RED}○${RESET}` : `${GREEN}●${RESET}`;
-    const status = trunc(job.status ?? '?', 10);
-    const text = `  ${dot} ${trunc(repo, 22).padEnd(22)} ${DIM}${status}${RESET}`;
+
+  lines.push(visualPad(`  ${BOLD}agent${RESET}             role        status`, w));
+  for (const agent of agents) {
+    const dot = agentStatusColor(agent.status);
+    const id = trunc(agent.id, 16).padEnd(16);
+    const role = trunc(agent.role, 10).padEnd(10);
+    const text = `  ${dot} ${id} ${DIM}${role}${RESET} ${agentStatusColor(agent.status)} ${DIM}${agent.status}${RESET}`;
     lines.push(visualPad(text, w));
   }
   while (lines.length < bodyRows) lines.push(visualPad('', w));
   return lines;
+}
+
+function agentStatusColor(status: string): string {
+  if (status === 'completed') return `${GREEN}●${RESET}`;
+  if (status === 'failed') return `${RED}●${RESET}`;
+  if (status === 'running') return `${CYAN}●${RESET}`;
+  return `${DIM}○${RESET}`;
 }
 
 function renderEventsCol(bodyRows: number): string[] {
@@ -276,20 +337,40 @@ function renderEventsCol(bodyRows: number): string[] {
   }
   const kv = (k: string, v: string) => visualPad(`  ${DIM}${pad(k, 12)}${RESET}${trunc(v, w - 14)}`, w);
   lines.push(kv('jobId:', job.jobId));
-  lines.push(kv('name:', job.name ?? '(unnamed)'));
   lines.push(kv('status:', job.status ?? '?'));
-  lines.push(kv('pipeline:', job.pipeline ?? '?'));
-  lines.push(kv('productId:', job.productId ?? '?'));
   lines.push(kv('submitted:', job.submittedAt ?? '?'));
   lines.push(visualPad('', w));
-  if (job.input) {
-    lines.push(visualPad(`  ${BOLD}input${RESET}`, w));
-    for (const ln of wrap(job.input, w - 4).slice(0, bodyRows - lines.length - 1)) {
-      lines.push(visualPad(`    ${ln}`, w));
+  lines.push(visualPad(`  ${BOLD}live events${RESET} ${DIM}(${state.events.length})${RESET}`, w));
+
+  const eventLines = state.events.map(formatEventLine);
+  // Show the most recent events that fit in the remaining body rows.
+  const slotsLeft = Math.max(0, bodyRows - lines.length);
+  const visible = eventLines.slice(-slotsLeft);
+  if (visible.length === 0) {
+    lines.push(visualPad(`  ${DIM}(awaiting events…)${RESET}`, w));
+  } else {
+    for (const line of visible) {
+      lines.push(visualPad(trunc(line, w), w));
     }
   }
   while (lines.length < bodyRows) lines.push(visualPad('', w));
   return lines;
+}
+
+function formatEventLine(envelope: Envelope): string {
+  const ts = envelope.event.ts.replace(/^.*T(\d\d:\d\d:\d\d).*$/, '$1');
+  const agent = trunc(envelope.agentId, 12).padEnd(12);
+  const kind = envelope.event.kind;
+  const kindColor = kind === 'error' ? RED : kind === 'response' ? GREEN : CYAN;
+  let preview = '';
+  if (envelope.event.kind === 'request') {
+    preview = trunc(envelope.event.user.replace(/\s+/g, ' '), 80);
+  } else if (envelope.event.kind === 'response') {
+    preview = trunc(envelope.event.text.replace(/\s+/g, ' '), 80);
+  } else if (envelope.event.kind === 'error') {
+    preview = trunc(envelope.event.message, 80);
+  }
+  return `  ${DIM}${ts}${RESET} ${agent} ${kindColor}${pad(kind, 8)}${RESET} ${preview}`;
 }
 
 // ── Input handling (raw mode) ──
@@ -298,6 +379,7 @@ let exiting = false;
 function teardown(): void {
   if (exiting) return;
   exiting = true;
+  detachSse();
   process.stdout.write(SHOW + RESET);
   if (process.stdin.isTTY && process.stdin.setRawMode) process.stdin.setRawMode(false);
 }
@@ -333,6 +415,7 @@ async function refreshDetail(): Promise<void> {
   if (state.jobs.length === 0) return;
   const id = state.jobs[state.selectedIndex]!.jobId;
   state.selectedDetail = await fetchDetail(id).catch(() => null);
+  attachSse(id);
   render();
 }
 
