@@ -64,6 +64,10 @@ const ossCode: SourceType = {
     skeletonExtraction: true,
     bodyExtraction: false,
     bodyExceptions: ['**/examples/**', '**/README*'],
+    // Emit OssFile/OssFunction/OssClass to match the declared graphSchema.
+    // First-party code-full keeps the canonical File/Function/Class
+    // (no labelPrefix → '' → unmodified).
+    labelPrefix: 'Oss',
     grammars: ['typescript', 'javascript', 'java', 'kotlin', 'python', 'go', 'rust', 'c', 'cpp'],
   },
 };

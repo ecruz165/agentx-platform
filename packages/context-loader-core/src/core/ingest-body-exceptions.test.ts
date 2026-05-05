@@ -74,7 +74,7 @@ describe('ingest() — oss-code bodyExceptions', () => {
       embedderClient: mockEmbedder(8),
     });
 
-    const fns = backend.nodesByLabel('Function');
+    const fns = backend.nodesByLabel('OssFunction');
     const lib = fns.find((n) => n.properties.name === 'compute');
     const example = fns.find((n) => n.properties.name === 'exampleUsage');
 
@@ -125,7 +125,7 @@ describe('ingest() — oss-code bodyExceptions', () => {
       backend,
       embedderClient: mockEmbedder(8),
     });
-    const fns = backend.nodesByLabel('Function');
+    const fns = backend.nodesByLabel('OssFunction');
     // With the real catalog (which has bodyExceptions), examples/ is
     // 'full', so this is the positive control. The negative case is
     // covered by the prior test's lib.ts assertion.

@@ -149,6 +149,53 @@ function foo(a: number | string): number | string {
   });
 });
 
+describe('chunkCodeFull — labelPrefix', () => {
+  it('default behavior is unchanged (no prefix)', async () => {
+    const out = await chunkCodeFull({
+      relativePath: 't.ts',
+      content: 'function f() {}\nclass C {}\n',
+      sourceTypeId: 'code-full',
+      sourceId: 'ws',
+    });
+    const labels = new Set(out.nodes.map((n) => n.label));
+    expect(labels.has('File')).toBe(true);
+    expect(labels.has('Function')).toBe(true);
+    expect(labels.has('Class')).toBe(true);
+  });
+
+  it('prefixes File / Function / Class with the labelPrefix', async () => {
+    const out = await chunkCodeFull({
+      relativePath: 'pkg.ts',
+      content: 'function f() {}\nclass C {}\n',
+      sourceTypeId: 'oss-code',
+      sourceId: 'react@18.2.0',
+      labelPrefix: 'Oss',
+    });
+    const labels = new Set(out.nodes.map((n) => n.label));
+    expect(labels.has('OssFile')).toBe(true);
+    expect(labels.has('OssFunction')).toBe(true);
+    expect(labels.has('OssClass')).toBe(true);
+    // Plain (un-prefixed) labels should NOT appear.
+    expect(labels.has('File')).toBe(false);
+    expect(labels.has('Function')).toBe(false);
+    expect(labels.has('Class')).toBe(false);
+  });
+
+  it('Contains edge label is not prefixed (edge schema has its own naming)', async () => {
+    const out = await chunkCodeFull({
+      relativePath: 'pkg.ts',
+      content: 'function f() {}\n',
+      sourceTypeId: 'oss-code',
+      sourceId: 'pkg@1.0.0',
+      labelPrefix: 'Oss',
+    });
+    const containsEdges = out.edges.filter((e) => e.label === 'Contains');
+    expect(containsEdges.length).toBeGreaterThan(0);
+    // No 'OssContains' edges — labelPrefix only affects nodes for now.
+    expect(out.edges.find((e) => e.label === 'OssContains')).toBeUndefined();
+  });
+});
+
 describe('chunkCodeFull — extension dispatch', () => {
   it('returns empty output for unsupported extensions', async () => {
     const out = await chunkCodeFull({

@@ -104,7 +104,24 @@ export interface EmbedderConfig {
  * ./core/chunkers/. Phase A only ships the type stub; Phase B implements.
  */
 export type ChunkerRef =
-  | { type: 'tree-sitter'; granularity: 'function-class' | 'module'; skeletonExtraction?: boolean; bodyExtraction?: boolean; bodyExceptions?: string[]; grammars?: string[] }
+  | {
+      type: 'tree-sitter';
+      granularity: 'function-class' | 'module';
+      skeletonExtraction?: boolean;
+      bodyExtraction?: boolean;
+      bodyExceptions?: string[];
+      grammars?: string[];
+      /**
+       * Optional prefix prepended to every chunker-emitted node label.
+       * `oss-code` sets this to 'Oss' so its chunker emits OssFile /
+       * OssFunction / OssClass instead of plain File / Function / Class.
+       * Aligns with the source type's declared graphSchema; without
+       * this, the schema's vector indexes would be created on labels
+       * the chunker never produces (the indexed labels are empty).
+       * Default: '' (no prefix; first-party code keeps File/Function/Class).
+       */
+      labelPrefix?: string;
+    }
   | { type: 'heading-based'; maxTokens?: number; overlapTokens?: number }
   | { type: 'whole-file' }
   | { type: 'pdf-page'; visionFallback?: boolean }

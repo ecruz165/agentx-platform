@@ -62,6 +62,18 @@ export interface CodeFullChunkInput {
    *   larger surfaces while preserving usage-pattern discoverability.
    */
   mode?: 'full' | 'skeleton-only';
+  /**
+   * Optional prefix prepended to every emitted node label. oss-code uses
+   * 'Oss' to produce OssFile / OssFunction / OssClass and align with its
+   * declared graphSchema. Default: '' — first-party code keeps the
+   * canonical File / Function / Class labels.
+   *
+   * Affects chunker-emitted *node* labels only; edge labels stay as
+   * declared on the schema (Contains, etc.). Cross-source-type relabeling
+   * of edges (e.g., Contains → BelongsTo for oss-code) is a separate
+   * concern that lands when Package / Version provenance arrives.
+   */
+  labelPrefix?: string;
 }
 
 export interface CodeFullChunkOutput {
@@ -203,11 +215,13 @@ export async function chunkCodeFull(
   const edges: GraphEdge[] = [];
   const chunks: Array<{ nodeId: string; text: string }> = [];
 
+  const labelPrefix = input.labelPrefix ?? '';
+
   // File node — every code-full ingest emits one per file as the parent.
   const fileId = input.relativePath;
   nodes.push({
     id: fileId,
-    label: 'File',
+    label: `${labelPrefix}File`,
     properties: {
       path: input.relativePath,
       grammar: grammarKey,
@@ -291,7 +305,9 @@ function extractDeclaration(
   // Symbol id: relativePath#name:startLine. Line number disambiguates the
   // (rare) case of identically-named declarations in the same file.
   const symbolId = `${fileId}#${name}:${startLine}`;
-  const label = NODE_TYPE_TO_LABEL[node.type] ?? 'Function';
+  const baseLabel = NODE_TYPE_TO_LABEL[node.type] ?? 'Function';
+  const labelPrefix = input.labelPrefix ?? '';
+  const label = `${labelPrefix}${baseLabel}`;
 
   const graphNode: GraphNode = {
     id: symbolId,

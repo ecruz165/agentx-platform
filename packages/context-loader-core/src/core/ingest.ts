@@ -158,6 +158,11 @@ export async function ingest(spec: IngestSpecExt): Promise<IngestionSummary> {
                   ? 'full'
                   : 'skeleton-only'
                 : 'full',
+            // Source-type-declared label prefix. oss-code → 'Oss' so
+            // emitted nodes (OssFile/OssFunction/OssClass) match the
+            // schema's declared labels and the schema's vector indexes
+            // actually contain rows.
+            labelPrefix: sourceType.chunker.labelPrefix,
           });
 
     spec.onEvent?.({
