@@ -151,6 +151,8 @@ function eventPreview(env: Envelope): string {
     case 'request': return e.user.slice(0, 80);
     case 'response': return e.text.slice(0, 80);
     case 'error': return e.message;
+    case 'loader-event':
+      return `[${e.innerKind}] files=${e.counts.files} chunks=${e.counts.chunks} vectors=${e.counts.vectors}`;
   }
 }
 

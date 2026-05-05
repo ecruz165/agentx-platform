@@ -537,6 +537,45 @@ interface LoadOpts {
   exitOnComplete?: boolean;
 }
 
+async function loadViaHarnessServer(
+  jobId: string,
+  flags: LoadFlags,
+  productId: string | undefined,
+  exitOnComplete: boolean
+): Promise<number> {
+  // Submit the intent — server responds OK once it has registered the job
+  // and started the loader. Progress flows back via SSE on the existing
+  // /v1/jobs/:id/events stream, picked up by jobs-tui automatically.
+  await udsRequest(HARNESS_SOCKET, 'POST', '/v1/loader-jobs', {
+    jobId,
+    name: productId ? `load: ${flags.type} (${productId})` : `load: ${flags.type}`,
+    productId,
+    target: flags.target,
+    type: flags.type,
+    backend: flags.backend,
+    backendUser: flags.backendUser,
+    backendPassword: flags.backendPassword,
+    embedderUrl: flags.embedderUrl,
+    embedderModel: flags.embedderModel,
+    embedderDim: flags.embedderDim,
+    workspaceRoot: WORKSPACE_ROOT,
+  });
+
+  process.stderr.write(
+    `harness context load: submitted ${jobId} to harness-server.\n` +
+      `  Open jobs-tui (\`harness jobs-tui\`) to watch progress live.\n` +
+      `  Or follow events: harness jobs ${jobId} events (TBD).\n`
+  );
+
+  // We deliberately do NOT block on completion — the server owns the
+  // job's lifecycle now, and the human's typing thread is freed up to
+  // open jobs-tui or move on. Exit code 0 means "submitted," not
+  // "completed." For the wait-here behavior, users can fall back to the
+  // in-process path by stopping harness-server first.
+  if (exitOnComplete) process.exit(0);
+  return 0;
+}
+
 async function loadSingleSource(
   flags: LoadFlags,
   productId: string | undefined,
@@ -549,13 +588,14 @@ async function loadSingleSource(
   // already captured on every emitted node's sourceId.
   const jobId = `l-${randomUUID().slice(0, 8)}`;
 
-  // v1 dispatch: in-process spawn through harness-server's spawnLoaderJob.
-  // No running harness-server required; this path works in any workspace
-  // with the agentx-load binary on disk. Future enhancement: detect a
-  // running harness-server (HARNESS_SOCKET present + responding) and POST
-  // the LoadJobIntent over UDS so the worker is owned by the long-running
-  // server and visible to jobs-tui. The dual mode matches
-  // project_dual_mode_local_and_ecs.
+  // Dual-mode dispatch (per project_dual_mode_local_and_ecs):
+  //   - If HARNESS_SOCKET is reachable, POST a LoaderJobIntent so the
+  //     loader runs under harness-server and is visible to jobs-tui.
+  //   - Otherwise, spawn the loader in-process. Same observed behavior
+  //     for the user; only difference is whether jobs-tui can see it.
+  if (existsSync(HARNESS_SOCKET)) {
+    return loadViaHarnessServer(jobId, flags, productId, exitOnComplete);
+  }
   const handle = await spawnLoaderJob({
     jobId,
     target: flags.target,

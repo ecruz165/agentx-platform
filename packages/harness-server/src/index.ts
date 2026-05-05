@@ -15,6 +15,7 @@ import {
   type RegisteredAgent,
 } from '@agentx/harness-core';
 import type { CredentialBroker } from '@agentx/agent-auth-lib';
+import { spawnLoaderJob, type LoaderEvent } from './loader-spawn.ts';
 
 export {
   spawnWorker,
@@ -167,6 +168,15 @@ function route(req: IncomingMessage, res: ServerResponse, ctx: ServerCtx) {
       return;
     }
 
+    // POST /v1/loader-jobs — spawn an agentx-load worker, register it as
+    // a JobRecord, bridge its events onto the JobBus as 'loader-event'
+    // adapter envelopes. Once registered, jobs-tui sees the loader in
+    // GET /v1/jobs and the SSE stream picks up its progress envelopes.
+    if (req.method === 'POST' && url === '/v1/loader-jobs' && parsed && typeof parsed === 'object') {
+      void handleSubmitLoaderJob(res, parsed as Record<string, unknown>, ctx);
+      return;
+    }
+
     // GET /v1/jobs — list summaries (newest first)
     if (req.method === 'GET' && url === '/v1/jobs') {
       const list = [...ctx.jobs.values()].reverse();
@@ -258,6 +268,147 @@ function handleSubmitJob(res: ServerResponse, body: Record<string, unknown>, ctx
         broker,
         adapterFactory,
       });
+    });
+  }
+}
+
+async function handleSubmitLoaderJob(
+  res: ServerResponse,
+  body: Record<string, unknown>,
+  ctx: ServerCtx
+): Promise<void> {
+  const jobId = typeof body.jobId === 'string' ? body.jobId : null;
+  const target = typeof body.target === 'string' ? body.target : null;
+  const type = typeof body.type === 'string' ? body.type : null;
+  const backend = typeof body.backend === 'string' ? body.backend : null;
+  const embedderUrl = typeof body.embedderUrl === 'string' ? body.embedderUrl : null;
+  const workspaceRoot =
+    typeof body.workspaceRoot === 'string' ? body.workspaceRoot : null;
+
+  if (!jobId || !target || !type || !backend || !embedderUrl || !workspaceRoot) {
+    badRequest(
+      res,
+      'jobId, target, type, backend, embedderUrl, workspaceRoot are all required'
+    );
+    return;
+  }
+
+  // Register the loader as a single-agent job up-front so GET /v1/jobs
+  // sees it immediately. The synthetic 'loader' agent is the bridge from
+  // the loader's IngestionEvent stream onto the JobBus — there's no real
+  // agent process behind it, just our event adapter.
+  const submittedAt = new Date().toISOString();
+  const loaderAgent: RegisteredAgent = {
+    id: 'loader',
+    role: 'Loader',
+    adapter: 'loader-spawn' as AdapterId,
+    status: 'running',
+  };
+  const job: JobRecord = {
+    jobId,
+    name: typeof body.name === 'string' ? body.name : `load: ${type}`,
+    productId: typeof body.productId === 'string' ? body.productId : undefined,
+    status: 'running',
+    submittedAt,
+    agents: [loaderAgent],
+  } as JobRecord;
+  ctx.jobs.set(jobId, job);
+
+  // Respond to the client immediately — they asked to start a job, not to
+  // block until it finishes. The client polls /v1/jobs/:id or subscribes
+  // to /v1/jobs/:id/events for progress.
+  ok(res, {
+    service: 'harness',
+    method: 'POST',
+    path: '/v1/loader-jobs',
+    body,
+    job,
+    ts: submittedAt,
+  });
+
+  // Counters tracked across all incoming LoaderEvents — published onto
+  // the JobBus on every event so the TUI's SSE consumer sees a smooth
+  // running total instead of having to replay+aggregate the raw stream.
+  const counts = {
+    files: 0,
+    chunks: 0,
+    nodes: 0,
+    edges: 0,
+    vectors: 0,
+    errors: 0,
+  };
+
+  let handle: Awaited<ReturnType<typeof spawnLoaderJob>>;
+  try {
+    handle = await spawnLoaderJob({
+      jobId,
+      target,
+      type,
+      backend,
+      backendUser: typeof body.backendUser === 'string' ? body.backendUser : undefined,
+      backendPassword:
+        typeof body.backendPassword === 'string' ? body.backendPassword : undefined,
+      embedderUrl,
+      embedderModel:
+        typeof body.embedderModel === 'string' ? body.embedderModel : undefined,
+      embedderDim:
+        typeof body.embedderDim === 'number' ? body.embedderDim : undefined,
+      workspaceRoot,
+    });
+  } catch (err) {
+    job.status = 'failed';
+    loaderAgent.status = 'failed';
+    ctx.bus.publish(jobId, 'loader', {
+      kind: 'error',
+      ts: new Date().toISOString(),
+      message: `loader failed to start: ${(err as Error).message}`,
+    });
+    return;
+  }
+
+  handle.subscribe((event: LoaderEvent) => {
+    switch (event.kind) {
+      case 'item-walked':
+        counts.files++;
+        break;
+      case 'chunk-produced':
+        counts.chunks += Number(event.chunkCount ?? 0);
+        break;
+      case 'node-written':
+        counts.nodes++;
+        break;
+      case 'edge-written':
+        counts.edges++;
+        break;
+      case 'chunk-embedded':
+        counts.vectors++;
+        break;
+      case 'error':
+        counts.errors++;
+        break;
+    }
+    const lastItem =
+      typeof event.itemId === 'string' ? event.itemId : undefined;
+    ctx.bus.publish(jobId, 'loader', {
+      kind: 'loader-event',
+      ts: new Date().toISOString(),
+      counts: { ...counts },
+      lastItem,
+      innerKind: event.kind,
+    });
+  });
+
+  try {
+    await handle.whenComplete;
+    job.status = 'completed';
+    loaderAgent.status = 'completed';
+  } catch (err) {
+    job.status = 'failed';
+    loaderAgent.status = 'failed';
+    ctx.bus.publish(jobId, 'loader', {
+      kind: 'error',
+      ts: new Date().toISOString(),
+      message: `loader job ended: ${(err as Error).message}`,
     });
   }
 }

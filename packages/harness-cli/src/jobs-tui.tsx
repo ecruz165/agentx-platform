@@ -100,12 +100,19 @@ function eventPreview(env: Envelope): string {
     case 'request': return e.user.replace(/\s+/g, ' ');
     case 'response': return e.text.replace(/\s+/g, ' ');
     case 'error': return e.message;
+    case 'loader-event': {
+      const c = e.counts;
+      const head = `[${e.innerKind}] files=${c.files} chunks=${c.chunks} nodes=${c.nodes} edges=${c.edges} vectors=${c.vectors}` +
+        (c.errors > 0 ? ` errors=${c.errors}` : '');
+      return e.lastItem ? `${head}  ${e.lastItem}` : head;
+    }
   }
 }
 
 function eventKindFg(kind: Envelope['event']['kind']): string {
   if (kind === 'error') return '#f87171';
   if (kind === 'response') return '#4ade80';
+  if (kind === 'loader-event') return '#a78bfa'; // purple — distinguishes loader streams from agent streams
   return '#06b6d4';
 }
 

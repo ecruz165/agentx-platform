@@ -28,6 +28,30 @@ export type AdapterEvent =
       ts: string;
       message: string;
       cause?: unknown;
+    }
+  | {
+      // Loader (context-loader-cli) progress event, bridged onto the JobBus
+      // when a job's "agent" is actually an ingestion worker. Keeps the
+      // existing JobBus + SSE infrastructure usable without a parallel
+      // event-stream pipeline. The inner kind is the loader's IngestionEvent
+      // kind ('item-walked' | 'chunk-produced' | 'node-written' | …).
+      kind: 'loader-event';
+      ts: string;
+      /** Summary counters carried along so consumers don't have to replay
+       *  the full event log to know "how far is this loader." */
+      counts: {
+        files: number;
+        chunks: number;
+        nodes: number;
+        edges: number;
+        vectors: number;
+        errors: number;
+      };
+      /** The most recent file the loader walked (truncated for display). */
+      lastItem?: string;
+      /** Inner LoaderEvent kind so consumers can render different states
+       *  (e.g., 'source-completed' should look different from 'item-walked'). */
+      innerKind: string;
     };
 
 export interface AdapterEventSource {
