@@ -110,6 +110,13 @@ importers:
         version: 5.9.3
 
   packages/edge-context-server:
+    dependencies:
+      '@agentx/context-loader-core':
+        specifier: workspace:*
+        version: link:../context-loader-core
+      neo4j-driver:
+        specifier: ^6.0.1
+        version: 6.0.1
     devDependencies:
       '@types/node':
         specifier: ^22.7.0
