@@ -357,7 +357,16 @@ async function runIngest(args: CliArgs): Promise<number> {
       jobId: args.jobId,
     });
   }
-  const standalone = udsEmitter ? null : makeEventHandler(args);
+  // Output composition: when UDS is configured, we still want the
+  // standalone renderer if the user explicitly asked for `--output
+  // progress` or `--output json`. The "dual" mode (UDS + stdout) is
+  // exactly what the tmux-pane setup uses — UDS feeds JobBus + the
+  // jobs-tui dashboard while the pane shows the live progress bar.
+  // Default behavior unchanged: --output silent (or no flag) under UDS
+  // produces no stdout — same as before this change.
+  const useStandalone =
+    !udsEmitter || args.output === 'progress' || args.output === 'json';
+  const standalone = useStandalone ? makeEventHandler(args) : null;
 
   // SIGTERM in job mode: write a `cancelled` event and exit within 5s.
   // The AbortSignal we pass into ingest() lets the loader bail out
@@ -377,17 +386,19 @@ async function runIngest(args: CliArgs): Promise<number> {
       source: { type: args.type, ref: { kind: 'path', path: args.target } },
       backend,
       embedderClient,
-      onEvent: udsEmitter
-        ? (e) => udsEmitter!.emit(e)
-        : standalone!.onEvent,
+      onEvent: (e) => {
+        // Fire BOTH outputs when both are enabled (tmux-pane mode).
+        if (udsEmitter) udsEmitter.emit(e);
+        if (standalone) standalone.onEvent(e);
+      },
       signal: abortController.signal,
     });
     standalone?.finalize();
-    if (udsEmitter) {
-      // Job mode: summary went out as a source-completed event already.
-      // Don't pollute stdout — the worker container's logs should be
-      // empty on success.
-    } else {
+    if (!udsEmitter || args.output !== 'silent') {
+      // Standalone, or UDS+progress/json: print the summary so a tmux
+      // pane has something to show after the bar finishes redrawing.
+      // Only suppress when explicitly silent under UDS (the original
+      // pure worker-container behavior — empty stdout on success).
       process.stdout.write(`${JSON.stringify(summary, null, 2)}\n`);
     }
     return summary.errors > 0 ? 1 : 0;

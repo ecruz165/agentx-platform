@@ -596,6 +596,20 @@ async function loadSingleSource(
   if (existsSync(HARNESS_SOCKET)) {
     return loadViaHarnessServer(jobId, flags, productId, exitOnComplete);
   }
+
+  // Auto-tmux: when running inside an `agentx` tmux session, spawn the
+  // loader in its own pane in the `loaders` window. Each concurrent
+  // load gets a dedicated pane with native scrollback + the live
+  // --output progress bar redrawing in place. UDS events still flow to
+  // the parent so any TUI subscribers see structured updates too.
+  // Outside tmux, fall back to direct spawn (current behavior).
+  const tmuxPane =
+    process.env.TMUX && (process.env.AGENTX_TMUX_SESSION ?? 'agentx')
+      ? {
+          session: process.env.AGENTX_TMUX_SESSION ?? 'agentx',
+          window: 'loaders',
+        }
+      : undefined;
   const handle = await spawnLoaderJob({
     jobId,
     target: flags.target,
@@ -607,6 +621,7 @@ async function loadSingleSource(
     embedderModel: flags.embedderModel,
     embedderDim: flags.embedderDim,
     workspaceRoot: WORKSPACE_ROOT,
+    tmuxPane,
   });
 
   // Render progress to stderr so stdout stays clean for the final summary.

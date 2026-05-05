@@ -50,6 +50,27 @@ export interface LoaderSpawnSpec {
    *  packages/context-loader-cli (dev mode). Production builds set this to
    *  the path of the bundled binary. */
   agentxLoadCommand?: { command: string; prefixArgs?: string[] };
+  /**
+   * When set, spawn the loader inside its own tmux pane in this session +
+   * window so each concurrent loader has a dedicated pane for raw stdout
+   * + the live `--output progress` bar. The window is created lazily if
+   * absent. The parent doesn't track the child process directly — instead,
+   * `whenComplete` resolves on the `source-completed` UDS event and rejects
+   * on a heartbeat-based timeout if no events arrive for `tmuxIdleTimeoutMs`.
+   *
+   * Local-dev only: tmux is not available on ECS Fargate or in CI, so set
+   * this only when `process.env.TMUX` is present.
+   */
+  tmuxPane?: {
+    /** tmux session name, e.g. 'agentx'. */
+    session: string;
+    /** Window name within the session. Created if missing. */
+    window: string;
+  };
+  /** When tmux mode is on, reject `whenComplete` if no UDS events arrive
+   *  for this long (default 60_000ms) — a proxy for "the child crashed
+   *  inside the pane and we'll never see source-completed." */
+  tmuxIdleTimeoutMs?: number;
 }
 
 /** A single event that came off the UDS, including the wrapper fields the
@@ -179,17 +200,37 @@ export async function spawnLoaderJob(spec: LoaderSpawnSpec): Promise<LoaderJobHa
     server.listen(udsPath, () => resolve());
   });
 
-  // Spawn the child. We pass JOB_ID so the CLI's argv-parsing path is
-  // satisfied — the CLI rejects --output-events-uds without it.
+  // We pass JOB_ID so the CLI's argv-parsing path is satisfied — it
+  // rejects --output-events-uds without it.
   const cmd = spec.agentxLoadCommand ?? defaultAgentxLoadCommand();
-  const child: ChildProcess = spawn(
-    cmd.command,
-    [...(cmd.prefixArgs ?? []), ...buildArgs(spec, udsPath)],
-    {
-      env: { ...process.env, JOB_ID: spec.jobId },
-      stdio: ['ignore', 'pipe', 'pipe'],
-    }
-  );
+  const childArgs = [...(cmd.prefixArgs ?? []), ...buildArgs(spec, udsPath)];
+  const childEnv = { ...process.env, JOB_ID: spec.jobId };
+
+  // Two spawn paths:
+  //   - tmux mode: spawn the loader inside a dedicated pane. The parent
+  //     process doesn't track child exit (tmux-cli exits immediately
+  //     after creating the pane). Completion is detected via the UDS
+  //     `source-completed` event; failure via an idle timeout.
+  //   - direct mode: child_process.spawn the loader, capture stderr,
+  //     resolve/reject on child exit. Original v1 behavior.
+  if (spec.tmuxPane) {
+    return setupTmuxLoader({
+      spec,
+      cmd: cmd.command,
+      args: childArgs,
+      env: childEnv,
+      udsPath,
+      server,
+      subscribers,
+      events,
+      lastError: () => lastError,
+    });
+  }
+
+  const child: ChildProcess = spawn(cmd.command, childArgs, {
+    env: childEnv,
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
 
   // Capture stderr for diagnostics. stdout should be empty in --output silent
   // mode, but we drain it anyway to avoid backpressure.
@@ -250,4 +291,169 @@ export async function spawnLoaderJob(spec: LoaderSpawnSpec): Promise<LoaderJobHa
       child.kill('SIGTERM');
     },
   };
+}
+
+/** tmux-mode spawn: shell out to `tmux split-window` so the loader runs
+ *  inside a dedicated pane with its own scrollback + visible progress
+ *  bar. Returns a handle whose whenComplete resolves on the UDS
+ *  `source-completed` event and rejects on idle timeout. The pane
+ *  outlives the parent; user can `tmux kill-pane` interactively or
+ *  through harness-cli's cancel(). */
+function setupTmuxLoader(deps: {
+  spec: LoaderSpawnSpec;
+  cmd: string;
+  args: string[];
+  env: NodeJS.ProcessEnv;
+  udsPath: string;
+  server: Server;
+  subscribers: Set<(event: LoaderEvent) => void>;
+  events: LoaderEvent[];
+  lastError: () => Error | null;
+}): LoaderJobHandle {
+  const { spec, cmd, args, env, udsPath, server, subscribers, events, lastError } = deps;
+  const pane = spec.tmuxPane!;
+  const idleTimeoutMs = spec.tmuxIdleTimeoutMs ?? 60_000;
+  let paneId: string | null = null;
+
+  // Lazy-create the window if missing. `tmux has-session` + `new-window`
+  // are idempotent enough for our purposes; if the user-named session
+  // doesn't exist, the whole tmux path fails fast.
+  try {
+    spawn('tmux', ['has-session', '-t', pane.session], { stdio: 'ignore' });
+    // Create the target window if absent (best-effort; ignore "duplicate window" errors).
+    const ensureWindow = spawn(
+      'tmux',
+      ['new-window', '-d', '-t', `${pane.session}:`, '-n', pane.window],
+      { stdio: ['ignore', 'pipe', 'pipe'] }
+    );
+    // Drain to avoid backpressure; we don't care about the result.
+    ensureWindow.stdout?.on('data', () => {});
+    ensureWindow.stderr?.on('data', () => {});
+  } catch {
+    // tmux not on PATH — caller should detect this before opting in.
+  }
+
+  // Build the shell-quoted command for tmux to run inside the pane.
+  // We use the array form rather than shell concatenation to avoid
+  // injection from spec values (workspaceRoot, target paths, etc.).
+  // tmux's `split-window` accepts a single command string after `--`,
+  // so we shell-quote each token manually.
+  const quoted = [cmd, ...args].map(shellQuote).join(' ');
+  // Inject the JOB_ID into the pane's env via a leading `JOB_ID=… exec`.
+  // Each pane is a fresh shell, so process.env from the parent doesn't carry.
+  const fullCommand = `JOB_ID=${shellQuote(spec.jobId)} exec ${quoted}`;
+
+  // `-P -F '#{pane_id}'` returns the new pane id on stdout so we can
+  // target it for cancel() later.
+  const tmuxArgs = [
+    'split-window',
+    '-d',
+    '-t',
+    `${pane.session}:${pane.window}`,
+    '-P',
+    '-F',
+    '#{pane_id}',
+    fullCommand,
+  ];
+  const tmuxProc = spawn('tmux', tmuxArgs, { env, stdio: ['ignore', 'pipe', 'pipe'] });
+  let tmuxOut = '';
+  let tmuxErr = '';
+  tmuxProc.stdout?.on('data', (c) => (tmuxOut += c.toString()));
+  tmuxProc.stderr?.on('data', (c) => (tmuxErr += c.toString()));
+
+  const whenComplete: Promise<LoaderEvent> = new Promise((resolve, reject) => {
+    let resolved = false;
+    const finish = (fn: () => void): void => {
+      if (resolved) return;
+      resolved = true;
+      fn();
+    };
+    const cleanup = async (): Promise<void> => {
+      await new Promise<void>((res) => server.close(() => res()));
+      await unlink(udsPath).catch(() => {});
+    };
+
+    tmuxProc.on('exit', (code) => {
+      if (code !== 0) {
+        finish(() => {
+          void cleanup();
+          reject(
+            new Error(
+              `loader job ${spec.jobId}: tmux split-window failed (exit ${code}) — ${tmuxErr.trim() || 'no stderr'}`
+            )
+          );
+        });
+      } else {
+        paneId = tmuxOut.trim();
+      }
+    });
+
+    // Re-arm an idle timer on every event. If no events arrive for
+    // idleTimeoutMs, treat it as a crashed loader and reject.
+    let idleTimer: NodeJS.Timeout = setTimeout(onIdle, idleTimeoutMs);
+    function onIdle(): void {
+      finish(() => {
+        void cleanup();
+        const detail = lastError() ? `JSON parse: ${lastError()!.message}` : '';
+        reject(
+          new Error(
+            `loader job ${spec.jobId}: no UDS events for ${idleTimeoutMs}ms — pane likely crashed${detail ? ` — ${detail}` : ''}`
+          )
+        );
+      });
+    }
+
+    // Attach a passthrough subscriber that watches for source-completed
+    // and resets the idle timer on every event. Adding it via
+    // `subscribers.add` instead of through the public subscribe() so it
+    // doesn't appear in the subscriber count and never gets removed
+    // before completion.
+    const watchHandler = (event: LoaderEvent): void => {
+      clearTimeout(idleTimer);
+      idleTimer = setTimeout(onIdle, idleTimeoutMs);
+      if (event.kind === 'source-completed') {
+        clearTimeout(idleTimer);
+        finish(() => {
+          void cleanup();
+          resolve(event);
+        });
+      }
+    };
+    subscribers.add(watchHandler);
+  });
+
+  return {
+    jobId: spec.jobId,
+    subscribe(handler) {
+      subscribers.add(handler);
+      for (const e of events) {
+        try {
+          handler(e);
+        } catch {
+          /* isolated */
+        }
+      }
+      return () => subscribers.delete(handler);
+    },
+    whenComplete,
+    cancel() {
+      // Send SIGTERM to the pane's foreground process. tmux 3.0+ has
+      // `send-keys -l` for literal text, but the simpler approach is
+      // `kill-pane` — the loader's SIGTERM handler will fire on the
+      // pane being torn down because tmux sends SIGHUP to the child.
+      if (paneId) {
+        spawn('tmux', ['kill-pane', '-t', paneId], { stdio: 'ignore' });
+      }
+    },
+  };
+}
+
+/** Conservative shell-quoter for tmux's `command` argument. tmux uses
+ *  the first non-option argument as a shell command-line that gets
+ *  passed to /bin/sh -c, so single-quoting (with embedded-quote escape)
+ *  is the simplest safe path. */
+function shellQuote(s: string): string {
+  if (s === '') return "''";
+  if (/^[A-Za-z0-9_./:=-]+$/.test(s)) return s;
+  return `'${s.replace(/'/g, `'\\''`)}'`;
 }

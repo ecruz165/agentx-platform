@@ -354,6 +354,18 @@ async function handleSubmitLoaderJob(
       embedderDim:
         typeof body.embedderDim === 'number' ? body.embedderDim : undefined,
       workspaceRoot,
+      // Auto-tmux: if the harness-server itself was started inside a
+      // tmux session, spawn each loader in its own pane in the
+      // `loaders` window. The harness-cli that submitted this intent
+      // also sets this option when called from tmux; this is the
+      // belt-and-suspenders path for when the *server* runs in tmux
+      // but the submit comes from a different process (cron, web UI).
+      tmuxPane:
+        typeof body.tmuxPane === 'object' && body.tmuxPane !== null
+          ? (body.tmuxPane as { session: string; window: string })
+          : process.env.TMUX
+            ? { session: process.env.AGENTX_TMUX_SESSION ?? 'agentx', window: 'loaders' }
+            : undefined,
     });
   } catch (err) {
     job.status = 'failed';
