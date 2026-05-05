@@ -74,27 +74,46 @@ services:
 
   # Text embedder — used by edge-memory + edge-context to vectorize content.
   #
-  # Model: jinaai/jina-embeddings-v3 served via Hugging Face TEI.
-  # Why jina-v3 over ai/qwen3-embedding: Jina v3 is explicitly trained to
-  # be strong on BOTH code retrieval AND prose retrieval, which matches our
-  # mixed corpus (repo code + crawled docs + uploaded PDFs + agent memory
-  # notes). Also: 1024-dim default (same as qwen3-embedding-0.6B, so no
-  # schema change at sqlite-vec / Kuzu vector index layer); 100+ languages;
-  # 8192 context window; Matryoshka-truncatable to smaller dims (768/512/
-  # 256/128/64) if storage compactness becomes a concern.
+  # Default model: jinaai/jina-embeddings-v3 (1024-dim, strong on both code
+  # and prose, multilingual, 8192 context). Pinned in workspace memory at
+  # project_embedder_jina_v3.md.
+  #
+  # Swapping models for testing/benchmarking
+  # ────────────────────────────────────────
+  # The model is configurable via the EMBEDDER_MODEL env var so you can
+  # benchmark alternatives without editing this file. Most popular
+  # embedders speak HF safetensors and serve cleanly via TEI:
+  #
+  #   # default (jina v3, 1024-dim)
+  #   docker compose up
+  #
+  #   # swap to Qwen3-Embedding-0.6B (1024-dim)
+  #   EMBEDDER_MODEL=Qwen/Qwen3-Embedding-0.6B docker compose up
+  #
+  #   # swap to BGE-large-en (1024-dim, English-only)
+  #   EMBEDDER_MODEL=BAAI/bge-large-en-v1.5 docker compose up
+  #
+  #   # swap to mxbai-embed-large (1024-dim)
+  #   EMBEDDER_MODEL=mixedbread-ai/mxbai-embed-large-v1 docker compose up
+  #
+  #   # swap to nomic-embed-text (768-dim — schema dim change!)
+  #   EMBEDDER_MODEL=nomic-ai/nomic-embed-text-v1.5 docker compose up
+  #
+  # NOTE: changing dimension breaks the existing Kuzu / sqlite-vec vector
+  # indexes. For dim-mismatch swaps, drop the data volume first:
+  #   docker volume rm agentx-tei-model-cache  (model cache; safe)
+  #   plus the workspace's .harness/data/{memory,context} dirs (the actual
+  #   vector data; destructive — only do this when benchmarking from scratch)
   #
   # Distribution: TEI is HF's production-grade serving for HF embedding
   # models. OpenAI-compatible at /v1/embeddings. cpu-latest is multi-arch
   # (works on M-series Mac + x86_64 Linux). For GPU swap to `latest`
   # (NVIDIA CUDA) and uncomment device_requests below.
-  #
-  # The model downloads on first run (~2 GB). Named volume tei-model-cache
-  # keeps it across container restarts.
   embedder:
     image: ghcr.io/huggingface/text-embeddings-inference:cpu-latest
     container_name: agentx-embedder
     command:
-      - --model-id=jinaai/jina-embeddings-v3
+      - --model-id=${EMBEDDER_MODEL:-jinaai/jina-embeddings-v3}
       - --port=8080
     volumes:
       - tei-model-cache:/data
@@ -109,6 +128,44 @@ services:
     #         - driver: nvidia
     #           count: 1
     #           capabilities: [gpu]
+
+  # ─── Side-by-side embedders for benchmarking (profile=bench) ──────────
+  # When you want to compare retrieval quality across multiple embedders,
+  # bring up the `bench` profile to run them side-by-side. Each gets its
+  # own service name + DNS entry on harness-net; the context-loader CLI
+  # can be pointed at any of them via --embedder-url.
+  #
+  # Usage:
+  #   docker compose --profile bench up
+  #   agentx-load --embedder-url http://embedder-jina:8080/v1 --backend kuzu://./data/bench-jina <repo>
+  #   agentx-load --embedder-url http://embedder-qwen:8080/v1 --backend kuzu://./data/bench-qwen <repo>
+  #   agentx-load --embedder-url http://embedder-bge:8080/v1  --backend kuzu://./data/bench-bge  <repo>
+  #
+  # Each writes to a separate Kuzu directory so vector spaces stay
+  # isolated; downstream eval script queries each and compares.
+  embedder-jina:
+    image: ghcr.io/huggingface/text-embeddings-inference:cpu-latest
+    container_name: agentx-embedder-jina
+    command: [--model-id=jinaai/jina-embeddings-v3, --port=8080]
+    volumes: [tei-model-cache-jina:/data]
+    networks: [harness-net]
+    profiles: [bench]
+
+  embedder-qwen:
+    image: ghcr.io/huggingface/text-embeddings-inference:cpu-latest
+    container_name: agentx-embedder-qwen
+    command: [--model-id=Qwen/Qwen3-Embedding-0.6B, --port=8080]
+    volumes: [tei-model-cache-qwen:/data]
+    networks: [harness-net]
+    profiles: [bench]
+
+  embedder-bge:
+    image: ghcr.io/huggingface/text-embeddings-inference:cpu-latest
+    container_name: agentx-embedder-bge
+    command: [--model-id=BAAI/bge-large-en-v1.5, --port=8080]
+    volumes: [tei-model-cache-bge:/data]
+    networks: [harness-net]
+    profiles: [bench]
 
   # Self-hosted agent LLM — used by opencode-cli adapter when pipelines
   # opt in via `config.endpoint = http://agent-llm:8080/v1`. 8B-Q4_K_M
@@ -147,7 +204,16 @@ networks:
     name: agentx-harness-net
 
 volumes:
-  # TEI downloads jina-embeddings-v3 (~2 GB) on first run; persisted
-  # across container restarts so we don't re-download every time.
+  # TEI downloads the embedder model (~2 GB for jina-v3, varies per model)
+  # on first run; persisted across container restarts so swaps are fast
+  # after the first download.
   tei-model-cache:
     name: agentx-tei-model-cache
+  # Per-model caches for the bench profile so each embedder keeps its
+  # own download separately.
+  tei-model-cache-jina:
+    name: agentx-tei-model-cache-jina
+  tei-model-cache-qwen:
+    name: agentx-tei-model-cache-qwen
+  tei-model-cache-bge:
+    name: agentx-tei-model-cache-bge
