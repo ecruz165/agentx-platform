@@ -5,6 +5,7 @@ import { chmod, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { AuthStore, fetchGitHubUsername, loginGitHubCopilot, type Provider } from '@agentx/agent-auth-lib';
+import { spawnLoaderJob, type LoaderEvent } from '@agentx/harness-server';
 import { udsRequest } from './uds-client.ts';
 import {
   findProduct,
@@ -384,7 +385,150 @@ async function handleContext(args: string[]) {
     print(resp.body);
     return;
   }
-  die('Usage: harness context query <text>');
+
+  if (verb === 'load') {
+    return handleContextLoad(rest);
+  }
+
+  die('Usage: harness context <query|load>');
+}
+
+interface LoadFlags {
+  target: string;
+  type: string;
+  backend: string;
+  backendUser?: string;
+  backendPassword?: string;
+  embedderUrl: string;
+  embedderModel?: string;
+  embedderDim?: number;
+}
+
+function parseLoadArgs(args: string[]): LoadFlags {
+  let target: string | undefined;
+  const flags: Record<string, string> = {};
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i]!;
+    if (a.startsWith('--')) {
+      const [k, vInline] = a.slice(2).split('=', 2);
+      if (vInline !== undefined) {
+        flags[k!] = vInline;
+      } else {
+        const next = args[i + 1];
+        if (next !== undefined && !next.startsWith('--')) {
+          flags[k!] = next;
+          i++;
+        } else {
+          flags[k!] = 'true';
+        }
+      }
+    } else if (target === undefined) {
+      target = a;
+    } else {
+      die(`unexpected positional '${a}' (already have target '${target}')`);
+    }
+  }
+  if (!target) die('Usage: harness context load <target> [flags]');
+  if (!flags.type) die('missing required --type <id>');
+  if (!flags.backend) die('missing required --backend <url>');
+  if (!flags['embedder-url']) die('missing required --embedder-url <url>');
+  return {
+    target: resolve(target!),
+    type: flags.type,
+    backend: flags.backend,
+    backendUser: flags['backend-user'],
+    backendPassword: flags['backend-password'] ?? process.env.NEO4J_PASSWORD,
+    embedderUrl: flags['embedder-url'],
+    embedderModel: flags['embedder-model'],
+    embedderDim: flags['embedder-dim'] ? Number(flags['embedder-dim']) : undefined,
+  };
+}
+
+async function handleContextLoad(args: string[]) {
+  const parsed = parseLoadArgs(args);
+  const jobId = `load-${randomUUID().slice(0, 8)}`;
+
+  // v1 dispatch: in-process spawn through harness-server's spawnLoaderJob.
+  // No running harness-server required; this path works in any workspace
+  // with the agentx-load binary on disk. Future enhancement: detect a
+  // running harness-server (HARNESS_SOCKET present + responding) and POST
+  // the LoadJobIntent over UDS so the worker is owned by the long-running
+  // server and visible to jobs-tui. The dual mode matches
+  // project_dual_mode_local_and_ecs.
+  const handle = await spawnLoaderJob({
+    jobId,
+    target: parsed.target,
+    type: parsed.type,
+    backend: parsed.backend,
+    backendUser: parsed.backendUser,
+    backendPassword: parsed.backendPassword,
+    embedderUrl: parsed.embedderUrl,
+    embedderModel: parsed.embedderModel,
+    embedderDim: parsed.embedderDim,
+    workspaceRoot: WORKSPACE_ROOT,
+  });
+
+  // Render progress to stderr so stdout stays clean for the final summary.
+  // Same shape as agentx-load's --output progress mode but driven from
+  // events arriving over the UDS instead of in-process emission.
+  const counts = {
+    files: 0,
+    chunks: 0,
+    nodes: 0,
+    edges: 0,
+    vectors: 0,
+    errors: 0,
+    lastItem: '',
+  };
+  const renderProgress = (): void => {
+    const line =
+      `files=${counts.files} chunks=${counts.chunks} nodes=${counts.nodes} ` +
+      `edges=${counts.edges} vectors=${counts.vectors} errors=${counts.errors}` +
+      (counts.lastItem ? `  ${counts.lastItem}` : '');
+    process.stderr.write(`\r\x1b[K${line}`);
+  };
+
+  handle.subscribe((e: LoaderEvent) => {
+    switch (e.kind) {
+      case 'item-walked':
+        counts.files++;
+        counts.lastItem = String(e.itemId ?? '').slice(-40);
+        break;
+      case 'chunk-produced':
+        counts.chunks += Number(e.chunkCount ?? 0);
+        break;
+      case 'node-written':
+        counts.nodes++;
+        break;
+      case 'edge-written':
+        counts.edges++;
+        break;
+      case 'chunk-embedded':
+        counts.vectors++;
+        break;
+      case 'error':
+        counts.errors++;
+        process.stderr.write(`\nerror at ${e.phase}: ${e.message}\n`);
+        break;
+    }
+    renderProgress();
+  });
+
+  try {
+    const completion = await handle.whenComplete;
+    process.stderr.write(`\r\x1b[K`);
+    print({
+      jobId: completion.jobId,
+      filesIngested: completion.filesIngested,
+      chunksWritten: completion.chunksWritten,
+      vectorsWritten: completion.vectorsWritten,
+      errors: completion.errors,
+    });
+    process.exit(Number(completion.errors ?? 0) > 0 ? 1 : 0);
+  } catch (err) {
+    process.stderr.write(`\r\x1b[K`);
+    die(`load job failed: ${(err as Error).message}`);
+  }
 }
 
 async function readSession(): Promise<Session> {
@@ -434,6 +578,7 @@ function usage(): void {
       '  harness submit <pipeline> [--product <id>] [--name "<title>"] [--input <file>|--input-text "<text>"]',
       '  harness memory <query|put> <key> [value]',
       '  harness context query <text>',
+      '  harness context load <target> --type <id> --backend <url> --embedder-url <url>',
     ].join('\n')
   );
 }
