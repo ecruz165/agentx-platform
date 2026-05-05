@@ -24,6 +24,13 @@ export {
   type SpawnedWorktree,
 } from './spawn-worker.ts';
 
+export {
+  spawnLoaderJob,
+  type LoaderSpawnSpec,
+  type LoaderJobHandle,
+  type LoaderEvent,
+} from './loader-spawn.ts';
+
 // Re-export the harness-core surface so existing consumers (harness-cli,
 // examples) that import from '@agentx/harness-server' keep working unchanged.
 // New consumers should prefer importing from '@agentx/harness-core' directly.
