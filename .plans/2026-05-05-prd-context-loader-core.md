@@ -108,10 +108,14 @@ User stories:
 | ID | Requirement |
 |---|---|
 | F12 | Single TypeScript interface `GraphIngestionBackend` with `upsertNode`, `upsertEdge`, `upsertVector`, plus bulk variants and `ensureSchema(profile)`. |
-| F13 | Two adapters ship with v1: `KuzuIngestionBackend` (writes to a local Kuzu directory or via UDS to edge-context-server), `Neo4jIngestionBackend` (writes via Bolt protocol to a Neo4j endpoint). |
-| F14 | Backend selection at runtime via programmatic config. Loader code paths are backend-agnostic — they emit `GraphNode`/`GraphEdge`/`Vector` records; the backend translates to Cypher / Kuzu's dialect. |
-| F15 | Idempotent writes via content-hash dedup (per `prd-edge-context-server.md` F5). The backend computes content hashes per node and skips upserts when the hash matches an existing node. Re-running ingestion is safe. |
+| F13 | **Three backend implementations ship in v1**, all conforming to `GraphIngestionBackend`. Selection is by URL scheme passed via config or `--backend` flag: |
+| F13a | `KuzuDirectBackend` (`kuzu://path/to/dir`) — opens the Kuzu DB file in the loader's process. **Single-writer; NOT concurrent-safe.** Use for standalone solo invocations only. Two CLIs targeting the same Kuzu directory will fight over file locks. |
+| F13b | `KuzuViaServerBackend` (`kuzu+uds:///path/to/context.sock` or `kuzu+http://host:port`) — writes via HTTP/UDS to a long-running edge-context-server that owns the Kuzu DB exclusively. **Concurrent-safe** — the server multiplexes concurrent client connections and serializes writes at its connection layer. This is the default when a workspace's triad is up (`harness context source add ...` uses this implicitly). |
+| F13c | `Neo4jBackend` (`neo4j://host:port`, `bolt://...`, `neo4j+s://...`) — opens a Bolt protocol connection. **Concurrent-safe** — Neo4j's transaction layer serializes concurrent writes natively. Use for central-tier ingestion and any scenario with multiple concurrent CLIs writing to a shared graph. |
+| F14 | Backend selection at runtime via programmatic config or CLI flag. Loader code paths are backend-agnostic — they emit `GraphNode`/`GraphEdge`/`Vector` records; the backend translates to Cypher / Kuzu's dialect. |
+| F15 | Idempotent writes via content-hash dedup (per `prd-edge-context-server.md` F5). The backend computes content hashes per node and skips upserts when the hash matches an existing node. Re-running ingestion is safe. **Concurrent dedup**: when multiple CLIs ingest overlapping content simultaneously, content-hash upserts converge to the same final state regardless of write order. No special coordination needed. |
 | F16 | Backend implementations handle their own connection pooling, transaction batching, and error retries. The loader engine treats the backend as a write-only sink with `Promise<void>` return on each upsert (for backpressure). |
+| F16a | **Concurrent CLI execution is a first-class supported pattern.** Multiple `agentx-load` processes (or multiple `harness submit ingest` jobs) writing to the same target backend MUST work without coordination beyond what the backend provides. Choosing the right backend is the user's responsibility: KuzuDirect for solo, KuzuViaServer for local concurrent, Neo4j for central or production concurrent. |
 
 ### 6.4 Source-type-specific behaviors
 
