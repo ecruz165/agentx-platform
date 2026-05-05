@@ -73,15 +73,42 @@ services:
   # the shared `harness-net` bridge.
 
   # Text embedder — used by edge-memory + edge-context to vectorize content.
-  # 0.6B-F16 chosen for size/quality balance: ~1.1 GB image, ~1.5 GB working
-  # set, multilingual (119 languages), Apache 2.0. Pin tag deliberately —
-  # `latest` is the chunkier 4B variant.
+  #
+  # Model: jinaai/jina-embeddings-v3 served via Hugging Face TEI.
+  # Why jina-v3 over ai/qwen3-embedding: Jina v3 is explicitly trained to
+  # be strong on BOTH code retrieval AND prose retrieval, which matches our
+  # mixed corpus (repo code + crawled docs + uploaded PDFs + agent memory
+  # notes). Also: 1024-dim default (same as qwen3-embedding-0.6B, so no
+  # schema change at sqlite-vec / Kuzu vector index layer); 100+ languages;
+  # 8192 context window; Matryoshka-truncatable to smaller dims (768/512/
+  # 256/128/64) if storage compactness becomes a concern.
+  #
+  # Distribution: TEI is HF's production-grade serving for HF embedding
+  # models. OpenAI-compatible at /v1/embeddings. cpu-latest is multi-arch
+  # (works on M-series Mac + x86_64 Linux). For GPU swap to `latest`
+  # (NVIDIA CUDA) and uncomment device_requests below.
+  #
+  # The model downloads on first run (~2 GB). Named volume tei-model-cache
+  # keeps it across container restarts.
   embedder:
-    image: ai/qwen3-embedding:0.6B-F16
+    image: ghcr.io/huggingface/text-embeddings-inference:cpu-latest
     container_name: agentx-embedder
+    command:
+      - --model-id=jinaai/jina-embeddings-v3
+      - --port=8080
+    volumes:
+      - tei-model-cache:/data
     networks:
       - harness-net
     restart: unless-stopped
+    # GPU acceleration (uncomment + switch image to `latest` for CUDA):
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
 
   # Self-hosted agent LLM — used by opencode-cli adapter when pipelines
   # opt in via `config.endpoint = http://agent-llm:8080/v1`. 8B-Q4_K_M
@@ -118,3 +145,9 @@ networks:
   harness-net:
     driver: bridge
     name: agentx-harness-net
+
+volumes:
+  # TEI downloads jina-embeddings-v3 (~2 GB) on first run; persisted
+  # across container restarts so we don't re-download every time.
+  tei-model-cache:
+    name: agentx-tei-model-cache
