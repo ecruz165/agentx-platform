@@ -374,6 +374,22 @@ function setupTmuxLoader(deps: {
     };
 
     tmuxProc.on('exit', (code) => {
+      if (code === 0) {
+        // Tag the pane with the jobId so `harness attach <jobId>` can
+        // resolve it later. `select-pane -T` sets the pane title; that's
+        // what `list-panes -F '#{pane_title}'` returns.
+        const id = tmuxOut.trim();
+        if (id) {
+          const tag = spawn(
+            'tmux',
+            ['select-pane', '-t', id, '-T', `load-${spec.jobId}`],
+            { stdio: 'ignore' }
+          );
+          tag.on('error', () => {
+            /* tmux may have died between split + select; harmless */
+          });
+        }
+      }
       if (code !== 0) {
         finish(() => {
           void cleanup();

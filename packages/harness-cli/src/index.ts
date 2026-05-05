@@ -75,10 +75,129 @@ async function main() {
     case 'jobs-tui':
       await import('./jobs-tui.tsx');
       return;
+    case 'attach':
+      return handleAttach(rest);
     default:
       usage();
       process.exit(2);
   }
+}
+
+/**
+ * `harness attach [jobId]` — read-only tmux peek into the loaders
+ * window, optionally focusing the pane for a specific job.
+ *
+ * Per .plans/2026-04-30-prd-agentic-worker-lib.md §4: the `-r` flag
+ * keeps the attach read-only, so a developer can watch progress and
+ * scroll history without typing into the worker's stdin.
+ *
+ * Resolution: each loader pane is titled `load-<jobId>` at spawn time
+ * (see harness-server/loader-spawn.ts setupTmuxLoader). We list panes
+ * in the loaders window, find the one whose title matches the jobId
+ * arg, and `select-pane` to it before attaching.
+ *
+ * Falls back gracefully:
+ *   - tmux not installed → clear error
+ *   - no agentx tmux session → clear error
+ *   - no matching pane → attach to the loaders window anyway,
+ *     log a "couldn't find pane <jobId>" warning
+ */
+async function handleAttach(args: string[]) {
+  const session = process.env.AGENTX_TMUX_SESSION ?? 'agentx';
+  const window = 'loaders';
+  const jobId = args[0]; // optional positional
+
+  // Best-effort pane resolution if jobId is provided.
+  if (jobId) {
+    const target = `load-${jobId}`;
+    try {
+      const panes = await tmuxListPanes(session, window);
+      const match = panes.find((p) => p.title === target);
+      if (match) {
+        await tmuxRun(['select-pane', '-t', match.paneId]);
+      } else {
+        process.stderr.write(
+          `harness attach: no pane titled '${target}' in ${session}:${window}.\n` +
+            `  Attaching to the whole loaders window — you can navigate panes with ctrl-b o or ctrl-b q.\n`
+        );
+      }
+    } catch (err) {
+      process.stderr.write(
+        `harness attach: pane lookup failed (${(err as Error).message}); attaching to the loaders window.\n`
+      );
+    }
+  }
+
+  // Inside tmux already → switch-client (don't nest sessions). Outside →
+  // attach -r (read-only).
+  if (process.env.TMUX) {
+    await tmuxExec(['select-window', '-t', `${session}:${window}`]);
+  } else {
+    await tmuxExec(['attach-session', '-t', session, '-r']);
+  }
+}
+
+interface PaneInfo {
+  paneId: string;
+  title: string;
+}
+
+async function tmuxListPanes(
+  session: string,
+  window: string
+): Promise<PaneInfo[]> {
+  const out = await tmuxOutput([
+    'list-panes',
+    '-t',
+    `${session}:${window}`,
+    '-F',
+    '#{pane_id}\t#{pane_title}',
+  ]);
+  return out
+    .split('\n')
+    .filter((l) => l.includes('\t'))
+    .map((l) => {
+      const [paneId, title] = l.split('\t', 2);
+      return { paneId: paneId!, title: title ?? '' };
+    });
+}
+
+/** Run a tmux command and capture stdout; throws on non-zero exit. */
+async function tmuxOutput(args: string[]): Promise<string> {
+  const { spawn } = await import('node:child_process');
+  return new Promise((resolve, reject) => {
+    const child = spawn('tmux', args, { stdio: ['ignore', 'pipe', 'pipe'] });
+    let out = '';
+    let err = '';
+    child.stdout?.on('data', (c: Buffer) => (out += c.toString()));
+    child.stderr?.on('data', (c: Buffer) => (err += c.toString()));
+    child.on('error', reject);
+    child.on('exit', (code) => {
+      if (code === 0) resolve(out);
+      else reject(new Error(`tmux ${args.join(' ')} exited ${code}: ${err.trim()}`));
+    });
+  });
+}
+
+/** Fire-and-forget tmux command; logs stderr on failure but doesn't reject
+ *  — used for best-effort operations like select-pane. */
+async function tmuxRun(args: string[]): Promise<void> {
+  await tmuxOutput(args).catch(() => {});
+}
+
+/** Exec the user-facing tmux interaction (attach / switch-client). This
+ *  one needs to inherit stdio so the user actually sees / interacts with
+ *  tmux. Replaces this process's tty if attaching. */
+async function tmuxExec(args: string[]): Promise<void> {
+  const { spawn } = await import('node:child_process');
+  const child = spawn('tmux', args, { stdio: 'inherit' });
+  await new Promise<void>((resolve, reject) => {
+    child.on('error', reject);
+    child.on('exit', (code) => {
+      if (code === 0) resolve();
+      else reject(new Error(`tmux ${args[0]} exited ${code}`));
+    });
+  });
 }
 
 async function loadWorkspaceConfig(): Promise<WorkspaceConfig> {
@@ -773,6 +892,7 @@ function usage(): void {
       '  harness context query <text>',
       '  harness context load <target> --type <id> --backend <url> --embedder-url <url>',
       '  harness context load --product <id>            # loads all of a product\'s declared contextSources',
+      '  harness attach [jobId]                         # read-only tmux peek; attaches to loaders window',
     ].join('\n')
   );
 }
