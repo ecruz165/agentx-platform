@@ -73,6 +73,18 @@ const proseMarkdown: SourceType = {
   description: 'Local markdown docs — heading-based chunking; extracts links as LinkedFrom edges.',
   matcher: {
     include: ['**/*.{md,mdx,rst,txt}', '**/README*'],
+    // Skip dependency / build / VCS trees by default — users rarely want
+    // 50K READMEs from node_modules ingested as their own prose.
+    exclude: [
+      '**/node_modules/**',
+      '**/.git/**',
+      '**/dist/**',
+      '**/build/**',
+      '**/.next/**',
+      '**/target/**',
+      '**/venv/**',
+      '**/__pycache__/**',
+    ],
   },
   graphSchema: {
     nodes: ['Doc', 'Section'],

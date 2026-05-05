@@ -33,10 +33,29 @@ export {
   getBuiltinSourceType,
 } from './catalog/index.ts';
 
-// Phase A stub — fleshed out in Phase B with real chunker dispatch + backend writes
-export async function ingest(): Promise<never> {
-  throw new Error(
-    'ingest() not yet implemented. Phase A ships types + catalog only; ' +
-      'see .plans/2026-05-05-prd-context-loader-core.md §11 Phase B for the next milestone.'
-  );
-}
+// Phase B.0 — real ingest() for prose-markdown via path sources.
+// Other source types throw with explicit "not yet implemented" until
+// Phase B.1+ wires tree-sitter / crawl / API sources.
+export { ingest } from './core/ingest.ts';
+
+// Backends
+export { InMemoryGraphBackend } from './backends/index.ts';
+
+// Embedder client (for consumers wiring custom HTTP clients or mocks)
+export {
+  createHttpEmbedderClient,
+  EmbedderError,
+  type EmbedderClient,
+  type FetchFn,
+} from './core/embedder-client.ts';
+
+// Chunkers (for direct programmatic use; ingest() picks them automatically)
+export { chunkHeadingBased } from './core/chunkers/heading-based.ts';
+export type {
+  ChunkInput,
+  ChunkOutput,
+} from './core/chunkers/heading-based.ts';
+
+// Matcher + walker (lower-level, for custom orchestration)
+export { compileMatcher, type MatcherFn, type MatcherSpec } from './core/matcher.ts';
+export { walk, type WalkOptions, type WalkResult } from './core/walk.ts';
