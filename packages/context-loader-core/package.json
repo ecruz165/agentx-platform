@@ -14,7 +14,8 @@
   },
   "dependencies": {
     "@agentx/agent-adapter": "workspace:*",
-    "@agentx/agent-auth-lib": "workspace:*"
+    "@agentx/agent-auth-lib": "workspace:*",
+    "neo4j-driver": "^6.0.1"
   },
   "devDependencies": {
     "@types/node": "^22.7.0",

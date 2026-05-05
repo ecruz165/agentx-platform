@@ -20,3 +20,4 @@
  */
 
 export { InMemoryGraphBackend } from './in-memory.ts';
+export { Neo4jBackend, type Neo4jBackendOptions } from './neo4j.ts';

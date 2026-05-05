@@ -39,7 +39,7 @@ export {
 export { ingest } from './core/ingest.ts';
 
 // Backends
-export { InMemoryGraphBackend } from './backends/index.ts';
+export { InMemoryGraphBackend, Neo4jBackend, type Neo4jBackendOptions } from './backends/index.ts';
 
 // Embedder client (for consumers wiring custom HTTP clients or mocks)
 export {

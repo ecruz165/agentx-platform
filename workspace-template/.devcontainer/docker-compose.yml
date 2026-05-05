@@ -169,11 +169,14 @@ services:
       - neo4j-edge-logs:/logs
     networks:
       - harness-net
-    # Bolt 7687 + HTTP 7474 (HTTP useful for Neo4j Browser at localhost:7474
-    # if you publish ports during dev; not required for the triad to work).
-    # ports:
-    #   - "7687:7687"
-    #   - "7474:7474"
+    # Publish Bolt + HTTP on the host. Bolt is needed by `agentx-load`
+    # invocations from outside the network (CI scripts, host shell).
+    # HTTP serves Neo4j Browser at localhost:7474 (handy for ad-hoc Cypher).
+    # In production / ECS these stay closed — siblings reach Neo4j via
+    # service-name DNS on the internal network.
+    ports:
+      - "7687:7687"
+      - "7474:7474"
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:7474 >/dev/null || exit 1"]
