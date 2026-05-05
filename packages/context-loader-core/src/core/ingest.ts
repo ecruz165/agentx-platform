@@ -30,6 +30,7 @@ import {
   type ChunkOutput,
 } from './chunkers/heading-based.ts';
 import { chunkCodeFull } from './chunkers/tree-sitter.ts';
+import { chunkWholeFile } from './chunkers/whole-file.ts';
 import { readOssPackageMeta, buildProvenanceGraph } from './oss-meta.ts';
 import {
   createHttpEmbedderClient,
@@ -66,11 +67,16 @@ export async function ingest(spec: IngestSpecExt): Promise<IngestionSummary> {
       `Phase B: only SourceRef { kind: 'path' } is implemented; got ${spec.source.ref.kind}`
     );
   }
-  // Chunker dispatch — what's wired today: heading-based (B.0) and
-  // tree-sitter (B.2). Other chunker types throw a clear "not yet
-  // implemented" rather than silently producing zero chunks.
+  // Chunker dispatch — what's wired today: heading-based (B.0),
+  // tree-sitter (B.2), whole-file (learned source type). Other types
+  // throw a clear "not yet implemented" rather than silently producing
+  // zero chunks.
   const chunkerType = sourceType.chunker.type;
-  if (chunkerType !== 'heading-based' && chunkerType !== 'tree-sitter') {
+  if (
+    chunkerType !== 'heading-based' &&
+    chunkerType !== 'tree-sitter' &&
+    chunkerType !== 'whole-file'
+  ) {
     throw new Error(
       `Phase B: source type '${sourceType.id}' uses chunker '${chunkerType}' which is not yet implemented`
     );
@@ -160,42 +166,14 @@ export async function ingest(spec: IngestSpecExt): Promise<IngestionSummary> {
       continue;
     }
 
-    const chunked: ChunkOutput =
-      sourceType.chunker.type === 'heading-based'
-        ? chunkHeadingBased({
-            docId: item.relativePath,
-            title: basename(item.relativePath),
-            content,
-            sourceTypeId: sourceType.id,
-            sourceId: root,
-            maxTokens: sourceType.chunker.maxTokens,
-            overlapTokens: sourceType.chunker.overlapTokens,
-            // oss-docs declares 'Oss' to emit OssDoc + OssSection
-            // labels (matches its declared graphSchema).
-            labelPrefix: sourceType.chunker.labelPrefix,
-          })
-        : await chunkCodeFull({
-            relativePath: item.relativePath,
-            content,
-            sourceTypeId: sourceType.id,
-            sourceId: root,
-            // Mode picks per-file:
-            //   - bodyExtraction: true  → 'full' for everything
-            //   - bodyExtraction: false → 'skeleton-only' by default,
-            //     except paths matching bodyExceptions get 'full' (e.g.,
-            //     examples/ + READMEs in oss-code)
-            mode:
-              sourceType.chunker.bodyExtraction === false
-                ? bodyExceptionsMatcher && bodyExceptionsMatcher(item.relativePath)
-                  ? 'full'
-                  : 'skeleton-only'
-                : 'full',
-            // Source-type-declared label prefix. oss-code → 'Oss' so
-            // emitted nodes (OssFile/OssFunction/OssClass) match the
-            // schema's declared labels and the schema's vector indexes
-            // actually contain rows.
-            labelPrefix: sourceType.chunker.labelPrefix,
-          });
+    const chunked: ChunkOutput = await dispatchChunker(
+      sourceType.chunker,
+      item.relativePath,
+      content,
+      sourceType.id,
+      root,
+      bodyExceptionsMatcher
+    );
 
     spec.onEvent?.({
       kind: 'chunk-produced',
@@ -354,4 +332,71 @@ async function resolveEmbedder(spec: IngestSpecExt): Promise<EmbedderClient> {
     );
   }
   return createHttpEmbedderClient({ config: spec.embedder });
+}
+
+/** Per-file chunker dispatch. The catalog's chunker.type is the
+ *  authoritative selector; this function maps each one to its concrete
+ *  implementation + the appropriate input shape. New chunker types
+ *  (pdf-page, image-vision, crawler, issue-thread) plug in here. */
+async function dispatchChunker(
+  chunker: SourceType['chunker'],
+  relativePath: string,
+  content: string,
+  sourceTypeId: string,
+  sourceId: string,
+  bodyExceptionsMatcher: ((p: string) => boolean) | null
+): Promise<ChunkOutput> {
+  switch (chunker.type) {
+    case 'heading-based':
+      return chunkHeadingBased({
+        docId: relativePath,
+        title: basename(relativePath),
+        content,
+        sourceTypeId,
+        sourceId,
+        maxTokens: chunker.maxTokens,
+        overlapTokens: chunker.overlapTokens,
+        // oss-docs declares 'Oss' to emit OssDoc + OssSection labels
+        // (matches its declared graphSchema).
+        labelPrefix: chunker.labelPrefix,
+      });
+    case 'tree-sitter':
+      return chunkCodeFull({
+        relativePath,
+        content,
+        sourceTypeId,
+        sourceId,
+        // Mode picks per-file:
+        //   - bodyExtraction: true  → 'full' for everything
+        //   - bodyExtraction: false → 'skeleton-only' by default,
+        //     except paths matching bodyExceptions get 'full' (e.g.,
+        //     examples/ + READMEs in oss-code)
+        mode:
+          chunker.bodyExtraction === false
+            ? bodyExceptionsMatcher && bodyExceptionsMatcher(relativePath)
+              ? 'full'
+              : 'skeleton-only'
+            : 'full',
+        // Source-type-declared label prefix. oss-code → 'Oss' so
+        // emitted nodes (OssFile/OssFunction/OssClass) match the
+        // schema's declared labels and the schema's vector indexes
+        // actually contain rows.
+        labelPrefix: chunker.labelPrefix,
+      });
+    case 'whole-file':
+      return chunkWholeFile({
+        docId: relativePath,
+        content,
+        sourceTypeId,
+        sourceId,
+      });
+    default:
+      // Unreachable — the type guard at the top of ingest() rejects
+      // unimplemented chunker types before we get here. The exhaustive
+      // switch shape lets tsc enforce that future ChunkerRef variants
+      // either get a case here or fail typecheck.
+      throw new Error(
+        `internal: dispatchChunker fell through for chunker type '${(chunker as { type: string }).type}'`
+      );
+  }
 }

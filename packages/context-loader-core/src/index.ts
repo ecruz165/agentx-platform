@@ -60,6 +60,11 @@ export type {
   CodeFullChunkInput,
   CodeFullChunkOutput,
 } from './core/chunkers/tree-sitter.ts';
+export { chunkWholeFile } from './core/chunkers/whole-file.ts';
+export type {
+  WholeFileChunkInput,
+  WholeFileChunkOutput,
+} from './core/chunkers/whole-file.ts';
 
 // Matcher + walker (lower-level, for custom orchestration)
 export { compileMatcher, type MatcherFn, type MatcherSpec } from './core/matcher.ts';

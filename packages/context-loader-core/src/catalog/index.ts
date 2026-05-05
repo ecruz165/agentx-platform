@@ -260,9 +260,20 @@ const pdf: SourceType = {
 const learned: SourceType = {
   id: 'learned',
   description:
-    'End-of-job memory promotions — different lifecycle: written by harness-server\'s evaluator phase, not by user-triggered ingestion.',
-  matcher: {}, // not file-driven; programmatic only
+    'End-of-job lessons — written canonically by the checkout-coordinator (per project_checkout_coordinator memory). Path-based ingest exists for hand-curated learnings + tests; programmatic emit lands when checkout-coordinator becomes a real LLM agent.',
+  matcher: {
+    include: ['**/*.{md,mdx,txt}'],
+    exclude: [
+      '**/node_modules/**',
+      '**/.git/**',
+      '**/dist/**',
+      '**/build/**',
+    ],
+  },
   graphSchema: {
+    // One Learning node per file. DerivedFrom (Learning → Job) and
+    // RelatedTo (Learning → Learning) edges land when the checkout-
+    // coordinator + cross-link infrastructure is real.
     nodes: ['Learning'],
     edges: ['DerivedFrom', 'RelatedTo'],
   },
