@@ -85,7 +85,8 @@ services:
   # the shared `harness-net` bridge.
 
   # Text embedder — used by edge-memory + edge-context to vectorize content,
-  # and by @agentx/context-loader-core to index source content into Kuzu.
+  # and by @agentx/context-loader-core to index source content into the
+  # local `neo4j-edge` graph store.
   #
   # Default: ai/qwen3-embedding:0.6B-F16 (1024-dim native, no MRL truncation
   # needed; ~1.1 GB image, ~2.3 GB VRAM, multilingual across 119 languages).
@@ -133,11 +134,61 @@ services:
     profiles:
       - vision
 
+  # ─── Edge graph store ────────────────────────────────────────────────
+  # Local Neo4j Community sidecar that backs edge-context-server and is
+  # the write target for context-loader ingestion runs. The deployed
+  # central tier runs the same engine on ECS+EBS; only the bolt:// URL
+  # differs (workspace memory: project_central_graph_store_choice).
+  #
+  # Why a standalone sidecar (not bundled inside edge-context-server):
+  # cleaner restarts, clearer `docker compose logs`, and matches the
+  # service-DNS pattern of the other sidecars. Note: the ECS task topology
+  # (project_ecs_task_topology) co-locates them in one Fargate task —
+  # local compose ≠ ECS task topology, and that's expected.
+  #
+  # Resource defaults are conservative for a developer laptop:
+  #   - 1 GB heap, 512 MB pagecache (~1.5 GB JVM working set)
+  #   - 2 vCPU max in Fargate central tier; local has no cap
+  #
+  # Auth: NEO4J_AUTH=neo4j/<password> sets initial credentials. For local
+  # dev the default is `neo4j/devpassword`; rotate via env var override
+  # before sharing the workspace with anyone outside your machine.
+  neo4j-edge:
+    image: neo4j:5-community
+    container_name: agentx-neo4j-edge
+    environment:
+      NEO4J_AUTH: ${NEO4J_AUTH:-neo4j/devpassword}
+      # JVM tuning — see https://neo4j.com/docs/operations-manual/current/performance/memory-configuration/
+      NEO4J_server_memory_heap_initial__size: 512m
+      NEO4J_server_memory_heap_max__size: 1g
+      NEO4J_server_memory_pagecache_size: 512m
+      # Accept license (Community is free; flag is required by the image)
+      NEO4J_ACCEPT_LICENSE_AGREEMENT: "yes"
+    volumes:
+      - neo4j-edge-data:/data
+      - neo4j-edge-logs:/logs
+    networks:
+      - harness-net
+    # Bolt 7687 + HTTP 7474 (HTTP useful for Neo4j Browser at localhost:7474
+    # if you publish ports during dev; not required for the triad to work).
+    # ports:
+    #   - "7687:7687"
+    #   - "7474:7474"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:7474 >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
   # ─── Bench profile: local Qwen vs Bedrock Titan v2 ───────────────────
   # Bring up with `docker compose --profile bench up --build`. Each lane
   # gets its own DNS name on harness-net; the context-loader CLI points
-  # at any of them via --embedder-url and writes to a separate Kuzu
-  # directory so vector spaces stay isolated.
+  # at any of them via --embedder-url and writes to a separate Neo4j
+  # database (Community Edition supports only one logical DB, so each
+  # lane uses a distinct node label prefix or a separate Neo4j sidecar
+  # — see `bench/README.md` for the layout).
   #
   # The Bedrock lane needs AWS credentials. Two options (pick one):
   #   1) Mount your shared cred file (matches local AWS CLI workflow):
@@ -148,14 +199,15 @@ services:
   #        export AWS_SECRET_ACCESS_KEY=...
   #        export AWS_REGION=us-east-1
   #
-  # Usage:
+  # Usage (writes prefix-isolated nodes into a single Neo4j; query with
+  # `MATCH (n:Section_qwen_06) ...` style label suffixes):
   #   docker compose --profile bench up
   #   agentx-load --embedder-url http://embedder-qwen-small:8080/v1 \
-  #               --backend kuzu://./data/bench-qwen-0.6 <repo>
+  #               --backend bolt://neo4j-edge:7687 --label-suffix _qwen_06 <repo>
   #   agentx-load --embedder-url http://embedder-qwen-large:8080/v1 \
-  #               --backend kuzu://./data/bench-qwen-4 <repo>
+  #               --backend bolt://neo4j-edge:7687 --label-suffix _qwen_4  <repo>
   #   agentx-load --embedder-url http://embedder-bedrock:4000/v1 \
-  #               --backend kuzu://./data/bench-bedrock <repo>
+  #               --backend bolt://neo4j-edge:7687 --label-suffix _bedrock <repo>
   #
   # All three produce 1024-dim vectors (qwen-large via MRL truncation
   # passed as `dimensions: 1024` in the request; bedrock-titan-v2 native).
@@ -188,3 +240,12 @@ networks:
   harness-net:
     driver: bridge
     name: agentx-harness-net
+
+volumes:
+  # Neo4j Community on edge — graph data + logs persisted across container
+  # restarts. Drop the volume to start fresh (`docker volume rm
+  # agentx-neo4j-edge-data agentx-neo4j-edge-logs`).
+  neo4j-edge-data:
+    name: agentx-neo4j-edge-data
+  neo4j-edge-logs:
+    name: agentx-neo4j-edge-logs

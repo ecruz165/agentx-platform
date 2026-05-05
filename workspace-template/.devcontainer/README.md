@@ -94,7 +94,7 @@ But v1+ they diverge:
 |---|---|
 | `harness-server` | `@devcontainers/cli` for spawning per-job workers + `docker-outside-of-docker` |
 | `edge-memory-server` | `better-sqlite3` + `sqlite-vec` (native bindings) |
-| `edge-context-server` | KuzuDB + `tree-sitter-{typescript,python,java,kotlin}` (native bindings, multi-arch builds) |
+| `edge-context-server` | `neo4j-driver` (Bolt client to the co-located `neo4j-edge` sidecar) + `tree-sitter-{typescript,python,java,kotlin}` (native bindings, multi-arch builds) |
 
 Per F2–F4, the PRDs already commit to per-server Dockerfiles. Splitting now
 means MVP-2's per-server native deps slot in without restructuring.

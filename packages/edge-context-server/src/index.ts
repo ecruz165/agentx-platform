@@ -12,9 +12,10 @@ export interface ContextServerHandle {
 
 /**
  * MVP-0: echo server. Records and reflects every request — no storage.
- * MVP-2+: replace with KuzuDB GraphRAG + tree-sitter ingest per
- * prd-edge-context-server. Decision #2 keeps MCP banned: this server
- * exposes REST/UDS only, never an MCP surface.
+ * MVP-2+: replace with Neo4j GraphRAG (via Bolt to the co-located
+ * `neo4j-edge` sidecar) + tree-sitter ingest per prd-edge-context-server.
+ * Decision #2 keeps MCP banned: this server exposes REST/UDS only, never
+ * an MCP surface.
  *
  * Exposes endpoints under /v1/context/* per the PRD. v1 trust model:
  * socket file is mode 0600 (decision #5).

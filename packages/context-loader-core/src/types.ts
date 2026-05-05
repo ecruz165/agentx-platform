@@ -4,7 +4,7 @@
  * The shapes here are the contract between:
  *   - Consumers calling ingest() programmatically
  *   - The CLI (@agentx/context-loader-cli) wrapping them
- *   - Backend adapters (Kuzu, Neo4j) implementing GraphIngestionBackend
+ *   - Backend adapters (Neo4j) implementing GraphIngestionBackend
  *   - Source-type chunkers producing nodes/edges/vectors
  *
  * See .plans/2026-05-05-prd-context-loader-core.md §8 for the full design.
@@ -116,7 +116,7 @@ export type ChunkerRef =
 
 /**
  * A node to be upserted into the graph. The backend translates these
- * into Cypher (Neo4j) or Kuzu's dialect.
+ * into Cypher executed via the Neo4j Bolt driver.
  */
 export interface GraphNode {
   /** Stable id (typically content-hash-derived for dedup). */

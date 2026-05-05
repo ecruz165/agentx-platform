@@ -31,7 +31,7 @@ Per `prd-harness-core.md`'s convention (separate PRDs for harness-core, harness-
 
 - **Single binary `agentx-load`.** Built with Bun for fast cold-start. Distributable as a npm-installable package and (eventually) standalone executables via `bun build --compile`.
 - **Subcommand surface mirrors the user's mental model.** The user thinks "context sources" — the CLI exposes verbs operating on them: `add`, `list`, `refresh`, `remove`, etc. Implementation terms (chunkers, backends, embedders) are flag-level config, not subcommands.
-- **Standalone mode works end-to-end.** Run on a laptop with a Neo4j or Kuzu instance, no agentx triad needed. This mode targets CI runs, scripts, and ECS task entrypoints — not daily developer workflow.
+- **Standalone mode works end-to-end.** Run on a laptop with a reachable Neo4j endpoint, no agentx triad needed. This mode targets CI runs, scripts, and ECS task entrypoints — not daily developer workflow.
 - **Job mode is a clean opt-in.** Triggered by a single env var (`JOB_ID`) plus flag (`--output-events-uds`). When detected, behavior changes to emit events over UDS instead of stdout, catch `SIGTERM` for graceful cancellation, and respect the worker container's lifecycle.
 - **harness-cli is the primary user surface for daily workflow.** `harness context load <target>` is the verb developers reach for inside a workspace. Internally it submits a `LoadJobIntent` to harness-server, which spawns `agentx-load` as a worker. Flag surface mirrors the standalone CLI; the `agentx-load` binary is what actually runs in both cases. See §10 for the full surface.
 - **Config-driven repeatable runs.** `<workspace>/.harness/config/context-sources.yml` declares default sources, embedder URL, backend selection. CLI invocations can override any of those via flags but the config provides reasonable defaults.
@@ -113,7 +113,7 @@ User stories:
 |---|---|
 | F41 | `harness-server`'s `spawnWorker` (per `packages/harness-server/src/spawn-worker.ts`) gains a code path for ingestion jobs: when a job's body has `kind: 'ingestion'`, the generated devcontainer override sets `agentx-load` as the entrypoint, mounts the workspace `.harness/run/` for the events UDS, and passes the source spec via env vars. |
 | F42 | Job submission API: `harness context load <target> [flags]`. Internally constructs a `LoadJobIntent` `{ kind: 'ingestion', sourceType, target, profile?, options? }`, posts it via the existing `POST /v1/jobs` route over UDS, harness-server spawns the worker. (See §10 for the full surface design.) |
-| F43 | Multiple ingestion jobs run in parallel (one worker container each). All workers share the same embedder service (HTTP fan-in handled by llama.cpp's request queue). Backend writes serialize at the storage layer (Kuzu WAL or Neo4j Bolt session). |
+| F43 | Multiple ingestion jobs run in parallel (one worker container each). All workers share the same embedder service (HTTP fan-in handled by llama.cpp's request queue). Backend writes serialize at the storage layer (Neo4j's Bolt session model handles concurrent writers natively). |
 
 ### 6.6 harness-cli integration
 
@@ -185,7 +185,7 @@ agentx-load dry-run <target>                            # what would happen, no 
 agentx-load dry-run <target> --type code-full --verbose
 
 # Backend selection (overrides config)
-agentx-load <target> --backend kuzu://./data/context
+agentx-load <target> --backend bolt://localhost:7687
 agentx-load <target> --backend neo4j://localhost:7687
 agentx-load <target> --backend neo4j --uri neo4j://my.host:7687 --username neo4j
 
@@ -237,7 +237,7 @@ The UDS reader (harness-server) parses events line-by-line, routes them onto the
 | Subcommand | Behavior |
 |---|---|
 | `harness context load <source> [flags]` | Submits an "ingest this source" intent to harness-server. Server's spawn-worker mechanism creates a worker that runs `agentx-load <args> --output-events-uds=...` as its entrypoint. Harness-cli streams the resulting `IngestionEvent`s into the live TUI. Flags mirror the standalone CLI (`--type`, `--embedder-url`, `--backend`, …). |
-| `harness context load configure` | First-run interactive wizard — walks through workspace setup: which source types to register, embedder choice (local Qwen vs `bench` lanes vs Bedrock-fronting URL), backend (`kuzu://./data/context` vs hosted Neo4j), per-source-type overrides. Writes `<workspace>/.harness/config/context-sources.yml`. |
+| `harness context load configure` | First-run interactive wizard — walks through workspace setup: which source types to register, embedder choice (local Qwen vs `bench` lanes vs Bedrock-fronting URL), Neo4j endpoint (local `bolt://neo4j-edge:7687` vs hosted), per-source-type overrides. Writes `<workspace>/.harness/config/context-sources.yml`. |
 | `harness context source list` | Prints the active catalog (built-in + workspace extensions) — what `agentx-load types` shows, but workspace-aware. |
 | `harness context source describe <id>` | Prints matcher patterns, chunker config, and graph schema for one source type. |
 | `harness context source extend <id> [flags]` | Edits the workspace's `context-sources.yml` to override a built-in (per-type embedder, exclude patterns, etc.). |
@@ -308,7 +308,7 @@ v1 implementation in harness-cli imports `@agentx/context-loader-core` only for 
 2. Bun bin entrypoint (`src/bin.ts`); commander setup.
 3. Subcommands: `add`, `list`, `types`, `dry-run`, `--help`, `--version`.
 4. Standalone-mode event-to-stdout printer.
-5. Smoke test: `agentx-load add ./packages/harness-core --type code-full --backend kuzu://./data/test` ingests successfully.
+5. Smoke test: `agentx-load add ./packages/harness-core --type code-full --backend bolt://localhost:7687` ingests successfully against a local Neo4j.
 
 **Phase G (depends on Phase F + harness-server changes) — Job mode + harness-cli launch path** (~1.5 days)
 6. `--output-events-uds` flag implementation in `agentx-load`.

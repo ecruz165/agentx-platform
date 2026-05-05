@@ -16,7 +16,7 @@ import type {
  * keep that boundary clear.
  *
  * Useful for:
- *   - Phase B unit tests where spinning up Kuzu/Neo4j is overkill
+ *   - Phase B unit tests where spinning up a Neo4j sidecar is overkill
  *   - Programmatic consumers that only want short-lived in-process graphs
  *   - Validating chunker / matcher logic without backend round-trips
  *

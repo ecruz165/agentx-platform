@@ -16,7 +16,7 @@ workspace:
       backend: echo            # MVP-0; MVP-2+ uses sqlite-vec
     context:
       unixSocket: .harness/run/context.sock
-      backend: echo            # MVP-0; MVP-2+ uses kuzu
+      backend: echo            # MVP-0; MVP-2+ uses Neo4j (Bolt to neo4j-edge sidecar)
 
   # Worker DevContainer template (instantiated per job — MVP-2+).
   worker:

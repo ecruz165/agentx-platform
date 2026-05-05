@@ -14,12 +14,12 @@
 
 ## 1. Purpose
 
-A standalone TypeScript library (`@agentx/context-loader-core`) that defines **how content becomes typed graph data + vectors** for both the edge tier (Kuzu) and the central tier (Neo4j). The library:
+A standalone TypeScript library (`@agentx/context-loader-core`) that defines **how content becomes typed graph data + vectors** for both the edge tier (local `neo4j-edge` sidecar) and the central tier (self-hosted Neo4j Community on ECS+EBS). Both tiers run the same engine — see workspace memory `project_central_graph_store_choice`. The library:
 
 - Enumerates a catalog of **context source types**, each with its own matcher, chunker, graph schema, and embedder selection.
 - Chunks content via type-specific strategies (tree-sitter AST for code, heading-based for prose, per-page for PDFs, etc.).
 - Embeds chunks via an OpenAI-compatible HTTP endpoint (default: `ai/qwen3-embedding` locally via Docker Model Runner, Bedrock Titan v2 in deployed envs — see workspace memory `project_embedder_choice`).
-- Writes nodes/edges/vectors via a pluggable `GraphIngestionBackend` interface (Kuzu for edge, Neo4j for central — same loader code, different sinks).
+- Writes nodes/edges/vectors via a `GraphIngestionBackend` interface; the production impl is a single `Neo4jBackend` used by both tiers (different `bolt://` URLs).
 - Emits structured `IngestionEvent`s for progress observability.
 
 The library is consumed by three layers, each in a different role:
@@ -40,7 +40,7 @@ The library introduces the concept of **context sources** — typed inputs from 
 
 - **Concept-first design.** The vocabulary the library exposes is *context sources* and *source types*; implementation terms (chunking strategy, embedder URL, graph schema) are second-order.
 - **Source type catalog with distinct rules per type.** A profile catalog where each entry has its own matcher, chunker, graph schema, and embedder selection. No universal pipeline pretending to handle every content type.
-- **Pluggable backend.** A `GraphIngestionBackend` interface with two adapters (`KuzuIngestionBackend` for edge, `Neo4jIngestionBackend` for central). Same source-type code emits the same node/edge/vector writes; the backend translates to its query language.
+- **Pluggable backend.** A `GraphIngestionBackend` interface with one production adapter (`Neo4jBackend`) used by both edge and central — the engine is the same, only the `bolt://` URL differs. The interface stays pluggable so future tiers (e.g., a different graph store on a third tier) can land without rewiring callers.
 - **Tree-sitter AST as the dominant chunking strategy for code.** Function/class-level chunks for code source types; heading-based for prose; per-page for PDFs. Skeleton-only mode for OSS code reduces volume by ~10× without sacrificing usage-pattern retrieval.
 - **Cross-source-type graph edges.** When the same symbol is described in `oss-code`, `oss-docs`, and `oss-issues`, the loader emits cross-source-type edges (`Documents`, `Mentions`, `FixedIn`) so retrieval can traverse code → docs → issue history in one query path.
 - **Programmatic API only.** This package is a library — no CLI, no HTTP server, no daemon. Consumers wrap it (per `prd-context-loader-cli.md`).
@@ -81,7 +81,7 @@ This package consolidates ingestion concerns currently distributed across:
 | **Future contributor adding a backend** | Implement the `GraphIngestionBackend` interface for a new graph DB (e.g., ArangoDB, Memgraph, JanusGraph). All source-type code works against the new backend without modification |
 
 User stories:
-- *As edge-context-server*, when a `POST /v1/sources/add` request arrives, I call `ingest({ source: req.body, backend: localKuzu, embedder: cfg.embedder, onEvent: (e) => stream.write(e) })` and pipe events back to the client as SSE.
+- *As edge-context-server*, when a `POST /v1/sources/add` request arrives, I call `ingest({ source: req.body, backend: localNeo4j, embedder: cfg.embedder, onEvent: (e) => stream.write(e) })` and pipe events back to the client as SSE.
 - *As context-loader-cli*, my entrypoint parses argv, builds an `IngestSpec`, calls `ingest()`, and emits events to stdout (or UDS in job mode).
 - *As a future contributor*, I add `slack-thread` as a new source type by writing 60 lines: a matcher (Slack API URL pattern), a chunker (thread = parent chunk; replies = children), a graph schema (`SlackThread`, `SlackMessage` nodes; `RepliedTo`, `Mentions` edges). I register it in `BUILTIN_SOURCE_TYPES`. It works.
 
@@ -113,14 +113,13 @@ User stories:
 | ID | Requirement |
 |---|---|
 | F12 | Single TypeScript interface `GraphIngestionBackend` with `upsertNode`, `upsertEdge`, `upsertVector`, plus bulk variants and `ensureSchema(profile)`. |
-| F13 | **Three backend implementations ship in v1**, all conforming to `GraphIngestionBackend`. Selection is by URL scheme passed via config or `--backend` flag: |
-| F13a | `KuzuDirectBackend` (`kuzu://path/to/dir`) — opens the Kuzu DB file in the loader's process. **Single-writer; NOT concurrent-safe.** Use for standalone solo invocations only. Two CLIs targeting the same Kuzu directory will fight over file locks. |
-| F13b | `KuzuViaServerBackend` (`kuzu+uds:///path/to/context.sock` or `kuzu+http://host:port`) — writes via HTTP/UDS to a long-running edge-context-server that owns the Kuzu DB exclusively. **Concurrent-safe** — the server multiplexes concurrent client connections and serializes writes at its connection layer. This is the default when a workspace's triad is up (`harness context source add ...` uses this implicitly). |
-| F13c | `Neo4jBackend` (`neo4j://host:port`, `bolt://...`, `neo4j+s://...`) — opens a Bolt protocol connection. **Concurrent-safe** — Neo4j's transaction layer serializes concurrent writes natively. Use for central-tier ingestion and any scenario with multiple concurrent CLIs writing to a shared graph. |
-| F14 | Backend selection at runtime via programmatic config or CLI flag. Loader code paths are backend-agnostic — they emit `GraphNode`/`GraphEdge`/`Vector` records; the backend translates to Cypher / Kuzu's dialect. |
-| F15 | Idempotent writes via content-hash dedup (per `prd-edge-context-server.md` F5). The backend computes content hashes per node and skips upserts when the hash matches an existing node. Re-running ingestion is safe. **Concurrent dedup**: when multiple CLIs ingest overlapping content simultaneously, content-hash upserts converge to the same final state regardless of write order. No special coordination needed. |
+| F13 | **One backend implementation ships in v1**, conforming to `GraphIngestionBackend`. Selection is by URL scheme passed via config or `--backend` flag: |
+| F13a | `Neo4jBackend` (`neo4j://host:port`, `bolt://...`, `neo4j+s://...`) — opens a Bolt protocol connection via the official `neo4j-driver`. **Concurrent-safe** — Neo4j's transaction layer serializes concurrent writes natively. Used for both edge tier (local triad's `neo4j-edge` sidecar) and central tier (self-hosted Neo4j Community on ECS+EBS) — same code, different `bolt://` URL. See workspace memory `project_central_graph_store_choice` for the engine choice rationale. |
+| F13b | A test-only `InMemoryGraphBackend` ships under `src/backends/in-memory.ts` for unit/integration tests; it is exported but not part of the production CLI surface. |
+| F14 | Backend selection at runtime via programmatic config or CLI flag. Loader code paths are backend-agnostic — they emit `GraphNode`/`GraphEdge`/`Vector` records; the backend translates them to Cypher. |
+| F15 | Idempotent writes via content-hash dedup (per `prd-edge-context-server.md` F5). The backend computes content hashes per node and `MERGE`-by-id skips redundant upserts when the hash matches. Re-running ingestion is safe. **Concurrent dedup**: when multiple CLIs ingest overlapping content simultaneously, content-hash MERGEs converge to the same final state regardless of write order. No special coordination needed. |
 | F16 | Backend implementations handle their own connection pooling, transaction batching, and error retries. The loader engine treats the backend as a write-only sink with `Promise<void>` return on each upsert (for backpressure). |
-| F16a | **Concurrent CLI execution is a first-class supported pattern.** Multiple `agentx-load` processes (or multiple `harness submit ingest` jobs) writing to the same target backend MUST work without coordination beyond what the backend provides. Choosing the right backend is the user's responsibility: KuzuDirect for solo, KuzuViaServer for local concurrent, Neo4j for central or production concurrent. |
+| F16a | **Concurrent CLI execution is a first-class supported pattern.** Multiple `agentx-load` processes (or multiple `harness context load` jobs) writing to the same Neo4j endpoint MUST work without coordination beyond what the driver+server provide. Neo4j's Bolt session model handles this natively. |
 
 ### 6.4 Source-type-specific behaviors
 
@@ -154,7 +153,7 @@ User stories:
 | Operation | p95 (warm) | p99 (warm) |
 |---|---|---|
 | Per-chunk embed roundtrip (CPU TEI) | <80ms | <200ms |
-| Per-node graph upsert (Kuzu local) | <2ms | <10ms |
+| Per-node graph upsert (Neo4j local) | <5ms | <20ms |
 | Per-node graph upsert (Neo4j Bolt over LAN) | <20ms | <80ms |
 | Tree-sitter parse of a 50KB TS file | <200ms | <500ms |
 
@@ -189,7 +188,7 @@ import { ingest, ingestOssDep, type SourceTypeId, type GraphIngestionBackend, ty
 // Programmatic API — single source ingestion
 await ingest({
   source: { type: 'code-full', path: '/path/to/repo' },
-  backend: new KuzuIngestionBackend({ path: '/data/context' }),
+  backend: new Neo4jBackend({ url: 'bolt://neo4j-edge:7687', user: 'neo4j', password: 'neo4j' }),
   embedder: { url: 'http://embedder:8080/v1', model: 'ai/qwen3-embedding', dim: 1024 },
   onEvent: (e: IngestionEvent) => console.log(e),
   signal: abortSignal,
@@ -249,14 +248,14 @@ embedder:
   model: ai/qwen3-embedding
   dim: 1024
 
-# Default backend (consumed by CLI; lib takes the backend programmatically)
+# Default backend (consumed by CLI; lib takes the backend programmatically).
+# The same Neo4j engine runs both edge (local triad sidecar) and central
+# (ECS+EBS) — only the URL changes.
 backend:
-  type: kuzu
-  path: ./data/context
-  # OR
-  # type: neo4j
-  # uri: neo4j://localhost:7687
-  # username: neo4j
+  type: neo4j
+  uri: bolt://neo4j-edge:7687     # service-name DNS in compose
+  username: neo4j
+  # password: from env or secret store, never inline
 
 # Source type registrations (additive to built-in catalog)
 sources:
@@ -301,7 +300,7 @@ overrides:
 | D1 | Library name | `@agentx/context-loader-core` (matches `harness-core` convention) | Multiple consumers (cli, edge-context-server, harness-cli shim) — `-core` is appropriate suffix |
 | D4 | Reuse harness-core orchestrator? | **No** | Wrong abstraction — ingestion is data flow, not agent invocation |
 | D5 | Reuse `@agentx/agent-adapter` for vision/summarization? | **Yes** | `image-described` and `oss-issues` profile steps need LLM calls — use `createAgent` directly, not via runJob |
-| D6 | Backend abstraction shape | One interface, two adapters (Kuzu, Neo4j) | Same loader code, different sinks. Matches `project_central_grounding_bidirectional.md` |
+| D6 | Backend abstraction shape | One interface (`GraphIngestionBackend`), one production adapter (`Neo4jBackend`) used by both edge and central tiers | Engine unified after Kuzu archival (2026-05-05); interface stays pluggable for future tiers. Matches `project_central_graph_store_choice.md`. |
 | D11 | Source type catalog versioning | Catalog is part of `@agentx/context-loader-core`'s major version | New built-in source type = minor release. Renamed/removed = major release |
 | D12 | License tracking on OSS sources | Yes — `license` is a required property on OSS-* node types | Tag, don't filter |
 | D13 | Tree-sitter grammars distribution | Bundled with package (wasm) | Avoids per-machine install dance. v1 grammars: TS/JS/Java/Kotlin/Python/Go/Rust/C/C++ |
@@ -326,36 +325,42 @@ overrides:
 2. Public-API types: `GraphNode`, `GraphEdge`, `SourceType`, `SourceTypeId`, `IngestionEvent`, `GraphIngestionBackend`.
 3. `BUILTIN_SOURCE_TYPES` registry stub (just the ids + matcher patterns; no chunkers yet).
 
-**Phase B — Two source types end-to-end** (~3 days)
-4. `code-full` source type with TS + Python tree-sitter grammars.
-5. `prose-markdown` source type.
-6. `KuzuIngestionBackend` (writes to a local Kuzu directory).
-7. Smoke test: `ingest({ source: { type: 'code-full', path: './packages/harness-core' }, backend: kuzu })` writes nodes/edges/vectors verifiably.
+**Phase B.0 — prose-markdown end-to-end (DONE 2026-05-05)** (~1 day)
+4. `prose-markdown` source type with heading-based chunker, glob matcher, walker.
+5. `InMemoryGraphBackend` (test-only).
+6. `ingest()` pipeline + OpenAI-compat embedder client.
+7. 21 vitest tests covering chunker, matcher, ingest pipeline, in-memory search.
 
-**Phase C — Backend pluggability** (~2 days)
-8. `Neo4jIngestionBackend` (Bolt protocol).
-9. Smoke test: same source ingests cleanly into both Kuzu and Neo4j; same node counts.
+**Phase B.1 — `Neo4jBackend` + smoke test against real edge** (~2 days)
+8. `Neo4jBackend` using the official `neo4j-driver` (Bolt protocol). Maps `ensureSchema(SourceTypeSchema)` to `CREATE CONSTRAINT` per node label + `CREATE VECTOR INDEX` for vector-bearing labels (1024-dim, cosine). Maps bulk upserts to `UNWIND $rows MERGE ... ON CREATE SET ... ON MATCH SET ...` patterns.
+9. Smoke test: same prose-markdown corpus ingests cleanly into both `InMemoryGraphBackend` (test) and `Neo4jBackend` (against the local `neo4j-edge` compose sidecar); same node/edge/vector counts.
+10. Local `neo4j-edge` sidecar in `workspace-template/.devcontainer/docker-compose.yml`: `neo4j:5-community`, persistent volume, accessible at `bolt://neo4j-edge:7687` from siblings.
 
-**Phase D — OSS triple** (~3 days)
-10. `oss-code` source type (skeleton-only).
-11. `oss-docs` source type (clone-or-crawl, version-aware).
-12. `oss-issues` source type (GitHub API, curation filters).
-13. Cross-source-type edge emission (`Documents`, `FixedIn`, `Mentions`).
-14. Smoke test: ingest `react@18.2.0` triple; verify graph has cross-references.
+**Phase B.2 — `code-full` source type** (~2 days)
+11. Tree-sitter integration (TS + Python grammars first; rest of catalog list in Phase C).
+12. Function/class chunker; skeleton-vs-body extraction.
+13. Smoke test: `ingest({ source: { type: 'code-full', path: './packages/harness-core' }, backend: neo4j })` writes function nodes + skeleton/body relationships verifiably.
 
-**Phase E — Multi-media + secondary types** (~2 days)
-15. `image-described` (uses `agent-adapter` to call vision LLM at `http://agent-vl:8080`).
-16. `pdf` (text + scanned fallback).
-17. `crawled-web` (Mozilla Readability extraction).
-18. `structured-schema`, `config` source types.
+**Phase C — Source-type expansion** (~3 days)
+14. `oss-code` source type (skeleton-only).
+15. `oss-docs` source type (clone-or-crawl, version-aware).
+16. `oss-issues` source type (GitHub API, curation filters).
+17. Cross-source-type edge emission (`Documents`, `FixedIn`, `Mentions`).
+18. Smoke test: ingest `react@18.2.0` triple; verify graph has cross-references.
 
-**Phase F — Tests + docs** (~2 days)
-19. Unit tests (chunkers, matchers).
-20. Integration tests (Kuzu + Neo4j round-trips).
-21. e2e test (full repo).
-22. README; usage examples.
+**Phase D — Multi-media + secondary types** (~2 days)
+19. `image-described` (uses `agent-adapter` to call vision LLM at `http://agent-vl:8080`).
+20. `pdf` (text + scanned fallback).
+21. `crawled-web` (Mozilla Readability extraction).
+22. `structured-schema`, `config` source types.
 
-**Total estimate: ~13 focused days for the lib v1.**
+**Phase E — Tests + docs** (~2 days)
+23. Unit tests (chunkers, matchers — most done in Phase B.0).
+24. Integration tests (Neo4j round-trips, multi-source-type cross-edges).
+25. e2e test (full repo).
+26. README; usage examples.
+
+**Total estimate: ~12 focused days for the lib v1.** Reduced from 13 because the original Phase C (multi-backend) collapsed to a single `Neo4jBackend` once Kuzu was archived.
 
 CLI integration (binary `agentx-load`, harness-cli shim, job-mode UDS protocol) is in `prd-context-loader-cli.md`'s Implementation Phases, ~2 additional days on top.
 
@@ -386,8 +391,7 @@ CLI integration (binary `agentx-load`, harness-cli shim, job-mode UDS protocol) 
 | `@agentx/agent-auth-lib` | `CredentialBroker` for GitHub/Jira/Confluence ingestion | **Hard** |
 | `@agentx/agent-adapter` | When a source-type step needs an LLM (vision for `image-described`, optional summarization for `oss-issues`) | **Hard** |
 | `tree-sitter` (Node binding) + per-language grammars | AST chunking | **Hard** |
-| `kuzu` (Node binding) | `KuzuIngestionBackend` | **Soft** (only required if Kuzu backend selected at runtime) |
-| `neo4j-driver` | `Neo4jIngestionBackend` | **Soft** |
+| `neo4j-driver` | `Neo4jBackend` (the only production adapter) | **Hard** |
 | `cheerio` + `@mozilla/readability` | HTML extraction for `crawled-web` | **Soft** |
 | `pdfjs-dist` | PDF parsing for `pdf` source type | **Soft** |
 | `js-yaml` | `context-sources.yml` parsing | **Hard** |
