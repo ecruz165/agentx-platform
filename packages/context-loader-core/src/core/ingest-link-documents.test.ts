@@ -154,6 +154,84 @@ describe.skipIf(!RUN_INTEGRATION)(
       }
     });
 
+    it('links bidirectionally: docs-first then code-after also produces edges', async () => {
+      // Reverse-order test. Use a separate package id so we don't share
+      // state with the suite's setup (which used oss-code → oss-docs).
+      const pkg2 = `linktest-rev-${RUN_ID}`;
+      const dir2 = mkdtempSync('/tmp/link-rev-');
+      writeFileSync(
+        join(dir2, 'package.json'),
+        JSON.stringify({ name: pkg2, version: '1.0.0' })
+      );
+      mkdirSync(join(dir2, 'src'));
+      writeFileSync(
+        join(dir2, 'src', 'utils.ts'),
+        'export function uniqueHelper(x) { return x; }\n'
+      );
+      mkdirSync(join(dir2, 'docs'));
+      writeFileSync(
+        join(dir2, 'docs', 'g.md'),
+        '# Helper\n\n## Usage\n\nCall uniqueHelper to do the thing.\n'
+      );
+
+      // Reverse order: docs first (no symbols exist yet → 0 edges from
+      // this pass), then code (the new pass should link the existing
+      // section to the just-written function).
+      await ingest({
+        source: { type: 'oss-docs', ref: { kind: 'path', path: dir2 } },
+        backend,
+        embedderClient: mockEmbedder(8),
+      });
+      await ingest({
+        source: { type: 'oss-code', ref: { kind: 'path', path: dir2 } },
+        backend,
+        embedderClient: mockEmbedder(8),
+      });
+
+      const session = (
+        backend as unknown as { driver: { session(): unknown } }
+      ).driver.session() as {
+        run(q: string, p?: object): Promise<{
+          records: Array<{ get(k: string): unknown }>;
+        }>;
+        close(): Promise<void>;
+      };
+      try {
+        const r = await session.run(
+          `MATCH (p:Package {name: $pkg})<-[:BelongsTo]-(v:Version)
+           MATCH (sec:OssSection)-[:Documents]->(sym)
+           MATCH (file:OssFile)-[:Contains]->(sym)
+           MATCH (file)-[:BelongsTo]->(v)
+           RETURN sym.name AS name`,
+          { pkg: pkg2 }
+        );
+        const names = r.records.map((rec) => rec.get('name'));
+        expect(names).toContain('uniqueHelper');
+      } finally {
+        await session.close();
+      }
+
+      // Cleanup the reverse test's package.
+      const cleanupSession = (
+        backend as unknown as { driver: { session(): unknown } }
+      ).driver.session() as {
+        run(q: string, p?: object): Promise<unknown>;
+        close(): Promise<void>;
+      };
+      try {
+        await cleanupSession.run(
+          `MATCH (p:Package {name: $pkg})
+           OPTIONAL MATCH (p)<-[:BelongsTo]-(v:Version)
+           OPTIONAL MATCH (v)<-[:BelongsTo]-(rooted)
+           OPTIONAL MATCH (rooted)-[:Contains]->(child)
+           DETACH DELETE p, v, rooted, child`,
+          { pkg: pkg2 }
+        );
+      } finally {
+        await cleanupSession.close();
+      }
+    });
+
     it('does not emit Documents edges for unrelated sections', async () => {
       // The "Guide" intro section ("# Guide") doesn't mention any
       // function name, so it should have no Documents edges.

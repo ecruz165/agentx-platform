@@ -276,20 +276,28 @@ export async function ingest(spec: IngestSpecExt): Promise<IngestionSummary> {
     summary.chunksWritten += chunked.chunks.length;
   }
 
-  // Cross-source-type linking (Phase C.7). After an oss-docs ingest
-  // completes, ask the backend (if it supports it) to MERGE Documents
-  // edges from OssSection nodes into oss-code's OssFunction/OssClass
-  // nodes whose name appears in the section text. The link runs only
-  // when:
-  //   - This source type is oss-docs (not oss-code or first-party).
-  //     oss-code → oss-docs ordering needs the docs side to be the
-  //     trigger; otherwise the symbols don't yet exist.
+  // Cross-source-type linking (Phase C.7). After EITHER oss-code or
+  // oss-docs ingest completes, ask the backend (if it supports it) to
+  // MERGE Documents edges from OssSection nodes into OssFunction/OssClass
+  // nodes whose name appears in the section text.
+  //
+  // Bidirectional fire — runs at the tail of either source type:
+  //   - oss-docs ingest: links the just-written sections to existing
+  //     code symbols. The first-time-loading path.
+  //   - oss-code ingest: links existing sections to the just-written
+  //     code symbols. Catches the "package v2 adds new functions"
+  //     case where re-ingesting code should pick up doc references
+  //     to new symbols.
+  // The link query is idempotent (MERGE), so the second pass after both
+  // sides exist just refreshes timestamps; no duplicate edges.
+  //
+  // Conditions:
   //   - We know the package name (provenance preamble succeeded).
   //   - The backend implements linkDocumentsToSymbols (Neo4jBackend
   //     does; InMemoryGraphBackend doesn't, and this is fine for
   //     test isolation).
   if (
-    sourceType.id === 'oss-docs' &&
+    (sourceType.id === 'oss-docs' || sourceType.id === 'oss-code') &&
     ossVersionNodeId !== null &&
     typeof (spec.backend as { linkDocumentsToSymbols?: unknown }).linkDocumentsToSymbols ===
       'function'
