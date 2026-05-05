@@ -55,6 +55,11 @@ export type {
   ChunkInput,
   ChunkOutput,
 } from './core/chunkers/heading-based.ts';
+export { chunkCodeFull, pickGrammar } from './core/chunkers/tree-sitter.ts';
+export type {
+  CodeFullChunkInput,
+  CodeFullChunkOutput,
+} from './core/chunkers/tree-sitter.ts';
 
 // Matcher + walker (lower-level, for custom orchestration)
 export { compileMatcher, type MatcherFn, type MatcherSpec } from './core/matcher.ts';

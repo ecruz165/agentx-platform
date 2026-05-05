@@ -133,15 +133,16 @@ describe('ingest() — prose-markdown', () => {
     expect(backend.nodesByLabel('Doc')[0]!.id).toBe('real.md');
   });
 
-  it('refuses unimplemented source types with a clear error', async () => {
+  it('refuses unimplemented chunker types with a clear error', async () => {
     const backend = new InMemoryGraphBackend();
+    // 'pdf' uses the 'pdf-page' chunker which is Phase D, not yet wired.
     await expect(
       ingest({
-        source: { type: 'code-full', ref: { kind: 'path', path: workdir } },
+        source: { type: 'pdf', ref: { kind: 'path', path: workdir } },
         backend,
         embedderClient: mockEmbedder(8),
       })
-    ).rejects.toThrow(/only source type 'prose-markdown' is implemented/);
+    ).rejects.toThrow(/chunker '.+' which is not yet implemented/);
   });
 
   it('refuses unimplemented source-ref kinds with a clear error', async () => {

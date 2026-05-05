@@ -29,6 +29,7 @@ import {
   chunkHeadingBased,
   type ChunkOutput,
 } from './chunkers/heading-based.ts';
+import { chunkCodeFull } from './chunkers/tree-sitter.ts';
 import {
   createHttpEmbedderClient,
   type EmbedderClient,
@@ -58,15 +59,19 @@ export async function ingest(spec: IngestSpecExt): Promise<IngestionSummary> {
   const sourceType = resolveSourceType(spec.source.type);
   const embedder = await resolveEmbedder(spec);
 
-  // Phase B.0 only handles path-rooted prose-markdown.
+  // Phase B.0/B.2 only handles path-rooted source refs.
   if (spec.source.ref.kind !== 'path') {
     throw new Error(
-      `Phase B.0: only SourceRef { kind: 'path' } is implemented; got ${spec.source.ref.kind}`
+      `Phase B: only SourceRef { kind: 'path' } is implemented; got ${spec.source.ref.kind}`
     );
   }
-  if (sourceType.id !== 'prose-markdown') {
+  // Chunker dispatch — what's wired today: heading-based (B.0) and
+  // tree-sitter (B.2). Other chunker types throw a clear "not yet
+  // implemented" rather than silently producing zero chunks.
+  const chunkerType = sourceType.chunker.type;
+  if (chunkerType !== 'heading-based' && chunkerType !== 'tree-sitter') {
     throw new Error(
-      `Phase B.0: only source type 'prose-markdown' is implemented; got '${sourceType.id}'`
+      `Phase B: source type '${sourceType.id}' uses chunker '${chunkerType}' which is not yet implemented`
     );
   }
 
@@ -74,15 +79,6 @@ export async function ingest(spec: IngestSpecExt): Promise<IngestionSummary> {
 
   const root = resolve(spec.source.ref.path);
   const matcher = compileMatcher(sourceType.matcher);
-
-  // Resolve chunker config
-  const chunkerCfg =
-    sourceType.chunker.type === 'heading-based' ? sourceType.chunker : null;
-  if (!chunkerCfg) {
-    throw new Error(
-      `Phase B.0: source type '${sourceType.id}' must use heading-based chunker`
-    );
-  }
 
   // Per-file processing
   for await (const item of walk({
@@ -122,15 +118,23 @@ export async function ingest(spec: IngestSpecExt): Promise<IngestionSummary> {
       continue;
     }
 
-    const chunked: ChunkOutput = chunkHeadingBased({
-      docId: item.relativePath,
-      title: basename(item.relativePath),
-      content,
-      sourceTypeId: sourceType.id,
-      sourceId: root,
-      maxTokens: chunkerCfg.maxTokens,
-      overlapTokens: chunkerCfg.overlapTokens,
-    });
+    const chunked: ChunkOutput =
+      sourceType.chunker.type === 'heading-based'
+        ? chunkHeadingBased({
+            docId: item.relativePath,
+            title: basename(item.relativePath),
+            content,
+            sourceTypeId: sourceType.id,
+            sourceId: root,
+            maxTokens: sourceType.chunker.maxTokens,
+            overlapTokens: sourceType.chunker.overlapTokens,
+          })
+        : await chunkCodeFull({
+            relativePath: item.relativePath,
+            content,
+            sourceTypeId: sourceType.id,
+            sourceId: root,
+          });
 
     spec.onEvent?.({
       kind: 'chunk-produced',

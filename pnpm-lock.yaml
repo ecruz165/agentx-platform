@@ -92,9 +92,15 @@ importers:
       '@agentx/agent-auth-lib':
         specifier: workspace:*
         version: link:../agent-auth-lib
+      '@vscode/tree-sitter-wasm':
+        specifier: ^0.3.1
+        version: 0.3.1
       neo4j-driver:
         specifier: ^6.0.1
         version: 6.0.1
+      web-tree-sitter:
+        specifier: ^0.26.8
+        version: 0.26.8
     devDependencies:
       '@types/node':
         specifier: ^22.7.0
@@ -137,10 +143,10 @@ importers:
         version: link:../harness-server
       '@opentui/core':
         specifier: ^0.2.2
-        version: 0.2.2(typescript@5.9.3)(web-tree-sitter@0.25.10)
+        version: 0.2.2(typescript@5.9.3)(web-tree-sitter@0.26.8)
       '@opentui/react':
         specifier: ^0.2.2
-        version: 0.2.2(react-devtools-core@7.0.1)(react@19.2.5)(typescript@5.9.3)(web-tree-sitter@0.25.10)(ws@8.20.0)
+        version: 0.2.2(react-devtools-core@7.0.1)(react@19.2.5)(typescript@5.9.3)(web-tree-sitter@0.26.8)(ws@8.20.0)
       react:
         specifier: ^19.0.0
         version: 19.2.5
@@ -576,6 +582,9 @@ packages:
 
   '@vitest/utils@4.1.5':
     resolution: {integrity: sha512-76wdkrmfXfqGjueGgnb45ITPyUi1ycZ4IHgC2bhPDUfWHklY/q3MdLOAB+TF1e6xfl8NxNY0ZYaPCFNWSsw3Ug==}
+
+  '@vscode/tree-sitter-wasm@0.3.1':
+    resolution: {integrity: sha512-RJFoomET6FajjG511fmQxeBQfU6M24a0aFZPqpid+ttIxanWf1VGytBG0UmsGjt07qmIPJS8U31D+aecuCucsQ==}
 
   abort-controller@3.0.0:
     resolution: {integrity: sha512-h8lQ8tacZYnR3vNQTgibj+tODHI5/+l06Au2Pcriv/Gmet0eaj4TwWH41sO9wnHDiQsEj19q0drzdWdeAHtweg==}
@@ -1066,13 +1075,8 @@ packages:
     resolution: {integrity: sha512-QW95TCTaHmsYfHDybGMwO5IJIM93I/6vTRk+daHTWFPhwh+C8Cg7j7XyKrwrj8Ib6vYXe0ocYNrmzY4xAAN6ug==}
     engines: {node: '>= 14'}
 
-  web-tree-sitter@0.25.10:
-    resolution: {integrity: sha512-Y09sF44/13XvgVKgO2cNDw5rGk6s26MgoZPXLESvMXeefBf7i6/73eFurre0IsTW6E14Y0ArIzhUMmjoc7xyzA==}
-    peerDependencies:
-      '@types/emscripten': ^1.40.0
-    peerDependenciesMeta:
-      '@types/emscripten':
-        optional: true
+  web-tree-sitter@0.26.8:
+    resolution: {integrity: sha512-4sUwi7ZyOrIk5KLgYLkc2A/F0LFMQnBhfb+2Cdl7ik4ePJ6JD+fk4ofI2sA5eGawBKBaK4Vntt7Ww5KcEsay4A==}
 
   webidl-conversions@3.0.1:
     resolution: {integrity: sha512-2JAn3z8AR6rjK8Sm8orRC0h/bcl/DqL7tRPdGZ4I1CjdF+EaMLmYxBHyXuKL849eucPFhvBoxMsflfOb8kxaeQ==}
@@ -1252,14 +1256,14 @@ snapshots:
   '@opentui/core-win32-x64@0.2.2':
     optional: true
 
-  '@opentui/core@0.2.2(typescript@5.9.3)(web-tree-sitter@0.25.10)':
+  '@opentui/core@0.2.2(typescript@5.9.3)(web-tree-sitter@0.26.8)':
     dependencies:
       bun-ffi-structs: 0.2.2(typescript@5.9.3)
       diff: 9.0.0
       marked: 17.0.1
       string-width: 7.2.0
       strip-ansi: 7.1.2
-      web-tree-sitter: 0.25.10
+      web-tree-sitter: 0.26.8
       yoga-layout: 3.2.1
     optionalDependencies:
       '@opentui/core-darwin-arm64': 0.2.2
@@ -1271,9 +1275,9 @@ snapshots:
     transitivePeerDependencies:
       - typescript
 
-  '@opentui/react@0.2.2(react-devtools-core@7.0.1)(react@19.2.5)(typescript@5.9.3)(web-tree-sitter@0.25.10)(ws@8.20.0)':
+  '@opentui/react@0.2.2(react-devtools-core@7.0.1)(react@19.2.5)(typescript@5.9.3)(web-tree-sitter@0.26.8)(ws@8.20.0)':
     dependencies:
-      '@opentui/core': 0.2.2(typescript@5.9.3)(web-tree-sitter@0.25.10)
+      '@opentui/core': 0.2.2(typescript@5.9.3)(web-tree-sitter@0.26.8)
       react: 19.2.5
       react-devtools-core: 7.0.1
       react-reconciler: 0.32.0(react@19.2.5)
@@ -1412,6 +1416,8 @@ snapshots:
       '@vitest/pretty-format': 4.1.5
       convert-source-map: 2.0.0
       tinyrainbow: 3.1.0
+
+  '@vscode/tree-sitter-wasm@0.3.1': {}
 
   abort-controller@3.0.0:
     dependencies:
@@ -1829,7 +1835,7 @@ snapshots:
 
   web-streams-polyfill@4.0.0-beta.3: {}
 
-  web-tree-sitter@0.25.10: {}
+  web-tree-sitter@0.26.8: {}
 
   webidl-conversions@3.0.1: {}
 

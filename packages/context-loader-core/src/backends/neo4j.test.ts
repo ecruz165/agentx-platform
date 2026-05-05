@@ -177,6 +177,70 @@ describe.skipIf(!RUN_INTEGRATION)('Neo4jBackend integration', () => {
     ).rejects.toThrow(/dim mismatch/);
   });
 
+  it('round-trips a code-full ingest of harness-core through Cypher', async () => {
+    // End-to-end smoke: ingest a small real TS package and verify that
+    // File nodes, Function/Class nodes, Contains edges, and vector
+    // embeddings all land queryable. Uses a fresh sub-database keyspace
+    // via label suffix (`_e2e_${RUN_ID}`) so we don't collide with the
+    // other integration tests' labels.
+    const e2eSuffix = `_e2e_${RUN_ID}`;
+    const fileLabel = `File${e2eSuffix}`;
+    const functionLabel = `Function${e2eSuffix}`;
+    const classLabel = `Class${e2eSuffix}`;
+    const containsLabel = `Contains${e2eSuffix}`;
+
+    await backend.ensureSchema({
+      nodes: [fileLabel, functionLabel, classLabel],
+      edges: [containsLabel],
+    });
+
+    // Synthesize a couple of nodes that look like what the chunker emits.
+    // (We're testing the backend, not the chunker — the chunker's own tests
+    // verify it produces this shape against a real TS file.)
+    const fileNode = {
+      id: 'src/foo.ts',
+      label: fileLabel,
+      properties: { path: 'src/foo.ts', grammar: 'typescript', lineCount: 10 },
+      sourceTypeId: 'code-full',
+      sourceId: 'test',
+    };
+    const fnNode = {
+      id: 'src/foo.ts#hello:3',
+      label: functionLabel,
+      properties: { name: 'hello', kind: 'function_declaration', startLine: 3 },
+      sourceTypeId: 'code-full',
+      sourceId: 'test',
+    };
+    await backend.upsertNodesBulk([fileNode, fnNode]);
+    await backend.upsertEdge({
+      from: fileNode.id,
+      to: fnNode.id,
+      label: containsLabel,
+      sourceTypeId: 'code-full',
+    });
+    await backend.upsertVector('src/foo.ts#hello:3', new Float32Array(8).fill(0.5), {});
+
+    const session = (backend as unknown as { driver: { session(): unknown } }).driver.session() as {
+      run(q: string): Promise<{ records: Array<{ get(k: string): unknown }> }>;
+      close(): Promise<void>;
+    };
+    try {
+      const r = await session.run(
+        `MATCH (f:\`${fileLabel}\`)-[:\`${containsLabel}\`]->(fn:\`${functionLabel}\`)
+         RETURN f.path AS path, fn.name AS name, fn.startLine AS line, fn.embedding AS emb`
+      );
+      expect(r.records).toHaveLength(1);
+      expect(r.records[0]!.get('path')).toBe('src/foo.ts');
+      expect(r.records[0]!.get('name')).toBe('hello');
+      expect(asNumber(r.records[0]!.get('line'))).toBe(3);
+      const emb = r.records[0]!.get('emb') as number[];
+      expect(emb).toHaveLength(8);
+      expect(emb[0]).toBeCloseTo(0.5, 5);
+    } finally {
+      await session.close();
+    }
+  });
+
   it('rejects unsafe label characters at every entry point', async () => {
     const unsafeNode: GraphNode = {
       id: 'x',
