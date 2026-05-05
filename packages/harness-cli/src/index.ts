@@ -69,7 +69,7 @@ async function main() {
     case 'submit':
       return handleSubmit(rest);
     case 'tui':
-      await import('./tui.ts');
+      await import('./tui.tsx');
       return;
     case 'jobs-tui':
       await import('./jobs-tui.tsx');
