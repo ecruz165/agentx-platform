@@ -27,6 +27,7 @@ import {
   type GraphIngestionBackend,
   type IngestionEvent,
 } from '@agentx/context-loader-core';
+import { connectUdsEmitter, type UdsEmitter } from './uds-event-emitter.ts';
 
 // ─── Help / version / types (work without a backend) ──────────────────────
 
@@ -72,6 +73,12 @@ Output:
                                summary JSON on stdout.
   --output silent              Errors only on stderr; final summary on stdout.
 
+Job mode (used by harness-server's spawnWorker; not for direct invocation):
+  --output-events-uds <path>   Stream IngestionEvents as JSON-per-line to
+                               this Unix domain socket instead of stdout.
+                               Requires the JOB_ID env var; every event is
+                               tagged with { jobId, ts, ... }.
+
 Catalog:
   agentx-load types            List the built-in source type ids.
 
@@ -108,6 +115,13 @@ interface CliArgs {
   embedderModel: string;
   embedderDim: number;
   output: 'json' | 'progress' | 'silent';
+  /** When set, IngestionEvents flow as JSON-per-line to this UDS path
+   *  instead of stdout/stderr. Triggered by harness-server's spawnWorker
+   *  when running this binary as a job worker. */
+  outputEventsUds: string | undefined;
+  /** Job id supplied by harness-server via env. Required when outputEventsUds
+   *  is set; tagged onto every emitted event. */
+  jobId: string | undefined;
 }
 
 function parseArgv(argv: string[]): CliArgs {
@@ -154,6 +168,14 @@ function parseArgv(argv: string[]): CliArgs {
   if (!Number.isInteger(dim) || dim <= 0) {
     throw new CliError(`--embedder-dim must be a positive integer (got '${dimStr}')`, 2);
   }
+  const outputEventsUds = flags['output-events-uds'];
+  const jobId = process.env.JOB_ID;
+  if (outputEventsUds && !jobId) {
+    throw new CliError(
+      '--output-events-uds requires the JOB_ID env var (set by harness-server\'s spawnWorker)',
+      2
+    );
+  }
   return {
     target,
     type,
@@ -164,6 +186,8 @@ function parseArgv(argv: string[]): CliArgs {
     embedderModel: flags['embedder-model'] ?? 'ai/qwen3-embedding',
     embedderDim: dim,
     output,
+    outputEventsUds,
+    jobId,
   };
 }
 
@@ -322,19 +346,54 @@ async function runIngest(args: CliArgs): Promise<number> {
           dim: args.embedderDim,
         },
       });
-  const handler = makeEventHandler(args);
+
+  // Job mode: events flow over the UDS instead of stdout/stderr. The
+  // standalone progress/json/silent renderers are only used when there's
+  // no UDS to write to.
+  let udsEmitter: UdsEmitter | null = null;
+  if (args.outputEventsUds && args.jobId) {
+    udsEmitter = await connectUdsEmitter({
+      socketPath: args.outputEventsUds,
+      jobId: args.jobId,
+    });
+  }
+  const standalone = udsEmitter ? null : makeEventHandler(args);
+
+  // SIGTERM in job mode: write a `cancelled` event and exit within 5s.
+  // The AbortSignal we pass into ingest() lets the loader bail out
+  // cooperatively at the next walk-step boundary.
+  const abortController = new AbortController();
+  const sigtermHandler = (): void => {
+    abortController.abort();
+    udsEmitter?.emitMeta('cancelled', { reason: 'sigterm' });
+    // Hard cap at 5s; the abort should let the current step return,
+    // but if it hangs on I/O we don't want to wedge the worker forever.
+    setTimeout(() => process.exit(143), 5000).unref();
+  };
+  process.on('SIGTERM', sigtermHandler);
 
   try {
     const summary = await ingest({
       source: { type: args.type, ref: { kind: 'path', path: args.target } },
       backend,
       embedderClient,
-      onEvent: handler.onEvent,
+      onEvent: udsEmitter
+        ? (e) => udsEmitter!.emit(e)
+        : standalone!.onEvent,
+      signal: abortController.signal,
     });
-    handler.finalize();
-    process.stdout.write(`${JSON.stringify(summary, null, 2)}\n`);
+    standalone?.finalize();
+    if (udsEmitter) {
+      // Job mode: summary went out as a source-completed event already.
+      // Don't pollute stdout — the worker container's logs should be
+      // empty on success.
+    } else {
+      process.stdout.write(`${JSON.stringify(summary, null, 2)}\n`);
+    }
     return summary.errors > 0 ? 1 : 0;
   } finally {
+    process.removeListener('SIGTERM', sigtermHandler);
+    await udsEmitter?.close().catch(() => {});
     await backend.close().catch(() => {
       // Don't mask the original error if close also fails.
     });
