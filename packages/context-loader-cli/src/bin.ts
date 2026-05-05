@@ -2,94 +2,346 @@
 /**
  * agentx-load — CLI for the context loader.
  *
- * Phase A: skeleton — recognizes the documented subcommands and prints
- * an explanatory "not yet implemented" message + pointer to PRD phases.
- * Phase F (per .plans/2026-05-05-prd-context-loader-cli.md §13) wires the
- * real subcommands once core's Phase B+C land.
+ * Phase F (this file): minimum viable standalone mode. Runs ingest()
+ * end-to-end against either Neo4j (bolt://...) or an in-memory backend
+ * (for dry-run-style use). Streams IngestionEvents to stdout/stderr
+ * based on --output mode. Exits 0 on success, 1 on errors, 2 on bad args.
  *
- * Standalone vs job mode (Phase G):
- *   Standalone — runs in-process, writes to backend, no triad needed.
- *   Job mode   — invoked as a worker container's entrypoint; emits
- *                IngestionEvent JSON over the UDS named by
- *                --output-events-uds=<path>; harness-server's spawnWorker
- *                bridges to JobBus.
+ * Phase G (next) adds:
+ *   - Job mode (--output-events-uds + JOB_ID), so harness-server's
+ *     spawnWorker can launch this binary and consume its events
+ *   - Workspace-config auto-discovery (read .harness/config/context-sources.yml)
+ *
+ * Source-type inference is intentionally NOT done — users pass --type
+ * explicitly. Auto-detection by file content is a Phase F+ refinement
+ * once we have signal beyond extension (e.g., file content sniffing).
  */
 
-import { BUILTIN_SOURCE_TYPE_IDS } from '@agentx/context-loader-core';
+import {
+  BUILTIN_SOURCE_TYPE_IDS,
+  InMemoryGraphBackend,
+  Neo4jBackend,
+  createHttpEmbedderClient,
+  ingest,
+  type EmbedderClient,
+  type GraphIngestionBackend,
+  type IngestionEvent,
+} from '@agentx/context-loader-core';
 
-const KNOWN_SUBCOMMANDS = new Set([
-  'add',
-  'list',
-  'describe',
-  'refresh',
-  'remove',
-  'crawl',
-  'upload',
-  'oss',
-  'types',
-  'stats',
-  'dry-run',
-]);
+// ─── Help / version / types (work without a backend) ──────────────────────
 
 function printUsage(): void {
   process.stdout.write(
-    `agentx-load — load context sources into a graph backend.\n` +
-      `\n` +
-      `Usage:\n` +
-      `  agentx-load <subcommand> [args]\n` +
-      `\n` +
-      `Subcommands (Phase F+):\n` +
-      `  add <target>             Register and ingest a context source\n` +
-      `  list                     Show registered sources\n` +
-      `  describe <source-id>     Show details for a source\n` +
-      `  refresh <source-id>      Re-ingest a source incrementally\n` +
-      `  remove <source-id>       Drop a source's nodes/edges/vectors\n` +
-      `  crawl <url>              Run the crawled-web source type\n` +
-      `  upload <file>            Single-file upload (PDF, image, etc.)\n` +
-      `  oss <verb>               OSS dependency convenience namespace\n` +
-      `  types                    List source types in the built-in catalog\n` +
-      `  stats                    Counts: nodes/edges/vectors\n` +
-      `  dry-run <target>         Show what would be ingested, no writes\n` +
-      `\n` +
-      `For now (Phase A):\n` +
-      `  agentx-load types        Lists the v1 catalog ids (works today)\n` +
-      `  agentx-load --version    Prints the package version (works today)\n` +
-      `  Other subcommands print a "not yet implemented" message.\n` +
-      `\n` +
-      `See:\n` +
-      `  .plans/2026-05-05-prd-context-loader-core.md\n` +
-      `  .plans/2026-05-05-prd-context-loader-cli.md\n`
+    `agentx-load — load context sources into a graph backend.
+
+Usage:
+  agentx-load <target> [flags]
+  agentx-load types
+  agentx-load --help | --version
+
+Primary action — ingest a target:
+  agentx-load ./packages/harness-core --type code-full \\
+    --backend bolt://localhost:7687 --backend-password devpassword \\
+    --embedder-url http://localhost:8080/v1
+
+Required flags:
+  --type <id>                  Source type (e.g., 'code-full', 'prose-markdown').
+                               See \`agentx-load types\` for the catalog.
+  --backend <url>              bolt://host:port  (Neo4j)
+                               inmem://          (in-memory; lossy, for dry runs)
+  --embedder-url <url>         OpenAI-compatible /v1 endpoint
+                               (e.g., http://localhost:8080/v1 with the local
+                               ai/qwen3-embedding sidecar; or a Bedrock-fronting
+                               proxy in deployed envs).
+                               Use 'mock://' for an in-process deterministic
+                               embedder when validating flags / dry-running
+                               without infrastructure.
+
+Backend auth (Neo4j only):
+  --backend-user <user>        defaults to 'neo4j'
+  --backend-password <pwd>     required for bolt:// backends; can also come
+                               from NEO4J_PASSWORD env var
+
+Embedder options:
+  --embedder-model <id>        default: 'ai/qwen3-embedding'
+  --embedder-dim <n>           default: 1024
+
+Output:
+  --output json                One IngestionEvent JSON per line on stdout.
+  --output progress            Default. Single-line redraw on stderr; final
+                               summary JSON on stdout.
+  --output silent              Errors only on stderr; final summary on stdout.
+
+Catalog:
+  agentx-load types            List the built-in source type ids.
+
+See:
+  .plans/2026-05-05-prd-context-loader-core.md
+  .plans/2026-05-05-prd-context-loader-cli.md
+`
   );
 }
 
 function printTypes(): void {
-  process.stdout.write(`Built-in source types (Phase A — matcher + schema declared, chunkers in Phase B+):\n\n`);
+  process.stdout.write(`Built-in source types:\n\n`);
   for (const id of BUILTIN_SOURCE_TYPE_IDS) {
     process.stdout.write(`  - ${id}\n`);
   }
   process.stdout.write(
-    `\n` +
-      `Run \`agentx-load types describe <id>\` (Phase F) for per-type details.\n` +
-      `Built-in catalog source: packages/context-loader-core/src/catalog/index.ts\n`
+    `\nThe v1 catalog source-of-truth lives in:\n  packages/context-loader-core/src/catalog/index.ts\n`
   );
 }
 
 function printVersion(): void {
-  // Phase A: hardcoded; Phase F reads from package.json.
-  process.stdout.write(`agentx-load 0.0.0 (Phase A skeleton)\n`);
+  process.stdout.write(`agentx-load 0.0.0 (Phase F)\n`);
 }
 
-function notYetImplemented(subcommand: string): void {
-  process.stderr.write(
-    `agentx-load: subcommand '${subcommand}' is not yet implemented.\n` +
-      `\n` +
-      `Phase A ships the package skeleton + types + catalog only. The real\n` +
-      `subcommands land in Phase F (CLI wiring) once core's Phase B+C complete.\n` +
-      `\n` +
-      `See .plans/2026-05-05-prd-context-loader-cli.md §13 for the implementation timeline.\n`
-  );
-  process.exit(1);
+// ─── Argv parsing ─────────────────────────────────────────────────────────
+
+interface CliArgs {
+  target: string;
+  type: string;
+  backend: string;
+  backendUser: string;
+  backendPassword: string | undefined;
+  embedderUrl: string;
+  embedderModel: string;
+  embedderDim: number;
+  output: 'json' | 'progress' | 'silent';
 }
+
+function parseArgv(argv: string[]): CliArgs {
+  // Single positional (target) + flag pairs. Hand-rolled because the
+  // surface is small and avoiding a `commander` dep keeps the binary tight.
+  let target: string | undefined;
+  const flags: Record<string, string> = {};
+  for (let i = 0; i < argv.length; i++) {
+    const a = argv[i]!;
+    if (a.startsWith('--')) {
+      const [k, vInline] = a.slice(2).split('=', 2);
+      if (vInline !== undefined) {
+        flags[k!] = vInline;
+      } else {
+        const next = argv[i + 1];
+        if (next !== undefined && !next.startsWith('--')) {
+          flags[k!] = next;
+          i++;
+        } else {
+          flags[k!] = 'true';
+        }
+      }
+    } else if (target === undefined) {
+      target = a;
+    } else {
+      throw new CliError(`unexpected positional argument '${a}' (already have target '${target}')`, 2);
+    }
+  }
+  if (target === undefined) {
+    throw new CliError('missing positional target — pass a path to ingest', 2);
+  }
+  const type = flags.type;
+  if (!type) throw new CliError('missing required --type <id>', 2);
+  const backend = flags.backend;
+  if (!backend) throw new CliError('missing required --backend <url>', 2);
+  const embedderUrl = flags['embedder-url'];
+  if (!embedderUrl) throw new CliError('missing required --embedder-url <url>', 2);
+  const output = (flags.output ?? 'progress') as CliArgs['output'];
+  if (output !== 'json' && output !== 'progress' && output !== 'silent') {
+    throw new CliError(`--output must be one of: json, progress, silent (got '${output}')`, 2);
+  }
+  const dimStr = flags['embedder-dim'] ?? '1024';
+  const dim = Number(dimStr);
+  if (!Number.isInteger(dim) || dim <= 0) {
+    throw new CliError(`--embedder-dim must be a positive integer (got '${dimStr}')`, 2);
+  }
+  return {
+    target,
+    type,
+    backend,
+    backendUser: flags['backend-user'] ?? 'neo4j',
+    backendPassword: flags['backend-password'] ?? process.env.NEO4J_PASSWORD,
+    embedderUrl,
+    embedderModel: flags['embedder-model'] ?? 'ai/qwen3-embedding',
+    embedderDim: dim,
+    output,
+  };
+}
+
+class CliError extends Error {
+  constructor(message: string, readonly exitCode: number) {
+    super(message);
+  }
+}
+
+// ─── Backend construction ─────────────────────────────────────────────────
+
+async function buildBackend(args: CliArgs): Promise<GraphIngestionBackend> {
+  if (args.backend.startsWith('inmem')) {
+    return new InMemoryGraphBackend();
+  }
+  if (
+    args.backend.startsWith('bolt://') ||
+    args.backend.startsWith('neo4j://') ||
+    args.backend.startsWith('neo4j+s://') ||
+    args.backend.startsWith('neo4j+ssc://')
+  ) {
+    if (!args.backendPassword) {
+      throw new CliError(
+        'bolt:// backend requires --backend-password (or NEO4J_PASSWORD env)',
+        2
+      );
+    }
+    return new Neo4jBackend({
+      url: args.backend,
+      user: args.backendUser,
+      password: args.backendPassword,
+      vectorDim: args.embedderDim,
+    });
+  }
+  throw new CliError(
+    `unsupported backend URL scheme: '${args.backend}' (expected bolt://, neo4j://, neo4j+s://, neo4j+ssc://, or inmem://)`,
+    2
+  );
+}
+
+// ─── Output renderers ─────────────────────────────────────────────────────
+
+interface ProgressState {
+  itemsWalked: number;
+  chunksProduced: number;
+  nodesWritten: number;
+  edgesWritten: number;
+  vectorsWritten: number;
+  errors: number;
+  lastItem: string;
+}
+
+/** Render a single-line stderr progress redraw. Cheap and friendly for
+ *  interactive use; pipes capture stdout cleanly because we keep this on stderr. */
+function renderProgress(state: ProgressState): void {
+  const line =
+    `files=${state.itemsWalked} chunks=${state.chunksProduced} ` +
+    `nodes=${state.nodesWritten} edges=${state.edgesWritten} ` +
+    `vectors=${state.vectorsWritten} errors=${state.errors}` +
+    (state.lastItem ? `  ${truncMiddle(state.lastItem, 40)}` : '');
+  process.stderr.write(`\r\x1b[K${line}`);
+}
+
+function truncMiddle(s: string, maxLen: number): string {
+  if (s.length <= maxLen) return s;
+  const half = Math.floor((maxLen - 3) / 2);
+  return `${s.slice(0, half)}...${s.slice(s.length - half)}`;
+}
+
+function makeEventHandler(args: CliArgs): {
+  onEvent: (e: IngestionEvent) => void;
+  finalize: () => void;
+} {
+  const state: ProgressState = {
+    itemsWalked: 0,
+    chunksProduced: 0,
+    nodesWritten: 0,
+    edgesWritten: 0,
+    vectorsWritten: 0,
+    errors: 0,
+    lastItem: '',
+  };
+  return {
+    onEvent: (e) => {
+      switch (e.kind) {
+        case 'item-walked':
+          state.itemsWalked++;
+          state.lastItem = e.itemId;
+          break;
+        case 'chunk-produced':
+          state.chunksProduced += e.chunkCount;
+          break;
+        case 'node-written':
+          state.nodesWritten++;
+          break;
+        case 'edge-written':
+          state.edgesWritten++;
+          break;
+        case 'chunk-embedded':
+          state.vectorsWritten++;
+          break;
+        case 'error':
+          state.errors++;
+          process.stderr.write(`\nerror at ${e.phase}${e.item ? ` (${e.item})` : ''}: ${e.message}\n`);
+          break;
+        case 'source-completed':
+          // Final summary handled separately below; nothing to do here.
+          break;
+      }
+      if (args.output === 'json') {
+        process.stdout.write(`${JSON.stringify(e)}\n`);
+      } else if (args.output === 'progress') {
+        renderProgress(state);
+      }
+      // 'silent': no output here; only errors flushed via stderr above.
+    },
+    finalize: () => {
+      if (args.output === 'progress') {
+        // Clear the progress line + newline so the summary lands cleanly.
+        process.stderr.write(`\r\x1b[K`);
+      }
+    },
+  };
+}
+
+// ─── Main ingest flow ─────────────────────────────────────────────────────
+
+/** Deterministic in-process embedder for `--embedder-url mock://`. Useful
+ *  when validating chunker/dispatch end-to-end without standing up the
+ *  embedder service — the produced vectors are correct-shape but
+ *  semantically meaningless, so don't use this against a real backend
+ *  that anyone will query. */
+function buildMockEmbedder(dim: number): EmbedderClient {
+  let counter = 0;
+  return {
+    dim,
+    async embed(texts: string[]): Promise<Float32Array[]> {
+      return texts.map(() => {
+        counter++;
+        const v = new Float32Array(dim);
+        for (let i = 0; i < dim; i++) v[i] = (counter * (i + 1)) % 7;
+        return v;
+      });
+    },
+  };
+}
+
+async function runIngest(args: CliArgs): Promise<number> {
+  const backend = await buildBackend(args);
+  const embedderClient: EmbedderClient = args.embedderUrl.startsWith('mock')
+    ? buildMockEmbedder(args.embedderDim)
+    : createHttpEmbedderClient({
+        config: {
+          url: args.embedderUrl,
+          model: args.embedderModel,
+          dim: args.embedderDim,
+        },
+      });
+  const handler = makeEventHandler(args);
+
+  try {
+    const summary = await ingest({
+      source: { type: args.type, ref: { kind: 'path', path: args.target } },
+      backend,
+      embedderClient,
+      onEvent: handler.onEvent,
+    });
+    handler.finalize();
+    process.stdout.write(`${JSON.stringify(summary, null, 2)}\n`);
+    return summary.errors > 0 ? 1 : 0;
+  } finally {
+    await backend.close().catch(() => {
+      // Don't mask the original error if close also fails.
+    });
+  }
+}
+
+// ─── Entry ────────────────────────────────────────────────────────────────
 
 const [first, ...rest] = process.argv.slice(2);
 
@@ -97,22 +349,32 @@ if (!first || first === '--help' || first === '-h') {
   printUsage();
   process.exit(0);
 }
-
 if (first === '--version' || first === '-v') {
   printVersion();
   process.exit(0);
 }
-
 if (first === 'types' && rest.length === 0) {
   printTypes();
   process.exit(0);
 }
 
-if (KNOWN_SUBCOMMANDS.has(first)) {
-  notYetImplemented(first);
+// Everything else is the primary action: <target> [flags]. Even if first
+// is one of the legacy verbs (`add`, `list`, etc.), we don't recognize
+// them — Phase F drops the verb-required surface in favor of positional
+// target. Users get a clean error pointing at --help.
+try {
+  const args = parseArgv(process.argv.slice(2));
+  const code = await runIngest(args);
+  process.exit(code);
+} catch (err) {
+  if (err instanceof CliError) {
+    process.stderr.write(`agentx-load: ${err.message}\n\n`);
+    if (err.exitCode === 2) printUsage();
+    process.exit(err.exitCode);
+  }
+  process.stderr.write(`agentx-load: unexpected error: ${(err as Error).message}\n`);
+  if (process.env.DEBUG) {
+    process.stderr.write(`${(err as Error).stack ?? ''}\n`);
+  }
+  process.exit(1);
 }
-
-// Unknown subcommand
-process.stderr.write(`agentx-load: unknown subcommand '${first}'.\n\n`);
-printUsage();
-process.exit(2);

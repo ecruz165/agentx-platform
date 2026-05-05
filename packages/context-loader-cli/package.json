@@ -8,7 +8,9 @@
     "agentx-load": "src/bin.ts"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@agentx/context-loader-core": "workspace:*"
