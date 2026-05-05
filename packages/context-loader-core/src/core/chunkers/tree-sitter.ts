@@ -324,6 +324,11 @@ function extractDeclaration(
       charCount: chunkText.length,
       fullCharCount: fullText.length,
       mode,
+      // Chunk text on the node — same purpose as in heading-based (used
+      // by Phase C.7's Documents-edge linker + query-result payloads).
+      // For skeleton-only mode this is just the signature; for full mode
+      // it's the whole declaration.
+      text: chunkText,
     },
     sourceTypeId: input.sourceTypeId,
     sourceId: input.sourceId,

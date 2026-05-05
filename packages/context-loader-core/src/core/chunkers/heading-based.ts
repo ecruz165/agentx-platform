@@ -100,6 +100,11 @@ export function chunkHeadingBased(input: ChunkInput): ChunkOutput {
           ordinal: i,
           subOrdinal: pieceIdx,
           chars: piece.length,
+          // Chunk text on the node — used for symbol-resolution
+          // queries (Phase C.7 Documents edges) and as content payload
+          // for query-result rendering. Bounded by maxChars from
+          // splitWithOverlap, so well under Neo4j's property size limit.
+          text: piece,
         },
         sourceTypeId: input.sourceTypeId,
         sourceId: input.sourceId,

@@ -245,6 +245,66 @@ export class Neo4jBackend implements GraphIngestionBackend {
     }
   }
 
+  /**
+   * Cross-source-type linker: for a given OSS package name, find every
+   * OssSection whose `text` contains an OssFunction or OssClass `name`
+   * (within the same Version), and MERGE a `Documents` edge from the
+   * section to the symbol.
+   *
+   * Best-effort heuristic — substring match, no symbol-resolution
+   * intelligence. False positives possible (e.g., a section about
+   * "the bar function" linking to a `bar` function in code), but
+   * good enough for the v1 retrieval pattern "what docs explain this
+   * symbol?". Phase D will add a smarter resolver (AST-aware references,
+   * exact-token boundaries, etc.).
+   *
+   * Idempotent via MERGE on (section, symbol, label='Documents').
+   * Re-runs after either side updates; old edges to deleted symbols
+   * become orphaned and need a separate cleanup (also Phase D).
+   *
+   * Returns the number of new edges created (driver counters); the
+   * count includes both freshly-inserted edges and refreshed
+   * properties on existing ones — sufficient for "did the link pass
+   * do useful work?" diagnostics.
+   */
+  async linkDocumentsToSymbols(packageName: string): Promise<number> {
+    const session = this.session();
+    try {
+      // Walk: Package → Version → (OssDoc → OssSection)
+      //                       ↓← (OssFile → OssFunction|OssClass)
+      // Match section.text CONTAINS symbol.name → MERGE Documents edge.
+      //
+      // The CONTAINS predicate is O(text_len × name_len) per pair; for
+      // a graph with ~10k symbols × ~10k sections, that's a tractable
+      // one-shot post-ingest pass. If it becomes hot, swap to a Neo4j
+      // full-text index on OssSection(text) + db.index.fulltext.queryNodes.
+      //
+      // Idempotent via MERGE on the (section, symbol, Documents) tuple.
+      const result = await session.executeWrite((tx) =>
+        tx.run(
+          `MATCH (p:Package {name: $pkg})<-[:BelongsTo]-(v:Version)
+           MATCH (doc:OssDoc)-[:BelongsTo]->(v)
+           MATCH (doc)-[:Contains]->(sec:OssSection)
+             WHERE sec.text IS NOT NULL AND sec.text <> ''
+           MATCH (file:OssFile)-[:BelongsTo]->(v)
+           MATCH (file)-[:Contains]->(sym)
+             WHERE (sym:OssFunction OR sym:OssClass)
+               AND sym.name IS NOT NULL AND sym.name <> ''
+               AND sec.text CONTAINS sym.name
+           MERGE (sec)-[r:Documents]->(sym)
+             ON CREATE SET r.createdAt = datetime()
+             ON MATCH  SET r.refreshedAt = datetime()
+           RETURN count(r) AS edges`,
+          { pkg: packageName }
+        )
+      );
+      const rec = result.records[0];
+      return rec ? asJsNumber(rec.get('edges')) : 0;
+    } finally {
+      await session.close();
+    }
+  }
+
   async close(): Promise<void> {
     await this.driver.close();
   }
@@ -252,6 +312,14 @@ export class Neo4jBackend implements GraphIngestionBackend {
   private session(): Session {
     return this.driver.session({ database: this.database });
   }
+}
+
+function asJsNumber(v: unknown): number {
+  if (typeof v === 'number') return v;
+  if (v && typeof (v as { toNumber?: unknown }).toNumber === 'function') {
+    return (v as { toNumber(): number }).toNumber();
+  }
+  return Number(v);
 }
 
 // ─── helpers ────────────────────────────────────────────────────────────

@@ -276,6 +276,45 @@ export async function ingest(spec: IngestSpecExt): Promise<IngestionSummary> {
     summary.chunksWritten += chunked.chunks.length;
   }
 
+  // Cross-source-type linking (Phase C.7). After an oss-docs ingest
+  // completes, ask the backend (if it supports it) to MERGE Documents
+  // edges from OssSection nodes into oss-code's OssFunction/OssClass
+  // nodes whose name appears in the section text. The link runs only
+  // when:
+  //   - This source type is oss-docs (not oss-code or first-party).
+  //     oss-code → oss-docs ordering needs the docs side to be the
+  //     trigger; otherwise the symbols don't yet exist.
+  //   - We know the package name (provenance preamble succeeded).
+  //   - The backend implements linkDocumentsToSymbols (Neo4jBackend
+  //     does; InMemoryGraphBackend doesn't, and this is fine for
+  //     test isolation).
+  if (
+    sourceType.id === 'oss-docs' &&
+    ossVersionNodeId !== null &&
+    typeof (spec.backend as { linkDocumentsToSymbols?: unknown }).linkDocumentsToSymbols ===
+      'function'
+  ) {
+    // Extract package name from the version node id ('<name>@<version>').
+    const packageName = ossVersionNodeId.split('@')[0]!;
+    try {
+      const link = (
+        spec.backend as unknown as {
+          linkDocumentsToSymbols: (n: string) => Promise<number>;
+        }
+      ).linkDocumentsToSymbols.bind(spec.backend);
+      await link(packageName);
+    } catch (err) {
+      // Linking is best-effort; a failure shouldn't fail the ingest.
+      // Surface it as an error event for diagnostics.
+      summary.errors += 1;
+      spec.onEvent?.({
+        kind: 'error',
+        phase: 'link-documents',
+        message: (err as Error).message,
+      });
+    }
+  }
+
   const durationMs = Date.now() - startedAt;
   spec.onEvent?.({
     kind: 'source-completed',
