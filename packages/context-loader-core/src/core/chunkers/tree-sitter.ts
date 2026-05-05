@@ -50,6 +50,18 @@ export interface CodeFullChunkInput {
   sourceId: string;
   /** Optional license tag for OSS sources. */
   license?: string;
+  /**
+   * Chunk extraction mode.
+   *
+   * - `'full'` (default) — chunk text is the entire declaration (signature
+   *   + body). Used for first-party code where queries often want to see
+   *   how something is implemented.
+   * - `'skeleton-only'` — chunk text is just the signature (declaration
+   *   start through, but not including, the body block). Used for OSS
+   *   dependencies where the volume reduction (~10×) lets us index much
+   *   larger surfaces while preserving usage-pattern discoverability.
+   */
+  mode?: 'full' | 'skeleton-only';
 }
 
 export interface CodeFullChunkOutput {
@@ -248,9 +260,33 @@ function extractDeclaration(
   const name = symbolName(node);
   if (!name) return null;
 
-  const startLine = node.startPosition.row + 1; // 1-indexed for human-friendly ids
+  // If the declaration sits inside an `export_statement` (TS/JS), we widen
+  // the chunk start to include the `export` keyword. For skeleton-only
+  // mode this is the lever that makes "which functions does this package
+  // export?" answerable from the chunk text alone — without it, every
+  // signature loses its public/private signal.
+  const exportNode =
+    node.parent?.type === 'export_statement' ? node.parent : null;
+  const declStart = exportNode ? exportNode.startIndex : node.startIndex;
+  const startLine =
+    (exportNode ? exportNode.startPosition.row : node.startPosition.row) + 1;
   const endLine = node.endPosition.row + 1;
-  const text = input.content.slice(node.startIndex, node.endIndex);
+  const fullText = input.content.slice(declStart, node.endIndex);
+
+  // Skeleton-only mode: chunk text is the signature, not the body. We slice
+  // from the declaration start up to (but not including) the body block.
+  // Tree-sitter exposes the body as the 'body' field on declaration nodes
+  // for both TS and Python. If a declaration has no body field (a rare
+  // shape — e.g., interface_declaration with only signatures), the
+  // skeleton equals the full declaration anyway.
+  const mode = input.mode ?? 'full';
+  let chunkText = fullText;
+  if (mode === 'skeleton-only') {
+    const bodyNode = node.childForFieldName('body');
+    if (bodyNode) {
+      chunkText = input.content.slice(declStart, bodyNode.startIndex).trimEnd();
+    }
+  }
 
   // Symbol id: relativePath#name:startLine. Line number disambiguates the
   // (rare) case of identically-named declarations in the same file.
@@ -267,7 +303,11 @@ function extractDeclaration(
       startLine,
       endLine,
       lineCount: endLine - startLine + 1,
-      charCount: text.length,
+      // charCount reflects the indexed (chunk) text — useful when comparing
+      // skeleton vs body footprints. fullCharCount preserves the original.
+      charCount: chunkText.length,
+      fullCharCount: fullText.length,
+      mode,
     },
     sourceTypeId: input.sourceTypeId,
     sourceId: input.sourceId,
@@ -284,7 +324,7 @@ function extractDeclaration(
   return {
     node: graphNode,
     containsEdge,
-    chunk: { nodeId: symbolId, text },
+    chunk: { nodeId: symbolId, text: chunkText },
   };
 }
 

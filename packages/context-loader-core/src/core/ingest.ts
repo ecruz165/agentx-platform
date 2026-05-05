@@ -134,6 +134,12 @@ export async function ingest(spec: IngestSpecExt): Promise<IngestionSummary> {
             content,
             sourceTypeId: sourceType.id,
             sourceId: root,
+            // Skeleton-only when the catalog declares bodyExtraction: false
+            // (oss-code's default for ~10× volume reduction).
+            mode:
+              sourceType.chunker.bodyExtraction === false
+                ? 'skeleton-only'
+                : 'full',
           });
 
     spec.onEvent?.({

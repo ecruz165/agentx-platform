@@ -163,6 +163,89 @@ describe('chunkCodeFull — extension dispatch', () => {
   });
 });
 
+describe('chunkCodeFull — skeleton-only mode (oss-code style)', () => {
+  it('emits chunk text up to but not including the function body', async () => {
+    const src = `
+export function calculate(x: number, y: number): number {
+  // ~10x more text in the body than the signature
+  const intermediate = x * y * x * y;
+  const result = intermediate + intermediate / 2;
+  return Math.round(result);
+}
+`;
+    const out = await chunkCodeFull({
+      relativePath: 'lib.ts',
+      content: src,
+      sourceTypeId: 'oss-code',
+      sourceId: 'react@18.2.0',
+      mode: 'skeleton-only',
+    });
+    expect(out.chunks).toHaveLength(1);
+    const text = out.chunks[0]!.text;
+    expect(text).toContain('export function calculate(x: number, y: number): number');
+    // Body content must NOT be in the chunk.
+    expect(text).not.toContain('Math.round');
+    expect(text).not.toContain('intermediate');
+  });
+
+  it('records mode + fullCharCount on the node so callers can compare footprints', async () => {
+    const src = `function tiny(): void { console.log('lots of body content here'); }\n`;
+    const out = await chunkCodeFull({
+      relativePath: 't.ts',
+      content: src,
+      sourceTypeId: 'oss-code',
+      sourceId: 'pkg@1.0.0',
+      mode: 'skeleton-only',
+    });
+    const fn = out.nodes.find((n) => n.label === 'Function');
+    expect(fn!.properties.mode).toBe('skeleton-only');
+    // The skeleton chunk text is shorter than the original declaration.
+    expect(fn!.properties.charCount).toBeLessThan(fn!.properties.fullCharCount as number);
+  });
+
+  it('skeleton mode produces strictly less text than full mode for the same input', async () => {
+    const src = `
+function compute(a: number): number {
+  return a * a + 1;
+}
+`;
+    const full = await chunkCodeFull({
+      relativePath: 't.ts',
+      content: src,
+      sourceTypeId: 'code-full',
+      sourceId: 'ws',
+      mode: 'full',
+    });
+    const skel = await chunkCodeFull({
+      relativePath: 't.ts',
+      content: src,
+      sourceTypeId: 'oss-code',
+      sourceId: 'ws',
+      mode: 'skeleton-only',
+    });
+    expect(full.chunks[0]!.text.length).toBeGreaterThan(skel.chunks[0]!.text.length);
+  });
+
+  it('Python skeleton stops at the function body (after the colon)', async () => {
+    const src = `
+def add(a: int, b: int) -> int:
+    """Add two numbers."""
+    return a + b
+`;
+    const out = await chunkCodeFull({
+      relativePath: 'm.py',
+      content: src,
+      sourceTypeId: 'oss-code',
+      sourceId: 'pypi-pkg',
+      mode: 'skeleton-only',
+    });
+    const text = out.chunks[0]!.text;
+    expect(text).toContain('def add(a: int, b: int) -> int');
+    // The actual body (return statement) must not be in the skeleton.
+    expect(text).not.toContain('return a + b');
+  });
+});
+
 describe('chunkCodeFull — Python', () => {
   it('extracts function and class definitions', async () => {
     const src = `
