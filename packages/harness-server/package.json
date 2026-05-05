@@ -15,7 +15,8 @@
   "dependencies": {
     "@agentx/agent-adapter": "workspace:*",
     "@agentx/agent-auth-lib": "workspace:*",
-    "@agentx/harness-core": "workspace:*"
+    "@agentx/harness-core": "workspace:*",
+    "yaml": "^2.6.0"
   },
   "devDependencies": {
     "@types/node": "^22.7.0",

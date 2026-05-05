@@ -4,18 +4,23 @@ import { dirname } from 'node:path';
 import {
   JobBus,
   findPipeline,
+  findProduct,
   runJob,
   type AdapterFactory,
   type AdapterId,
   type AgentDef,
   type AgentStatus,
+  type Catalog,
   type Envelope,
   type JobRecord,
   type PipelineCatalog,
+  type ProductDef,
   type RegisteredAgent,
 } from '@agentx/harness-core';
 import type { CredentialBroker } from '@agentx/agent-auth-lib';
+import { randomUUID } from 'node:crypto';
 import { spawnLoaderJob, type LoaderEvent } from './loader-spawn.ts';
+import { inlineCatalogLoader } from './load-catalog.ts';
 
 export {
   spawnWorker,
@@ -32,6 +37,11 @@ export {
   type LoaderEvent,
 } from './loader-spawn.ts';
 
+export {
+  loadCatalogFromWorkspaceYaml,
+  inlineCatalogLoader,
+} from './load-catalog.ts';
+
 // Re-export the harness-core surface so existing consumers (harness-cli,
 // examples) that import from '@agentx/harness-server' keep working unchanged.
 // New consumers should prefer importing from '@agentx/harness-core' directly.
@@ -40,12 +50,17 @@ export {
   bridgeAdapter,
   loadCatalog,
   findPipeline,
+  findProduct,
+  validateUnifiedCatalog,
   CatalogError,
   runJob,
   defaultAdapterFactory,
   type Envelope,
+  type Catalog,
   type PipelineCatalog,
   type PipelineDef,
+  type ProductDef,
+  type ContextSourceDef,
   type AgentDef,
   type AdapterId,
   type AdapterFactory,
@@ -55,8 +70,22 @@ export interface HarnessServerOptions {
   socketPath: string;
   /** Inject a bus to share with the orchestrator. Defaults to a fresh one. */
   bus?: JobBus;
-  /** Pipeline catalog for agent registration on submit. Defaults to empty. */
+  /**
+   * @deprecated Use `loadCatalog` instead.
+   *
+   * Inline catalog for back-compat with existing tests + simple inline-
+   * config callers. When set, treated as a one-shot loader. New code
+   * should always use `loadCatalog` so the source can be a YAML file,
+   * S3 object, or central Catalog HTTP fetch — operator's choice.
+   */
   catalog?: PipelineCatalog;
+  /**
+   * Catalog loader. Called once at server startup; the resolved Catalog
+   * (pipelines + products) is read-only for the lifetime of the server.
+   * Failure to load fails server startup — no partial catalog operation.
+   * Restart-to-refresh; v1.x will add a SIGHUP-style reload signal.
+   */
+  loadCatalog?: () => Promise<Catalog>;
   /**
    * Credential broker. When provided, registered jobs are orchestrated
    * automatically — runJob fires after registration and walks the agent list.
@@ -70,7 +99,7 @@ export interface HarnessServerOptions {
 
 export interface HarnessServerHandle {
   bus: JobBus;
-  catalog: PipelineCatalog;
+  catalog: Catalog;
   stop(): Promise<void>;
 }
 
@@ -94,7 +123,24 @@ const COORDINATOR_AGENT: AgentDef = {
 
 export async function startHarnessServer(opts: HarnessServerOptions): Promise<HarnessServerHandle> {
   const bus = opts.bus ?? new JobBus();
-  const catalog: PipelineCatalog = opts.catalog ?? { pipelines: [] };
+  // Resolve the catalog at startup. Operators pick the source via
+  // loadCatalog; the deprecated inline `catalog` field keeps working
+  // by wrapping it in a one-shot loader. Either way the catalog is
+  // read-only for the lifetime of this server instance.
+  const loader =
+    opts.loadCatalog ??
+    (opts.catalog
+      ? inlineCatalogLoader({ pipelines: opts.catalog.pipelines })
+      : inlineCatalogLoader({ pipelines: [] }));
+  let catalog: Catalog;
+  try {
+    catalog = await loader();
+  } catch (err) {
+    // Fail fast — never serve traffic with a partial catalog.
+    throw new Error(
+      `harness-server: catalog load failed at startup — ${(err as Error).message}`
+    );
+  }
   const jobs = new Map<string, JobRecord>();
   const ctx: ServerCtx = {
     bus,
@@ -128,7 +174,7 @@ export async function startHarnessServer(opts: HarnessServerOptions): Promise<Ha
 
 interface ServerCtx {
   bus: JobBus;
-  catalog: PipelineCatalog;
+  catalog: Catalog;
   jobs: Map<string, JobRecord>;
   broker?: CredentialBroker;
   adapterFactory?: AdapterFactory;
@@ -142,6 +188,51 @@ function route(req: IncomingMessage, res: ServerResponse, ctx: ServerCtx) {
   const eventsMatch = req.method === 'GET' && url.match(/^\/v1\/jobs\/([^/]+)\/events$/);
   if (eventsMatch) {
     streamJobEvents(req, res, eventsMatch[1]!, ctx.bus);
+    return;
+  }
+
+  // ─── Read-only catalog routes ───────────────────────────────────
+  // The catalog is loaded once at startup and immutable thereafter
+  // (per the authority model — admins mutate via YAML/central Catalog,
+  // not via runtime API). These routes are the read surface clients
+  // use to discover what's available.
+  if (req.method === 'GET' && url === '/v1/catalog/pipelines') {
+    ok(res, {
+      service,
+      pipelines: ctx.catalog.pipelines,
+      count: ctx.catalog.pipelines.length,
+      ts: new Date().toISOString(),
+    });
+    return;
+  }
+  const pipelineMatch = req.method === 'GET' && url.match(/^\/v1\/catalog\/pipelines\/([^/]+)$/);
+  if (pipelineMatch) {
+    const found = findPipeline(ctx.catalog, pipelineMatch[1]!);
+    if (!found) {
+      notFound(res, `pipeline not found: ${pipelineMatch[1]}`);
+      return;
+    }
+    ok(res, { service, pipeline: found, ts: new Date().toISOString() });
+    return;
+  }
+  if (req.method === 'GET' && url === '/v1/catalog/products') {
+    const products = ctx.catalog.products ?? [];
+    ok(res, {
+      service,
+      products,
+      count: products.length,
+      ts: new Date().toISOString(),
+    });
+    return;
+  }
+  const productMatch = req.method === 'GET' && url.match(/^\/v1\/catalog\/products\/([^/]+)$/);
+  if (productMatch) {
+    const found = findProduct(ctx.catalog, productMatch[1]!);
+    if (!found) {
+      notFound(res, `product not found: ${productMatch[1]}`);
+      return;
+    }
+    ok(res, { service, product: found, ts: new Date().toISOString() });
     return;
   }
 
@@ -272,11 +363,245 @@ function handleSubmitJob(res: ServerResponse, body: Record<string, unknown>, ctx
   }
 }
 
+async function handleSubmitLoaderProductJobs(
+  res: ServerResponse,
+  body: Record<string, unknown>,
+  productId: string,
+  ctx: ServerCtx
+): Promise<void> {
+  const product = findProduct(ctx.catalog, productId);
+  if (!product) {
+    const known = (ctx.catalog.products ?? []).map((p) => p.id);
+    badRequest(
+      res,
+      `unknown product '${productId}'. Known: ${known.join(', ') || '(none)'}`
+    );
+    return;
+  }
+  if (!product.contextSources || product.contextSources.length === 0) {
+    badRequest(
+      res,
+      `product '${productId}' has no contextSources declared in the catalog`
+    );
+    return;
+  }
+  // Workspace-default fallbacks come from the request body. Per-source
+  // overrides in the catalog (embedderUrl/embedderModel/backend) win.
+  const defaultBackend = typeof body.backend === 'string' ? body.backend : undefined;
+  const defaultEmbedderUrl =
+    typeof body.embedderUrl === 'string' ? body.embedderUrl : undefined;
+  const workspaceRoot =
+    typeof body.workspaceRoot === 'string' ? body.workspaceRoot : null;
+  if (!workspaceRoot) {
+    badRequest(res, 'workspaceRoot is required for productId-form intent');
+    return;
+  }
+
+  const submittedAt = new Date().toISOString();
+  const spawnedJobIds: string[] = [];
+  for (const src of product.contextSources) {
+    const backend = src.backend ?? defaultBackend;
+    const embedderUrl = src.embedderUrl ?? defaultEmbedderUrl;
+    if (!backend || !embedderUrl) {
+      // Per-source missing required defaults — skip with a warning event
+      // so the rest of the product still loads. We could fail-fast instead,
+      // but partial load + reported errors gives the operator more signal
+      // than an "all-or-nothing" failure.
+      ctx.bus.publish(`product:${productId}`, 'loader', {
+        kind: 'error',
+        ts: new Date().toISOString(),
+        message: `skipped ${src.type}/${src.target}: missing backend or embedder-url`,
+      });
+      continue;
+    }
+    // Each source becomes its own job. Short jobIds keep UDS paths under
+    // the 104-byte sun_path limit.
+    const jobId = `l-${randomUUID().slice(0, 8)}`;
+    spawnedJobIds.push(jobId);
+    // Recurse into the single-source path with the resolved spec. Don't
+    // await — fan out concurrently. Errors surface as job-status
+    // transitions, not as 4xx on this submit.
+    void handleSubmitLoaderSingleResolved(
+      {
+        jobId,
+        productId,
+        target: resolveProductTarget(src.target, workspaceRoot),
+        type: src.type,
+        backend,
+        backendUser:
+          typeof body.backendUser === 'string' ? body.backendUser : undefined,
+        backendPassword:
+          typeof body.backendPassword === 'string' ? body.backendPassword : undefined,
+        embedderUrl,
+        embedderModel: src.embedderModel,
+        embedderDim: src.embedderDim,
+        workspaceRoot,
+      },
+      ctx
+    );
+  }
+
+  ok(res, {
+    service: 'harness',
+    method: 'POST',
+    path: '/v1/loader-jobs',
+    productId,
+    spawnedJobIds,
+    count: spawnedJobIds.length,
+    ts: submittedAt,
+  });
+}
+
+/** OSS package targets like "react@18.2.0" stay as-is; URLs likewise.
+ *  Bare paths get resolved against the workspace root so relative
+ *  YAML entries like `./packages/foo` work consistently. */
+function resolveProductTarget(target: string, workspaceRoot: string): string {
+  if (target.startsWith('/') || target.includes('://')) return target;
+  // Treat package@version specifiers as opaque
+  if (/^[A-Za-z@][A-Za-z0-9_./@-]*@[A-Za-z0-9._-]+$/.test(target)) return target;
+  // Relative path
+  return `${workspaceRoot}/${target.replace(/^\.\//, '')}`;
+}
+
+interface ResolvedSingleSpec {
+  jobId: string;
+  productId?: string;
+  target: string;
+  type: string;
+  backend: string;
+  backendUser?: string;
+  backendPassword?: string;
+  embedderUrl: string;
+  embedderModel?: string;
+  embedderDim?: number;
+  workspaceRoot: string;
+}
+
+/** Spawns one loader for a fully-resolved spec (used by both the direct
+ *  single-source POST and the product fan-out path). */
+async function handleSubmitLoaderSingleResolved(
+  spec: ResolvedSingleSpec,
+  ctx: ServerCtx
+): Promise<void> {
+  const submittedAt = new Date().toISOString();
+  const loaderAgent: RegisteredAgent = {
+    id: 'loader',
+    role: 'Loader',
+    adapter: 'loader-spawn' as AdapterId,
+    status: 'running',
+  };
+  const job: JobRecord = {
+    jobId: spec.jobId,
+    name: spec.productId
+      ? `load: ${spec.type} (${spec.productId})`
+      : `load: ${spec.type}`,
+    productId: spec.productId,
+    status: 'running',
+    submittedAt,
+    agents: [loaderAgent],
+  } as JobRecord;
+  ctx.jobs.set(spec.jobId, job);
+
+  const counts = {
+    files: 0,
+    chunks: 0,
+    nodes: 0,
+    edges: 0,
+    vectors: 0,
+    errors: 0,
+  };
+
+  let handle: Awaited<ReturnType<typeof spawnLoaderJob>>;
+  try {
+    handle = await spawnLoaderJob({
+      jobId: spec.jobId,
+      target: spec.target,
+      type: spec.type,
+      backend: spec.backend,
+      backendUser: spec.backendUser,
+      backendPassword: spec.backendPassword,
+      embedderUrl: spec.embedderUrl,
+      embedderModel: spec.embedderModel,
+      embedderDim: spec.embedderDim,
+      workspaceRoot: spec.workspaceRoot,
+      tmuxPane: process.env.TMUX
+        ? { session: process.env.AGENTX_TMUX_SESSION ?? 'agentx', window: 'loaders' }
+        : undefined,
+    });
+  } catch (err) {
+    job.status = 'failed';
+    loaderAgent.status = 'failed';
+    ctx.bus.publish(spec.jobId, 'loader', {
+      kind: 'error',
+      ts: new Date().toISOString(),
+      message: `loader failed to start: ${(err as Error).message}`,
+    });
+    return;
+  }
+
+  handle.subscribe((event: LoaderEvent) => {
+    switch (event.kind) {
+      case 'item-walked':
+        counts.files++;
+        break;
+      case 'chunk-produced':
+        counts.chunks += Number(event.chunkCount ?? 0);
+        break;
+      case 'node-written':
+        counts.nodes++;
+        break;
+      case 'edge-written':
+        counts.edges++;
+        break;
+      case 'chunk-embedded':
+        counts.vectors++;
+        break;
+      case 'error':
+        counts.errors++;
+        break;
+    }
+    const lastItem = typeof event.itemId === 'string' ? event.itemId : undefined;
+    ctx.bus.publish(spec.jobId, 'loader', {
+      kind: 'loader-event',
+      ts: new Date().toISOString(),
+      counts: { ...counts },
+      lastItem,
+      innerKind: event.kind,
+    });
+  });
+
+  try {
+    await handle.whenComplete;
+    job.status = 'completed';
+    loaderAgent.status = 'completed';
+  } catch (err) {
+    job.status = 'failed';
+    loaderAgent.status = 'failed';
+    ctx.bus.publish(spec.jobId, 'loader', {
+      kind: 'error',
+      ts: new Date().toISOString(),
+      message: `loader job ended: ${(err as Error).message}`,
+    });
+  }
+}
+
 async function handleSubmitLoaderJob(
   res: ServerResponse,
   body: Record<string, unknown>,
   ctx: ServerCtx
 ): Promise<void> {
+  // Two acceptance shapes:
+  //   1. {productId, ...defaults} — server resolves from catalog and
+  //      fans out one worker per declared contextSource. Client doesn't
+  //      need to know what sources exist.
+  //   2. {jobId, target, type, backend, embedderUrl, workspaceRoot} —
+  //      ad-hoc single-source intent (matches what harness-cli's
+  //      single-target form sends today).
+  const productId = typeof body.productId === 'string' ? body.productId : null;
+  if (productId) {
+    return handleSubmitLoaderProductJobs(res, body, productId, ctx);
+  }
+
   const jobId = typeof body.jobId === 'string' ? body.jobId : null;
   const target = typeof body.target === 'string' ? body.target : null;
   const type = typeof body.type === 'string' ? body.type : null;
@@ -288,7 +613,7 @@ async function handleSubmitLoaderJob(
   if (!jobId || !target || !type || !backend || !embedderUrl || !workspaceRoot) {
     badRequest(
       res,
-      'jobId, target, type, backend, embedderUrl, workspaceRoot are all required'
+      'either {productId, ...} or {jobId, target, type, backend, embedderUrl, workspaceRoot} required'
     );
     return;
   }

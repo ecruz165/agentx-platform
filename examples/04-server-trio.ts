@@ -1,5 +1,8 @@
 import { join } from 'node:path';
-import { startHarnessServer } from '@agentx/harness-server';
+import {
+  startHarnessServer,
+  loadCatalogFromWorkspaceYaml,
+} from '@agentx/harness-server';
 import { startMemoryServer } from '@agentx/edge-memory-server';
 import { startContextServer, ContextQueryService } from '@agentx/edge-context-server';
 
@@ -30,7 +33,15 @@ if (process.env.NEO4J_URL && process.env.NEO4J_PASSWORD && process.env.EMBEDDER_
   });
 }
 
-const harnessSrv = await startHarnessServer({ socketPath: harnessSocket });
+// Local-dev catalog: stitch harness-workspace.yml products + pipelines.json
+// pipelines into the unified Catalog. Operators on ECS would swap this for
+// `() => fetchFromCentralCatalog(...)` or `() => readS3Object(...)` — the
+// server doesn't care where the catalog comes from, only that loadCatalog()
+// resolves before traffic is accepted.
+const harnessSrv = await startHarnessServer({
+  socketPath: harnessSocket,
+  loadCatalog: () => loadCatalogFromWorkspaceYaml(process.cwd()),
+});
 const memorySrv = await startMemoryServer({ socketPath: memorySocket });
 const contextSrv = await startContextServer({
   socketPath: contextSocket,

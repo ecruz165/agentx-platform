@@ -477,6 +477,43 @@ async function loadAllProductSources(
   productId: string,
   parsed: ParsedRawArgs
 ): Promise<void> {
+  // When harness-server is up, delegate the entire fan-out: server reads
+  // its catalog (sourced from harness-workspace.yml at startup), spawns
+  // one worker per contextSource, and registers each as a separate job
+  // so jobs-tui sees all of them concurrently.
+  if (existsSync(HARNESS_SOCKET)) {
+    const resp = await udsRequest(HARNESS_SOCKET, 'POST', '/v1/loader-jobs', {
+      productId,
+      // Workspace defaults — per-source declarations in the catalog win.
+      backend: parsed.flags.backend,
+      backendUser: parsed.flags['backend-user'],
+      backendPassword: parsed.flags['backend-password'] ?? process.env.NEO4J_PASSWORD,
+      embedderUrl: parsed.flags['embedder-url'],
+      embedderModel: parsed.flags['embedder-model'],
+      embedderDim: parsed.flags['embedder-dim']
+        ? Number(parsed.flags['embedder-dim'])
+        : undefined,
+      workspaceRoot: WORKSPACE_ROOT,
+    });
+    const body = resp.body as
+      | { ok: boolean; spawnedJobIds?: string[]; count?: number; error?: string }
+      | null;
+    if (!body || !body.ok) {
+      die(`harness-server: ${body?.error ?? 'unknown error'}`);
+    }
+    process.stderr.write(
+      `harness context load: spawned ${body.count ?? 0} loader job(s) for product '${productId}':\n`
+    );
+    for (const id of body.spawnedJobIds ?? []) {
+      process.stderr.write(`  ${id}\n`);
+    }
+    process.stderr.write(`Watch live: harness jobs-tui  (or in tmux: ctrl-b L)\n`);
+    process.exit(0);
+  }
+
+  // Fallback: harness-server not running. Read the workspace YAML
+  // directly and run loaders in-process, one at a time. Same UX as
+  // before harness-server was wired in.
   const config = await loadWorkspaceConfig();
   const product = findProduct(config, productId);
   if (!product) {
@@ -489,14 +526,10 @@ async function loadAllProductSources(
         `Add a contextSources: [{ type, target, ... }] block under the product.`
     );
   }
-  // CLI flags supply workspace-default fallbacks. Per-source declarations
-  // (in the YAML) override these; this lets a workspace declare "all my
-  // sources go to bolt://neo4j-edge:7687 except this one which goes to
-  // a benchmark host."
   const defaultBackend = parsed.flags.backend;
   const defaultEmbedderUrl = parsed.flags['embedder-url'];
   process.stderr.write(
-    `harness context load: product '${productId}' has ${product.contextSources.length} source(s)\n`
+    `harness context load: product '${productId}' has ${product.contextSources.length} source(s) (in-process; harness-server not running)\n`
   );
   let totalErrors = 0;
   for (const src of product.contextSources) {

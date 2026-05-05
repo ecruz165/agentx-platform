@@ -9,9 +9,14 @@
 export {
   loadCatalog,
   findPipeline,
+  findProduct,
+  validateUnifiedCatalog,
   CatalogError,
+  type Catalog,
   type PipelineCatalog,
   type PipelineDef,
+  type ProductDef,
+  type ContextSourceDef,
   type AgentDef,
   type AdapterId,
 } from './catalog.ts';

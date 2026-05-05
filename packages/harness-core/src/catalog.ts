@@ -47,8 +47,53 @@ export interface PipelineDef {
   agents: AgentDef[];
 }
 
+/**
+ * One context-source declaration on a product. Mirrors the shape used in
+ * `<workspace>/.harness/config/context-sources.yml` and in
+ * harness-workspace.yml's per-product `contextSources` block. The loader
+ * consumes these one-per-spawned-worker when `harness context load
+ * --product X` lands.
+ */
+export interface ContextSourceDef {
+  /** Source-type id from @agentx/context-loader-core's catalog
+   *  (`code-full`, `prose-markdown`, `oss-code`, …). */
+  type: string;
+  /** What to ingest: a path, an OSS package@version, or a URL. */
+  target: string;
+  /** Per-source overrides (winning over workspace defaults). */
+  embedderUrl?: string;
+  embedderModel?: string;
+  embedderDim?: number;
+  backend?: string;
+}
+
+/**
+ * Product = a tenant boundary with its declared content sources. Per
+ * project_authority_model_jobs_pipelines, products are admin-owned shapes
+ * the runtime references at job-acceptance time. They live alongside
+ * pipelines in the unified Catalog.
+ */
+export interface ProductDef {
+  id: string;
+  description?: string;
+  contextSources?: ContextSourceDef[];
+}
+
 export interface PipelineCatalog {
   pipelines: PipelineDef[];
+}
+
+/**
+ * Unified Catalog — pipelines + products + (future) agents. This is the
+ * single shape that flows through `loadCatalog: () => Promise<Catalog>`.
+ * `PipelineCatalog` is the original pipelines-only type; `Catalog` extends
+ * it with the additional axes. Existing consumers that only need pipelines
+ * can keep typing against `PipelineCatalog`; new consumers reach for
+ * `Catalog`.
+ */
+export interface Catalog extends PipelineCatalog {
+  /** Optional in v1 — workspaces without products skip this. */
+  products?: ProductDef[];
 }
 
 export class CatalogError extends Error {}
@@ -135,4 +180,75 @@ function validateCatalog(value: unknown, path: string): asserts value is Pipelin
 
 export function findPipeline(catalog: PipelineCatalog, id: string): PipelineDef | undefined {
   return catalog.pipelines.find((p) => p.id === id);
+}
+
+export function findProduct(catalog: Catalog, id: string): ProductDef | undefined {
+  return catalog.products?.find((p) => p.id === id);
+}
+
+/**
+ * Validates the unified Catalog shape. Reuses pipeline validation
+ * (which is already comprehensive) and adds product-shape checks.
+ * Caller-supplied path is included in error messages so YAML/JSON
+ * sources surface bad-config locations without the validator needing
+ * to know what kind of file it came from.
+ */
+export function validateUnifiedCatalog(value: unknown, path: string): asserts value is Catalog {
+  if (!value || typeof value !== 'object') {
+    throw new CatalogError(`${path}: top-level must be an object`);
+  }
+  const obj = value as Record<string, unknown>;
+  // Pipelines is required (even if empty array — distinguishes "I have
+  // no pipelines" from "I forgot the field").
+  if (!Array.isArray(obj.pipelines)) {
+    throw new CatalogError(`${path}: missing "pipelines" array (use [] for none)`);
+  }
+  // Re-use the pipeline-only validator by going through JSON to avoid
+  // accidental aliasing — this is config-load time, perf is irrelevant.
+  validateCatalog({ pipelines: obj.pipelines }, path);
+
+  if (obj.products !== undefined) {
+    if (!Array.isArray(obj.products)) {
+      throw new CatalogError(`${path}: "products" must be an array if present`);
+    }
+    const ids = new Set<string>();
+    for (const [i, p] of obj.products.entries()) {
+      if (!p || typeof p !== 'object') {
+        throw new CatalogError(`${path}: products[${i}] must be an object`);
+      }
+      const product = p as Record<string, unknown>;
+      if (typeof product.id !== 'string' || !product.id) {
+        throw new CatalogError(`${path}: products[${i}].id must be a non-empty string`);
+      }
+      if (ids.has(product.id)) {
+        throw new CatalogError(`${path}: duplicate product id "${product.id}"`);
+      }
+      ids.add(product.id);
+      if (product.contextSources !== undefined) {
+        if (!Array.isArray(product.contextSources)) {
+          throw new CatalogError(
+            `${path}: products[${i}].contextSources must be an array if present`
+          );
+        }
+        for (const [j, s] of product.contextSources.entries()) {
+          if (!s || typeof s !== 'object') {
+            throw new CatalogError(
+              `${path}: products[${i}].contextSources[${j}] must be an object`
+            );
+          }
+          const src = s as Record<string, unknown>;
+          if (typeof src.type !== 'string' || !src.type) {
+            throw new CatalogError(
+              `${path}: products[${i}].contextSources[${j}].type must be a non-empty string`
+            );
+          }
+          if (typeof src.target !== 'string' || !src.target) {
+            throw new CatalogError(
+              `${path}: products[${i}].contextSources[${j}].target must be a non-empty string`
+            );
+          }
+        }
+      }
+    }
+  }
 }
