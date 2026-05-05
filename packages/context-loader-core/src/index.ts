@@ -64,3 +64,10 @@ export type {
 // Matcher + walker (lower-level, for custom orchestration)
 export { compileMatcher, type MatcherFn, type MatcherSpec } from './core/matcher.ts';
 export { walk, type WalkOptions, type WalkResult } from './core/walk.ts';
+
+// OSS provenance (manifest → Package + Version + BelongsTo nodes/edges)
+export {
+  readOssPackageMeta,
+  buildProvenanceGraph,
+  type OssPackageMeta,
+} from './core/oss-meta.ts';

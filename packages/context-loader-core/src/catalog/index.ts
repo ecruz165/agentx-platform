@@ -56,7 +56,11 @@ const ossCode: SourceType = {
   },
   graphSchema: {
     nodes: ['Package', 'Version', 'OssFile', 'OssFunction', 'OssClass', 'OssExport'],
-    edges: ['BelongsTo', 'Exports', 'ImportedBy'],
+    // 'Contains' is the structural File→Function/Class edge (same as
+    // code-full). 'BelongsTo' carries provenance: OssFile → Version,
+    // Version → Package. 'Exports' / 'ImportedBy' come online with
+    // Phase C.7 cross-source-type edges.
+    edges: ['Contains', 'BelongsTo', 'Exports', 'ImportedBy'],
   },
   chunker: {
     type: 'tree-sitter',

@@ -30,6 +30,7 @@ import {
   type ChunkOutput,
 } from './chunkers/heading-based.ts';
 import { chunkCodeFull } from './chunkers/tree-sitter.ts';
+import { readOssPackageMeta, buildProvenanceGraph } from './oss-meta.ts';
 import {
   createHttpEmbedderClient,
   type EmbedderClient,
@@ -92,6 +93,36 @@ export async function ingest(spec: IngestSpecExt): Promise<IngestionSummary> {
     sourceType.chunker.bodyExceptions.length > 0
       ? compileMatcher({ include: sourceType.chunker.bodyExceptions })
       : null;
+
+  // OSS provenance: when ingesting an OSS package source, read its
+  // manifest (package.json today; Cargo.toml/pom.xml in future slices)
+  // and emit Package + Version nodes once before the per-file loop.
+  // Each File then gets a BelongsTo → Version edge below. Ingesting
+  // a directory without a manifest still works — provenance is just
+  // skipped (and the resulting graph has no Package/Version for those
+  // files; a consumer of OSS results can detect "missing provenance"
+  // and warn upstream).
+  let ossVersionNodeId: string | null = null;
+  if (sourceType.id === 'oss-code') {
+    const meta = await readOssPackageMeta(root);
+    if (meta) {
+      const provenance = buildProvenanceGraph(meta, sourceType.id, root);
+      await spec.backend.upsertNodesBulk(provenance.nodes);
+      await spec.backend.upsertEdgesBulk(provenance.edges);
+      for (const node of provenance.nodes) {
+        spec.onEvent?.({ kind: 'node-written', nodeId: node.id, label: node.label });
+      }
+      for (const edge of provenance.edges) {
+        spec.onEvent?.({
+          kind: 'edge-written',
+          from: edge.from,
+          to: edge.to,
+          type: edge.label,
+        });
+      }
+      ossVersionNodeId = provenance.versionNodeId;
+    }
+  }
 
   // Per-file processing
   for await (const item of walk({
@@ -180,8 +211,24 @@ export async function ingest(spec: IngestSpecExt): Promise<IngestionSummary> {
     for (const node of chunked.nodes) {
       spec.onEvent?.({ kind: 'node-written', nodeId: node.id, label: node.label });
     }
-    await spec.backend.upsertEdgesBulk(chunked.edges);
-    for (const edge of chunked.edges) {
+
+    // OSS provenance: link this file's File-node back to the package
+    // Version. The chunker emits exactly one File per ingest call, so
+    // we find it by label (OssFile under oss-code's labelPrefix).
+    const provenanceEdges =
+      ossVersionNodeId !== null
+        ? chunked.nodes
+            .filter((n) => n.label.endsWith('File'))
+            .map((fileNode) => ({
+              from: fileNode.id,
+              to: ossVersionNodeId!,
+              label: 'BelongsTo',
+              sourceTypeId: sourceType.id,
+            }))
+        : [];
+
+    await spec.backend.upsertEdgesBulk([...chunked.edges, ...provenanceEdges]);
+    for (const edge of [...chunked.edges, ...provenanceEdges]) {
       spec.onEvent?.({
         kind: 'edge-written',
         from: edge.from,
