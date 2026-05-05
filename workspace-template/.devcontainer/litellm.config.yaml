@@ -1,0 +1,34 @@
+# LiteLLM proxy config — bench profile only.
+#
+# Translates OpenAI-compatible POST /v1/embeddings into Bedrock InvokeModel
+# calls so the context-loader CLI doesn't need a separate Bedrock-aware
+# code path. Same EmbedderClient interface across local Qwen and prod Bedrock.
+#
+# AWS credentials come from one of:
+#   - AWS_ACCESS_KEY_ID + AWS_SECRET_ACCESS_KEY env vars (set in shell
+#     before `docker compose --profile bench up`)
+#   - ~/.aws/credentials read via AWS_PROFILE (mounted from host into the
+#     container by docker-compose.yml)
+# LiteLLM uses the standard boto3 credential chain, so either works.
+
+model_list:
+  # Bedrock Titan Embeddings v2 — 1024-dim by default, configurable to
+  # 256 / 512 / 1024 via `dimensions` in the request body. Matches the
+  # Qwen3-Embedding-0.6B local default for apples-to-apples benchmarking.
+  - model_name: bedrock-titan-v2
+    litellm_params:
+      model: bedrock/amazon.titan-embed-text-v2:0
+      aws_region_name: os.environ/AWS_REGION
+
+  # Cohere Embed v3 — alternative for the bench. Tends to win on retrieval
+  # quality but is pricier per-token. Same 1024-dim so no schema shift.
+  - model_name: bedrock-cohere-v3
+    litellm_params:
+      model: bedrock/cohere.embed-english-v3
+      aws_region_name: os.environ/AWS_REGION
+
+# Default model the proxy returns when `model` is omitted from the request.
+# The context-loader CLI passes `model: ...` explicitly so this is just
+# a fallback for ad-hoc curl tests.
+litellm_settings:
+  default_model: bedrock-titan-v2

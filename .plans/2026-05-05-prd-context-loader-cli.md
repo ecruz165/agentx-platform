@@ -185,9 +185,11 @@ agentx-load <target> --backend kuzu://./data/context
 agentx-load <target> --backend neo4j://localhost:7687
 agentx-load <target> --backend neo4j --uri neo4j://my.host:7687 --username neo4j
 
-# Embedder override (overrides config; useful for benchmarking)
-agentx-load <target> --embedder-url http://embedder-qwen:8080/v1
-agentx-load <target> --embedder-url http://localhost:8080/v1 --embedder-model jinaai/jina-embeddings-v3
+# Embedder override (overrides config; useful for benchmarking — see the
+# `bench` profile in workspace-template/.devcontainer/docker-compose.yml).
+agentx-load <target> --embedder-url http://embedder-qwen-small:8080/v1
+agentx-load <target> --embedder-url http://embedder-qwen-large:8080/v1 --embedder-model ai/qwen3-embedding
+agentx-load <target> --embedder-url http://embedder-bedrock:4000/v1   --embedder-model bedrock-titan-v2
 
 # Job mode (typically invoked by harness-server's spawnWorker, not by hand)
 agentx-load <target> --output-events-uds=/run/job-events.sock

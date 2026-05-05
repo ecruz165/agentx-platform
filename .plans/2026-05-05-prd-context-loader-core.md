@@ -18,7 +18,7 @@ A standalone TypeScript library (`@agentx/context-loader-core`) that defines **h
 
 - Enumerates a catalog of **context source types**, each with its own matcher, chunker, graph schema, and embedder selection.
 - Chunks content via type-specific strategies (tree-sitter AST for code, heading-based for prose, per-page for PDFs, etc.).
-- Embeds chunks via an OpenAI-compatible HTTP endpoint (jina-v3 via TEI in the default workspace).
+- Embeds chunks via an OpenAI-compatible HTTP endpoint (default: `ai/qwen3-embedding` locally via Docker Model Runner, Bedrock Titan v2 in deployed envs — see workspace memory `project_embedder_choice`).
 - Writes nodes/edges/vectors via a pluggable `GraphIngestionBackend` interface (Kuzu for edge, Neo4j for central — same loader code, different sinks).
 - Emits structured `IngestionEvent`s for progress observability.
 
@@ -157,8 +157,8 @@ User stories:
 
 | Configuration | Throughput |
 |---|---|
-| Single ingestion run, jina-v3 via TEI CPU, code-full profile | ~50-150 chunks/s end-to-end |
-| 4 parallel runs, shared TEI sidecar | ~150-400 chunks/s aggregate (fan-in at embedder) |
+| Single ingestion run, ai/qwen3-embedding-0.6B (Docker MR, CPU), code-full profile | ~50-150 chunks/s end-to-end |
+| 4 parallel runs, shared embedder sidecar | ~150-400 chunks/s aggregate (fan-in at embedder) |
 | Full skoolscout-com repo (~5K source files) | <5 min end-to-end |
 | OSS dep skeleton-only ingestion (`react@18.2.0`) | <2 min |
 
@@ -185,7 +185,7 @@ import { ingest, ingestOssDep, type SourceTypeId, type GraphIngestionBackend, ty
 await ingest({
   source: { type: 'code-full', path: '/path/to/repo' },
   backend: new KuzuIngestionBackend({ path: '/data/context' }),
-  embedder: { url: 'http://localhost:8080/v1', model: 'jinaai/jina-embeddings-v3', dim: 1024 },
+  embedder: { url: 'http://embedder:8080/v1', model: 'ai/qwen3-embedding', dim: 1024 },
   onEvent: (e: IngestionEvent) => console.log(e),
   signal: abortSignal,
 });
@@ -234,10 +234,14 @@ export type IngestionEvent =
 `<workspace>/.harness/config/context-sources.yml`:
 
 ```yaml
-# Default embedder for all source types unless overridden per-type
+# Default embedder for all source types unless overridden per-type.
+# Local default: ai/qwen3-embedding via Docker Model Runner.
+# Deployed: flip url+model to a Bedrock-fronting endpoint (e.g., LiteLLM
+# proxying amazon.titan-embed-text-v2:0). Both 1024-dim, both speak the
+# OpenAI /v1/embeddings shape — see workspace memory project_embedder_choice.
 embedder:
   url: http://embedder:8080/v1     # service-name DNS in compose
-  model: jinaai/jina-embeddings-v3
+  model: ai/qwen3-embedding
   dim: 1024
 
 # Default backend (consumed by CLI; lib takes the backend programmatically)

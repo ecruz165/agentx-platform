@@ -16,19 +16,31 @@
 # file. Worker containers attach to `agentx-harness-net` by name so they can
 # reach the model sidecars + UDS-mount the shared run dir.
 #
+# Local vs deployed
+# ─────────────────
+# This file is the *local* stack. Models are all `ai/...` from the Docker
+# Model Runner catalog so the same llama.cpp runtime serves chat, embed,
+# and vision. Deployed (ECS) targets swap the embedder + chat LLM to AWS
+# Bedrock at the URL boundary — same OpenAI-compatible client code, just
+# different OPENAI_BASE_URL. The `bench` profile below pits local Qwen
+# against Bedrock side-by-side so the local-vs-deployed quality gap is
+# measurable, not assumed.
+#
 # Run from this directory:
 #   cd workspace-template/.devcontainer
 #   docker compose up --build                          # 5 long-running services
 #   docker compose --profile vision up --build         # + agent-vl
+#   docker compose --profile bench up --build          # + qwen-vs-bedrock embedders
 #
 # Then from a sibling terminal:
 #   cd workspace-template
 #   pnpm harness server status     # ✓ for all 3 your-code services
 #
-# Smoke-test the model sidecars:
-#   curl -s http://localhost:11434/v1/models           # if you publish ports
+# Smoke-test the model sidecars (from inside any sibling container):
 #   docker exec -it agentx-harness-server \
-#     curl -s http://embedder:8080/v1/models           # internal DNS
+#     curl -s http://embedder:8080/v1/models
+#   docker exec -it agentx-harness-server \
+#     curl -s http://agent-llm:8080/v1/models
 
 name: agentx-triad
 
@@ -72,100 +84,23 @@ services:
   # on its container port; siblings reach them via service-name DNS on
   # the shared `harness-net` bridge.
 
-  # Text embedder — used by edge-memory + edge-context to vectorize content.
+  # Text embedder — used by edge-memory + edge-context to vectorize content,
+  # and by @agentx/context-loader-core to index source content into Kuzu.
   #
-  # Default model: jinaai/jina-embeddings-v3 (1024-dim, strong on both code
-  # and prose, multilingual, 8192 context). Pinned in workspace memory at
-  # project_embedder_jina_v3.md.
+  # Default: ai/qwen3-embedding:0.6B-F16 (1024-dim native, no MRL truncation
+  # needed; ~1.1 GB image, ~2.3 GB VRAM, multilingual across 119 languages).
+  # Same dim as Bedrock Titan Embeddings v2, so a workspace indexed locally
+  # can be queried in deployed mode without reindexing — the vector space
+  # is *similar* (cosine-comparable per-position) but not identical, hence
+  # the bench profile below for measuring the quality gap.
   #
-  # Swapping models for testing/benchmarking
-  # ────────────────────────────────────────
-  # The model is configurable via the EMBEDDER_MODEL env var so you can
-  # benchmark alternatives without editing this file. Most popular
-  # embedders speak HF safetensors and serve cleanly via TEI:
-  #
-  #   # default (jina v3, 1024-dim)
-  #   docker compose up
-  #
-  #   # swap to Qwen3-Embedding-0.6B (1024-dim)
-  #   EMBEDDER_MODEL=Qwen/Qwen3-Embedding-0.6B docker compose up
-  #
-  #   # swap to BGE-large-en (1024-dim, English-only)
-  #   EMBEDDER_MODEL=BAAI/bge-large-en-v1.5 docker compose up
-  #
-  #   # swap to mxbai-embed-large (1024-dim)
-  #   EMBEDDER_MODEL=mixedbread-ai/mxbai-embed-large-v1 docker compose up
-  #
-  #   # swap to nomic-embed-text (768-dim — schema dim change!)
-  #   EMBEDDER_MODEL=nomic-ai/nomic-embed-text-v1.5 docker compose up
-  #
-  # NOTE: changing dimension breaks the existing Kuzu / sqlite-vec vector
-  # indexes. For dim-mismatch swaps, drop the data volume first:
-  #   docker volume rm agentx-tei-model-cache  (model cache; safe)
-  #   plus the workspace's .harness/data/{memory,context} dirs (the actual
-  #   vector data; destructive — only do this when benchmarking from scratch)
-  #
-  # Distribution: TEI is HF's production-grade serving for HF embedding
-  # models. OpenAI-compatible at /v1/embeddings. cpu-latest is multi-arch
-  # (works on M-series Mac + x86_64 Linux). For GPU swap to `latest`
-  # (NVIDIA CUDA) and uncomment device_requests below.
+  # Pinned in workspace memory at project_embedder_choice.md.
   embedder:
-    image: ghcr.io/huggingface/text-embeddings-inference:cpu-latest
+    image: ai/qwen3-embedding:0.6B-F16
     container_name: agentx-embedder
-    command:
-      - --model-id=${EMBEDDER_MODEL:-jinaai/jina-embeddings-v3}
-      - --port=8080
-    volumes:
-      - tei-model-cache:/data
     networks:
       - harness-net
     restart: unless-stopped
-    # GPU acceleration (uncomment + switch image to `latest` for CUDA):
-    # deploy:
-    #   resources:
-    #     reservations:
-    #       devices:
-    #         - driver: nvidia
-    #           count: 1
-    #           capabilities: [gpu]
-
-  # ─── Side-by-side embedders for benchmarking (profile=bench) ──────────
-  # When you want to compare retrieval quality across multiple embedders,
-  # bring up the `bench` profile to run them side-by-side. Each gets its
-  # own service name + DNS entry on harness-net; the context-loader CLI
-  # can be pointed at any of them via --embedder-url.
-  #
-  # Usage:
-  #   docker compose --profile bench up
-  #   agentx-load --embedder-url http://embedder-jina:8080/v1 --backend kuzu://./data/bench-jina <repo>
-  #   agentx-load --embedder-url http://embedder-qwen:8080/v1 --backend kuzu://./data/bench-qwen <repo>
-  #   agentx-load --embedder-url http://embedder-bge:8080/v1  --backend kuzu://./data/bench-bge  <repo>
-  #
-  # Each writes to a separate Kuzu directory so vector spaces stay
-  # isolated; downstream eval script queries each and compares.
-  embedder-jina:
-    image: ghcr.io/huggingface/text-embeddings-inference:cpu-latest
-    container_name: agentx-embedder-jina
-    command: [--model-id=jinaai/jina-embeddings-v3, --port=8080]
-    volumes: [tei-model-cache-jina:/data]
-    networks: [harness-net]
-    profiles: [bench]
-
-  embedder-qwen:
-    image: ghcr.io/huggingface/text-embeddings-inference:cpu-latest
-    container_name: agentx-embedder-qwen
-    command: [--model-id=Qwen/Qwen3-Embedding-0.6B, --port=8080]
-    volumes: [tei-model-cache-qwen:/data]
-    networks: [harness-net]
-    profiles: [bench]
-
-  embedder-bge:
-    image: ghcr.io/huggingface/text-embeddings-inference:cpu-latest
-    container_name: agentx-embedder-bge
-    command: [--model-id=BAAI/bge-large-en-v1.5, --port=8080]
-    volumes: [tei-model-cache-bge:/data]
-    networks: [harness-net]
-    profiles: [bench]
 
   # Self-hosted agent LLM — used by opencode-cli adapter when pipelines
   # opt in via `config.endpoint = http://agent-llm:8080/v1`. 8B-Q4_K_M
@@ -198,22 +133,58 @@ services:
     profiles:
       - vision
 
+  # ─── Bench profile: local Qwen vs Bedrock Titan v2 ───────────────────
+  # Bring up with `docker compose --profile bench up --build`. Each lane
+  # gets its own DNS name on harness-net; the context-loader CLI points
+  # at any of them via --embedder-url and writes to a separate Kuzu
+  # directory so vector spaces stay isolated.
+  #
+  # The Bedrock lane needs AWS credentials. Two options (pick one):
+  #   1) Mount your shared cred file (matches local AWS CLI workflow):
+  #        export AWS_PROFILE=your-profile
+  #      The compose file mounts ~/.aws:/root/.aws:ro into LiteLLM.
+  #   2) Set explicit env vars (CI-friendly, no host file):
+  #        export AWS_ACCESS_KEY_ID=...
+  #        export AWS_SECRET_ACCESS_KEY=...
+  #        export AWS_REGION=us-east-1
+  #
+  # Usage:
+  #   docker compose --profile bench up
+  #   agentx-load --embedder-url http://embedder-qwen-small:8080/v1 \
+  #               --backend kuzu://./data/bench-qwen-0.6 <repo>
+  #   agentx-load --embedder-url http://embedder-qwen-large:8080/v1 \
+  #               --backend kuzu://./data/bench-qwen-4 <repo>
+  #   agentx-load --embedder-url http://embedder-bedrock:4000/v1 \
+  #               --backend kuzu://./data/bench-bedrock <repo>
+  #
+  # All three produce 1024-dim vectors (qwen-large via MRL truncation
+  # passed as `dimensions: 1024` in the request; bedrock-titan-v2 native).
+  embedder-qwen-small:
+    image: ai/qwen3-embedding:0.6B-F16
+    container_name: agentx-embedder-qwen-small
+    networks: [harness-net]
+    profiles: [bench]
+
+  embedder-qwen-large:
+    image: ai/qwen3-embedding:4B-Q4_K_M
+    container_name: agentx-embedder-qwen-large
+    networks: [harness-net]
+    profiles: [bench]
+
+  embedder-bedrock:
+    image: ghcr.io/berriai/litellm:main-stable
+    container_name: agentx-embedder-bedrock
+    command: ["--config", "/app/litellm.config.yaml", "--port", "4000"]
+    volumes:
+      - ./litellm.config.yaml:/app/litellm.config.yaml:ro
+      - ${HOME}/.aws:/root/.aws:ro
+    environment:
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+      AWS_PROFILE: ${AWS_PROFILE:-default}
+    networks: [harness-net]
+    profiles: [bench]
+
 networks:
   harness-net:
     driver: bridge
     name: agentx-harness-net
-
-volumes:
-  # TEI downloads the embedder model (~2 GB for jina-v3, varies per model)
-  # on first run; persisted across container restarts so swaps are fast
-  # after the first download.
-  tei-model-cache:
-    name: agentx-tei-model-cache
-  # Per-model caches for the bench profile so each embedder keeps its
-  # own download separately.
-  tei-model-cache-jina:
-    name: agentx-tei-model-cache-jina
-  tei-model-cache-qwen:
-    name: agentx-tei-model-cache-qwen
-  tei-model-cache-bge:
-    name: agentx-tei-model-cache-bge

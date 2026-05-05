@@ -93,7 +93,7 @@ export interface SourceTypeSchema {
 export interface EmbedderConfig {
   /** OpenAI-compatible HTTP endpoint (e.g., http://embedder:8080/v1). */
   url: string;
-  /** Model id to pass to /v1/embeddings (e.g., 'jinaai/jina-embeddings-v3'). */
+  /** Model id to pass to /v1/embeddings (e.g., 'ai/qwen3-embedding' locally, 'bedrock-titan-v2' via LiteLLM). */
   model: string;
   /** Output vector dimension (must match the backend's vector index). */
   dim: number;

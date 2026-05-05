@@ -2,10 +2,11 @@
  * Thin HTTP client for OpenAI-compatible /v1/embeddings endpoints.
  *
  * Used by the loader to vectorize chunks. The default workspace embedder is
- * jina-embeddings-v3 served via TEI (per workspace memory + the docker-compose
- * setup), but this client speaks the OpenAI-compatible protocol so it works
- * against any compliant endpoint: TEI, Ollama, vLLM, llama-server, OpenAI
- * itself, Together, etc.
+ * ai/qwen3-embedding via Docker Model Runner locally and Bedrock Titan v2
+ * in deployed envs (both 1024-dim, same OpenAI-compatible shape — see
+ * project_embedder_choice memory). This client speaks the OpenAI-compatible
+ * protocol so it also works against any compliant endpoint: llama.cpp, TEI,
+ * Ollama, vLLM, OpenAI itself, Together, LiteLLM, etc.
  *
  * Phase B.0: minimal viable client. Phase C/D add: retry with backoff, batch
  * size auto-tuning, request-level timeouts, in-flight metrics.
