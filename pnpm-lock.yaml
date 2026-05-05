@@ -23,6 +23,9 @@ importers:
       '@agentx/harness-cli':
         specifier: workspace:*
         version: link:packages/harness-cli
+      '@agentx/harness-core':
+        specifier: workspace:*
+        version: link:packages/harness-core
       '@agentx/harness-server':
         specifier: workspace:*
         version: link:packages/harness-server

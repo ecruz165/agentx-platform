@@ -19,6 +19,7 @@
     "dev:worker-demo": "tsx examples/09-worker-spawn-demo.ts",
     "dev:events-demo": "tsx examples/10-job-events-demo.ts",
     "dev:orchestrator-demo": "tsx examples/11-orchestrated-pipeline-demo.ts",
+    "dev:in-process": "tsx examples/12-in-process-cli-demo.ts",
     "verify": "tsx examples/verify-no-leak.ts",
     "harness": "pnpm --filter @agentx/harness-cli exec tsx src/index.ts",
     "tui": "pnpm --silent harness tui",
@@ -32,6 +33,7 @@
     "@agentx/edge-context-server": "workspace:*",
     "@agentx/edge-memory-server": "workspace:*",
     "@agentx/harness-cli": "workspace:*",
+    "@agentx/harness-core": "workspace:*",
     "@agentx/harness-server": "workspace:*"
   },
   "devDependencies": {
