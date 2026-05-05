@@ -58,7 +58,7 @@ function runCli(args: string[]): Promise<string> {
   return new Promise((resolve, reject) => {
     const child = spawn(
       'pnpm',
-      ['--silent', '--filter', '@agentx/harness-cli', 'exec', 'tsx', 'src/index.ts', ...args],
+      ['--silent', 'harness', ...args],
       { stdio: ['ignore', 'pipe', 'inherit'] }
     );
     let out = '';
