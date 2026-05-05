@@ -1,5 +1,5 @@
 {
-  "name": "@agentx/harness-server",
+  "name": "@agentx/harness-core",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -12,8 +12,7 @@
   },
   "dependencies": {
     "@agentx/agent-adapter": "workspace:*",
-    "@agentx/auth-lib": "workspace:*",
-    "@agentx/harness-core": "workspace:*"
+    "@agentx/auth-lib": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^22.7.0",

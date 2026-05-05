@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { startHarnessServer, type HarnessServerHandle } from './index.ts';
-import type { PipelineCatalog } from './catalog.ts';
+import type { PipelineCatalog } from '@agentx/harness-core';
 
 // macOS AF_UNIX sun_path is 104 chars — keep this short.
 const tmpSocket = () => join(tmpdir(), `ax-${randomUUID().slice(0, 8)}.sock`);

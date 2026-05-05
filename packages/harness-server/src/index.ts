@@ -2,15 +2,19 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import { chmod, mkdir, unlink } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import {
+  JobBus,
   findPipeline,
+  runJob,
+  type AdapterFactory,
   type AdapterId,
   type AgentDef,
+  type AgentStatus,
+  type Envelope,
+  type JobRecord,
   type PipelineCatalog,
-} from './catalog.ts';
+  type RegisteredAgent,
+} from '@agentx/harness-core';
 import type { CredentialBroker } from '@agentx/auth-lib';
-import type { AgentStatus, JobRecord, RegisteredAgent } from './job.ts';
-import { JobBus, type Envelope } from './job-bus.ts';
-import { runJob, type AdapterFactory } from './orchestrator.ts';
 
 export {
   spawnWorker,
@@ -20,17 +24,24 @@ export {
   type SpawnedWorktree,
 } from './spawn-worker.ts';
 
-export { JobBus, bridgeAdapter, type Envelope } from './job-bus.ts';
+// Re-export the harness-core surface so existing consumers (harness-cli,
+// examples) that import from '@agentx/harness-server' keep working unchanged.
+// New consumers should prefer importing from '@agentx/harness-core' directly.
 export {
+  JobBus,
+  bridgeAdapter,
   loadCatalog,
   findPipeline,
   CatalogError,
+  runJob,
+  defaultAdapterFactory,
+  type Envelope,
   type PipelineCatalog,
   type PipelineDef,
   type AgentDef,
   type AdapterId,
-} from './catalog.ts';
-export { runJob, defaultAdapterFactory, type AdapterFactory } from './orchestrator.ts';
+  type AdapterFactory,
+} from '@agentx/harness-core';
 
 export interface HarnessServerOptions {
   socketPath: string;
@@ -55,7 +66,7 @@ export interface HarnessServerHandle {
   stop(): Promise<void>;
 }
 
-export type { AgentStatus, RegisteredAgent, JobRecord } from './job.ts';
+export type { AgentStatus, RegisteredAgent, JobRecord } from '@agentx/harness-core';
 
 /**
  * The synthetic coordinator agent prepended to every job's agent list.
