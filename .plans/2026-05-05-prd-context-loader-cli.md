@@ -31,9 +31,9 @@ Per `prd-harness-core.md`'s convention (separate PRDs for harness-core, harness-
 
 - **Single binary `agentx-load`.** Built with Bun for fast cold-start. Distributable as a npm-installable package and (eventually) standalone executables via `bun build --compile`.
 - **Subcommand surface mirrors the user's mental model.** The user thinks "context sources" — the CLI exposes verbs operating on them: `add`, `list`, `refresh`, `remove`, etc. Implementation terms (chunkers, backends, embedders) are flag-level config, not subcommands.
-- **Standalone mode is the default and primary use case.** Run on a laptop with a Neo4j instance, no agentx triad needed; works end-to-end.
+- **Standalone mode works end-to-end.** Run on a laptop with a Neo4j or Kuzu instance, no agentx triad needed. This mode targets CI runs, scripts, and ECS task entrypoints — not daily developer workflow.
 - **Job mode is a clean opt-in.** Triggered by a single env var (`JOB_ID`) plus flag (`--output-events-uds`). When detected, behavior changes to emit events over UDS instead of stdout, catch `SIGTERM` for graceful cancellation, and respect the worker container's lifecycle.
-- **Workspace-shim parity with the standalone CLI.** `@agentx/harness-cli`'s `harness context source <verb>` exposes the same subcommands and flags; both paths invoke the same lib functions. Two doors, one room.
+- **harness-cli is the primary user surface for daily workflow.** `harness context load <target>` is the verb developers reach for inside a workspace. Internally it submits a `LoadJobIntent` to harness-server, which spawns `agentx-load` as a worker. Flag surface mirrors the standalone CLI; the `agentx-load` binary is what actually runs in both cases. See §10 for the full surface.
 - **Config-driven repeatable runs.** `<workspace>/.harness/config/context-sources.yml` declares default sources, embedder URL, backend selection. CLI invocations can override any of those via flags but the config provides reasonable defaults.
 
 ## 3. Non-Goals (v1)
@@ -112,16 +112,20 @@ User stories:
 | ID | Requirement |
 |---|---|
 | F41 | `harness-server`'s `spawnWorker` (per `packages/harness-server/src/spawn-worker.ts`) gains a code path for ingestion jobs: when a job's body has `kind: 'ingestion'`, the generated devcontainer override sets `agentx-load` as the entrypoint, mounts the workspace `.harness/run/` for the events UDS, and passes the source spec via env vars. |
-| F42 | Job submission API: `harness submit ingest --type <source-type> <target>`. Internally constructs a job body `{ kind: 'ingestion', sourceType, target, profile?, options? }`, registers it via the existing `POST /v1/jobs` route, harness-server spawns the worker. |
-| F43 | Multiple ingestion jobs run in parallel (one worker container each). All workers share the same embedder service (HTTP fan-in handled by TEI's `--max-concurrent-requests`). Backend writes serialize at the storage layer (Kuzu WAL or Neo4j Bolt session). |
+| F42 | Job submission API: `harness context load <target> [flags]`. Internally constructs a `LoadJobIntent` `{ kind: 'ingestion', sourceType, target, profile?, options? }`, posts it via the existing `POST /v1/jobs` route over UDS, harness-server spawns the worker. (See §10 for the full surface design.) |
+| F43 | Multiple ingestion jobs run in parallel (one worker container each). All workers share the same embedder service (HTTP fan-in handled by llama.cpp's request queue). Backend writes serialize at the storage layer (Kuzu WAL or Neo4j Bolt session). |
 
-### 6.6 Workspace shim integration
+### 6.6 harness-cli integration
+
+See §10 for the full surface design. Capsule requirements:
 
 | ID | Requirement |
 |---|---|
-| F21 | `@agentx/harness-cli` exposes `harness context source <verb>` as a thin shim. Internally it either (a) imports `@agentx/context-loader-core` directly and executes in-process (default), or (b) shells out to `agentx-load` (fallback for when the workspace shim wants to delegate to the standalone binary). v1 default: import-and-execute path. |
-| F44 | Workspace-shim invocations auto-discover config from `<workspace>/.harness/config/context-sources.yml` via `findWorkspaceRoot()`. Standalone-CLI invocations require `--config <path>` or fall back to `~/.agentx/context-sources.yml`. |
-| F45 | The two paths produce identical events and identical graph state. Tests verify parity. |
+| F21 | `@agentx/harness-cli` exposes the loader command surface (`harness context load`, `harness context load configure`, `harness context source list/describe/extend`). The launch path is **always** via harness-server's spawn-worker mechanism — harness-cli never executes `ingest()` in-process. The spawned worker runs the `agentx-load` binary with `--output-events-uds=...` so its event stream flows back through the JobBus. |
+| F44 | harness-cli auto-discovers config from `<workspace>/.harness/config/context-sources.yml` via `findWorkspaceRoot()`. The standalone binary requires `--config <path>` or falls back to `~/.agentx/context-sources.yml`. Both paths read the same schema. |
+| F45 | The two invocation paths (harness-cli launch vs standalone binary) produce identical events and identical graph state. Tests verify parity. |
+| F46 | `harness context load configure` is a first-run interactive wizard (Bun + OpenTUI form) that writes the workspace YAML. It is the only loader command with an interactive UI; all other loader commands are flags-driven and pipeable. |
+| F47 | `jobs-tui` renders loader-typed jobs with loader-specific columns (files-processed, chunks/sec, vectors-written). Implementation is an event-renderer specialization keyed on `IngestionEvent` kinds, not a new TUI screen. |
 
 ## 7. Non-Functional Requirements
 
@@ -200,20 +204,15 @@ agentx-load <target> --output json                      # structured stdout
 agentx-load <target> --output progress                  # default: line-based
 agentx-load <target> --output silent                    # only errors, exit code carries result
 
-# Workspace shim (in harness-cli) — equivalent surface
-harness context source add <target>
-harness context source add --type oss-code react@18.2.0
-harness context source list
-harness context source describe <source-id>
-harness context source refresh <source-id>
-harness context source remove <source-id>
-harness context source crawl <url>
-harness context source upload <file>
-harness context source types
-harness context source types describe oss-code
-
-# Submitting as a job (for parallelism + observability):
-harness submit ingest --type oss-code react@18.2.0      # spawns worker container
+# harness-cli (primary user surface inside a workspace) — see §10
+harness context load <target>                           # spawns loader as a job
+harness context load <target> --type oss-code           # explicit source type
+harness context load --type oss-code react@18.2.0       # OSS package as target
+harness context load configure                          # first-run wizard
+harness context source list                             # workspace-aware catalog list
+harness context source describe oss-code                # show one source type
+harness context source extend oss-code [flags]          # edit workspace YAML
+harness context query <text>                            # (already shipped) read side
 ```
 
 ## 9. Job-mode UDS protocol
@@ -229,16 +228,47 @@ When `--output-events-uds=<path>` and `JOB_ID` env are both present:
 
 The UDS reader (harness-server) parses events line-by-line, routes them onto the job's JobBus, which streams to TUI consumers via SSE.
 
-## 10. Workspace shim relationship
+## 10. Relationship to harness-cli
 
-`harness context source <verb>` (in `@agentx/harness-cli`) is the workspace-aware equivalent. Both paths:
+`@agentx/harness-cli` is the **primary user surface** for context loading inside a workspace with a running triad. The standalone `agentx-load` binary remains first-class for CI runs, scripts, and ECS task entrypoints — but inside a developer's daily workflow, harness-cli is the front door.
 
-- Read the same `<workspace>/.harness/config/context-sources.yml`.
-- Use the same `CredentialBroker` (per `agent-auth-lib`) for OSS issues and other authenticated sources.
-- Emit the same `IngestionEvent` shape.
-- Write to the same backends.
+### 10.1 harness-cli command surface for loaders
 
-The shim's value: discovers the workspace automatically, so users in a workspace don't need `--config <path>` flags. v1 implementation imports `@agentx/context-loader-core` directly; v1.x may shell out to `agentx-load` for cancellation simplicity.
+| Subcommand | Behavior |
+|---|---|
+| `harness context load <source> [flags]` | Submits an "ingest this source" intent to harness-server. Server's spawn-worker mechanism creates a worker that runs `agentx-load <args> --output-events-uds=...` as its entrypoint. Harness-cli streams the resulting `IngestionEvent`s into the live TUI. Flags mirror the standalone CLI (`--type`, `--embedder-url`, `--backend`, …). |
+| `harness context load configure` | First-run interactive wizard — walks through workspace setup: which source types to register, embedder choice (local Qwen vs `bench` lanes vs Bedrock-fronting URL), backend (`kuzu://./data/context` vs hosted Neo4j), per-source-type overrides. Writes `<workspace>/.harness/config/context-sources.yml`. |
+| `harness context source list` | Prints the active catalog (built-in + workspace extensions) — what `agentx-load types` shows, but workspace-aware. |
+| `harness context source describe <id>` | Prints matcher patterns, chunker config, and graph schema for one source type. |
+| `harness context source extend <id> [flags]` | Edits the workspace's `context-sources.yml` to override a built-in (per-type embedder, exclude patterns, etc.). |
+| `harness context query <text>` | (already exists) Read side: queries edge-context-server. The companion to `load`. |
+
+### 10.2 Launch model — harness-cli as client, harness-server as runner
+
+`harness context load` is a **client intent submission**, not a process fork. The flow:
+
+1. harness-cli serializes flags into a `LoadJobIntent` and POSTs over UDS to harness-server.
+2. harness-server's existing spawn-worker mechanism (the same one running opencode-cli pipeline workers) creates a worker container with `agentx-load` as the entrypoint and a UDS-mounted job-events socket.
+3. The worker emits `IngestionEvent`s over UDS → harness-server's `JobBus` collects them → harness-cli (and any other subscriber) renders.
+4. On completion, the worker container exits; harness-server records the summary in its job-state store.
+
+This reuses everything that already exists for opencode-cli pipeline workers — there is no new orchestration plane. Loads are first-class jobs per `project_authority_model_jobs_pipelines`: clients submit intent, the catalog has an `ingest-{source-type}` pipeline, the coordinator picks it.
+
+### 10.3 View model — extend `jobs-tui`, don't build `loads-tui`
+
+Loads are jobs (per `project_local_multijob_workflow`). The existing job-row visualization in `harness-cli/src/jobs-tui.tsx` already covers status / duration / throughput. Loader-specific columns (files-processed, chunks/sec, vectors-written) ship as an **event-renderer specialization** keyed on `event.kind === 'item-walked' | 'chunk-produced' | 'chunk-embedded'` — not as a new TUI screen. Selecting a load row drills into the same per-job event stream view used for other job types.
+
+### 10.4 Configuration file is shared
+
+Both `harness context load` and the standalone `agentx-load` read the same `<workspace>/.harness/config/context-sources.yml`. Harness-cli's value-add over standalone is **workspace auto-discovery** (no `--config <path>` flags needed) plus **catalog editing** (`extend` subcommand modifies the YAML safely with schema validation).
+
+### 10.5 Dual-mode (local/ECS) implications
+
+In ECS, harness-cli does not run on box (no human there). `harness context load` over UDS becomes the equivalent HTTP intent submission against harness-server's REST surface; the same `JobBus` dispatches the same loader worker as a separate Fargate task. Local UDS, remote HTTPS, same wire format — that's why the launch model goes through harness-server rather than directly forking `agentx-load`.
+
+### 10.6 Implementation note
+
+v1 implementation in harness-cli imports `@agentx/context-loader-core` only for *type definitions* (the `IngestionEvent` union, `LoadJobIntent` shape). The actual ingestion code runs in the spawn-worker process via the `agentx-load` binary — harness-cli never executes `ingest()` in-process. This keeps harness-cli's runtime small and respects the spawn-worker authority model.
 
 ## 11. Distribution
 
@@ -280,15 +310,19 @@ The shim's value: discovers the workspace automatically, so users in a workspace
 4. Standalone-mode event-to-stdout printer.
 5. Smoke test: `agentx-load add ./packages/harness-core --type code-full --backend kuzu://./data/test` ingests successfully.
 
-**Phase G (depends on Phase F + harness-server changes) — Job mode + workspace shim** (~1 day)
-6. `--output-events-uds` flag implementation.
+**Phase G (depends on Phase F + harness-server changes) — Job mode + harness-cli launch path** (~1.5 days)
+6. `--output-events-uds` flag implementation in `agentx-load`.
 7. `JOB_ID` env detection.
 8. SIGTERM handling + graceful shutdown.
-9. harness-server's `spawnWorker` ingestion-job code path (depends on harness-server PRD update).
-10. `harness submit ingest` command in `harness-cli`.
-11. `harness context source <verb>` shim in `harness-cli`.
+9. harness-server's `spawnWorker` ingestion-job code path: accepts `LoadJobIntent`, materializes `agentx-load` worker, plumbs UDS events into `JobBus` (depends on harness-server PRD update).
+10. `harness context load <source> [flags]` command in `harness-cli`: serializes flags → POSTs `LoadJobIntent` over harness-server UDS → subscribes to JobBus events.
+11. `harness context source list/describe/extend` commands in `harness-cli`: reads/writes workspace catalog YAML.
+12. `jobs-tui` event-renderer specialization: loader-typed rows show `files-processed` / `chunks/sec` / `vectors-written` columns derived from `IngestionEvent` kinds.
 
-**Total CLI estimate: ~2 days on top of core's 13 days.**
+**Phase H (depends on Phase G) — Configure wizard** (~0.5 day)
+13. `harness context load configure`: OpenTUI form that walks first-run setup (source-type selection, embedder choice, backend), writes `<workspace>/.harness/config/context-sources.yml`. Defers to flag-driven path for everything else.
+
+**Total CLI estimate: ~3 days on top of core's 13 days.**
 
 ## 14. Out-of-Scope Forever (intentional)
 

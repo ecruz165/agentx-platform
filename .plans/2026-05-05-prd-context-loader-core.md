@@ -22,10 +22,15 @@ A standalone TypeScript library (`@agentx/context-loader-core`) that defines **h
 - Writes nodes/edges/vectors via a pluggable `GraphIngestionBackend` interface (Kuzu for edge, Neo4j for central — same loader code, different sinks).
 - Emits structured `IngestionEvent`s for progress observability.
 
-The library is consumed by:
-- `@agentx/context-loader-cli` — the standalone CLI binary `agentx-load`
-- `@agentx/edge-context-server` — for HTTP-triggered ingestion routes
-- `@agentx/harness-cli` — for the `harness context source <verb>` workspace shim
+The library is consumed by three layers, each in a different role:
+
+| Consumer | Role | When used |
+|---|---|---|
+| `@agentx/harness-cli` | **Primary user surface.** Launches loaders as harness-server jobs (`harness context load <source>`), shows live progress in `jobs-tui`, exposes catalog management (`harness context source list/describe/extend`), and offers a first-run wizard (`harness context load configure`). | Daily developer workflow inside a workspace with a running triad. |
+| `@agentx/context-loader-cli` | **Headless executable** — the binary `agentx-load`. Ingests directly when no harness is around (CI runs, scripts, ECS task entrypoints) and runs as the spawn-worker process when harness-cli launches a load. | Scripted/automated runs; spawn-worker mode under harness-server. |
+| `@agentx/edge-context-server` | **HTTP-triggered ingestion routes** — `POST /v1/sources/...` endpoints that internally call `ingest()`. | Browser/IDE integration paths that talk to edge-context over the network. |
+
+The relationship between the top two rows is the same "thin headless emitter, thick consumer" pattern used elsewhere in the codebase (see `project_observability_via_emitter` memory): `agentx-load` emits structured `IngestionEvent`s; harness-cli is the rich subscriber that aggregates them across concurrent loads and renders them through `jobs-tui`. Because both speak the same wire format (JSON events over stdout standalone, over UDS in worker mode), the same loader binary serves all three consumers without branching.
 
 **Why now:** The local stack has reached infrastructure completeness (compose with embedder + agent-llm sidecars, OpenCode adapter that supports custom HTTP endpoints). The next step is making the context graph actually populated. Without a coherent loader, each ingestion path (repo / upload / crawl / external) would be implemented separately inside edge-context-server with no shared abstraction.
 
