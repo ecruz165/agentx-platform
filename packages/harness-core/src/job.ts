@@ -8,6 +8,11 @@ export interface RegisteredAgent {
   adapter: AdapterId;
   systemPrompt?: string;
   status: AgentStatus;
+  /**
+   * Adapter-specific config copied from AgentDef.config when the job is
+   * registered. Passed through to the adapter factory at invoke time.
+   */
+  config?: Record<string, unknown>;
 }
 
 export interface JobRecord {

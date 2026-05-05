@@ -262,6 +262,7 @@ function registeredFromDef(def: AgentDef): RegisteredAgent {
     adapter: def.adapter,
     systemPrompt: def.systemPrompt,
     status: 'pending',
+    config: def.config,
   };
 }
 

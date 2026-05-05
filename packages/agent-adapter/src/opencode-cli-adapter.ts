@@ -12,6 +12,31 @@ export interface OpenCodeCliAdapterOptions {
   model?: string;
   provider?: Provider;
   timeoutMs?: number;
+
+  /**
+   * HTTP endpoint of an OpenAI-compatible inference server. When set, the
+   * adapter SKIPS broker credential lookup and writes a custom provider
+   * definition into opencode.json pointing at this baseURL. Use for
+   * self-hosted models like `ai/qwen3-coder` (exposed by llama-server with
+   * an OpenAI-compatible /v1/chat/completions endpoint).
+   *
+   * Example: `http://agent-llm:8080/v1`
+   */
+  endpoint?: string;
+
+  /**
+   * Logical provider id used in opencode.json's providers block and as the
+   * model-id prefix. Defaults to `'local'`. The model spec passed to OpenCode
+   * becomes `<endpointProviderId>/<model name>` — e.g., `local/qwen3-coder`.
+   */
+  endpointProviderId?: string;
+
+  /**
+   * Static API key string passed to OpenCode for the local endpoint. Most
+   * self-hosted servers ignore the key entirely but OpenCode still requires
+   * the field to be present. Defaults to a placeholder string.
+   */
+  staticApiKey?: string;
 }
 
 const PROVIDER_ENV_VAR: Partial<Record<Provider, string>> = {
@@ -28,28 +53,54 @@ export class OpenCodeCliAdapter implements AgentAdapter {
   constructor(private readonly opts: OpenCodeCliAdapterOptions) {}
 
   async invoke(spec: InvocationSpec): Promise<string> {
-    const provider: Provider = this.opts.provider ?? 'anthropic';
-    const envVar = PROVIDER_ENV_VAR[provider];
-    if (!envVar) {
-      throw new Error(
-        `OpenCode CLI adapter does not support provider "${provider}". ` +
-          `Use anthropic, openai, or google.`
-      );
-    }
-    const cred = await this.opts.broker.getCredential(provider);
+    const isLocal = !!this.opts.endpoint;
+
     const bin = this.opts.bin ?? 'opencode';
-    const model = this.opts.model ?? 'anthropic/claude-opus-4-7';
     const timeoutMs = this.opts.timeoutMs ?? 60_000;
 
-    const configDir = makeMcpSuppressedConfigDir();
+    let model: string;
+    let providerLabel: string;
+    let env: NodeJS.ProcessEnv;
+    let configDir: string;
 
-    const env: NodeJS.ProcessEnv = {
-      [envVar]: cred.apiKey,
-      OPENCODE_DISABLE_MCP: '1',
-      XDG_CONFIG_HOME: configDir,
-      PATH: process.env.PATH ?? '',
-      HOME: process.env.HOME,
-    };
+    if (isLocal) {
+      const providerId = this.opts.endpointProviderId ?? 'local';
+      providerLabel = providerId;
+      // For local endpoints, model defaults to `<providerId>/qwen3-coder`.
+      // Caller can override fully by passing an explicit `model` option.
+      model = this.opts.model ?? `${providerId}/qwen3-coder`;
+      configDir = makeOpencodeConfigDir({
+        endpoint: this.opts.endpoint!,
+        endpointProviderId: providerId,
+        apiKey: this.opts.staticApiKey ?? 'no-auth-required',
+      });
+      env = {
+        OPENCODE_DISABLE_MCP: '1',
+        XDG_CONFIG_HOME: configDir,
+        PATH: process.env.PATH ?? '',
+        HOME: process.env.HOME,
+      };
+    } else {
+      const provider: Provider = this.opts.provider ?? 'anthropic';
+      const envVar = PROVIDER_ENV_VAR[provider];
+      if (!envVar) {
+        throw new Error(
+          `OpenCode CLI adapter does not support provider "${provider}". ` +
+            `Use anthropic, openai, google, or set { endpoint } for a self-hosted server.`
+        );
+      }
+      const cred = await this.opts.broker.getCredential(provider);
+      providerLabel = provider;
+      model = this.opts.model ?? 'anthropic/claude-opus-4-7';
+      configDir = makeOpencodeConfigDir({});
+      env = {
+        [envVar]: cred.apiKey,
+        OPENCODE_DISABLE_MCP: '1',
+        XDG_CONFIG_HOME: configDir,
+        PATH: process.env.PATH ?? '',
+        HOME: process.env.HOME,
+      };
+    }
 
     // OpenCode CLI takes one positional prompt; we flatten system+user with
     // a delimiter for the wire while emitting the structured shape to observers.
@@ -61,7 +112,7 @@ export class OpenCodeCliAdapter implements AgentAdapter {
       system: spec.system,
       user: spec.user,
       model,
-      provider,
+      provider: providerLabel,
     });
 
     return await new Promise<string>((resolve, reject) => {
@@ -129,13 +180,44 @@ export class OpenCodeCliAdapter implements AgentAdapter {
   }
 }
 
+interface OpencodeConfigDirOpts {
+  /** When set, registers a custom OpenAI-compatible provider. */
+  endpoint?: string;
+  /** Provider id in opencode.json; required when `endpoint` is set. */
+  endpointProviderId?: string;
+  /** API key string OpenCode passes to the provider; required when `endpoint` is set. */
+  apiKey?: string;
+}
+
 /**
- * Defense-in-depth MCP kill-switch via a tmp config dir with an empty mcp block.
- * Pairs with OPENCODE_DISABLE_MCP env and the --no-mcp flag — any of the three
- * working is enough; relying on only one is fragile across opencode versions.
+ * Writes a tmp opencode.json that:
+ *   - Always suppresses MCP (defense-in-depth alongside OPENCODE_DISABLE_MCP env
+ *     and the --no-mcp CLI flag).
+ *   - Optionally registers a custom OpenAI-compatible provider when `endpoint`
+ *     is set, so OpenCode routes inference there instead of the default Anthropic
+ *     / OpenAI / Google paths.
+ *
+ * Returns the directory that should be passed as XDG_CONFIG_HOME to the
+ * opencode subprocess.
  */
-function makeMcpSuppressedConfigDir(): string {
-  const dir = mkdtempSync(join(tmpdir(), 'opencode-mcp-suppressed-'));
-  writeFileSync(join(dir, 'opencode.json'), JSON.stringify({ mcp: {} }), { mode: 0o600 });
+function makeOpencodeConfigDir(opts: OpencodeConfigDirOpts): string {
+  const dir = mkdtempSync(join(tmpdir(), 'opencode-cfg-'));
+  const config: Record<string, unknown> = { mcp: {} };
+  if (opts.endpoint) {
+    const id = opts.endpointProviderId ?? 'local';
+    // OpenCode's provider config shape — points at any OpenAI-compatible
+    // baseURL. The apiKey is required even when the local server ignores it.
+    config.provider = {
+      [id]: {
+        options: {
+          baseURL: opts.endpoint,
+          apiKey: opts.apiKey ?? 'no-auth-required',
+        },
+      },
+    };
+  }
+  writeFileSync(join(dir, 'opencode.json'), JSON.stringify(config, null, 2), {
+    mode: 0o600,
+  });
   return dir;
 }

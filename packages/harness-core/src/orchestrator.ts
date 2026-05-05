@@ -2,6 +2,7 @@ import {
   ClaudeSdkAdapter,
   OpenCodeCliAdapter,
   type AgentAdapter,
+  type OpenCodeCliAdapterOptions,
 } from '@agentx/agent-adapter';
 import type { CredentialBroker } from '@agentx/agent-auth-lib';
 import type { AdapterId } from './catalog.ts';
@@ -12,15 +13,25 @@ import type { JobRecord } from './job.ts';
  * Constructs the concrete adapter for an agent's `adapter` id, with the
  * credential broker injected. Pulled out into a factory so tests can swap
  * in mock adapters without monkeypatching the SDK.
+ *
+ * The optional `config` arg is the per-agent `AgentDef.config` from the
+ * catalog — used to pass adapter-specific options (e.g., a local endpoint
+ * URL for opencode-cli pointed at a self-hosted LLM).
  */
 export type AdapterFactory = (
   adapterId: AdapterId,
-  broker: CredentialBroker
+  broker: CredentialBroker,
+  config?: Record<string, unknown>
 ) => AgentAdapter;
 
-export const defaultAdapterFactory: AdapterFactory = (id, broker) => {
+export const defaultAdapterFactory: AdapterFactory = (id, broker, config) => {
   if (id === 'claude-sdk') return new ClaudeSdkAdapter({ broker });
-  if (id === 'opencode-cli') return new OpenCodeCliAdapter({ broker });
+  if (id === 'opencode-cli') {
+    // Coerce: the catalog-side config is open-ended; the adapter accepts a
+    // typed subset. Unknown keys are ignored by the adapter constructor.
+    const cfg = (config ?? {}) as Partial<OpenCodeCliAdapterOptions>;
+    return new OpenCodeCliAdapter({ broker, ...cfg });
+  }
   throw new Error(`unknown adapter id: ${id}`);
 };
 
@@ -76,7 +87,7 @@ export async function runJob(jobId: string, deps: RunJobDeps): Promise<void> {
 
     let adapter: AgentAdapter;
     try {
-      adapter = factory(agent.adapter, deps.broker);
+      adapter = factory(agent.adapter, deps.broker, agent.config);
     } catch (err) {
       agent.status = 'failed';
       job.status = 'failed';

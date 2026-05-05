@@ -32,6 +32,13 @@ export interface AgentDef {
   adapter: AdapterId;
   /** Optional system prompt; if omitted, the adapter's default applies. */
   systemPrompt?: string;
+  /**
+   * Optional adapter-specific configuration. Passed through to the adapter
+   * factory; the adapter is responsible for interpreting the shape. Use this
+   * for per-agent overrides like model name, endpoint URL (for opencode-cli
+   * with a self-hosted backend), reasoning effort, timeout, etc.
+   */
+  config?: Record<string, unknown>;
 }
 
 export interface PipelineDef {
