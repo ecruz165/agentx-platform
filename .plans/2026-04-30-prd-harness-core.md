@@ -8,7 +8,7 @@
 - `.plans/2026-04-30-agentic-harness-implementation-plan.md` — milestone plan
 - `.plans/2026-04-30-agentic-harness-ecosystem-prd.md` — ecosystem index
 - `.plans/2026-04-30-prd-agent-adapter-lib.md` — **hard dependency** (every agent invocation routes through it)
-- `.plans/2026-04-30-prd-auth-lib.md` — **soft dependency** (default `CredentialBroker` impl; alternative brokers allowed)
+- `.plans/2026-04-30-prd-agent-auth-lib.md` — **soft dependency** (default `CredentialBroker` impl; alternative brokers allowed)
 - `.plans/2026-04-30-prd-harness-server.md` — primary consumer (server form factor of this PRD)
 
 ---
@@ -43,7 +43,7 @@ By centralizing these concerns in one package, the harness-server (PRD `prd-harn
 
 - **Not a transport layer.** No HTTP, no WebSocket, no IPC. That's the harness-server's job (or a future CLI host's). This package returns a `ConfigurableHarness` object; what you wrap it with is the consumer's choice.
 - **Not a multi-tenant queue / job lifecycle manager.** Job persistence, priority, worker pools, idempotency — all live in harness-server. This PRD is concerned only with *one harness instance configured correctly*; concurrency comes from the consumer wiring multiple instances or one instance with the harness library's internal scheduling.
-- **Not a credential store.** Storage is delegated to `@your-org/auth-lib` (default) or any object satisfying `CredentialBroker`. No re-implementation of OAuth flows, keychain integration, or token persistence.
+- **Not a credential store.** Storage is delegated to `@your-org/agent-auth-lib` (default) or any object satisfying `CredentialBroker`. No re-implementation of OAuth flows, keychain integration, or token persistence.
 - **Not a pipeline authoring tool.** Pipelines are declared in config (or programmatically); this package validates and loads them. Authoring UX (visual editors, scaffolding wizards) is out of scope.
 - **Not a deployment manifest generator.** Helm charts, Dockerfiles, systemd units — consumer wires them. The package ships as an importable npm dependency, not a binary.
 - **Not an MCP host.** Per existing `feedback_no_mcp` policy and agent-adapter-lib §3, MCP is actively suppressed. This package never accepts MCP server definitions, never propagates them, never validates configs that reference them.
@@ -78,7 +78,7 @@ This package extracts and consolidates configuration concerns currently distribu
 
 User stories:
 
-- *As Iris*, I run `harness init`, fill in `~/.<your-org>/harness.yml` with pipeline references and provider names, log in via `auth-lib`, and `harness run plan-feature` works.
+- *As Iris*, I run `harness init`, fill in `~/.<your-org>/harness.yml` with pipeline references and provider names, log in via `agent-auth-lib`, and `harness run plan-feature` works.
 - *As Daisy*, I edit `~/.<your-org>/pipelines/my-new-pipeline.yml` and the next `harness run` call sees the new pipeline (hot-reload via `FsConfigStore`).
 - *As Owen*, I run `harness preflight my-pipeline` and the host reports "needs `anthropic` and `github`; both authenticated; ready" or "missing `github` credential — run `harness auth login github`."
 - *As Maya*, my harness-server receives a job from `alice@acme`, builds an `AliceCredentialBroker` view that resolves credentials from acme's OAuth pool, and runs the pipeline with no leakage between tenants.
@@ -102,7 +102,7 @@ User stories:
 | ID | Requirement |
 |---|---|
 | F7 | Harness Core owns one `CredentialBrokerFactory` injected at construction. Factory signature: `(ctx: BrokerContext) => CredentialBroker` where `BrokerContext = { sessionId, userId?, orgId?, jobId? }`. |
-| F8 | Default factory uses `@your-org/auth-lib`'s `AuthClient` (returns the same `AuthClient` for every context — single-user mode). |
+| F8 | Default factory uses `@your-org/agent-auth-lib`'s `AuthClient` (returns the same `AuthClient` for every context — single-user mode). |
 | F9 | Multi-tenant factories return per-user `CredentialBroker` views; the package ships an `MtAuthBrokerFactory(mtAuthClient)` reference impl. |
 | F10 | When the harness library invokes a phase, it calls `brokerFactory({ sessionId, ...phaseCtx })` once per session, caches the result, and passes that broker to `createAgent({ ..., credentialBroker })` from `@your-org/agent-adapter`. |
 | F11 | Per-phase `CredentialPolicy` enforced at the broker boundary: a wrapper `PolicyEnforcingBroker` rejects `getCredential('github')` with `CredentialDeniedError` if the current phase's policy returns `'deny'`. Adapters never see denied credentials. |
@@ -166,7 +166,7 @@ User stories:
 
 ```ts
 import { createConfigurableHarness } from '@your-org/harness-core';
-import { createAuthClient } from '@your-org/auth-lib';
+import { createAuthClient } from '@your-org/agent-auth-lib';
 
 // Single-user CLI host wiring
 const auth = createAuthClient({ appName: 'harness-cli' });
@@ -295,7 +295,7 @@ defaultRetry:
   backoff: 'exponential-jittered'
 
 # Server-only: brokerFactory ref (programmatic factories are still required for non-trivial setups)
-brokerFactoryRef: 'auth-lib/single-user'   # or 'mtauth/per-request'
+brokerFactoryRef: 'agent-auth-lib/single-user'   # or 'mtauth/per-request'
 ```
 
 A pipeline file (`pipelines/fix-bug.yml`):
@@ -376,9 +376,9 @@ profiles:
 
 | # | Question | Decision | Why |
 |---|---|---|---|
-| D1 | Where does this PRD slot in the ecosystem? | **Foundation layer between agent-adapter-lib and harness-server.** Sibling to auth-lib, not a deliverable in the ecosystem PRD's seven. | Foundation libs aren't user-facing surfaces; they're consumed by the surfaces. Consistent with how auth-lib is also "foundation, not surface." |
+| D1 | Where does this PRD slot in the ecosystem? | **Foundation layer between agent-adapter-lib and harness-server.** Sibling to agent-auth-lib, not a deliverable in the ecosystem PRD's seven. | Foundation libs aren't user-facing surfaces; they're consumed by the surfaces. Consistent with how agent-auth-lib is also "foundation, not surface." |
 | D2 | Is this the same as `agentic-harness-runtime` (Layer 7 in implementation plan)? | **No — orthogonal.** Layer 7 is the multi-job runtime (job queue, workers, worktrees). This PRD is about credentials + config for a single harness instance. Layer 7 *consumes* this package. | Keeps "configured one harness" separable from "queued many jobs". harness-server uses both. |
-| D3 | Default `CredentialBroker` impl | `@your-org/auth-lib`'s `AuthClient` directly satisfies the broker interface (per agent-adapter PRD §12). Wired automatically when `brokerFactoryRef: 'auth-lib/single-user'`. | Zero-config wiring for the common single-user case. |
+| D3 | Default `CredentialBroker` impl | `@your-org/agent-auth-lib`'s `AuthClient` directly satisfies the broker interface (per agent-adapter PRD §12). Wired automatically when `brokerFactoryRef: 'agent-auth-lib/single-user'`. | Zero-config wiring for the common single-user case. |
 | D4 | Per-phase credential policy enforcement location | At the **broker boundary** (via `PolicyEnforcingBroker` wrapper), not inside adapters. | Adapters stay credential-policy-naive; one wrapper handles all denials uniformly; auditable at one chokepoint. |
 | D5 | Hot-reload semantics | In-flight jobs continue with their snapshotted config; new jobs use the latest catalog. | Avoids restart races; matches harness library's existing `ConfigStore.onChange` semantics. |
 | D6 | Provider declaration redundancy with phase grants | Pipelines declare `requiredProviders` (top-level summary); phases declare `contextProviders` / `agent.providers` (granular). Validation cross-checks. | Top-level is for preflight + UX ("this pipeline needs anthropic + github"); per-phase is for least-privilege enforcement. |
@@ -436,7 +436,7 @@ Estimated calendar time: **8–10 focused days for v1**, including the harness-s
 - **`!include` / templating in config files** (per O1).
 - **Late-bound adapter registration** (per O2).
 - **Programmatic config diff API** — `harness.diffConfig(newConfig)` returns what would change without applying, useful for admin UI previews.
-- **Credential rotation** — broker accepts rotation events from auth-lib (e.g., a refresh-token rotation in mid-job); cached credentials invalidated and re-fetched.
+- **Credential rotation** — broker accepts rotation events from agent-auth-lib (e.g., a refresh-token rotation in mid-job); cached credentials invalidated and re-fetched.
 - **Per-tenant config overlays** — an admin tenant can ship a base config, individual tenants overlay tweaks.
 - **Pluggable preflight checks** — consumers register custom preflight validators (e.g., "verify the user has CI quota before submitting").
 - **Config schema versioning** — older config files auto-migrate via a versioned adapter chain.
@@ -445,8 +445,8 @@ Estimated calendar time: **8–10 focused days for v1**, including the harness-s
 ## 14. Out-of-Scope Forever (intentional)
 
 - **MCP support of any kind.** Same blanket constraint as agent-adapter-lib (§16). Configs that reference MCP are rejected by validation.
-- **Storing credentials.** Storage is auth-lib's job. This package only *propagates* credentials it requests via the broker contract.
-- **Provider invention.** New providers (Bedrock, OpenRouter, Mistral) are added to auth-lib + agent-adapter-lib; this package only consumes whatever both libs expose.
+- **Storing credentials.** Storage is agent-auth-lib's job. This package only *propagates* credentials it requests via the broker contract.
+- **Provider invention.** New providers (Bedrock, OpenRouter, Mistral) are added to agent-auth-lib + agent-adapter-lib; this package only consumes whatever both libs expose.
 - **Acting as a transport layer.** No HTTP, no IPC, no streaming protocol. Consumers pick their transport.
 - **Bundling adapters.** Adapters are peer dependencies installed separately (matches agent-adapter-lib's pattern). This package only routes through them.
 - **Acting as a session/job persistence layer.** Job lifecycle storage is harness-server's responsibility (Postgres-backed). This package's session state is in-memory; long-running session continuity comes from the consumer wiring `SessionStore` (per harness design § 6.13).
@@ -456,7 +456,7 @@ Estimated calendar time: **8–10 focused days for v1**, including the harness-s
 | Dependency | Why | Hard / Soft |
 |---|---|---|
 | `@your-org/agent-adapter` (PRD `prd-agent-adapter-lib.md`) | Every phase invocation routes through `createAgent`. | **Hard** |
-| `@your-org/auth-lib` (PRD `prd-auth-lib.md`) | Default `CredentialBroker` impl + reference single-user `BrokerFactory`. | **Soft** (pluggable; any compatible broker works) |
+| `@your-org/agent-auth-lib` (PRD `prd-agent-auth-lib.md`) | Default `CredentialBroker` impl + reference single-user `BrokerFactory`. | **Soft** (pluggable; any compatible broker works) |
 | `agentic-harness` library (design doc) | The `Harness` interface this package configures + instantiates. | **Hard** |
 | `zod` | Schema validation. | **Hard** |
 | `js-yaml` | YAML parsing. | **Hard** |

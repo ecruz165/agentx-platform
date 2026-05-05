@@ -1,4 +1,4 @@
-# auth-lib — Implementation PRD
+# agent-auth-lib — Implementation PRD
 
 **Status:** Draft (2026-04-30)
 **Owner:** Edwin Cruz
@@ -71,14 +71,14 @@ The lib begins as a **straight extraction** of `<reference-cli>/src/auth/`. The 
 
 | | |
 |---|---|
-| Path | `npm-dependency/auth-lib/` |
-| Package name | `@your-org/auth-lib` |
+| Path | `npm-dependency/agent-auth-lib/` |
+| Package name | `@your-org/agent-auth-lib` |
 | Lang | TypeScript, Node ≥20, ESM |
 | Test runner | `vitest` |
 | Runtime deps | `zod`, `chalk` (optional — see §13 Q5) |
 
 ```
-auth-lib/
+agent-auth-lib/
 ├── src/
 │   ├── index.ts                    # public exports
 │   ├── auth-client.ts              # createAuthClient(config) factory; main entry point
@@ -103,7 +103,7 @@ auth-lib/
 ├── package.json
 ├── tsconfig.json
 └── .plans/
-    └── 2026-04-30-auth-lib-prd.md   # this file
+    └── 2026-04-30-agent-auth-lib-prd.md   # this file
 ```
 
 ## 6. Public API
@@ -111,7 +111,7 @@ auth-lib/
 The library exposes a single factory + a few helper utilities. Consumers build an `AuthClient` once at startup and pass it around:
 
 ```ts
-import { createAuthClient } from '@your-org/auth-lib';
+import { createAuthClient } from '@your-org/agent-auth-lib';
 
 const auth = createAuthClient({
   appName: 'my-cli',                      // used in error messages
@@ -170,7 +170,7 @@ interface CredentialResult {
 For consumers wanting standard sub-commands, the lib exports ready-made commander/yargs-compatible handlers:
 
 ```ts
-import { mountAuthCommands } from '@your-org/auth-lib/cli';
+import { mountAuthCommands } from '@your-org/agent-auth-lib/cli';
 import { Command } from 'commander';
 
 const program = new Command();
@@ -380,7 +380,7 @@ Standard OAuth + API key. (Reference impl exists; review when extracting.)
    - (a) Optional `telemetrySink` callback in config (consumer wires their own logger)
    - (b) Default to `~/.<your-org>/ai-usage.jsonl`
    - (c) Both — emit a callback if configured, else write to default file
-   - **Lean: (a) only**. Built-in default file logging blurs the lib's responsibility. Consumers who want it can use `JsonlSink` from `@your-org/auth-lib/telemetry`.
+   - **Lean: (a) only**. Built-in default file logging blurs the lib's responsibility. Consumers who want it can use `JsonlSink` from `@your-org/agent-auth-lib/telemetry`.
 
 5. **`chalk` dependency**: Reference uses chalk for colored login output. Should the lib?
    - (a) Yes — login UX is part of the value
@@ -397,7 +397,7 @@ Standard OAuth + API key. (Reference impl exists; review when extracting.)
    - **Lean: defer to v1.1**. Most current consumers don't stream. Add when first streaming consumer appears.
 
 8. **Workspace registration**: where does the package live in the monorepo? Or does it live in its own workspace?
-   - Options: (a) `npm-dependency/auth-lib/` in jefelabs-com, (b) standalone `auth-lib/` workspace, (c) live in `<reference-cli>`'s monorepo
+   - Options: (a) `npm-dependency/agent-auth-lib/` in jefelabs-com, (b) standalone `agent-auth-lib/` workspace, (c) live in `<reference-cli>`'s monorepo
    - **Lean: (a)** initially, since that's where the first new consumer lives. Promote to (b) when it has 3+ consumers across workspaces.
 
 ## 14. Implementation Phases
@@ -420,7 +420,7 @@ Standard OAuth + API key. (Reference impl exists; review when extracting.)
 11. Round-trip migration test: legacy auth.json → multi-provider format.
 
 **Phase D — First consumer** (~0.5 day)
-12. Wire `<reference-cli>` to consume `@your-org/auth-lib` (delete its local `src/auth/` once parity verified).
+12. Wire `<reference-cli>` to consume `@your-org/agent-auth-lib` (delete its local `src/auth/` once parity verified).
 
 **Phase E — Ship**
 13. README with quickstart, publish (workspace-internal initially).

@@ -41,7 +41,7 @@ Production runs always have it pre-set; in production, missing
 After agreeing on a refactor approach:
 
 ```
-harness memory put refactor-plan "splitting auth into auth-lib (broker) and copilot-api (session token + chat)"
+harness memory put refactor-plan "splitting auth into agent-auth-lib (broker) and copilot-api (session token + chat)"
 ```
 
 A later phase asks about prior decisions:

@@ -1,5 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
-import type { CredentialBroker } from '@agentx/auth-lib';
+import type { CredentialBroker } from '@agentx/agent-auth-lib';
 import { AdapterEventBus } from './events.ts';
 import type { AgentAdapter, InvocationSpec } from './types.ts';
 

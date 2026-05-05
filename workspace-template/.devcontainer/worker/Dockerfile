@@ -22,7 +22,7 @@ WORKDIR /opt/agentx
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY tsconfig.base.json tsconfig.json ./
 
-COPY packages/auth-lib/package.json ./packages/auth-lib/
+COPY packages/agent-auth-lib/package.json ./packages/agent-auth-lib/
 COPY packages/agent-adapter/package.json ./packages/agent-adapter/
 COPY packages/edge-memory-server/package.json ./packages/edge-memory-server/
 COPY packages/edge-context-server/package.json ./packages/edge-context-server/
@@ -31,7 +31,7 @@ COPY packages/harness-server/package.json ./packages/harness-server/
 
 RUN pnpm install --frozen-lockfile --filter @agentx/harness-cli...
 
-COPY packages/auth-lib ./packages/auth-lib
+COPY packages/agent-auth-lib ./packages/agent-auth-lib
 COPY packages/harness-cli ./packages/harness-cli
 
 # Wrapper script so `harness ...` works inside the container.

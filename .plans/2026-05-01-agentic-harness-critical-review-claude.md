@@ -17,7 +17,7 @@
 - `.plans/2026-04-30-prd-vscode-extension.md`
 - `.plans/2026-04-30-prd-workspace-template.md`
 - `.plans/2026-04-30-prd-workspace-setup-cli.md`
-- `.plans/2026-04-30-prd-auth-lib.md`
+- `.plans/2026-04-30-prd-agent-auth-lib.md`
 - `.plans/2026-04-30-prd-agent-adapter-lib.md`
 - `.plans/2026-04-30-prd-harness-core.md`
 - `.plans/2026-04-30-prd-token-codecs-lib.md`
@@ -95,7 +95,7 @@ v1 has zero defense against a misbehaving SKILL.md or compromised agent. This is
 ### F. `CredentialBroker` shape disagrees across three PRDs
 
 - `prd-agent-adapter-lib.md:421-424`: `getCredential(provider) → { apiKey, expiresAt? }`
-- `prd-auth-lib.md:155, :161-165`: returns extra `source: 'env' | 'oauth' | 'api-key-stored'`
+- `prd-agent-auth-lib.md:155, :161-165`: returns extra `source: 'env' | 'oauth' | 'api-key-stored'`
 - `prd-harness-core.md:108, :354-356`: `PolicyEnforcingBroker` wraps but doesn't specify shape
 - Design D3 (`prd-harness-core.md:381`) claims `AuthClient` "directly satisfies the broker interface" — false; one has `source`, the other doesn't.
 
@@ -103,11 +103,11 @@ Adapters cannot surface `source` for telemetry, and `PolicyEnforcingBroker`'s ca
 
 ### G. Provider-name vocabulary has three competing taxonomies
 
-- `prd-auth-lib.md:206`: `'copilot' | 'anthropic' | 'openai'` (closed Zod enum — blocks the "register custom providers" goal at `:25`)
+- `prd-agent-auth-lib.md:206`: `'copilot' | 'anthropic' | 'openai'` (closed Zod enum — blocks the "register custom providers" goal at `:25`)
 - `prd-agent-adapter-lib.md:204`: adapter types `'claude-sdk' | 'claude-code-cli' | 'opencode-cli' | 'copilot-sdk' | 'copilot-cli'`
-- `prd-harness-core.md:309`: `requiredProviders: ['anthropic', 'github']` — third name for what auth-lib calls `'copilot'`
+- `prd-harness-core.md:309`: `requiredProviders: ['anthropic', 'github']` — third name for what agent-auth-lib calls `'copilot'`
 
-No mapping table. Any cross-doc rename touches all three. Bedrock/OpenRouter (auth-lib `:436` v2) cannot be registered without rewriting the schema.
+No mapping table. Any cross-doc rename touches all three. Bedrock/OpenRouter (agent-auth-lib `:436` v2) cannot be registered without rewriting the schema.
 
 ### H. HTTP envelope, health, and CLI taxonomy disagree between the two edge servers
 
@@ -144,7 +144,7 @@ No mapping table. Any cross-doc rename touches all three. Bedrock/OpenRouter (au
 
 Critical-path Qs:
 
-- **Q1, Q2** → auth-lib + every adapter
+- **Q1, Q2** → agent-auth-lib + every adapter
 - **Q13** → both edge-server boundaries
 - **Q16, Q18** → agent-adapter tool/MCP contract (see D)
 - **Q20, Q21, Q25** → harness-core catalog + harness-server REST shape
@@ -249,7 +249,7 @@ Plus:
 - harness-server `§4.3` trust model's audit-log `actor` field designed to upgrade without schema break is unusually forward-thinking.
 - harness-server `§5.2` splits "production aspirational" targets from v1 acceptance gates — prevents the common PRD failure of building v1 against v2 numbers.
 - `harness doctor --workers` as a spawn-lifecycle smoke test (`prd-workspace-setup-cli.md:108`, F29) catches an entire class of "the spawn primitives drifted" bugs early.
-- auth-lib's three-pattern OAuth taxonomy (Device Flow / PKCE+localhost / PKCE+copy-paste, `:296-329`) with clear per-provider rationale, including why Anthropic must be copy-paste, is excellent reference material.
+- agent-auth-lib's three-pattern OAuth taxonomy (Device Flow / PKCE+localhost / PKCE+copy-paste, `:296-329`) with clear per-provider rationale, including why Anthropic must be copy-paste, is excellent reference material.
 - Glossaries in both `design.md:1684-1727` and `implementation-plan.md:1055-1067` reduce vocabulary drift.
 
 ---

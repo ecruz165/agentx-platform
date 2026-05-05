@@ -14,7 +14,7 @@ import {
   type PipelineCatalog,
   type RegisteredAgent,
 } from '@agentx/harness-core';
-import type { CredentialBroker } from '@agentx/auth-lib';
+import type { CredentialBroker } from '@agentx/agent-auth-lib';
 
 export {
   spawnWorker,

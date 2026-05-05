@@ -8,7 +8,7 @@ import {
   type AgentAdapter,
   type InvocationSpec,
 } from '@agentx/agent-adapter';
-import type { CredentialBroker } from '@agentx/auth-lib';
+import type { CredentialBroker } from '@agentx/agent-auth-lib';
 import {
   startHarnessServer,
   type AdapterFactory,

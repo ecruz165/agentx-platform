@@ -15,7 +15,7 @@ import type { AdapterEvent } from './events.ts';
  *
  *   1. Patterns. Anthropic: /sk-ant-[A-Za-z0-9_-]{16,}/. OpenAI:
  *      /sk-(?:proj-)?[A-Za-z0-9_-]{20,}/. Google: /AIza[A-Za-z0-9_-]{20,}/.
- *      Where does the registry live — here, or imported from auth-lib?
+ *      Where does the registry live — here, or imported from agent-auth-lib?
  *
  *   2. Depth. AdapterEvent payloads are mostly flat (system, user, text), but
  *      `response.raw` is an SDK-specific object that may nest deep. Top-level

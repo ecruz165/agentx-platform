@@ -13,7 +13,7 @@ import {
   useOnResize,
   useRenderer,
 } from '@opentui/react';
-import { AuthStore } from '@agentx/auth-lib';
+import { AuthStore } from '@agentx/agent-auth-lib';
 import { udsRequest } from './uds-client.ts';
 import {
   readPipelines,

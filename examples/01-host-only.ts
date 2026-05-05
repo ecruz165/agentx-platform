@@ -1,6 +1,6 @@
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { FileBroker } from '@agentx/auth-lib';
+import { FileBroker } from '@agentx/agent-auth-lib';
 import { ClaudeSdkAdapter, FileEventSubscriber } from '@agentx/agent-adapter';
 
 const authPath = join(homedir(), '.agentx', 'auth.json');

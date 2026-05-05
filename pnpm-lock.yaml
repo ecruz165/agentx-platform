@@ -11,9 +11,9 @@ importers:
       '@agentx/agent-adapter':
         specifier: workspace:*
         version: link:packages/agent-adapter
-      '@agentx/auth-lib':
+      '@agentx/agent-auth-lib':
         specifier: workspace:*
-        version: link:packages/auth-lib
+        version: link:packages/agent-auth-lib
       '@agentx/edge-context-server':
         specifier: workspace:*
         version: link:packages/edge-context-server
@@ -48,9 +48,9 @@ importers:
 
   packages/agent-adapter:
     dependencies:
-      '@agentx/auth-lib':
+      '@agentx/agent-auth-lib':
         specifier: workspace:*
-        version: link:../auth-lib
+        version: link:../agent-auth-lib
       '@anthropic-ai/sdk':
         specifier: ^0.30.1
         version: 0.30.1
@@ -62,7 +62,7 @@ importers:
         specifier: ^5.6.0
         version: 5.9.3
 
-  packages/auth-lib:
+  packages/agent-auth-lib:
     devDependencies:
       '@types/node':
         specifier: ^22.7.0
@@ -94,9 +94,9 @@ importers:
       '@agentx/agent-adapter':
         specifier: workspace:*
         version: link:../agent-adapter
-      '@agentx/auth-lib':
+      '@agentx/agent-auth-lib':
         specifier: workspace:*
-        version: link:../auth-lib
+        version: link:../agent-auth-lib
       '@agentx/harness-core':
         specifier: workspace:*
         version: link:../harness-core
@@ -140,9 +140,9 @@ importers:
       '@agentx/agent-adapter':
         specifier: workspace:*
         version: link:../agent-adapter
-      '@agentx/auth-lib':
+      '@agentx/agent-auth-lib':
         specifier: workspace:*
-        version: link:../auth-lib
+        version: link:../agent-auth-lib
     devDependencies:
       '@types/node':
         specifier: ^22.7.0
@@ -156,9 +156,9 @@ importers:
       '@agentx/agent-adapter':
         specifier: workspace:*
         version: link:../agent-adapter
-      '@agentx/auth-lib':
+      '@agentx/agent-auth-lib':
         specifier: workspace:*
-        version: link:../auth-lib
+        version: link:../agent-auth-lib
       '@agentx/harness-core':
         specifier: workspace:*
         version: link:../harness-core

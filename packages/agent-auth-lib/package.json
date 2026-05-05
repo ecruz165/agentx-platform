@@ -1,5 +1,5 @@
 {
-  "name": "@agentx/auth-lib",
+  "name": "@agentx/agent-auth-lib",
   "version": "0.0.0",
   "private": true,
   "type": "module",

@@ -3,7 +3,7 @@ import {
   OpenCodeCliAdapter,
   type AgentAdapter,
 } from '@agentx/agent-adapter';
-import type { CredentialBroker } from '@agentx/auth-lib';
+import type { CredentialBroker } from '@agentx/agent-auth-lib';
 import type { AdapterId } from './catalog.ts';
 import { bridgeAdapter, type JobBus } from './job-bus.ts';
 import type { JobRecord } from './job.ts';

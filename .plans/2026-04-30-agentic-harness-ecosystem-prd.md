@@ -21,7 +21,7 @@ This document is the **index and cross-cutting concerns** for the agentic harnes
 - `.plans/2026-04-30-prd-workspace-setup-cli.md` — Workspace Setup CLI
 
 **Companion documents (foundation libraries — sit beneath the seven user-facing deliverables):**
-- `.plans/2026-04-30-prd-auth-lib.md` — `@your-org/auth-lib` (credential storage + OAuth flows)
+- `.plans/2026-04-30-prd-agent-auth-lib.md` — `@your-org/agent-auth-lib` (credential storage + OAuth flows)
 - `.plans/2026-04-30-prd-agent-adapter-lib.md` — `@your-org/agent-adapter` (single-agent invocation abstraction)
 - `.plans/2026-04-30-prd-harness-core.md` — `@your-org/harness-core` (Harness Core Engine — `harness-core-lib`)
 - `.plans/2026-05-01-prd-agentic-worker-lib.md` — Agentic Worker Lib (Sandboxing + tmux)

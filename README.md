@@ -21,13 +21,13 @@ workspace-template uses local file refs into `packages/`.
 | 2 | MCP banned ecosystem-wide | `packages/agent-adapter` enforces at adapter spawn (3-layer suppression) |
 | 3 | v1 adapters: Claude SDK + OpenCode CLI only | `packages/agent-adapter` |
 | 4 | `productId` required in submit; CLI session-state | `packages/harness-cli` enforces |
-| 5 | UDS file-perm trust only in v1 | `packages/auth-lib` (auth file) + `packages/harness-cli` (sockets) both gate `0600` |
+| 5 | UDS file-perm trust only in v1 | `packages/agent-auth-lib` (auth file) + `packages/harness-cli` (sockets) both gate `0600` |
 
 ## Package map
 
 | Package | Maps to PRD | What it does today |
 |---|---|---|
-| `@agentx/auth-lib` | `prd-auth-lib.md` | Credential types, `FileBroker` with `0600` gate, `AuthStore`, GitHub Device Flow + Copilot session-token exchange + `callCopilot()` |
+| `@agentx/agent-auth-lib` | `prd-agent-auth-lib.md` | Credential types, `FileBroker` with `0600` gate, `AuthStore`, GitHub Device Flow + Copilot session-token exchange + `callCopilot()` |
 | `@agentx/agent-adapter` | `prd-agent-adapter-lib.md` | `ClaudeSdkAdapter`, `OpenCodeCliAdapter`, capture pipeline |
 | `@agentx/harness-server` | `prd-harness-server.md` | HTTP-over-UDS echo server (real orchestration in MVP-3+) |
 | `@agentx/edge-memory-server` | `prd-edge-memory-server.md` | HTTP-over-UDS echo server (real impl in MVP-2+) |
@@ -132,7 +132,7 @@ as system context, then their Bash tool spawns these exact commands.
 
 | # | Gate | How verified |
 |---|---|---|
-| 1 | `auth-lib` rejects non-`0600` `auth.json` | `chmod 644 ~/.agentx/auth.json && pnpm host-only` fails with mode error |
+| 1 | `agent-auth-lib` rejects non-`0600` `auth.json` | `chmod 644 ~/.agentx/auth.json && pnpm host-only` fails with mode error |
 | 2 | `harness-cli` rejects non-`0600` socket | covered by `udsRequest` self-check in `packages/harness-cli/src/uds-client.ts` |
 | 3 | `productId` required for memory/context | `pnpm harness memory query x` (no session) errors with decision-#4 message |
 | 4 | both adapters round-trip via real APIs | `pnpm host-only` + `pnpm opencode-only` |

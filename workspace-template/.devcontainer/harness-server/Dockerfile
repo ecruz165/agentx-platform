@@ -11,7 +11,7 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY tsconfig.base.json tsconfig.json ./
 
 # Per-package manifests for pnpm to plan the workspace
-COPY packages/auth-lib/package.json ./packages/auth-lib/
+COPY packages/agent-auth-lib/package.json ./packages/agent-auth-lib/
 COPY packages/agent-adapter/package.json ./packages/agent-adapter/
 COPY packages/edge-memory-server/package.json ./packages/edge-memory-server/
 COPY packages/edge-context-server/package.json ./packages/edge-context-server/

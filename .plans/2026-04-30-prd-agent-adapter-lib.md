@@ -4,7 +4,7 @@
 **Owner:** Edwin Cruz
 **Audience:** future implementer (human or agent) picking this up cold
 **Reference impl:** `.plans/2026-04-30-agentic-harness-design.md` § 6.1–6.4 (`AgentAdapter`, `AdapterFactory`, `AgentSpec`, `AgentInvocationResult`)
-**Sibling lib:** `npm-dependency/auth-lib/` — supplies credentials this lib consumes
+**Sibling lib:** `npm-dependency/agent-auth-lib/` — supplies credentials this lib consumes
 
 ---
 
@@ -30,7 +30,7 @@ The library extracts and generalizes the adapter subsystem already designed into
 - **Capability declaration** per adapter (`AdapterCapabilities`) so hosts can ask "does this adapter support tool use / streaming?" without trial-and-error.
 - **Process lifecycle for CLI adapters** — spawn, stdio piping, line-buffered JSON parsing, graceful + forced shutdown, exit-code → error mapping.
 - **Cancellation** via `AbortSignal` — works uniformly across in-process (SDK) and out-of-process (CLI) backends.
-- **Auth via auth-lib** (optional injection) — adapter receives `CredentialBroker`, fetches the right credential at invoke time. Host can also pre-resolve and pass an API key directly.
+- **Auth via agent-auth-lib** (optional injection) — adapter receives `CredentialBroker`, fetches the right credential at invoke time. Host can also pre-resolve and pass an API key directly.
 - **Pluggable adapter registry** — `registerAdapter(factory)` lets consumers add custom backends without modifying the lib.
 
 ## 3. Non-Goals (v1)
@@ -106,7 +106,7 @@ agent-adapter/
 │   │   └── shared/
 │   │       └── child-process.ts       # spawn + stdio + abort wiring (used by all CLI adapters)
 │   ├── credentials/
-│   │   └── broker.ts                  # CredentialBroker interface (compat with auth-lib)
+│   │   └── broker.ts                  # CredentialBroker interface (compat with agent-auth-lib)
 │   └── conformance/                   # EXPORTED as @your-org/agent-adapter/conformance —
 │       ├── index.ts                   #   reusable suite that any adapter author can run
 │       ├── scenarios.ts               #   echo, multi-turn, abort, tool-use, malformed input
@@ -125,7 +125,7 @@ The **conformance suite** is the keystone: a single test file driving every regi
 
 ```ts
 import { createAgent } from '@your-org/agent-adapter';
-import { createAuthClient } from '@your-org/auth-lib';
+import { createAuthClient } from '@your-org/agent-auth-lib';
 
 const auth = createAuthClient({ appName: 'my-cli' });
 
@@ -311,8 +311,8 @@ Every agent is constructed bound to a **`workdir`**, which the lib treats as the
 
 A direct HTTP adapter against GitHub Copilot's Chat API (`https://api.githubcopilot.com/chat/completions`). The endpoint is OpenAI-compatible (request/response shapes match `chat/completions`), so `normalize.ts` maps `AgentInput` → OpenAI request body and the response → `AgentInvocationResult`.
 
-- **No SDK package** — uses `fetch` directly. Copilot doesn't ship an official Node SDK; auth-lib's existing `callCopilot` (per auth-lib § 12.2) is the reference implementation. The adapter consolidates the HTTP call but does *not* re-implement the GitHub-token → Copilot-token exchange — that's auth-lib's job, surfaced through `broker.getCredential('copilot')` which returns the *Copilot* token (not the underlying GitHub token).
-- **Auth:** `broker.getCredential('copilot')` returns `{ apiKey: <copilot-token>, expiresAt }`. Copilot tokens are short-lived (~30min); the broker (auth-lib's `AuthClient`) handles refresh transparently. The adapter sets `Authorization: Bearer <token>` and forwards. Falls back to `COPILOT_TOKEN` env var if no broker, but discouraged — token rotation is the broker's responsibility.
+- **No SDK package** — uses `fetch` directly. Copilot doesn't ship an official Node SDK; agent-auth-lib's existing `callCopilot` (per agent-auth-lib § 12.2) is the reference implementation. The adapter consolidates the HTTP call but does *not* re-implement the GitHub-token → Copilot-token exchange — that's agent-auth-lib's job, surfaced through `broker.getCredential('copilot')` which returns the *Copilot* token (not the underlying GitHub token).
+- **Auth:** `broker.getCredential('copilot')` returns `{ apiKey: <copilot-token>, expiresAt }`. Copilot tokens are short-lived (~30min); the broker (agent-auth-lib's `AuthClient`) handles refresh transparently. The adapter sets `Authorization: Bearer <token>` and forwards. Falls back to `COPILOT_TOKEN` env var if no broker, but discouraged — token rotation is the broker's responsibility.
 - **Headers (Copilot API contract — hardcoded in `headers.ts`, NOT parameterizable):**
   - `User-Agent: GithubCopilot/1.155.0`
   - `Editor-Version: <consumer-supplied user agent>`
@@ -408,7 +408,7 @@ Three producers (SDK events, claude-code stream-json lines, opencode JSON output
 
 ## 12. Auth Integration
 
-Loose coupling with `auth-lib`:
+Loose coupling with `agent-auth-lib`:
 
 ```ts
 // Tightest coupling: pass the auth client itself
@@ -421,7 +421,7 @@ createAgent({ spec, credentialBroker: { getCredential: async (provider) => ({ ap
 createAgent({ spec: { type: 'claude-sdk', model: '...', apiKey: process.env.ANTHROPIC_API_KEY } });
 ```
 
-The `CredentialBroker` interface in `src/credentials/broker.ts` is a structural subset of auth-lib's `AuthClient`:
+The `CredentialBroker` interface in `src/credentials/broker.ts` is a structural subset of agent-auth-lib's `AuthClient`:
 
 ```ts
 export interface CredentialBroker {
@@ -429,7 +429,7 @@ export interface CredentialBroker {
 }
 ```
 
-This means **the lib has no hard dependency on auth-lib** — it just looks for an object with `getCredential`. Auth-lib happens to satisfy it. Hosts that don't use auth-lib can pass any compatible object.
+This means **the lib has no hard dependency on agent-auth-lib** — it just looks for an object with `getCredential`. Auth-lib happens to satisfy it. Hosts that don't use agent-auth-lib can pass any compatible object.
 
 **Sandboxed CLI adapters and credential propagation.** CLI adapters that redirect `$HOME` and `$TMPDIR` for state isolation (`claude-code-cli` § 8.2, `opencode-cli` § 8.3, `copilot-cli` § 8.5) cannot read the host's auth state from inside the spawn — the sandbox and a filesystem auth probe are mutually exclusive. Credentials therefore flow through **`containerEnv`**: the host resolves the credential via `broker.getCredential(...)` and the adapter injects it as the env var the wrapped CLI reads (e.g. `ANTHROPIC_API_KEY`, `GH_TOKEN`). The adapter **validates at `createAgent` time** that the broker returned a usable credential and throws `MissingCredentialError` synchronously if not — failures are construction-time, not mid-stream, and follow the same fail-fast pattern as `BinaryNotFoundError` and `WorkdirNotARepoError`. Interactive authentication (`claude /login`, `gh auth login`, etc.) is owned by the host's CLI/TUI; once the user authenticates there, the resolved tokens propagate through the harness's memory, context, and harness-server layers to whichever adapter spawns next. The adapter never initiates an interactive flow.
 
@@ -483,7 +483,7 @@ This means **the lib has no hard dependency on auth-lib** — it just looks for 
 13c. Conformance suite extended with a "limited adapter" path; `copilot-sdk` passes full suite, `copilot-cli` passes the reduced subset (skip tool-use + multi-turn + streaming-incremental scenarios). (~0.5 days)
 
 **Phase E — Auth integration + ergonomics** (~1 day)
-14. `CredentialBroker` interface, optional auth-lib hookup.
+14. `CredentialBroker` interface, optional agent-auth-lib hookup.
 15. `mountAgentCommand` for commander/yargs.
 16. Documentation + first-consumer integration (per § 13 Q8).
 

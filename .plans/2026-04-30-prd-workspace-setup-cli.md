@@ -183,7 +183,7 @@ The harness-server is the entity that *spawns* worker DevContainers per job; thi
 - **Language:** TypeScript on Bun-compiled standalone binary (fast cold-start matters here — the user's first interaction with the system).
 - **CLI framework:** commander; Zod for config validation; `prompts` for interactive flows; `chalk` (optional) for colored output.
 - **Image pull strategy:** parallel `docker pull` on the three server images; serial install steps after to avoid race conditions in `cli-config.yml` writes.
-- **Auth:** none in v1 (per § 4.7). `~/.<your-org>/auth.json` from auth-lib is a separate concern; this CLI doesn't manage it.
+- **Auth:** none in v1 (per § 4.7). `~/.<your-org>/auth.json` from agent-auth-lib is a separate concern; this CLI doesn't manage it.
 - **State tracking:** `~/.harness/init-state.json` records install progress for crash-safe resume; `~/.harness/cli-config.yml` is the runtime config.
 
 ## 7. CLI surface

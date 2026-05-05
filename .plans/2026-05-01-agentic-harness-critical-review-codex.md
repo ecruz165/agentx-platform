@@ -12,7 +12,7 @@
 - `2026-04-30-agentic-harness-implementation-plan.md`
 - `2026-04-30-prd-agent-adapter-lib.md`
 - `2026-04-30-prd-agentic-worker-lib.md`
-- `2026-04-30-prd-auth-lib.md`
+- `2026-04-30-prd-agent-auth-lib.md`
 - `2026-04-30-prd-edge-context-server.md`
 - `2026-04-30-prd-edge-memory-server.md`
 - `2026-04-30-prd-harness-cli.md`

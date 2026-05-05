@@ -3,7 +3,7 @@
  * NOT the adapter type — an OpenCode CLI adapter running Claude under the hood
  * still needs an `anthropic` credential, not an "opencode" one.
  *
- * Resolves review-G drift across auth-lib / agent-adapter / harness-core PRDs.
+ * Resolves review-G drift across agent-auth-lib / agent-adapter / harness-core PRDs.
  */
 export type Provider = 'anthropic' | 'openai' | 'google' | 'github-copilot';
 

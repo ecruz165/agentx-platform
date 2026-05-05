@@ -4,7 +4,7 @@ import { existsSync } from 'node:fs';
 import { chmod, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
-import { AuthStore, fetchGitHubUsername, loginGitHubCopilot, type Provider } from '@agentx/auth-lib';
+import { AuthStore, fetchGitHubUsername, loginGitHubCopilot, type Provider } from '@agentx/agent-auth-lib';
 import { udsRequest } from './uds-client.ts';
 import {
   findProduct,

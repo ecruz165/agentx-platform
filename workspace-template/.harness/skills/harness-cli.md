@@ -62,7 +62,7 @@ Steps for any call:
 You start a refactor and want to remember the plan:
 
 ```
-harness memory put refactor-plan "splitting auth into auth-lib (broker) and copilot-api (session token + chat)"
+harness memory put refactor-plan "splitting auth into agent-auth-lib (broker) and copilot-api (session token + chat)"
 ```
 
 A later phase asks you about prior decisions:

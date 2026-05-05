@@ -261,7 +261,7 @@ The CLI detects "I am running inside a worker" via the env var `HARNESS_WORKSPAC
 - Job persistence, queue, worker spawning → harness-server.
 - Memory/context storage → respective edge servers.
 - Workspace bootstrap (image build, container start) → workspace-setup-cli; the CLI mounts those subcommands but doesn't implement them.
-- Credential storage / OAuth flows → auth-lib (consumed indirectly by the servers; the CLI itself does not present credentials in v1).
+- Credential storage / OAuth flows → agent-auth-lib (consumed indirectly by the servers; the CLI itself does not present credentials in v1).
 
 ---
 
@@ -345,13 +345,13 @@ Calendar (one engineer): ~5 weeks. Realistic with parallel server work landing o
 | `workspace-setup-cli` | Mountable `harness init/server/doctor/update/uninstall/join` subcommand modules; ownership of `cli-config.yml` schema |
 | `harness-protocol` (new shared package) | WS frame schemas (steer, steer-ack, steering-applied, events); shared error envelope shape; `RunResult` + `HarnessError` types |
 | `agent-adapter-lib` | None directly; the CLI is invoked *by* agents that the adapter spawns, but the CLI does not import the adapter |
-| `auth-lib` | None in v1 (the CLI does not present credentials); v1.x will use `auth-lib` for the `--auth-token` flow |
+| `agent-auth-lib` | None in v1 (the CLI does not present credentials); v1.x will use `agent-auth-lib` for the `--auth-token` flow |
 
 ---
 
 ## 12. Forward compatibility (v1.x)
 
-- **Application-level auth:** `--auth-token` becomes wired (F49). New flag `harness login` invokes auth-lib's OAuth flows. Audit-log actor upgrades from `uds:<uid>` to authenticated user (F50).
+- **Application-level auth:** `--auth-token` becomes wired (F49). New flag `harness login` invokes agent-auth-lib's OAuth flows. Audit-log actor upgrades from `uds:<uid>` to authenticated user (F50).
 - **Plugin discovery:** convention-based npm plugin loading (HC1) lands as opt-in.
 - **Cross-workspace operations:** `harness submit --workspace <name>` becomes routine; bulk operations enabled.
 - **Auto-update:** `harness update --auto` background daemon.

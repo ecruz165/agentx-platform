@@ -12,7 +12,7 @@
 - `.plans/2026-04-30-agentic-harness-implementation-plan.md`
 - `.plans/2026-04-30-prd-agent-adapter-lib.md`
 - `.plans/2026-04-30-prd-agentic-worker-lib.md`
-- `.plans/2026-04-30-prd-auth-lib.md`
+- `.plans/2026-04-30-prd-agent-auth-lib.md`
 - `.plans/2026-04-30-prd-edge-context-server.md`
 - `.plans/2026-04-30-prd-edge-memory-server.md`
 - `.plans/2026-04-30-prd-harness-cli.md`
@@ -39,7 +39,7 @@ Adding the per-PRD estimates (one engineer, focused days):
 
 | Component | Days |
 |---|---|
-| auth-lib | 4–5 |
+| agent-auth-lib | 4–5 |
 | agent-adapter-lib | 9–11 (budget 13) |
 | token-codecs-lib | 13–16 (budget 18) |
 | harness-core | not aggregated in PRD; design doc M1–M7 spans months |
@@ -54,7 +54,7 @@ Adding the per-PRD estimates (one engineer, focused days):
 
 That's roughly **150–200 focused engineer-days *just for the listed milestones*, and the harness-core/harness-server numbers are missing**. Real calendar will be 1.5–2× that for integration, the inevitable rework when the conformance suite (correctly identified as load-bearing in agent-adapter §5) finds adapter divergence, and the cross-component bugs that don't show up until three peer servers are running together.
 
-**Recommendation:** Either explicitly stage v1 to "auth-lib + agent-adapter (claude-code-cli only) + harness-core + minimal harness-server + workspace-template + workspace-setup-cli + harness-cli" — six components, ~80 days — and defer the rest to v1.x; or commit ≥4 engineers and stop calling this v1.
+**Recommendation:** Either explicitly stage v1 to "agent-auth-lib + agent-adapter (claude-code-cli only) + harness-core + minimal harness-server + workspace-template + workspace-setup-cli + harness-cli" — six components, ~80 days — and defer the rest to v1.x; or commit ≥4 engineers and stop calling this v1.
 
 ---
 
@@ -62,7 +62,7 @@ That's roughly **150–200 focused engineer-days *just for the listed milestones
 
 These contradict directly and need reconciliation before code starts:
 
-1. **Bun vs Node runtime.** edge-memory-server §6 says "Bun preferred, Node 22+ fallback." edge-context-server §6 says "Bun." token-codecs §5 says "Node ≥20." workspace-template Dockerfiles target `node:22-bookworm` with Bun added. auth-lib and agent-adapter target Node ≥20. **Pick one.** A mixed Bun/Node deployment has real costs: different `better-sqlite3` build flags, different crypto, different ESM resolution edge cases. The peer-server PRDs lean Bun for cold-start; everything else is Node. If the goal is fast cold-start for daemons, Bun-compile only the daemon binaries and keep libs on Node; document this explicitly.
+1. **Bun vs Node runtime.** edge-memory-server §6 says "Bun preferred, Node 22+ fallback." edge-context-server §6 says "Bun." token-codecs §5 says "Node ≥20." workspace-template Dockerfiles target `node:22-bookworm` with Bun added. agent-auth-lib and agent-adapter target Node ≥20. **Pick one.** A mixed Bun/Node deployment has real costs: different `better-sqlite3` build flags, different crypto, different ESM resolution edge cases. The peer-server PRDs lean Bun for cold-start; everything else is Node. If the goal is fast cold-start for daemons, Bun-compile only the daemon binaries and keep libs on Node; document this explicitly.
 
 2. **Postgres vs SQLite.** workspace-template §9 helm chart lists "Bitnami Postgres dependency"; the rest of the ecosystem uses SQLite (harness-server checkpointer, edge-memory `sqlite-vec`, edge-context Kuzu) and the harness-server PRD never mentions Postgres. Either remove the Postgres helm dep or explain when/why cluster-mode swaps storage backends — and what that does to the SQLite-based migration paths.
 
@@ -113,12 +113,12 @@ harness-core PRD wasn't fully read, but from cross-references it owns LangGraph 
 
 ### 4.3 Auth as silent dependency
 Trust model in v1 is "DevContainer is single-user, loopback only, UDS file-perm is the auth." Fine for a developer workstation. But:
-- `auth-lib` exists, ships OAuth flows, manages `~/.<your-org>/auth.json`, is a hard dep of agent-adapter, and is consumed by every CLI in the ecosystem for *outbound* AI provider credentials.
+- `agent-auth-lib` exists, ships OAuth flows, manages `~/.<your-org>/auth.json`, is a hard dep of agent-adapter, and is consumed by every CLI in the ecosystem for *outbound* AI provider credentials.
 - That same `auth.json` is sitting in the host home directory while jobs run in containers. Mount strategy isn't specified. agent-adapter §8.2 says claude-code-cli sandboxes `$HOME` and `$TMPDIR` to the worktree to *prevent* state leakage. So how does the CLI inside the worker container reach `~/.<your-org>/auth.json` on the host? Bind-mount? Copy? Re-login per container?
-- This is the sort of thing that destroys "5-minute first-run" because the user logs in once on the host and then every worker container fails until the credential propagation is solved. workspace-setup-cli §4.7 says "auth-lib's auth.json is a separate concern; this CLI doesn't manage it." It absolutely needs to manage how it propagates into containers.
+- This is the sort of thing that destroys "5-minute first-run" because the user logs in once on the host and then every worker container fails until the credential propagation is solved. workspace-setup-cli §4.7 says "agent-auth-lib's auth.json is a separate concern; this CLI doesn't manage it." It absolutely needs to manage how it propagates into containers.
 
 ### 4.4 Plugin discoverability
-harness-core has a plugin registry. token-codecs ships pre-/post-plugins. edge-context-server has `ContextProvider` plugins (F14–F16). agent-adapter has `registerAdapter`. auth-lib has `registerProvider`. Five plugin systems, four registries (token-codecs reuses harness-core's). No single document specifies how a plugin is discovered, loaded, versioned, or constrained for security. For v1 (where plugins are first-party only), this is fine; for the v1.x story where third parties register adapters/codecs/providers, it's missing.
+harness-core has a plugin registry. token-codecs ships pre-/post-plugins. edge-context-server has `ContextProvider` plugins (F14–F16). agent-adapter has `registerAdapter`. agent-auth-lib has `registerProvider`. Five plugin systems, four registries (token-codecs reuses harness-core's). No single document specifies how a plugin is discovered, loaded, versioned, or constrained for security. For v1 (where plugins are first-party only), this is fine; for the v1.x story where third parties register adapters/codecs/providers, it's missing.
 
 ---
 
@@ -135,7 +135,7 @@ harness-core has a plugin registry. token-codecs ships pre-/post-plugins. edge-c
 - D1 (sessions deferred to v1.1) is the right call but means v1 cannot implement long-running interactive flows; the harness's `Resume` semantics need to be checked against this constraint.
 - §8.2 Sandbox: "Spawns with `$HOME` and `$TMPDIR` redirected to the job's `workdir`." This breaks claude-code's `~/.claude/auth.json` lookup unless the workdir contains it. Either mount the host's auth file readonly into the workdir, or document that sandboxed mode requires `ANTHROPIC_API_KEY` env and OAuth doesn't work — these are very different UX promises.
 
-### `prd-auth-lib.md`
+### `prd-agent-auth-lib.md`
 - Mostly clean extraction work. The hardcoded Copilot client ID and the `claude-cli/2.1.7` user-agent pinning (§12) are technical-debt timebombs — they will silently break when Anthropic/GitHub rotate. No alerting or version-pinning strategy is described.
 - §13 Q1: runtime registration of providers without compile-time generic. Right call for v1, but means `callAI(messages, model, providerName)` typed `providerName: string` rather than a discriminated union. Document that consumers lose type-safety on custom providers.
 
@@ -179,7 +179,7 @@ harness-core has a plugin registry. token-codecs ships pre-/post-plugins. edge-c
 
 ## 6. Recommendations (prioritized)
 
-1. **Cut v1 scope.** Ship: auth-lib, agent-adapter (claude-code-cli + claude-sdk only — drop opencode-cli, copilot-sdk, copilot-cli to v1.1), harness-core, harness-server, harness-cli, workspace-template, workspace-setup-cli, edge-memory-server. **Defer to v1.1:** edge-context-server (or ship it with repo-import only), token-codecs (run the bench first), vscode-extension. This is still ~80–100 engineer-days and a credible v1.
+1. **Cut v1 scope.** Ship: agent-auth-lib, agent-adapter (claude-code-cli + claude-sdk only — drop opencode-cli, copilot-sdk, copilot-cli to v1.1), harness-core, harness-server, harness-cli, workspace-template, workspace-setup-cli, edge-memory-server. **Defer to v1.1:** edge-context-server (or ship it with repo-import only), token-codecs (run the bench first), vscode-extension. This is still ~80–100 engineer-days and a credible v1.
 
 2. **Reconcile inconsistencies in §2 above before any code commits.** These are all editorial fixes; they compound if left unresolved.
 
