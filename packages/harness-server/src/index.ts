@@ -106,18 +106,49 @@ export interface HarnessServerHandle {
 export type { AgentStatus, RegisteredAgent, JobRecord } from '@agentx/harness-core';
 
 /**
- * The synthetic coordinator agent prepended to every job's agent list.
+ * Synthetic agents harness-server inserts around every pipelined job's
+ * user-defined agents. Both are placeholders today — their adapter
+ * bindings will move into config when they become real LLM-driven
+ * agents. The shape (an entry in the registered-agent list) is what
+ * matters for now: the orchestrator walks them like any other agent,
+ * the TUI surfaces them, and pipelines can specialize via overrides
+ * down the road.
  *
- * In MVP it's a placeholder — the coordinator's "decision" of which pipeline
- * to run is currently made client-side (the CLI passes the pipeline id in the
- * submit body). When the coordinator becomes a real LLM agent (per the
- * authority memory: "coordinator chooses, not designs"), its adapter binding
- * will move into config and this constant becomes the registration record
- * shape, not its source.
+ * COORDINATOR_AGENT (prepended)
+ * -----------------------------
+ * Job entry. In v1 the coordinator's "decision" of which pipeline to
+ * run is made client-side (the CLI passes the pipeline id). When this
+ * becomes a real agent — per project_authority_model_jobs_pipelines:
+ * "coordinator chooses, not designs" — it'll inspect the intent and
+ * route to a registered pipeline.
+ *
+ * CHECKOUT_COORDINATOR_AGENT (appended)
+ * -------------------------------------
+ * Job exit. Symmetric to the entry coordinator. When the pipeline's
+ * user-defined agents finish, this synthetic agent owns the post-job
+ * lifecycle — per project_memory_promotes_to_context +
+ * project_central_grounding_bidirectional:
+ *   1. harvest edge-memory for this jobId
+ *   2. distill into "what went well / didn't go well / lessons"
+ *   3. load the distilled output into edge-context-server (`learned`
+ *      source type, via the existing loader infrastructure)
+ *   4. promote the new Learning nodes to central-context
+ *   5. only after promotion succeeds, mark the job completed
+ * v1: placeholder — same status as the entry coordinator. The hook
+ * point is in the agent list so step (1)-(5) can layer on without
+ * touching the orchestrator. Pipelines that want specialized
+ * checkout can override via a `checkout` phase before this synthetic
+ * agent runs.
  */
 const COORDINATOR_AGENT: AgentDef = {
   id: 'coordinator',
   role: 'Coordinator',
+  adapter: 'claude-sdk',
+};
+
+const CHECKOUT_COORDINATOR_AGENT: AgentDef = {
+  id: 'checkout-coordinator',
+  role: 'CheckoutCoordinator',
   adapter: 'claude-sdk',
 };
 
@@ -318,10 +349,13 @@ function handleSubmitJob(res: ServerResponse, body: Record<string, unknown>, ctx
     agents = [
       registeredFromDef(COORDINATOR_AGENT),
       ...pipeline.agents.map(registeredFromDef),
+      registeredFromDef(CHECKOUT_COORDINATOR_AGENT),
     ];
   } else {
-    // Submit without a pipeline — register only the coordinator. Useful for
-    // smoke tests; production submits should always carry a pipeline id.
+    // Submit without a pipeline — register only the entry coordinator.
+    // Useful for smoke tests; production submits should always carry a
+    // pipeline id. We omit checkout-coordinator here because there's no
+    // pipeline output to consolidate.
     agents = [registeredFromDef(COORDINATOR_AGENT)];
   }
 

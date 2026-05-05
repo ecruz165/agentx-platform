@@ -114,12 +114,14 @@ describe('orchestrator wired into POST /v1/jobs', () => {
     const statuses = (detail.body.job.agents as Array<{ id: string; status: string }>).map(
       (a) => `${a.id}=${a.status}`
     );
-    // Coordinator stays pending (skipped); pipeline agents run to completed.
+    // Both synthetic coordinators stay pending (skipped — they're
+    // placeholders today); pipeline agents run to completed.
     expect(statuses).toEqual([
       'coordinator=pending',
       'planner=completed',
       'implementer=completed',
       'reviewer=completed',
+      'checkout-coordinator=pending',
     ]);
 
     // Each pipeline agent triggered the factory.

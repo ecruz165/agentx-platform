@@ -90,6 +90,7 @@ describe('agent registration on POST /v1/jobs', () => {
       'planner',
       'implementer',
       'reviewer',
+      'checkout-coordinator',
     ]);
     expect(agents.every((a: any) => a.status === 'pending')).toBe(true);
     expect(agents.find((a: any) => a.id === 'planner').systemPrompt).toBe('plan it');
@@ -139,6 +140,7 @@ describe('agent registration on POST /v1/jobs', () => {
       'planner',
       'implementer',
       'reviewer',
+      'checkout-coordinator',
     ]);
   });
 

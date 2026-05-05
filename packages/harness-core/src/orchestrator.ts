@@ -80,7 +80,14 @@ export async function runJob(jobId: string, deps: RunJobDeps): Promise<void> {
   let priorOutput = job.input ?? '';
 
   for (const agent of job.agents) {
-    if (agent.id === 'coordinator') continue;
+    // Skip the synthetic coordinators — both are placeholder agents
+    // owned by harness-server (entry: pipeline-routing decision;
+    // exit: harvest+distill+promote). Their adapter binding is
+    // declarative-only today; when they become real LLM-driven agents
+    // this skip rule moves into config (e.g., a `synthetic: true`
+    // flag on AgentDef) so the orchestrator can decide to skip vs run
+    // based on declared capability rather than hardcoded ids.
+    if (agent.id === 'coordinator' || agent.id === 'checkout-coordinator') continue;
 
     agent.status = 'running';
     deps.onStatusChange?.(jobId, agent.id, 'running');
