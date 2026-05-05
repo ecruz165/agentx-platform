@@ -97,10 +97,16 @@ services:
 
   # Vision LLM — only needed if your corpus includes images (UI mockups,
   # screenshots, diagrams). Profile-gated so it doesn't start by default,
-  # saving ~6 GB RAM in the common code-only workflow. Enable with:
+  # saving ~3-6 GB RAM in the common code-only workflow. Enable with:
   #   docker compose --profile vision up
+  #
+  # Tag options (verified via Docker Hub):
+  #   2B-UD-Q4_K_XL   1.82 GB   smallest; tight footprint
+  #   4B-UD-Q4_K_XL   3.15 GB   workhorse default — picked here
+  #   8B-UD-Q4_K_XL   5.87 GB   higher quality (= `latest`)
+  #   32B-UD-Q4_K_XL  19.8 GB   Mac Studio territory; GPU recommended
   agent-vl:
-    image: ai/qwen3-vl:7B-Q4_K_M
+    image: ai/qwen3-vl:4B-UD-Q4_K_XL
     container_name: agentx-agent-vl
     networks:
       - harness-net
