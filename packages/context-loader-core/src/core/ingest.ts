@@ -80,6 +80,19 @@ export async function ingest(spec: IngestSpecExt): Promise<IngestionSummary> {
   const root = resolve(spec.source.ref.path);
   const matcher = compileMatcher(sourceType.matcher);
 
+  // bodyExceptions: paths that should index with full bodies even when
+  // the source type defaults to skeleton-only (oss-code uses this to
+  // capture examples/ + READMEs at full fidelity while keeping the rest
+  // of the dependency at ~10× compression). Compile once per ingest run;
+  // re-used per-file in the dispatch below.
+  const bodyExceptionsMatcher =
+    sourceType.chunker.type === 'tree-sitter' &&
+    sourceType.chunker.bodyExtraction === false &&
+    Array.isArray(sourceType.chunker.bodyExceptions) &&
+    sourceType.chunker.bodyExceptions.length > 0
+      ? compileMatcher({ include: sourceType.chunker.bodyExceptions })
+      : null;
+
   // Per-file processing
   for await (const item of walk({
     root,
@@ -134,11 +147,16 @@ export async function ingest(spec: IngestSpecExt): Promise<IngestionSummary> {
             content,
             sourceTypeId: sourceType.id,
             sourceId: root,
-            // Skeleton-only when the catalog declares bodyExtraction: false
-            // (oss-code's default for ~10× volume reduction).
+            // Mode picks per-file:
+            //   - bodyExtraction: true  → 'full' for everything
+            //   - bodyExtraction: false → 'skeleton-only' by default,
+            //     except paths matching bodyExceptions get 'full' (e.g.,
+            //     examples/ + READMEs in oss-code)
             mode:
               sourceType.chunker.bodyExtraction === false
-                ? 'skeleton-only'
+                ? bodyExceptionsMatcher && bodyExceptionsMatcher(item.relativePath)
+                  ? 'full'
+                  : 'skeleton-only'
                 : 'full',
           });
 
