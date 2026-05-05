@@ -36,6 +36,13 @@ export interface ChunkInput {
   /** Per-chunk size config. */
   maxTokens?: number;
   overlapTokens?: number;
+  /**
+   * Optional prefix prepended to emitted node labels (Doc → OssDoc,
+   * Section → OssSection). Mirrors the tree-sitter chunker's
+   * labelPrefix from C.3. Edge labels (Contains, LinkedFrom) stay
+   * un-prefixed — same convention as tree-sitter.
+   */
+  labelPrefix?: string;
 }
 
 export interface ChunkOutput {
@@ -57,10 +64,11 @@ export function chunkHeadingBased(input: ChunkInput): ChunkOutput {
   const maxChars = maxTokens * APPROX_CHARS_PER_TOKEN;
   const overlapChars = overlapTokens * APPROX_CHARS_PER_TOKEN;
 
+  const labelPrefix = input.labelPrefix ?? '';
   const docTitle = input.title ?? extractFirstH1(input.content) ?? input.docId;
   const docNode: GraphNode = {
     id: input.docId,
-    label: 'Doc',
+    label: `${labelPrefix}Doc`,
     properties: { title: docTitle, sourceTypeId: input.sourceTypeId },
     sourceTypeId: input.sourceTypeId,
     sourceId: input.sourceId,
@@ -85,7 +93,7 @@ export function chunkHeadingBased(input: ChunkInput): ChunkOutput {
       }`;
       const sectionNode: GraphNode = {
         id: sectionId,
-        label: 'Section',
+        label: `${labelPrefix}Section`,
         properties: {
           heading: section.heading ?? '(intro)',
           level: section.level,

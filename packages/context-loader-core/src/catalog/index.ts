@@ -62,6 +62,9 @@ const ossCode: SourceType = {
     // Phase C.7 cross-source-type edges.
     edges: ['Contains', 'BelongsTo', 'Exports', 'ImportedBy'],
   },
+  // Read package.json at the source root → emit Package + Version +
+  // BelongsTo edges (Phase C.4).
+  provenance: 'oss-package',
   chunker: {
     type: 'tree-sitter',
     granularity: 'function-class',
@@ -125,17 +128,43 @@ const crawledWeb: SourceType = {
 const ossDocs: SourceType = {
   id: 'oss-docs',
   description:
-    'OSS dependency docs — version-aware crawl; code examples become OssDocCodeExample nodes linked to OssFunction via Documents edges.',
-  matcher: {}, // URL-driven or repo-/docs-driven
+    'OSS dependency docs — path-based v1: ingests **/*.{md,mdx,rst} from a docs/ directory beside package.json. Web crawl + code-example extraction land in a later slice (when crawler chunker exists).',
+  matcher: {
+    include: ['**/*.{md,mdx,rst,txt}', '**/README*'],
+    exclude: [
+      '**/node_modules/**',
+      '**/.git/**',
+      '**/dist/**',
+      '**/build/**',
+      '**/.next/**',
+      '**/target/**',
+      '**/venv/**',
+    ],
+  },
   graphSchema: {
-    nodes: ['OssDoc', 'OssDocSection', 'OssDocCodeExample'],
-    edges: ['Documents', 'BelongsTo'],
+    // OssDoc + OssSection match the heading-based chunker's emitted
+    // labels under labelPrefix='Oss'. OssDocCodeExample lands when
+    // code-fence extraction is implemented (still a Phase D concern).
+    nodes: ['OssDoc', 'OssSection'],
+    // 'Contains' (Doc → Section) and 'LinkedFrom' (markdown links)
+    // come from heading-based. 'BelongsTo' is the OSS provenance link.
+    // 'Documents' lands with Phase C.7 cross-source-type edges.
+    edges: ['Contains', 'LinkedFrom', 'BelongsTo', 'Documents'],
     crossTypeEdges: [
       { edge: 'Documents', targetSourceTypeId: 'oss-code', targetNodeLabel: 'OssFunction' },
       { edge: 'Documents', targetSourceTypeId: 'oss-code', targetNodeLabel: 'OssClass' },
     ],
   },
-  chunker: { type: 'crawler', scope: 'site', maxDepth: 3 },
+  // v1: path-based. Web crawler comes online when 'crawler' chunker
+  // is implemented (Phase D); same labelPrefix lets the URL-driven
+  // path emit the same OssDoc/OssSection schema.
+  provenance: 'oss-package',
+  chunker: {
+    type: 'heading-based',
+    maxTokens: 2048,
+    overlapTokens: 128,
+    labelPrefix: 'Oss',
+  },
 };
 
 const ossIssues: SourceType = {

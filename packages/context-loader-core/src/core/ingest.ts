@@ -94,16 +94,14 @@ export async function ingest(spec: IngestSpecExt): Promise<IngestionSummary> {
       ? compileMatcher({ include: sourceType.chunker.bodyExceptions })
       : null;
 
-  // OSS provenance: when ingesting an OSS package source, read its
-  // manifest (package.json today; Cargo.toml/pom.xml in future slices)
-  // and emit Package + Version nodes once before the per-file loop.
-  // Each File then gets a BelongsTo → Version edge below. Ingesting
-  // a directory without a manifest still works — provenance is just
-  // skipped (and the resulting graph has no Package/Version for those
-  // files; a consumer of OSS results can detect "missing provenance"
-  // and warn upstream).
+  // Provenance preamble: when the source type opts into 'oss-package'
+  // provenance, read its manifest (package.json today; Cargo.toml /
+  // pom.xml in future slices) and emit Package + Version nodes once
+  // before the per-file loop. Each File then gets a BelongsTo → Version
+  // edge below. Ingesting a directory without a manifest still works
+  // — provenance is just skipped.
   let ossVersionNodeId: string | null = null;
-  if (sourceType.id === 'oss-code') {
+  if (sourceType.provenance === 'oss-package') {
     const meta = await readOssPackageMeta(root);
     if (meta) {
       const provenance = buildProvenanceGraph(meta, sourceType.id, root);
@@ -172,6 +170,9 @@ export async function ingest(spec: IngestSpecExt): Promise<IngestionSummary> {
             sourceId: root,
             maxTokens: sourceType.chunker.maxTokens,
             overlapTokens: sourceType.chunker.overlapTokens,
+            // oss-docs declares 'Oss' to emit OssDoc + OssSection
+            // labels (matches its declared graphSchema).
+            labelPrefix: sourceType.chunker.labelPrefix,
           })
         : await chunkCodeFull({
             relativePath: item.relativePath,
@@ -212,15 +213,18 @@ export async function ingest(spec: IngestSpecExt): Promise<IngestionSummary> {
       spec.onEvent?.({ kind: 'node-written', nodeId: node.id, label: node.label });
     }
 
-    // OSS provenance: link this file's File-node back to the package
-    // Version. The chunker emits exactly one File per ingest call, so
-    // we find it by label (OssFile under oss-code's labelPrefix).
+    // OSS provenance: link this file's root-document node back to the
+    // package Version. Each chunker emits one root node per file —
+    // tree-sitter calls it `File` / `OssFile`, heading-based calls it
+    // `Doc` / `OssDoc`. We match either suffix so the BelongsTo edge
+    // works for both code and docs source types under oss-package
+    // provenance.
     const provenanceEdges =
       ossVersionNodeId !== null
         ? chunked.nodes
-            .filter((n) => n.label.endsWith('File'))
-            .map((fileNode) => ({
-              from: fileNode.id,
+            .filter((n) => n.label.endsWith('File') || n.label.endsWith('Doc'))
+            .map((rootNode) => ({
+              from: rootNode.id,
               to: ossVersionNodeId!,
               label: 'BelongsTo',
               sourceTypeId: sourceType.id,

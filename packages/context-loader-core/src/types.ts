@@ -62,6 +62,17 @@ export interface SourceType {
   embedder?: EmbedderConfig;
   /** Implementation-detail chunker reference; see ./core/chunkers/. */
   chunker: ChunkerRef;
+  /**
+   * Provenance scheme — runs once per ingest before the per-file loop,
+   * emitting tier-anchor nodes that the chunker's outputs link back to.
+   *
+   *   - `'oss-package'` — read package.json (or future Cargo.toml,
+   *     pom.xml, …) at the source root; emit Package + Version + a
+   *     BelongsTo edge per File. Used by oss-code and oss-docs.
+   *   - undefined — no provenance preamble (default for first-party
+   *     code-full + workspace prose-markdown).
+   */
+  provenance?: 'oss-package';
 }
 
 export interface SourceTypeMatcher {
@@ -122,7 +133,19 @@ export type ChunkerRef =
        */
       labelPrefix?: string;
     }
-  | { type: 'heading-based'; maxTokens?: number; overlapTokens?: number }
+  | {
+      type: 'heading-based';
+      maxTokens?: number;
+      overlapTokens?: number;
+      /**
+       * Optional prefix prepended to the Doc + Section node labels
+       * (mirrors the tree-sitter chunker's labelPrefix from Phase C.3).
+       * `oss-docs` sets this to 'Oss' so emitted nodes (OssDoc /
+       * OssSection) match its declared graphSchema. Default '': plain
+       * Doc / Section labels for prose-markdown.
+       */
+      labelPrefix?: string;
+    }
   | { type: 'whole-file' }
   | { type: 'pdf-page'; visionFallback?: boolean }
   | { type: 'image-vision' }
