@@ -433,6 +433,8 @@ async function handleSubmitLoaderProductJobs(
 
   const submittedAt = new Date().toISOString();
   const spawnedJobIds: string[] = [];
+  type QueuedSpec = Parameters<typeof handleSubmitLoaderSingleResolved>[0];
+  const queue: QueuedSpec[] = [];
   for (const src of product.contextSources) {
     const backend = src.backend ?? defaultBackend;
     const embedderUrl = src.embedderUrl ?? defaultEmbedderUrl;
@@ -452,27 +454,44 @@ async function handleSubmitLoaderProductJobs(
     // the 104-byte sun_path limit.
     const jobId = `l-${randomUUID().slice(0, 8)}`;
     spawnedJobIds.push(jobId);
-    // Recurse into the single-source path with the resolved spec. Don't
-    // await — fan out concurrently. Errors surface as job-status
-    // transitions, not as 4xx on this submit.
-    void handleSubmitLoaderSingleResolved(
-      {
-        jobId,
-        productId,
-        target: resolveProductTarget(src.target, workspaceRoot),
-        type: src.type,
-        backend,
-        backendUser:
-          typeof body.backendUser === 'string' ? body.backendUser : undefined,
-        backendPassword:
-          typeof body.backendPassword === 'string' ? body.backendPassword : undefined,
-        embedderUrl,
-        embedderModel: src.embedderModel,
-        embedderDim: src.embedderDim,
-        workspaceRoot,
-      },
-      ctx
-    );
+    queue.push({
+      jobId,
+      productId,
+      target: resolveProductTarget(src.target, workspaceRoot),
+      type: src.type,
+      backend,
+      backendUser:
+        typeof body.backendUser === 'string' ? body.backendUser : undefined,
+      backendPassword:
+        typeof body.backendPassword === 'string' ? body.backendPassword : undefined,
+      embedderUrl,
+      embedderModel: src.embedderModel,
+      embedderDim: src.embedderDim,
+      workspaceRoot,
+    });
+  }
+
+  // Pre-register all queued jobs as 'pending' so GET /v1/jobs reflects
+  // the full set immediately. The actual loader spawns are serialized
+  // below — concurrent embedder calls are the single most reliable way
+  // to crash Docker Model Runner's llama.cpp slot scheduler, so we run
+  // loaders one at a time within a product's fan-out.
+  for (const spec of queue) {
+    ctx.jobs.set(spec.jobId, {
+      jobId: spec.jobId,
+      name: `load: ${spec.type} (${spec.productId ?? '?'})`,
+      productId: spec.productId,
+      status: 'received',
+      submittedAt,
+      agents: [
+        {
+          id: 'loader',
+          role: 'Loader',
+          adapter: 'loader-spawn' as AdapterId,
+          status: 'pending',
+        },
+      ],
+    } as JobRecord);
   }
 
   ok(res, {
@@ -484,6 +503,20 @@ async function handleSubmitLoaderProductJobs(
     count: spawnedJobIds.length,
     ts: submittedAt,
   });
+
+  // Run the queue sequentially in the background. Errors surface as
+  // per-job status transitions; the response above already told the
+  // client which jobIds will run.
+  void (async () => {
+    for (const spec of queue) {
+      try {
+        await handleSubmitLoaderSingleResolved(spec, ctx);
+      } catch {
+        // handleSubmitLoaderSingleResolved already publishes an error
+        // event + flips the job status; nothing more to do here.
+      }
+    }
+  })();
 }
 
 /** OSS package targets like "react@18.2.0" stay as-is; URLs likewise.

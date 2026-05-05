@@ -102,9 +102,15 @@ const proseMarkdown: SourceType = {
     edges: ['Mentions', 'LinkedFrom'],
   },
   chunker: {
+    // 512 tokens (~2KB) is the largest input ai/qwen3-embedding via
+    // Docker Model Runner reliably handles — larger inputs trigger
+    // a llama.cpp multi-slot scheduler crash. Smaller chunks also
+    // happen to give better retrieval granularity. Up this to 2048
+    // when the embedder swaps to TEI / Bedrock / a build of llama.cpp
+    // that fixes the upstream bug.
     type: 'heading-based',
-    maxTokens: 2048,
-    overlapTokens: 128,
+    maxTokens: 512,
+    overlapTokens: 64,
   },
 };
 
@@ -160,9 +166,10 @@ const ossDocs: SourceType = {
   // path emit the same OssDoc/OssSection schema.
   provenance: 'oss-package',
   chunker: {
+    // Same 512-token cap as prose-markdown — see comment there for why.
     type: 'heading-based',
-    maxTokens: 2048,
-    overlapTokens: 128,
+    maxTokens: 512,
+    overlapTokens: 64,
     labelPrefix: 'Oss',
   },
 };

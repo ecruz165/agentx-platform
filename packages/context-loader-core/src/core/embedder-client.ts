@@ -49,40 +49,60 @@ export function createHttpEmbedderClient(
     ? config.url
     : config.url.replace(/\/+$/, '') + '/embeddings';
 
+  // Default batch size 1 because Docker Model Runner's llama.cpp slot
+  // scheduler crashes under certain N>1 batch shapes (see bug surfaced
+  // in the manual end-to-end smoke). Robust embedders (TEI, Bedrock,
+  // OpenAI) should set batchSize to 16-256 for throughput.
+  const batchSize = Math.max(1, config.batchSize ?? 1);
+
+  async function callOnce(input: string[]): Promise<Float32Array[]> {
+    const resp = await fetchFn(url, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ model: config.model, input }),
+    });
+    if (!resp.ok) {
+      const body = await resp.text().catch(() => '');
+      throw new EmbedderError(
+        `embedder ${url} returned HTTP ${resp.status}: ${body.slice(0, 500)}`
+      );
+    }
+    const json = (await resp.json()) as {
+      data?: Array<{ embedding: number[] }>;
+    };
+    if (!json.data || !Array.isArray(json.data) || json.data.length !== input.length) {
+      throw new EmbedderError(
+        `embedder ${url} returned ${json.data?.length ?? 0} vectors for ${input.length} inputs`
+      );
+    }
+    return json.data.map((d) => {
+      if (!Array.isArray(d.embedding)) {
+        throw new EmbedderError(`embedder ${url} returned non-array embedding`);
+      }
+      if (d.embedding.length !== config.dim) {
+        throw new EmbedderError(
+          `embedder dim mismatch: configured ${config.dim}, got ${d.embedding.length}`
+        );
+      }
+      return Float32Array.from(d.embedding);
+    });
+  }
+
   return {
     dim: config.dim,
     async embed(texts: string[]): Promise<Float32Array[]> {
       if (texts.length === 0) return [];
-      const resp = await fetchFn(url, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ model: config.model, input: texts }),
-      });
-      if (!resp.ok) {
-        const body = await resp.text().catch(() => '');
-        throw new EmbedderError(
-          `embedder ${url} returned HTTP ${resp.status}: ${body.slice(0, 500)}`
-        );
+      // Single call when the whole input fits in one batch.
+      if (texts.length <= batchSize) return callOnce(texts);
+      // Otherwise loop. Sequential — concurrent in-flight requests can
+      // re-trigger the same multi-slot bug we're working around.
+      const out: Float32Array[] = [];
+      for (let i = 0; i < texts.length; i += batchSize) {
+        const slice = texts.slice(i, i + batchSize);
+        const batch = await callOnce(slice);
+        out.push(...batch);
       }
-      const json = (await resp.json()) as {
-        data?: Array<{ embedding: number[] }>;
-      };
-      if (!json.data || !Array.isArray(json.data) || json.data.length !== texts.length) {
-        throw new EmbedderError(
-          `embedder ${url} returned ${json.data?.length ?? 0} vectors for ${texts.length} inputs`
-        );
-      }
-      return json.data.map((d) => {
-        if (!Array.isArray(d.embedding)) {
-          throw new EmbedderError(`embedder ${url} returned non-array embedding`);
-        }
-        if (d.embedding.length !== config.dim) {
-          throw new EmbedderError(
-            `embedder dim mismatch: configured ${config.dim}, got ${d.embedding.length}`
-          );
-        }
-        return Float32Array.from(d.embedding);
-      });
+      return out;
     },
   };
 }

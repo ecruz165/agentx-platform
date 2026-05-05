@@ -108,6 +108,16 @@ export interface EmbedderConfig {
   model: string;
   /** Output vector dimension (must match the backend's vector index). */
   dim: number;
+  /**
+   * Max inputs per HTTP request to the embedder. Default 1 — Docker Model
+   * Runner's llama.cpp multi-slot scheduler crashes on certain N>1 batch
+   * shapes (n_tokens distribution dependent), so the safe default is one
+   * input per call. Crank this up (16, 64, 256) for embedders that handle
+   * batching reliably (TEI, Bedrock, OpenAI) — the throughput win is
+   * substantial. Leave at 1 for ai/qwen3-embedding via Docker MR until
+   * the upstream multi-slot bug is fixed.
+   */
+  batchSize?: number;
 }
 
 /**
