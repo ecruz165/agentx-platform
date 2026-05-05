@@ -404,8 +404,13 @@ interface LoadFlags {
   embedderDim?: number;
 }
 
-function parseLoadArgs(args: string[]): LoadFlags {
-  let target: string | undefined;
+interface ParsedRawArgs {
+  positional: string | undefined;
+  flags: Record<string, string>;
+}
+
+function parseRawArgs(args: string[]): ParsedRawArgs {
+  let positional: string | undefined;
   const flags: Record<string, string> = {};
   for (let i = 0; i < args.length; i++) {
     const a = args[i]!;
@@ -422,18 +427,22 @@ function parseLoadArgs(args: string[]): LoadFlags {
           flags[k!] = 'true';
         }
       }
-    } else if (target === undefined) {
-      target = a;
+    } else if (positional === undefined) {
+      positional = a;
     } else {
-      die(`unexpected positional '${a}' (already have target '${target}')`);
+      die(`unexpected positional '${a}' (already have '${positional}')`);
     }
   }
-  if (!target) die('Usage: harness context load <target> [flags]');
+  return { positional, flags };
+}
+
+function flagsToLoadFlags(parsed: ParsedRawArgs, target: string): LoadFlags {
+  const { flags } = parsed;
   if (!flags.type) die('missing required --type <id>');
   if (!flags.backend) die('missing required --backend <url>');
   if (!flags['embedder-url']) die('missing required --embedder-url <url>');
   return {
-    target: resolve(target!),
+    target,
     type: flags.type,
     backend: flags.backend,
     backendUser: flags['backend-user'],
@@ -445,8 +454,100 @@ function parseLoadArgs(args: string[]): LoadFlags {
 }
 
 async function handleContextLoad(args: string[]) {
-  const parsed = parseLoadArgs(args);
-  const jobId = `load-${randomUUID().slice(0, 8)}`;
+  const parsed = parseRawArgs(args);
+
+  // Two dispatch shapes:
+  //   1. `harness context load <target> --type X --backend Y ...`
+  //      — single explicit source.
+  //   2. `harness context load --product <id>`
+  //      — fan out across the product's declared contextSources from
+  //        harness-workspace.yml. Per-source overrides win; CLI flags
+  //        provide workspace-default fallbacks for anything not declared.
+  const productId = parsed.flags.product;
+  if (productId) {
+    return loadAllProductSources(productId, parsed);
+  }
+  if (!parsed.positional) {
+    die('Usage: harness context load <target> [flags]\n   or: harness context load --product <id>');
+  }
+  return loadSingleSource(flagsToLoadFlags(parsed, resolve(parsed.positional!)), undefined);
+}
+
+async function loadAllProductSources(
+  productId: string,
+  parsed: ParsedRawArgs
+): Promise<void> {
+  const config = await loadWorkspaceConfig();
+  const product = findProduct(config, productId);
+  if (!product) {
+    const known = listProductIds(config);
+    die(`unknown product '${productId}'. Known: ${known.join(', ') || '(none)'}`);
+  }
+  if (!product.contextSources || product.contextSources.length === 0) {
+    die(
+      `product '${productId}' has no contextSources declared in harness-workspace.yml.\n` +
+        `Add a contextSources: [{ type, target, ... }] block under the product.`
+    );
+  }
+  // CLI flags supply workspace-default fallbacks. Per-source declarations
+  // (in the YAML) override these; this lets a workspace declare "all my
+  // sources go to bolt://neo4j-edge:7687 except this one which goes to
+  // a benchmark host."
+  const defaultBackend = parsed.flags.backend;
+  const defaultEmbedderUrl = parsed.flags['embedder-url'];
+  process.stderr.write(
+    `harness context load: product '${productId}' has ${product.contextSources.length} source(s)\n`
+  );
+  let totalErrors = 0;
+  for (const src of product.contextSources) {
+    const backend = src.backend ?? defaultBackend;
+    const embedderUrl = src.embedderUrl ?? defaultEmbedderUrl;
+    if (!backend) die(`source ${src.type}/${src.target}: no backend (set --backend or contextSources[].backend)`);
+    if (!embedderUrl) {
+      die(
+        `source ${src.type}/${src.target}: no embedder-url (set --embedder-url or contextSources[].embedderUrl)`
+      );
+    }
+    const target = src.target.startsWith('/') || src.target.includes('://')
+      ? src.target
+      : resolve(WORKSPACE_ROOT, src.target);
+    process.stderr.write(`\n[${src.type}] ${target}\n`);
+    const errs = await loadSingleSource(
+      {
+        target,
+        type: src.type,
+        backend,
+        backendUser: parsed.flags['backend-user'],
+        backendPassword: parsed.flags['backend-password'] ?? process.env.NEO4J_PASSWORD,
+        embedderUrl,
+        embedderModel: src.embedderModel ?? parsed.flags['embedder-model'],
+        embedderDim: src.embedderDim ?? (parsed.flags['embedder-dim'] ? Number(parsed.flags['embedder-dim']) : undefined),
+      },
+      productId,
+      { exitOnComplete: false }
+    );
+    totalErrors += errs;
+  }
+  process.exit(totalErrors > 0 ? 1 : 0);
+}
+
+interface LoadOpts {
+  /** When false, the function returns the error count instead of calling
+   *  process.exit (so the multi-source loop can aggregate). */
+  exitOnComplete?: boolean;
+}
+
+async function loadSingleSource(
+  flags: LoadFlags,
+  productId: string | undefined,
+  opts: LoadOpts = { exitOnComplete: true }
+): Promise<number> {
+  const exitOnComplete = opts.exitOnComplete ?? true;
+  // jobId stays short to keep the per-job UDS path under the 104-byte
+  // OS limit on macOS — workspaceRoot can already be deep, so we don't
+  // burn budget encoding the productId here. The product association is
+  // already captured on every emitted node's sourceId.
+  const jobId = `l-${randomUUID().slice(0, 8)}`;
 
   // v1 dispatch: in-process spawn through harness-server's spawnLoaderJob.
   // No running harness-server required; this path works in any workspace
@@ -457,14 +558,14 @@ async function handleContextLoad(args: string[]) {
   // project_dual_mode_local_and_ecs.
   const handle = await spawnLoaderJob({
     jobId,
-    target: parsed.target,
-    type: parsed.type,
-    backend: parsed.backend,
-    backendUser: parsed.backendUser,
-    backendPassword: parsed.backendPassword,
-    embedderUrl: parsed.embedderUrl,
-    embedderModel: parsed.embedderModel,
-    embedderDim: parsed.embedderDim,
+    target: flags.target,
+    type: flags.type,
+    backend: flags.backend,
+    backendUser: flags.backendUser,
+    backendPassword: flags.backendPassword,
+    embedderUrl: flags.embedderUrl,
+    embedderModel: flags.embedderModel,
+    embedderDim: flags.embedderDim,
     workspaceRoot: WORKSPACE_ROOT,
   });
 
@@ -524,10 +625,14 @@ async function handleContextLoad(args: string[]) {
       vectorsWritten: completion.vectorsWritten,
       errors: completion.errors,
     });
-    process.exit(Number(completion.errors ?? 0) > 0 ? 1 : 0);
+    const errs = Number(completion.errors ?? 0);
+    if (exitOnComplete) process.exit(errs > 0 ? 1 : 0);
+    return errs;
   } catch (err) {
     process.stderr.write(`\r\x1b[K`);
-    die(`load job failed: ${(err as Error).message}`);
+    if (exitOnComplete) die(`load job failed: ${(err as Error).message}`);
+    process.stderr.write(`load job failed: ${(err as Error).message}\n`);
+    return 1;
   }
 }
 
@@ -579,6 +684,7 @@ function usage(): void {
       '  harness memory <query|put> <key> [value]',
       '  harness context query <text>',
       '  harness context load <target> --type <id> --backend <url> --embedder-url <url>',
+      '  harness context load --product <id>            # loads all of a product\'s declared contextSources',
     ].join('\n')
   );
 }

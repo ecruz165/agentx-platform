@@ -45,6 +45,15 @@ workspace:
           cloneUrl: ./
           baseRef: main
           path: /workspace/agentx
+      # Context sources for graphRAG. `harness context load --product agentx-dev`
+      # walks this list and spawns one loader per entry; each loader's emitted
+      # nodes/edges/vectors get tagged with this product's id so query-time
+      # scoping (decision #4) keeps results inside the product boundary.
+      contextSources:
+        - type: code-full
+          target: ./packages/harness-core
+        - type: prose-markdown
+          target: ./.plans
 
     - id: skoolscout-com
       description: "skoolscout.com + jefelabs.com — sibling sites under the skoolscout GitHub org"

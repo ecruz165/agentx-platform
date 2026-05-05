@@ -16,12 +16,40 @@ export interface RepoConfig {
   path?: string;
 }
 
+export interface ContextSourceConfig {
+  /** Source type id from the @agentx/context-loader-core catalog
+   *  (`code-full`, `prose-markdown`, `oss-code`, etc.). */
+  type: string;
+  /** What to ingest. For path sources this is a path relative to the
+   *  workspace root or an absolute path. For OSS package sources it's
+   *  `<package>@<version>`. For URL-driven sources (crawled-web,
+   *  oss-docs) it's an https://… URL. */
+  target: string;
+  /** Optional per-source overrides. When absent, the workspace-default
+   *  embedder + backend (set elsewhere in workspace config) apply. */
+  embedderUrl?: string;
+  embedderModel?: string;
+  embedderDim?: number;
+  backend?: string;
+}
+
 export interface ProductConfig {
   id: string;
   description?: string;
   repos: RepoConfig[];
   resources?: { memory?: string; cpu?: number };
   pipelines?: Array<{ id: string }>;
+  /** Sources to ingest into the context graph for this product. Each
+   *  entry maps to one `harness context load` call (or one `agentx-load`
+   *  invocation in standalone mode). When `harness context load
+   *  --product <id>` is invoked, every entry here gets loaded in
+   *  parallel; nodes/edges/vectors are tagged with this product's id
+   *  via the loader's `sourceId` field, so query-time scoping works.
+   *
+   *  Closes the loop on the product-as-tenant abstraction (decision #4):
+   *  workspace memory + context have always been product-scoped on the
+   *  query side; this declares ownership on the *write* side. */
+  contextSources?: ContextSourceConfig[];
 }
 
 export interface ServerConfig {
@@ -122,6 +150,33 @@ function validate(parsed: unknown, path: string): WorkspaceConfig {
     }
     if (!Array.isArray((p as { repos?: unknown }).repos)) {
       throw new WorkspaceConfigError(`${path}: products[${i}].repos must be an array`);
+    }
+    // Optional contextSources — each entry needs at least { type, target }.
+    const sources = (p as { contextSources?: unknown }).contextSources;
+    if (sources !== undefined) {
+      if (!Array.isArray(sources)) {
+        throw new WorkspaceConfigError(
+          `${path}: products[${i}].contextSources must be an array`
+        );
+      }
+      for (const [j, s] of sources.entries()) {
+        if (!s || typeof s !== 'object') {
+          throw new WorkspaceConfigError(
+            `${path}: products[${i}].contextSources[${j}] must be an object`
+          );
+        }
+        const sObj = s as Record<string, unknown>;
+        if (typeof sObj.type !== 'string') {
+          throw new WorkspaceConfigError(
+            `${path}: products[${i}].contextSources[${j}].type must be a string`
+          );
+        }
+        if (typeof sObj.target !== 'string') {
+          throw new WorkspaceConfigError(
+            `${path}: products[${i}].contextSources[${j}].target must be a string`
+          );
+        }
+      }
     }
   }
   return parsed as WorkspaceConfig;
