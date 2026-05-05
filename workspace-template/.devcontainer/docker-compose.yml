@@ -1,26 +1,39 @@
-# MVP-1 — always-on triad orchestration.
-# Per prd-workspace-template.md F6: only the three peer servers belong here.
-# Workers are spawned per-job via @devcontainers/cli, NOT in this compose file.
+# Always-on triad orchestration.
 #
-# Networking + IPC model:
-#   - Shared bridge network `harness-net` for any future TCP/HTTP fallback.
-#   - Shared volume `../.harness/run` (= workspace-template/.harness/run/ on host)
-#     bind-mounted to /root/.harness/run inside every container.
-#   - All three servers create their UDS socket inside that shared dir, so
-#     cross-container IPC happens via socket files in the bind mount —
-#     no network hop, no auth proxy.
+# Composition:
+#   - 3 your-code services (harness-server, edge-memory-server, edge-context-server)
+#     built from local Dockerfiles. Communicate via UDS in the shared
+#     `../.harness/run` bind-mount.
+#   - 2 off-the-shelf model sidecars (embedder, agent-llm) from Docker's `ai/`
+#     catalog. Communicate over HTTP on the shared `harness-net` bridge —
+#     siblings reach them via service-name DNS (http://embedder:8080,
+#     http://agent-llm:8080).
+#   - 1 optional model sidecar (agent-vl) profile-gated to `vision`. Only
+#     started with `--profile vision`. Saves ~6 GB RAM when not indexing
+#     images.
+#
+# Workers are spawned per-job via @devcontainers/cli — NOT in this compose
+# file. Worker containers attach to `agentx-harness-net` by name so they can
+# reach the model sidecars + UDS-mount the shared run dir.
 #
 # Run from this directory:
 #   cd workspace-template/.devcontainer
-#   docker compose up --build
+#   docker compose up --build                          # 5 long-running services
+#   docker compose --profile vision up --build         # + agent-vl
 #
 # Then from a sibling terminal:
 #   cd workspace-template
-#   pnpm harness server status   # shows ✓ for all three (sockets reachable from host)
+#   pnpm harness server status     # ✓ for all 3 your-code services
+#
+# Smoke-test the model sidecars:
+#   curl -s http://localhost:11434/v1/models           # if you publish ports
+#   docker exec -it agentx-harness-server \
+#     curl -s http://embedder:8080/v1/models           # internal DNS
 
-name: agentx-trio
+name: agentx-triad
 
 services:
+  # ─── your code (Node, your Dockerfiles) ──────────────────────
   harness-server:
     build:
       context: ../..
@@ -53,6 +66,47 @@ services:
     networks:
       - harness-net
     restart: unless-stopped
+
+  # ─── off-the-shelf model sidecars (Docker's ai/ catalog) ─────
+  # Pulled images, not built. Each exposes an OpenAI-compatible HTTP API
+  # on its container port; siblings reach them via service-name DNS on
+  # the shared `harness-net` bridge.
+
+  # Text embedder — used by edge-memory + edge-context to vectorize content.
+  # 0.6B-F16 chosen for size/quality balance: ~1.1 GB image, ~1.5 GB working
+  # set, multilingual (119 languages), Apache 2.0. Pin tag deliberately —
+  # `latest` is the chunkier 4B variant.
+  embedder:
+    image: ai/qwen3-embedding:0.6B-F16
+    container_name: agentx-embedder
+    networks:
+      - harness-net
+    restart: unless-stopped
+
+  # Self-hosted agent LLM — used by opencode-cli adapter when pipelines
+  # opt in via `config.endpoint = http://agent-llm:8080/v1`. 8B-Q4_K_M
+  # is the workhorse default (~4.7 GB image, ~6 GB working set). For
+  # higher quality on Mac Studio class hardware, switch to
+  # `30B-A3B-Q4_K_M` (MoE, ~17 GB, ~3B active params per token).
+  agent-llm:
+    image: ai/qwen3-coder:8B-Q4_K_M
+    container_name: agentx-agent-llm
+    networks:
+      - harness-net
+    restart: unless-stopped
+
+  # Vision LLM — only needed if your corpus includes images (UI mockups,
+  # screenshots, diagrams). Profile-gated so it doesn't start by default,
+  # saving ~6 GB RAM in the common code-only workflow. Enable with:
+  #   docker compose --profile vision up
+  agent-vl:
+    image: ai/qwen3-vl:7B-Q4_K_M
+    container_name: agentx-agent-vl
+    networks:
+      - harness-net
+    restart: unless-stopped
+    profiles:
+      - vision
 
 networks:
   harness-net:
