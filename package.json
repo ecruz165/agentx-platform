@@ -22,7 +22,7 @@
     "dev:in-process": "tsx examples/12-in-process-cli-demo.ts",
     "harness:run": "bun packages/harness-cli/src/in-process-run.tsx",
     "verify": "tsx examples/verify-no-leak.ts",
-    "harness": "pnpm --filter @agentx/harness-cli exec tsx src/index.ts",
+    "harness": "bun packages/harness-cli/src/index.ts",
     "tui": "pnpm --silent harness tui",
     "tmux": "scripts/dev-tmux.sh",
     "tmux:down": "tmux kill-session -t ${AGENTX_TMUX_SESSION:-agentx} 2>/dev/null || true",

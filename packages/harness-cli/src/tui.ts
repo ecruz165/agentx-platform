@@ -424,7 +424,10 @@ function spawnCaptured(cmd: string, args: string[]): Promise<{ code: number | nu
 }
 
 function harnessCli(...args: string[]): string[] {
-  return ['--silent', '--filter', '@agentx/harness-cli', 'exec', 'tsx', 'src/index.ts', ...args];
+  // Invokes through the root `harness` script so the runtime (Bun) stays
+  // consistent with the parent. Previously called tsx directly, which would
+  // run sub-invocations under Node even when the parent runs on Bun.
+  return ['--silent', 'harness', ...args];
 }
 
 const rl = createInterface({ input: process.stdin, output: process.stdout, terminal: true });
