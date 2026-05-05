@@ -50,6 +50,27 @@ boundary — entry to any container's UDS is gated by host file-perm
 
 ## Run
 
+### One-time prerequisite: enable Docker Model Runner
+
+The model sidecars (`embedder`, `agent-llm`, `agent-vl`) are declared
+with Compose's `provider: { type: model }` syntax — they're served by
+Docker Model Runner, not regular containers. **Enable it in Docker
+Desktop before the first `docker compose up`:**
+
+> Settings → AI → ✓ Enable Docker Model Runner
+
+The default TCP port is `12434`; the compose comments + agentx-load
+examples assume that. If you change it in DD, update consumers
+accordingly.
+
+Verify the runner is reachable:
+```sh
+curl -s http://localhost:12434/engines/llama.cpp/v1/models
+# → {"object":"list","data":[…]}  (empty list before any compose up)
+```
+
+### Bring up the triad
+
 From the monorepo root:
 
 ```sh

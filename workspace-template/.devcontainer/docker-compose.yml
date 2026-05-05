@@ -36,11 +36,15 @@
 #   cd workspace-template
 #   pnpm harness server status     # ✓ for all 3 your-code services
 #
-# Smoke-test the model sidecars (from inside any sibling container):
+# Smoke-test the model sidecars from the host:
+#   curl -s http://localhost:12434/engines/llama.cpp/v1/models
+# From inside any sibling container (DNS resolves via Docker Model Runner):
 #   docker exec -it agentx-harness-server \
-#     curl -s http://embedder:8080/v1/models
-#   docker exec -it agentx-harness-server \
-#     curl -s http://agent-llm:8080/v1/models
+#     curl -s http://model-runner.docker.internal/engines/llama.cpp/v1/models
+#
+# Sibling services that need the model URL inside the network should
+# `depends_on` the model service to receive the injected
+# `<NAME>_URL` env var (e.g., depend on `embedder` → `EMBEDDER_URL`).
 
 name: agentx-triad
 
@@ -79,41 +83,52 @@ services:
       - harness-net
     restart: unless-stopped
 
-  # ─── off-the-shelf model sidecars (Docker's ai/ catalog) ─────
-  # Pulled images, not built. Each exposes an OpenAI-compatible HTTP API
-  # on its container port; siblings reach them via service-name DNS on
-  # the shared `harness-net` bridge.
+  # ─── off-the-shelf model sidecars (Docker Model Runner) ──────
+  # AI models from Docker's `ai/` catalog don't run as plain containers
+  # — Docker Engine refuses `image: ai/...` with "AI models are not yet
+  # supported by the Engine." They're served by Docker Model Runner, the
+  # `docker model` daemon shipped with Docker Desktop 4.40+. Compose's
+  # `provider: { type: model }` block is the documented integration:
+  # Compose tells the runner to pull/load the model and exposes it to
+  # depending services via injected `<NAME>_URL` + `<NAME>_MODEL` env
+  # vars (e.g., depend on `embedder` → get `EMBEDDER_URL=http://...`).
+  #
+  # ONE-TIME PREREQUISITE — enable the runner in Docker Desktop:
+  #   Settings → AI → ✓ Enable Docker Model Runner
+  # The default TCP port is 12434; that's the port everything below
+  # assumes. If you change it in DD, update the EMBEDDER_URL examples
+  # in the compose comments + any consumer's --embedder-url flag.
+  #
+  # Inside the network, the runner serves the OpenAI-compatible API at
+  # `http://model-runner.docker.internal/engines/llama.cpp/v1`. From the
+  # host, it's `http://localhost:12434/engines/llama.cpp/v1`. Siblings
+  # can also rely on the injected env vars per their own depends_on.
 
-  # Text embedder — used by edge-memory + edge-context to vectorize content,
-  # and by @agentx/context-loader-core to index source content into the
-  # local `neo4j-edge` graph store.
+  # Text embedder — used by edge-memory + edge-context to vectorize
+  # content, and by @agentx/context-loader-core to index source content
+  # into the local `neo4j-edge` graph store.
   #
-  # Default: ai/qwen3-embedding:0.6B-F16 (1024-dim native, no MRL truncation
-  # needed; ~1.1 GB image, ~2.3 GB VRAM, multilingual across 119 languages).
-  # Same dim as Bedrock Titan Embeddings v2, so a workspace indexed locally
-  # can be queried in deployed mode without reindexing — the vector space
-  # is *similar* (cosine-comparable per-position) but not identical, hence
-  # the bench profile below for measuring the quality gap.
-  #
-  # Pinned in workspace memory at project_embedder_choice.md.
+  # Default: ai/qwen3-embedding:0.6B-F16 (1024-dim native, no MRL
+  # truncation; ~1.1 GB image, ~2.3 GB VRAM, multilingual across 119
+  # languages). Same dim as Bedrock Titan Embeddings v2 — a workspace
+  # indexed locally can be queried in deployed mode without reindexing.
+  # See workspace memory project_embedder_choice.
   embedder:
-    image: ai/qwen3-embedding:0.6B-F16
-    container_name: agentx-embedder
-    networks:
-      - harness-net
-    restart: unless-stopped
+    provider:
+      type: model
+      options:
+        model: ai/qwen3-embedding:0.6B-F16
 
   # Self-hosted agent LLM — used by opencode-cli adapter when pipelines
-  # opt in via `config.endpoint = http://agent-llm:8080/v1`. 8B-Q4_K_M
-  # is the workhorse default (~4.7 GB image, ~6 GB working set). For
-  # higher quality on Mac Studio class hardware, switch to
-  # `30B-A3B-Q4_K_M` (MoE, ~17 GB, ~3B active params per token).
+  # opt in via `config.endpoint = $AGENT_LLM_URL`. 8B-Q4_K_M is the
+  # workhorse default (~4.7 GB image, ~6 GB working set). For higher
+  # quality on Mac Studio class hardware, switch to `30B-A3B-Q4_K_M`
+  # (MoE, ~17 GB, ~3B active params per token).
   agent-llm:
-    image: ai/qwen3-coder:8B-Q4_K_M
-    container_name: agentx-agent-llm
-    networks:
-      - harness-net
-    restart: unless-stopped
+    provider:
+      type: model
+      options:
+        model: ai/qwen3-coder:8B-Q4_K_M
 
   # Vision LLM — only needed if your corpus includes images (UI mockups,
   # screenshots, diagrams). Profile-gated so it doesn't start by default,
@@ -126,11 +141,10 @@ services:
   #   8B-UD-Q4_K_XL   5.87 GB   higher quality (= `latest`)
   #   32B-UD-Q4_K_XL  19.8 GB   Mac Studio territory; GPU recommended
   agent-vl:
-    image: ai/qwen3-vl:4B-UD-Q4_K_XL
-    container_name: agentx-agent-vl
-    networks:
-      - harness-net
-    restart: unless-stopped
+    provider:
+      type: model
+      options:
+        model: ai/qwen3-vl:4B-UD-Q4_K_XL
     profiles:
       - vision
 
@@ -205,25 +219,33 @@ services:
   # Usage (writes prefix-isolated nodes into a single Neo4j; query with
   # `MATCH (n:Section_qwen_06) ...` style label suffixes):
   #   docker compose --profile bench up
-  #   agentx-load --embedder-url http://embedder-qwen-small:8080/v1 \
+  #   agentx-load --embedder-url $EMBEDDER_QWEN_SMALL_URL \
   #               --backend bolt://neo4j-edge:7687 --label-suffix _qwen_06 <repo>
-  #   agentx-load --embedder-url http://embedder-qwen-large:8080/v1 \
+  #   agentx-load --embedder-url $EMBEDDER_QWEN_LARGE_URL \
   #               --backend bolt://neo4j-edge:7687 --label-suffix _qwen_4  <repo>
   #   agentx-load --embedder-url http://embedder-bedrock:4000/v1 \
   #               --backend bolt://neo4j-edge:7687 --label-suffix _bedrock <repo>
   #
+  # The Qwen lanes use Compose's `provider: { type: model }` syntax
+  # (Docker Model Runner). Compose injects `EMBEDDER_QWEN_SMALL_URL`
+  # and `EMBEDDER_QWEN_LARGE_URL` env vars into any service with a
+  # `depends_on` on these. Bedrock stays as a regular container because
+  # LiteLLM is a normal HTTP server, not a model.
+  #
   # All three produce 1024-dim vectors (qwen-large via MRL truncation
   # passed as `dimensions: 1024` in the request; bedrock-titan-v2 native).
   embedder-qwen-small:
-    image: ai/qwen3-embedding:0.6B-F16
-    container_name: agentx-embedder-qwen-small
-    networks: [harness-net]
+    provider:
+      type: model
+      options:
+        model: ai/qwen3-embedding:0.6B-F16
     profiles: [bench]
 
   embedder-qwen-large:
-    image: ai/qwen3-embedding:4B-Q4_K_M
-    container_name: agentx-embedder-qwen-large
-    networks: [harness-net]
+    provider:
+      type: model
+      options:
+        model: ai/qwen3-embedding:4B-Q4_K_M
     profiles: [bench]
 
   embedder-bedrock:
