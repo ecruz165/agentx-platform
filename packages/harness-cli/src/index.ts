@@ -72,7 +72,7 @@ async function main() {
       await import('./tui.ts');
       return;
     case 'jobs-tui':
-      await import('./jobs-tui.ts');
+      await import('./jobs-tui.tsx');
       return;
     default:
       usage();
