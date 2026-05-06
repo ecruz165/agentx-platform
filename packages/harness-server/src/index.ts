@@ -19,6 +19,8 @@ import {
   type RegisteredAgent,
 } from '@agentx/harness-core';
 import type { BindingResolver, CredentialBroker } from '@agentx/agent-auth-lib';
+import type { BaseChatModel } from '@langchain/core/language_models/chat_models';
+import { runEntryCoordinator } from './coordinator/entry-coordinator.ts';
 import { randomUUID } from 'node:crypto';
 import { spawnLoaderJob, type LoaderEvent } from './loader-spawn.ts';
 import { inlineCatalogLoader } from './load-catalog.ts';
@@ -106,6 +108,19 @@ export interface HarnessServerOptions {
    * declared — backwards compat for catalogs ahead of the resolver.
    */
   resolver?: BindingResolver;
+  /**
+   * Optional LangChain BaseChatModel used by the entry coordinator graph
+   * to auto-route intent-only submissions (those without `pipeline`) to
+   * an appropriate pipeline from the catalog. Per memory
+   * `project_langgraph_two_scopes` — coordinator workflows are admin-
+   * owned and run inside harness-server with their own LLM.
+   *
+   * Typical wiring: `createHarnessChatModel(...)` against a Copilot or
+   * direct Anthropic binding. When unset, intent-only submissions
+   * register the placeholder coordinator agent and produce no pipeline
+   * dispatch (current pre-10c behavior).
+   */
+  coordinatorModel?: BaseChatModel;
 }
 
 export interface HarnessServerHandle {
@@ -203,6 +218,7 @@ export async function startHarnessServer(opts: HarnessServerOptions): Promise<Ha
     broker: opts.broker,
     adapterFactory: opts.adapterFactory,
     resolver: opts.resolver,
+    coordinatorModel: opts.coordinatorModel,
   };
 
   await mkdir(dirname(opts.socketPath), { recursive: true, mode: 0o700 });
@@ -234,6 +250,7 @@ interface ServerCtx {
   broker?: CredentialBroker;
   adapterFactory?: AdapterFactory;
   resolver?: BindingResolver;
+  coordinatorModel?: BaseChatModel;
 }
 
 function route(req: IncomingMessage, res: ServerResponse, ctx: ServerCtx) {
@@ -311,7 +328,17 @@ function route(req: IncomingMessage, res: ServerResponse, ctx: ServerCtx) {
 
     // POST /v1/jobs — register + store
     if (req.method === 'POST' && url === '/v1/jobs' && parsed && typeof parsed === 'object') {
-      handleSubmitJob(res, parsed as Record<string, unknown>, ctx);
+      // handleSubmitJob is async — when the coordinator model is wired,
+      // the call awaits an LLM-driven pipeline-routing decision before
+      // responding. Catch any unhandled rejection so a failure becomes
+      // a 500 rather than an unhandled-promise crash.
+      handleSubmitJob(res, parsed as Record<string, unknown>, ctx).catch((err: Error) => {
+        if (!res.headersSent) {
+          res.statusCode = 500;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({ error: err.message }));
+        }
+      });
       return;
     }
 
@@ -354,18 +381,55 @@ function route(req: IncomingMessage, res: ServerResponse, ctx: ServerCtx) {
   });
 }
 
-function handleSubmitJob(res: ServerResponse, body: Record<string, unknown>, ctx: ServerCtx) {
+async function handleSubmitJob(
+  res: ServerResponse,
+  body: Record<string, unknown>,
+  ctx: ServerCtx
+): Promise<void> {
   const jobId = typeof body.jobId === 'string' ? body.jobId : null;
-  const pipelineId = typeof body.pipeline === 'string' ? body.pipeline : null;
+  let pipelineId = typeof body.pipeline === 'string' ? body.pipeline : null;
   // Job submission may carry a `set` to pick a named accepts-set. Per
   // memory `project_set_scoped_accepts`, this is per-job policy: the
   // same harness can serve different sets concurrently. Defaults to
   // 'default' — agents whose accepts is a flat list ignore the set.
   const setName = typeof body.set === 'string' && body.set ? body.set : 'default';
+  // The user's intent / input prompt — used both as the job's initial
+  // input AND as the entry coordinator's routing signal when no
+  // pipeline is provided.
+  const intent = typeof body.input === 'string' ? body.input : '';
 
   if (!jobId) {
     badRequest(res, 'jobId is required');
     return;
+  }
+
+  // Auto-route via the entry coordinator when no pipeline is given AND
+  // a coordinator model is configured AND the submission carries an
+  // intent. Per memory project_langgraph_two_scopes — coordinator
+  // workflows are admin-owned and run inside harness-server (this
+  // process) with their own admin-trust LLM. Decision is made BEFORE
+  // job registration so the response carries the resolved pipeline id.
+  if (!pipelineId && ctx.coordinatorModel && intent) {
+    try {
+      const decision = await runEntryCoordinator({
+        intent,
+        catalog: ctx.catalog,
+        model: ctx.coordinatorModel,
+      });
+      if (decision.pipelineId === 'NONE' || !findPipeline(ctx.catalog, decision.pipelineId)) {
+        const known = ctx.catalog.pipelines.map((p) => p.id);
+        badRequest(
+          res,
+          `coordinator could not pick a valid pipeline for the intent. ` +
+            `Coordinator returned: "${decision.pipelineId}". Known pipelines: ${known.join(', ') || '(none)'}.`
+        );
+        return;
+      }
+      pipelineId = decision.pipelineId;
+    } catch (err) {
+      badRequest(res, `coordinator routing failed: ${(err as Error).message}`);
+      return;
+    }
   }
 
   let agents: RegisteredAgent[];
@@ -383,10 +447,10 @@ function handleSubmitJob(res: ServerResponse, body: Record<string, unknown>, ctx
         registeredFromDef(CHECKOUT_COORDINATOR_AGENT, setName),
       ];
     } else {
-      // Submit without a pipeline — register only the entry coordinator.
-      // Useful for smoke tests; production submits should always carry a
-      // pipeline id. We omit checkout-coordinator here because there's no
-      // pipeline output to consolidate.
+      // Submit without a pipeline AND no coordinator model — register only
+      // the entry coordinator placeholder. Useful for smoke tests and pre-
+      // coordinator-rollout deployments. We omit checkout-coordinator
+      // here because there's no pipeline output to consolidate.
       agents = [registeredFromDef(COORDINATOR_AGENT, setName)];
     }
   } catch (err) {
@@ -403,6 +467,11 @@ function handleSubmitJob(res: ServerResponse, body: Record<string, unknown>, ctx
   const job: JobRecord = {
     ...body,
     jobId,
+    // Reflect the resolved pipeline id when the entry coordinator
+    // auto-routed (body.pipeline was undefined; we set pipelineId via
+    // runEntryCoordinator). Clients reading the response can then see
+    // exactly which pipeline got picked.
+    ...(pipelineId ? { pipeline: pipelineId } : {}),
     status: 'received',
     submittedAt,
     agents,
