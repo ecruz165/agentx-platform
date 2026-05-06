@@ -42,6 +42,15 @@ export {
 } from './spawn-worker.ts';
 
 export {
+  validateRepoAccess,
+  parseHeadSha,
+  suggestFix,
+  type RepoAccessCheck,
+  type ValidateRepoAccessOptions,
+  type ValidateRepoAccessResult,
+} from './validate-repo-access.ts';
+
+export {
   runPipelineSubprocess,
   type RunPipelineSubprocessOptions,
   type RunPipelineSubprocessResult,

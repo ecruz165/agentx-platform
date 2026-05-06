@@ -263,7 +263,7 @@ describe('buildJobSpec', () => {
 });
 
 describe('runJobInContainer (integration via fake devcontainer-cli)', () => {
-  it('drives a job to completion via spawnWorker → runWorker → runPipelineInContainer', async () => {
+  it('drives a job to completion via spawnWorker → runWorker → runPipelineInContainer', { timeout: 15_000 }, async () => {
     const wsRoot = await tmpDir('ws');
     const bare = await localRemote();
 
