@@ -6,6 +6,10 @@ export { replayThenSubscribe } from './replay.ts';
 export { ClaudeSdkAdapter, type ClaudeSdkAdapterOptions } from './claude-sdk-adapter.ts';
 export { OpenCodeCliAdapter, type OpenCodeCliAdapterOptions } from './opencode-cli-adapter.ts';
 export {
+  CopilotChatAdapter,
+  type CopilotChatAdapterOptions,
+} from './copilot-chat-adapter.ts';
+export {
   OpenCodeServer,
   OpenCodeServerError,
   type OpenCodeServerOptions,

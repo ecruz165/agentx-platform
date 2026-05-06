@@ -25,6 +25,7 @@
 import type { CredentialBroker, ResolvedBinding } from '@agentx/agent-auth-lib';
 import { ClaudeSdkAdapter } from './claude-sdk-adapter.ts';
 import { OpenCodeCliAdapter } from './opencode-cli-adapter.ts';
+import { CopilotChatAdapter } from './copilot-chat-adapter.ts';
 import type { AgentAdapter } from './types.ts';
 
 export interface BindingToAdapterOptions {
@@ -51,6 +52,19 @@ export interface BindingToAdapterOptions {
    * owns the server lifecycle.
    */
   opencodeServerUrl?: string;
+  /**
+   * Path to the auth.json that holds the GitHub OAuth token used by
+   * `CopilotChatAdapter`. Required when resolving a `github-copilot`
+   * cloud binding — without it, `bindingToAdapter` throws because it
+   * can't construct the adapter. Typically `~/.agentx/auth.json`
+   * populated by `harness auth login github-copilot`.
+   *
+   * Why a path and not just a Credential? Copilot needs the long-lived
+   * GitHub OAuth token + a separate cached short-lived session token,
+   * with periodic refresh. The AuthStore handles that lifecycle; the
+   * adapter reads through it directly.
+   */
+  copilotAuthPath?: string;
 }
 
 /**
@@ -146,15 +160,22 @@ export function bindingToAdapter(
   }
 
   if (providerId === 'github-copilot') {
-    // Auth flow is fully wired (copilot-api.ts) but no chat adapter exists
-    // yet. A thin OpenAI-compatible client pointed at
-    // api.githubcopilot.com/chat/completions with the refreshed session
-    // token is the gap. Until then, github-copilot:* entries in accepts
-    // simply skip during resolution.
-    throw new Error(
-      `bindingToAdapter: no adapter for github-copilot yet — CopilotChatAdapter is the gap. ` +
-        `Remove github-copilot:* entries from this agent's accepts list, or implement the adapter.`
-    );
+    // Copilot has its own adapter — uses the AuthStore for session-token
+    // caching + refresh, posts to api.githubcopilot.com/chat/completions
+    // with the right Editor-Plugin-Version headers. Caller must supply
+    // `copilotAuthPath` so the adapter knows where to read the GitHub
+    // OAuth token from. Per memory `project_per_worker_model_subscription`.
+    const authPath = options.copilotAuthPath;
+    if (!authPath) {
+      throw new Error(
+        `bindingToAdapter: github-copilot binding requires options.copilotAuthPath. ` +
+          `Pass the path to your auth.json (typically ~/.agentx/auth.json).`
+      );
+    }
+    return new CopilotChatAdapter({
+      authPath,
+      model: modelId,
+    });
   }
 
   if (providerId === 'bedrock') {

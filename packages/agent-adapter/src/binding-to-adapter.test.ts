@@ -17,6 +17,7 @@ import type {
 } from '@agentx/agent-auth-lib';
 import { ClaudeSdkAdapter } from './claude-sdk-adapter.ts';
 import { OpenCodeCliAdapter } from './opencode-cli-adapter.ts';
+import { CopilotChatAdapter } from './copilot-chat-adapter.ts';
 import {
   bindingToAdapter,
   defaultLocalEndpointResolver,
@@ -85,12 +86,20 @@ describe('bindingToAdapter — cloud bindings', () => {
     expect(adapter).toBeInstanceOf(OpenCodeCliAdapter);
   });
 
-  it('throws for github-copilot (no adapter yet)', () => {
+  it('throws for github-copilot when copilotAuthPath option is missing', () => {
     expect(() =>
       bindingToAdapter(cloudBinding('github-copilot', 'gpt-4o'), {
         broker: stubBroker,
       })
-    ).toThrow(/no adapter for github-copilot yet/);
+    ).toThrow(/github-copilot binding requires options.copilotAuthPath/);
+  });
+
+  it('returns CopilotChatAdapter for github-copilot when copilotAuthPath is provided', () => {
+    const adapter = bindingToAdapter(cloudBinding('github-copilot', 'gpt-4o'), {
+      broker: stubBroker,
+      copilotAuthPath: '/tmp/agentx-test-not-real-auth.json',
+    });
+    expect(adapter).toBeInstanceOf(CopilotChatAdapter);
   });
 
   it('throws for bedrock (no adapter yet)', () => {
