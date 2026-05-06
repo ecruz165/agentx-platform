@@ -33,6 +33,14 @@ const program = new Command()
   )
   .option('--no-tui', 'Fail fast on missing/invalid input instead of launching the TUI')
   .option('--no-clone', 'Skip the eager git clone step (advanced)')
+  .option(
+    '--skills <slugs...>',
+    'skillzkit catalog items to install after procurement (e.g. core:tools:npm)'
+  )
+  .option(
+    '--skillzkit-bin <command>',
+    'Override the skillzkit invocation (default: "npx -y @ecruz165/skillzkit")'
+  )
   .parse();
 
 const opts = program.opts<{
@@ -42,6 +50,8 @@ const opts = program.opts<{
   tokenEnv?: string;
   tui: boolean;
   clone: boolean;
+  skills?: string[];
+  skillzkitBin?: string;
 }>();
 
 const positionalName = program.args[0];
@@ -52,7 +62,9 @@ const { spec, missing, orgUrls } = specsFromCli(
   opts.repos,
   opts.dest,
   opts.tokenEnv,
-  !opts.clone
+  !opts.clone,
+  opts.skills,
+  opts.skillzkitBin
 );
 
 let finalSpec: ProcureSpec | null = spec;
@@ -111,5 +123,22 @@ for (const r of result.repos) {
     console.log(`  Cloned ${r.repo.name} @ ${r.head.slice(0, 8)}`);
   }
 }
+
+if (result.skillsInstalled) {
+  const s = result.skillsInstalled;
+  if (s.exitCode === 0) {
+    console.log(`  Skills:         ✓ installed via skillzkit (${s.requested.length} requested)`);
+  } else {
+    console.log(`  Skills:         ✗ skillzkit install failed (exit ${s.exitCode})`);
+    if (s.output) {
+      const tail = s.output.split('\n').slice(-6).join('\n');
+      console.log(`    └─ output (last 6 lines):`);
+      for (const line of tail.split('\n')) console.log(`       ${line}`);
+    }
+    const binHint = spec?.skillzkitBin ?? 'npx -y @ecruz165/skillzkit';
+    console.log(`    re-run manually: ${binHint} install ${s.requested.join(' ')} --target ${result.projectDir}`);
+  }
+}
+
 console.log();
 console.log(`Next: cd ${finalSpec.name} && pnpm dev:servers`);

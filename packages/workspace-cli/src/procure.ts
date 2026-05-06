@@ -126,12 +126,69 @@ export async function procure(spec: ProcureSpec): Promise<ProcureResult> {
     await writeFile(wsPath, JSON.stringify(ws, null, 2), 'utf8');
     result.workspaceFile = wsPath;
 
+    // ── 7. Optional: install skillzkit catalog items ────────────────────
+    if (spec.skills && spec.skills.length > 0) {
+      const skillzkitBin = spec.skillzkitBin ?? 'npx -y @ecruz165/skillzkit';
+      const installResult = await runSkillzkitInstall(
+        skillzkitBin,
+        spec.skills,
+        projectDir
+      );
+      result.skillsInstalled = {
+        requested: spec.skills,
+        exitCode: installResult.exitCode,
+        ...(installResult.output ? { output: installResult.output } : {}),
+      };
+      // skillzkit failure is non-fatal: procurement is "done" once the
+      // project tree + repos exist; the user can re-run skillzkit install
+      // manually if it fails (e.g. GitHub Packages auth issue).
+    }
+
     result.ok = true;
     return result;
   } catch (err) {
     await rm(projectDir, { recursive: true, force: true });
     throw err;
   }
+}
+
+/**
+ * Spawn skillzkit's install subcommand. The bin string is split on
+ * whitespace so callers can pass either a single binary
+ * (`agentx-skillzkit`) or a multi-word command
+ * (`npx -y @ecruz165/skillzkit`, `tsx /path/to/cli.ts`). Captures combined
+ * output; truncates so ProcureResult.skillsInstalled.output stays small.
+ */
+function runSkillzkitInstall(
+  binCommand: string,
+  slugs: readonly string[],
+  targetDir: string
+): Promise<{ exitCode: number; output?: string }> {
+  return new Promise((resolveP) => {
+    const parts = binCommand.split(/\s+/).filter(Boolean);
+    if (parts.length === 0) {
+      resolveP({ exitCode: 1, output: 'empty skillzkit-bin command' });
+      return;
+    }
+    const [cmd, ...args] = parts as [string, ...string[]];
+    const child = spawn(
+      cmd,
+      [...args, 'install', ...slugs, '--target', targetDir],
+      { stdio: ['ignore', 'pipe', 'pipe'] }
+    );
+    let buf = '';
+    child.stdout.on('data', (c) => (buf += c.toString()));
+    child.stderr.on('data', (c) => (buf += c.toString()));
+    child.on('error', (err) => {
+      resolveP({ exitCode: 1, output: `failed to spawn: ${err.message}` });
+    });
+    child.on('close', (code) => {
+      resolveP({
+        exitCode: code ?? 1,
+        output: buf.length > 4000 ? buf.slice(0, 4000) + '\n…(truncated)' : buf,
+      });
+    });
+  });
 }
 
 function buildCloneEnv(tokenEnv: string | undefined): NodeJS.ProcessEnv | undefined {
@@ -205,7 +262,9 @@ export function specsFromCli(
   repos: readonly string[] | undefined,
   dest: string | undefined,
   tokenEnv: string | undefined,
-  noClone: boolean
+  noClone: boolean,
+  skills: readonly string[] | undefined,
+  skillzkitBin: string | undefined
 ): { spec: ProcureSpec | null; missing: string[]; orgUrls: string[] } {
   const missing: string[] = [];
   const orgUrls: string[] = [];
@@ -236,6 +295,8 @@ export function specsFromCli(
       dest: destDir,
       ...(tokenEnv ? { tokenEnv } : {}),
       noClone,
+      ...(skills && skills.length > 0 ? { skills: [...skills] } : {}),
+      ...(skillzkitBin ? { skillzkitBin } : {}),
     },
     missing: [],
     orgUrls: [],

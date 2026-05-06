@@ -34,6 +34,22 @@ export interface ProcureSpec {
   /** Skip the eager-clone step (for dry-run / advanced flows where the
    *  user wants to populate working trees themselves). */
   noClone?: boolean;
+  /**
+   * Slugs from the @ecruz165/skillzkit catalog to install into the new
+   * project's `.claude/` directory after procurement succeeds. Mixed
+   * forms accepted: command slugs (`core:tools:npm`), workflow
+   * qualifiedNames (`product:greenfield`), or router skill names
+   * (`skillzkit-product-router`). The skillzkit binary handles
+   * transitive dep resolution.
+   */
+  skills?: string[];
+  /**
+   * Command used to invoke skillzkit. Default: `npx -y @ecruz165/skillzkit`
+   * (installs from GitHub Packages — user must be authenticated). Override
+   * for local-dev testing, e.g. `tsx /path/to/agentx-skillzkit/bin/cli.ts`
+   * to run against an unpublished checkout.
+   */
+  skillzkitBin?: string;
 }
 
 export interface ProcureResult {
@@ -53,4 +69,12 @@ export interface ProcureResult {
   /** Generated absolute paths (set on success only). */
   workspaceFile?: string;
   configFile?: string;
+  /** When `skills` was provided: per-slug install outcome. */
+  skillsInstalled?: {
+    requested: string[];
+    /** Subprocess exit code from skillzkit. 0 = success. */
+    exitCode: number;
+    /** Combined stdout + stderr from skillzkit (truncated for display). */
+    output?: string;
+  };
 }
