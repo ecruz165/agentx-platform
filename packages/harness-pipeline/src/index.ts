@@ -66,10 +66,21 @@ export interface RunHarnessPipelineOptions {
   /**
    * Forwarded to the internally-spawned OpenCodeServer when
    * runHarnessPipeline owns the lifecycle (i.e., opencodeServerUrl is
-   * unset). Used to inject a tmux-wrapping spawnFn (slice 9c-2) and to
-   * tune startup timeout / port for tests.
+   * unset). Used to tune startup timeout / port for tests.
    */
   opencodeServer?: OpenCodeServerOptions;
+  /**
+   * Tmux socket path. When set AND runHarnessPipeline owns the
+   * opencode-server lifecycle (i.e., opencodeServerUrl is unset), the
+   * server is spawned inside a detached tmux session named
+   * `opencode-server` on this socket. Output is tee'd to a logfile;
+   * developers can read live with `tmux -S <socket> attach -t
+   * opencode-server -r`. Per memory `project_pipeline_tmux_topology`.
+   *
+   * When unset, opencode-server is spawned directly (no tmux). Existing
+   * test paths and non-container production deployments stay unchanged.
+   */
+  tmuxSocket?: string;
   /**
    * Optional bus override for tests / external observers. When omitted, a
    * fresh JobBus is created and exposed on the result.
@@ -139,11 +150,17 @@ export async function runHarnessPipeline(
   // `project_lazy_resource_acquisition`: spawn ONLY if at least one
   // binding actually routes to OpenCodeCliAdapter. Caller can also
   // provide a URL to bypass this (pre-warmed pool, test fixture, etc.).
+  // When `tmuxSocket` is set, the spawn happens inside a detached tmux
+  // session for developer peek-ability (`project_pipeline_tmux_topology`).
   let ownedServer: OpenCodeServer | null = null;
   let opencodeServerUrl = options.opencodeServerUrl;
   if (!opencodeServerUrl && specNeedsOpenCode(spec)) {
     ownedServer = new OpenCodeServer();
-    const handle = await ownedServer.start(options.opencodeServer ?? {});
+    const serverOpts: OpenCodeServerOptions = {
+      ...(options.opencodeServer ?? {}),
+      ...(options.tmuxSocket ? { tmuxSocket: options.tmuxSocket } : {}),
+    };
+    const handle = await ownedServer.start(serverOpts);
     opencodeServerUrl = handle.url;
   }
 

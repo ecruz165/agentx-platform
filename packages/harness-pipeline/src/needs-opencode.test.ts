@@ -138,4 +138,14 @@ describe('runHarnessPipeline opencode-server lifecycle', () => {
     const result = await runHarnessPipeline(spec);
     expect(result.opencodeServerStarted).toBe(false);
   });
+
+  it('does NOT start a server for pure-anthropic spec even when tmuxSocket is set', async () => {
+    // tmuxSocket is a deployment-shape knob; it shouldn't FORCE a server
+    // to start when no agent needs one. Lazy-acquisition still wins.
+    const spec = specWithBindings({ planner: anthropicBinding() });
+    const result = await runHarnessPipeline(spec, {
+      tmuxSocket: '/tmp/should-not-be-used.sock',
+    });
+    expect(result.opencodeServerStarted).toBe(false);
+  });
 });

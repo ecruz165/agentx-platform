@@ -10,6 +10,9 @@
  */
 
 import { EventEmitter } from 'node:events';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   OpenCodeServer,
@@ -209,6 +212,138 @@ describe('OpenCodeServer (unit, injected spawnFn)', () => {
     await server.kill(20);
     expect(child.kill).toHaveBeenCalledWith('SIGTERM');
     expect(child.kill).toHaveBeenCalledWith('SIGKILL');
+  });
+});
+
+describe('OpenCodeServer (tmux mode, injected spawnFn)', () => {
+  it('passes tmux args (new-session -d -s) and returns URL when logfile contains listening line', async () => {
+    const tmpDir = mkdtempSync(join(tmpdir(), 'opencode-tmux-'));
+    const logPath = join(tmpDir, 'opencode-server.log');
+    const socketPath = join(tmpDir, 'tmux.sock');
+
+    const calls: Array<{ cmd: string; args: readonly string[] }> = [];
+    let hasSessionResponse = true;
+    const fn: SpawnFn = (cmd, args) => {
+      calls.push({ cmd, args });
+      const child = fakeChild();
+      // tmux invocations exit immediately. has-session signals existence
+      // via exit code (0 = exists). We simulate "session is alive" by
+      // exiting 0; "session is gone" by exiting 1.
+      const isHasSession = args.includes('has-session');
+      setImmediate(() => {
+        if (isHasSession) {
+          child.emit('exit', hasSessionResponse ? 0 : 1, null);
+        } else {
+          child.emit('exit', 0, null);
+        }
+      });
+      return child as unknown as ReturnType<SpawnFn>;
+    };
+
+    // Pre-populate the logfile with the listening line — the polling loop
+    // should detect it on its first read and resolve.
+    writeFileSync(logPath, 'opencode server listening on http://127.0.0.1:31337\n');
+
+    const server = new OpenCodeServer();
+    try {
+      const handle = await server.start({
+        spawnFn: fn,
+        tmuxSocket: socketPath,
+        tmuxSessionName: 'opencode-server',
+        logPath,
+        port: 31337,
+        pollIntervalMs: 10,
+        startupTimeoutMs: 5000,
+      });
+      expect(handle.url).toBe('http://127.0.0.1:31337');
+      // First call should be the new-session
+      expect(calls[0]!.cmd).toBe('tmux');
+      expect(calls[0]!.args).toContain('-S');
+      expect(calls[0]!.args).toContain(socketPath);
+      expect(calls[0]!.args).toContain('new-session');
+      expect(calls[0]!.args).toContain('-d');
+      expect(calls[0]!.args).toContain('-s');
+      expect(calls[0]!.args).toContain('opencode-server');
+    } finally {
+      hasSessionResponse = false; // simulate session-already-killed during teardown
+      await server.kill();
+      rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it('fails when tmux session ends before listening line is written', async () => {
+    const tmpDir = mkdtempSync(join(tmpdir(), 'opencode-tmux-fail-'));
+    const logPath = join(tmpDir, 'opencode-server.log');
+    const socketPath = join(tmpDir, 'tmux.sock');
+
+    let hasSessionResponse = false; // session "doesn't exist" — simulating crash
+    const fn: SpawnFn = (cmd, args) => {
+      const child = fakeChild();
+      const isHasSession = args.includes('has-session');
+      setImmediate(() => {
+        if (isHasSession) {
+          child.emit('exit', hasSessionResponse ? 0 : 1, null);
+        } else {
+          child.emit('exit', 0, null);
+        }
+      });
+      return child as unknown as ReturnType<SpawnFn>;
+    };
+
+    // Logfile populated with an error message but no listening line
+    writeFileSync(logPath, 'error: bind failed; port already in use\n');
+
+    const server = new OpenCodeServer();
+    try {
+      await expect(
+        server.start({
+          spawnFn: fn,
+          tmuxSocket: socketPath,
+          logPath,
+          port: 31338,
+          pollIntervalMs: 10,
+          startupTimeoutMs: 1000,
+        })
+      ).rejects.toThrow(/session ended before logging "listening"/);
+    } finally {
+      rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it('kill() in tmux mode runs tmux kill-session', async () => {
+    const tmpDir = mkdtempSync(join(tmpdir(), 'opencode-tmux-kill-'));
+    const logPath = join(tmpDir, 'opencode-server.log');
+    const socketPath = join(tmpDir, 'tmux.sock');
+
+    const calls: Array<{ cmd: string; args: readonly string[] }> = [];
+    const fn: SpawnFn = (cmd, args) => {
+      calls.push({ cmd, args });
+      const child = fakeChild();
+      setImmediate(() => {
+        // has-session reports alive (exit 0) so polling resolves, then
+        // kill-session always returns 0 too
+        child.emit('exit', 0, null);
+      });
+      return child as unknown as ReturnType<SpawnFn>;
+    };
+    writeFileSync(logPath, 'opencode server listening on http://127.0.0.1:31339\n');
+
+    const server = new OpenCodeServer();
+    await server.start({
+      spawnFn: fn,
+      tmuxSocket: socketPath,
+      tmuxSessionName: 'opencode-server',
+      logPath,
+      port: 31339,
+      pollIntervalMs: 10,
+    });
+    await server.kill();
+
+    const killCall = calls.find((c) => c.args.includes('kill-session'));
+    expect(killCall).toBeDefined();
+    expect(killCall!.args).toContain('opencode-server');
+    expect(server.url).toBeNull();
+    rmSync(tmpDir, { recursive: true, force: true });
   });
 });
 
