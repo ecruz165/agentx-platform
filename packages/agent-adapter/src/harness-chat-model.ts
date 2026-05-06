@@ -80,6 +80,9 @@ export interface CreateHarnessChatModelOptions {
   broker: CredentialBroker;
   localEndpoint?: BindingToAdapterOptions['localEndpoint'];
   opencodeServerUrl?: string;
+  /** Path to auth.json, required when binding is `github-copilot`.
+   *  Forwarded to bindingToAdapter as `copilotAuthPath`. */
+  copilotAuthPath?: string;
 }
 
 export function createHarnessChatModel(
@@ -89,6 +92,7 @@ export function createHarnessChatModel(
     broker: opts.broker,
     localEndpoint: opts.localEndpoint,
     ...(opts.opencodeServerUrl ? { opencodeServerUrl: opts.opencodeServerUrl } : {}),
+    ...(opts.copilotAuthPath ? { copilotAuthPath: opts.copilotAuthPath } : {}),
   });
   return new HarnessChatModel({ adapter });
 }
