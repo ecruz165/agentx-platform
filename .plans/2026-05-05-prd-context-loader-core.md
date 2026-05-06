@@ -300,7 +300,7 @@ overrides:
 | D1 | Library name | `@agentx/context-loader-core` (matches `harness-core` convention) | Multiple consumers (cli, edge-context-server, harness-cli shim) — `-core` is appropriate suffix |
 | D4 | Reuse harness-core orchestrator? | **No** | Wrong abstraction — ingestion is data flow, not agent invocation |
 | D5 | Reuse `@agentx/agent-adapter` for vision/summarization? | **Yes** | `image-described` and `oss-issues` profile steps need LLM calls — use `createAgent` directly, not via runJob |
-| D6 | Backend abstraction shape | One interface (`GraphIngestionBackend`), one production adapter (`Neo4jBackend`) used by both edge and central tiers | Engine unified after Kuzu archival (2026-05-05); interface stays pluggable for future tiers. Matches `project_central_graph_store_choice.md`. |
+| D6 | Backend abstraction shape | One interface (`GraphIngestionBackend`), one production adapter (`Neo4jBackend`) used by both edge and central tiers | Engine unified to Neo4j on 2026-05-05; interface stays pluggable for future tiers. Matches `project_central_graph_store_choice.md`. |
 | D11 | Source type catalog versioning | Catalog is part of `@agentx/context-loader-core`'s major version | New built-in source type = minor release. Renamed/removed = major release |
 | D12 | License tracking on OSS sources | Yes — `license` is a required property on OSS-* node types | Tag, don't filter |
 | D13 | Tree-sitter grammars distribution | Bundled with package (wasm) | Avoids per-machine install dance. v1 grammars: TS/JS/Java/Kotlin/Python/Go/Rust/C/C++ |
@@ -360,7 +360,7 @@ overrides:
 25. e2e test (full repo).
 26. README; usage examples.
 
-**Total estimate: ~12 focused days for the lib v1.** Reduced from 13 because the original Phase C (multi-backend) collapsed to a single `Neo4jBackend` once Kuzu was archived.
+**Total estimate: ~12 focused days for the lib v1.** Reduced from 13 because the original Phase C (multi-backend) collapsed to a single `Neo4jBackend` once the engine was unified.
 
 CLI integration (binary `agentx-load`, harness-cli shim, job-mode UDS protocol) is in `prd-context-loader-cli.md`'s Implementation Phases, ~2 additional days on top.
 

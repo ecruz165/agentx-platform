@@ -1,10 +1,12 @@
 # Agentic Harness Ecosystem — Critical Review
 
-**Status:** Review notes
+**Status:** Review notes — partially superseded
 **Date:** 2026-05-01
 **Author:** Auggie (Augment Agent)
 **Audience:** Edwin Cruz, engineering reviewers
 **Scope:** Critical review of the 15 design + PRD documents dated 2026-04-30 / 2026-05-01
+
+> **Note (2026-05-06):** Doc set has since pivoted from the embedded graph DB to **Neo4j** (client-server). Critiques in this review that hinged on the prior engine's process-level single-writer lock or native ABI surface no longer apply; lexical mentions have been swept to Neo4j for searchability but the surrounding analysis has not been re-litigated.
 
 **Documents reviewed:**
 - `.plans/2026-04-30-agentic-harness-design.md`
@@ -64,9 +66,9 @@ These contradict directly and need reconciliation before code starts:
 
 1. **Bun vs Node runtime.** edge-memory-server §6 says "Bun preferred, Node 22+ fallback." edge-context-server §6 says "Bun." token-codecs §5 says "Node ≥20." workspace-template Dockerfiles target `node:22-bookworm` with Bun added. agent-auth-lib and agent-adapter target Node ≥20. **Pick one.** A mixed Bun/Node deployment has real costs: different `better-sqlite3` build flags, different crypto, different ESM resolution edge cases. The peer-server PRDs lean Bun for cold-start; everything else is Node. If the goal is fast cold-start for daemons, Bun-compile only the daemon binaries and keep libs on Node; document this explicitly.
 
-2. **Postgres vs SQLite.** workspace-template §9 helm chart lists "Bitnami Postgres dependency"; the rest of the ecosystem uses SQLite (harness-server checkpointer, edge-memory `sqlite-vec`, edge-context Kuzu) and the harness-server PRD never mentions Postgres. Either remove the Postgres helm dep or explain when/why cluster-mode swaps storage backends — and what that does to the SQLite-based migration paths.
+2. **Postgres vs SQLite.** workspace-template §9 helm chart lists "Bitnami Postgres dependency"; the rest of the ecosystem uses SQLite (harness-server checkpointer, edge-memory `sqlite-vec`, edge-context Neo4j) and the harness-server PRD never mentions Postgres. Either remove the Postgres helm dep or explain when/why cluster-mode swaps storage backends — and what that does to the SQLite-based migration paths.
 
-3. **Storage of Kuzu in cluster vs local.** workspace-template open question WT8 ("edge-memory-server and edge-context-server share a Kuzu instance via volume mount") **directly contradicts** edge-memory-server resolved decision MS1 ("Edge-memory-server uses SQLite + sqlite-vec; edge-context-server uses Kuzu. Separate engines, separate files, independent lifecycles — never a shared instance"). MS1 is correct; WT8 is stale and must be deleted.
+3. **Storage of Neo4j in cluster vs local.** workspace-template open question WT8 ("edge-memory-server and edge-context-server share a Neo4j instance via volume mount") **directly contradicts** edge-memory-server resolved decision MS1 ("Edge-memory-server uses SQLite + sqlite-vec; edge-context-server uses Neo4j. Separate engines, separate files, independent lifecycles — never a shared instance"). MS1 is correct; WT8 is stale and must be deleted.
 
 4. **MCP ban scope.** edge-context-server §1 + §3, agent-adapter §3/§16, edge-memory-server §4.4 all say "MCP banned by corporate policy." But agent-adapter §8.2 says claude-code-cli will be spawned with `--strict-mcp-config --mcp-config /dev/null` — a flag set the PRD admits "verify against the targeted CLI version's flag surface during Phase C — older versions may use a different flag." The whole policy hinges on a CLI flag whose presence in the targeted version has not been verified. **This is a single-point-of-failure for a corporate-policy compliance claim.** It needs a verification gate before any of the three adapter-CLIs is committed to.
 
@@ -106,7 +108,7 @@ workspace-setup-cli §3 user story: "harness submit fix-bug --input task.md and 
 ## 4. Architecture-level concerns
 
 ### 4.1 Three-peer-server topology vs single binary
-The split into harness-server / edge-memory-server / edge-context-server is justified as separation of concerns, but each one runs in its own DevContainer (workspace-template F2–F4, F13). The cost: 3 container images to maintain, 3 health endpoints, 3 idle-throttling policies, 3 `harness server start/stop/status` paths, 3 audit-log schemas, 3 release cadences. The benefit (independent scaling, blast-radius isolation) is mostly meaningful at scale — which v1 explicitly is not. **For v1 (single-user DevContainer), one binary serving all three responsibilities behind three URL prefixes would be simpler, faster to start, and easier to debug.** The current topology should be defended on grounds beyond "three concerns" — e.g., "edge-context-server's Kuzu memory profile is fundamentally different and we don't want it in the same process as harness-server's request-serving loop."
+The split into harness-server / edge-memory-server / edge-context-server is justified as separation of concerns, but each one runs in its own DevContainer (workspace-template F2–F4, F13). The cost: 3 container images to maintain, 3 health endpoints, 3 idle-throttling policies, 3 `harness server start/stop/status` paths, 3 audit-log schemas, 3 release cadences. The benefit (independent scaling, blast-radius isolation) is mostly meaningful at scale — which v1 explicitly is not. **For v1 (single-user DevContainer), one binary serving all three responsibilities behind three URL prefixes would be simpler, faster to start, and easier to debug.** The current topology should be defended on grounds beyond "three concerns" — e.g., "edge-context-server's Neo4j memory profile is fundamentally different and we don't want it in the same process as harness-server's request-serving loop."
 
 ### 4.2 `harness-core` vs `harness-server` boundary
 harness-core PRD wasn't fully read, but from cross-references it owns LangGraph orchestration, retry policy, plugin registry, and `MemoryStore`/`ContextProvider` interfaces. harness-server then *embeds* harness-core and exposes it over HTTP. This is the right shape — but token-codecs §13.1 shows phases declaring `prePlugins: [{ ref: 'token-codec-rewrite', config: {…, schemaRef: 'AnalysisSchema' } }]` where `schemaRef` resolves "from harness's schema registry." A workspace-managed schema registry is mentioned in passing but isn't a deliverable in any PRD. Decide: either token-codecs accepts inline Zod schemas only (no registry), or harness-core ships a schema registry as a deliverable. Right now it's a hole.
@@ -164,7 +166,7 @@ harness-core has a plugin registry. token-codecs ships pre-/post-plugins. edge-c
 - Multi-root workspace support (F31) — every command needs to know which root it's targeting. Quick-pick flows should ask, but PRD doesn't say where root-selection lives.
 
 ### `prd-workspace-setup-cli.md`
-- Over-promises on the cold-cold path (N2 <15min). With 4 image builds (3 server + 1 worker), each carrying tree-sitter native modules + better-sqlite3 + sqlite-vec + Kuzu native bindings, on an arm64 Mac with QEMU-emulated x86_64 fallback, 15min is tight. Be honest: 25–40min cold-cold is realistic.
+- Over-promises on the cold-cold path (N2 <15min). With 4 image builds (3 server + 1 worker), each carrying tree-sitter native modules + better-sqlite3 + sqlite-vec + Neo4j sidecar pull, on an arm64 Mac with QEMU-emulated x86_64 fallback, 15min is tight. Be honest: 25–40min cold-cold is realistic.
 - F8 idempotency claim is correct but `harness init` against a partially-initialized workspace + crash-resume from `init-state.json` (N8) — this is a real piece of engineering that gets one bullet point. Budget 2 days minimum for it; currently bundled into WSC-1+WSC-3 (~2.5 days total for everything).
 
 ### `prd-workspace-template.md`

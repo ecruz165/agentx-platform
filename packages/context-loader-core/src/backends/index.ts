@@ -14,9 +14,9 @@
  *     both the local edge tier (compose `neo4j-edge` sidecar) and the
  *     deployed central tier (self-hosted on ECS+EBS). One impl, two URLs.
  *
- * Note: the original three-backend story (KuzuDirect / KuzuViaServer / Neo4j)
- * collapsed to a single Neo4j backend on 2026-05-05 after Kuzu was found
- * archived; see workspace memory project_central_graph_store_choice.
+ * Note: an earlier multi-backend exploration collapsed to a single Neo4j
+ * backend on 2026-05-05; see workspace memory project_central_graph_store_choice
+ * for the rationale.
  */
 
 export { InMemoryGraphBackend } from './in-memory.ts';

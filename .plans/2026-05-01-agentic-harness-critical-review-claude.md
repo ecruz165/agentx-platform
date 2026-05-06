@@ -1,9 +1,11 @@
 # Critical Review — Agentic Harness Ecosystem (15-doc planning corpus)
 
-**Status:** Review findings
+**Status:** Review findings — partially superseded
 **Date:** 2026-05-01
 **Reviewer:** Claude (Opus 4.7, parallel-agent synthesis across 5 review threads)
 **Scope:** All 15 `.plans/2026-04-30-*.md` documents (~460KB total)
+
+> **Note (2026-05-06):** Doc set has since pivoted from the embedded graph DB to **Neo4j** (client-server). Issue O's "process-level single-writer per database" critique was specific to the prior engine and no longer applies; lexical mentions have been swept to Neo4j for searchability but the surrounding analysis has not been re-litigated.
 
 **Companion documents reviewed:**
 
@@ -168,11 +170,11 @@ The implementation plan's "fully-typed, partially-implemented" Layer 1 cannot fr
 - "validate → savePipeline → fire ConfigChangeEvent" (`:1348-1350`) is not described as transactional.
 - Implementation plan Phase 3 (`:1034`) is multi-instance harness-server — guaranteed write race.
 
-### O. SQLite + Kuzu concurrency hand-waved
+### O. SQLite + Neo4j concurrency hand-waved
 
 - memory: `better-sqlite3` is **synchronous**; multiple Hono request handlers serialize at libuv. WAL mode, `busy_timeout`, checkpoint cadence not specified. Vector-clock merge is still open as MS2 but referenced as v1 in F7.
-- context F1: holds N Kuzu instances simultaneously per product. Kuzu has process-level single-writer per database; concurrent ingestion + scheduled re-ingestion + queries collide head-on. N3's "non-blocking" claim is unsupported.
-- WT8 (`prd-workspace-template.md:402`) suggests Kuzu shared-instance for memory + context, **directly contradicting** `project_memory_server_backend.md` ("never shared instance"). Delete WT8 — or accept a memory-policy contradiction.
+- context F1: holds N Neo4j connections simultaneously per product. *(Original critique cited the prior embedded engine's process-level single-writer lock; Neo4j handles multi-writer natively via MVCC — this sub-bullet no longer applies.)*
+- WT8 (`prd-workspace-template.md:402`) suggests Neo4j shared-instance for memory + context, **directly contradicting** `project_memory_server_backend.md` ("never shared instance"). Delete WT8 — or accept a memory-policy contradiction.
 
 ### P. Embedding model identity not persisted
 
@@ -284,7 +286,7 @@ Plus:
 | L | Tier 3 | scope | 30 open questions block downstream PRDs |
 | M | Tier 3 | spec | Coordinator under-specified |
 | N | Tier 3 | concurrency | savePipeline concurrency undefined |
-| O | Tier 3 | concurrency | SQLite + Kuzu concurrency hand-waved |
+| O | Tier 3 | concurrency | SQLite + Neo4j concurrency hand-waved |
 | P | Tier 3 | data | Embedding model identity not persisted |
 | Q | Tier 3 | compliance | GDPR-forget vs append-only audit log |
 | R | Tier 3 | doc-structure | ecosystem-prd is index-only; token-codecs unindexed; broken date link |

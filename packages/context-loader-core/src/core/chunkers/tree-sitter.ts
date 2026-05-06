@@ -25,7 +25,7 @@
  *   - Same code path on Bun (CLI) and Node (edge-context-server)
  *   - Grammars come prebuilt via @vscode/tree-sitter-wasm — no tree-
  *     sitter-cli + emscripten install dance
- *   - Per-platform native ABI breakage (the Kuzu lesson) doesn't apply
+ *   - Per-platform native ABI breakage from prior native dependencies doesn't apply
  *
  * The cost is ~30% slower than native parsing. For one-time ingestion
  * runs at code-full's scale (tens of thousands of files), wall-clock
