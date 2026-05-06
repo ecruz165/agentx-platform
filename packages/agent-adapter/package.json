@@ -12,7 +12,10 @@
   },
   "dependencies": {
     "@agentx/agent-auth-lib": "workspace:*",
-    "@anthropic-ai/sdk": "^0.30.1"
+    "@anthropic-ai/sdk": "^0.30.1",
+    "@langchain/core": "^1.1.44",
+    "@langchain/langgraph": "^1.3.0",
+    "zod": "^3.25.32"
   },
   "devDependencies": {
     "@types/node": "^22.7.0",

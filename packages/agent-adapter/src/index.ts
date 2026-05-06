@@ -18,3 +18,8 @@ export {
   defaultLocalEndpointResolver,
   type BindingToAdapterOptions,
 } from './binding-to-adapter.ts';
+export {
+  LangGraphAdapter,
+  type LangGraphAdapterOptions,
+  type CompiledGraph,
+} from './langgraph-adapter.ts';
