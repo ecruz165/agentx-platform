@@ -119,6 +119,34 @@ export interface ContextSourceDef {
 }
 
 /**
+ * One product repo declaration — name + git clone URL + optional
+ * baseRef + optional in-container mount path. Used by spawn-worker
+ * (slice 9d) to pre-clone the repo as a bare and add a per-job
+ * worktree before the devcontainer boots.
+ *
+ * Shape mirrors `SpawnRepoSpec` from `@agentx/harness-server` (which
+ * the spawn primitive owns) — declared here so the catalog can carry
+ * the same shape without harness-core having to depend on
+ * harness-server. Values cross the package boundary structurally.
+ */
+export interface ProductRepo {
+  /** Local name — also the directory under `/workspace/<name>/` in
+   *  the container's synthetic monorepo (PRD F19). */
+  name: string;
+  /** git clone URL — SSH (`git@github.com:org/repo.git`) or HTTPS
+   *  (`https://github.com/org/repo.git`). For private repos under
+   *  HTTPS, callers can inject a PAT via `cloneEnv` on the worker
+   *  spawn (slice 9d-2-creds) or use the URL form
+   *  `https://<token>@github.com/...`. */
+  cloneUrl: string;
+  /** Optional base ref to clone (default: remote's default branch). */
+  baseRef?: string;
+  /** Optional in-container mount path. Defaults to `/workspace/<name>/`
+   *  per F19's synthetic-monorepo convention. */
+  path?: string;
+}
+
+/**
  * Product = a tenant boundary with its declared content sources. Per
  * project_authority_model_jobs_pipelines, products are admin-owned shapes
  * the runtime references at job-acceptance time. They live alongside
@@ -128,6 +156,19 @@ export interface ProductDef {
   id: string;
   description?: string;
   contextSources?: ContextSourceDef[];
+  /**
+   * Per-product git repos. When present, harness-server can resolve
+   * `repos` for the container path (slice 9d-4) without the job
+   * submission having to carry them — caller submits productId, the
+   * server looks up the repo list. Per memory
+   * `project_authority_model_jobs_pipelines`: products are admin-
+   * owned, so this is the authoritative source of truth for which
+   * repos belong to a product.
+   *
+   * When absent, callers must pass `repos` on the submission body
+   * (slice 9d-4 fallback path).
+   */
+  repos?: ProductRepo[];
 }
 
 export interface PipelineCatalog {
@@ -429,6 +470,48 @@ export function validateUnifiedCatalog(value: unknown, path: string): asserts va
           if (typeof src.target !== 'string' || !src.target) {
             throw new CatalogError(
               `${path}: products[${i}].contextSources[${j}].target must be a non-empty string`
+            );
+          }
+        }
+      }
+      if (product.repos !== undefined) {
+        if (!Array.isArray(product.repos)) {
+          throw new CatalogError(
+            `${path}: products[${i}].repos must be an array if present`
+          );
+        }
+        const repoNames = new Set<string>();
+        for (const [j, r] of product.repos.entries()) {
+          if (!r || typeof r !== 'object') {
+            throw new CatalogError(
+              `${path}: products[${i}].repos[${j}] must be an object`
+            );
+          }
+          const repo = r as Record<string, unknown>;
+          if (typeof repo.name !== 'string' || !repo.name) {
+            throw new CatalogError(
+              `${path}: products[${i}].repos[${j}].name must be a non-empty string`
+            );
+          }
+          if (repoNames.has(repo.name)) {
+            throw new CatalogError(
+              `${path}: products[${i}].repos has duplicate name "${repo.name}"`
+            );
+          }
+          repoNames.add(repo.name);
+          if (typeof repo.cloneUrl !== 'string' || !repo.cloneUrl) {
+            throw new CatalogError(
+              `${path}: products[${i}].repos[${j}].cloneUrl must be a non-empty string`
+            );
+          }
+          if (repo.baseRef !== undefined && (typeof repo.baseRef !== 'string' || !repo.baseRef)) {
+            throw new CatalogError(
+              `${path}: products[${i}].repos[${j}].baseRef must be a non-empty string when present`
+            );
+          }
+          if (repo.path !== undefined && (typeof repo.path !== 'string' || !repo.path)) {
+            throw new CatalogError(
+              `${path}: products[${i}].repos[${j}].path must be a non-empty string when present`
             );
           }
         }

@@ -592,3 +592,133 @@ describe('resolveAccepts — projection by set name', () => {
     // ↑ falls back to default because 'Cheap' isn't declared
   });
 });
+
+describe('validateUnifiedCatalog — ProductDef.repos (slice 9d-5)', () => {
+  // Helper: get the validator under a fresh import each call so
+  // we can lean on plain object inputs.
+  async function importValidator() {
+    return (await import('./catalog.ts')).validateUnifiedCatalog;
+  }
+
+  it('accepts a product with a valid repos array', async () => {
+    const validate = await importValidator();
+    expect(() =>
+      validate(
+        {
+          pipelines: [],
+          products: [
+            {
+              id: 'mobile-app',
+              repos: [
+                { name: 'web-app', cloneUrl: 'git@github.com:org/web-app.git' },
+                {
+                  name: 'api',
+                  cloneUrl: 'https://github.com/org/api.git',
+                  baseRef: 'develop',
+                  path: '/workspace/services/api',
+                },
+              ],
+            },
+          ],
+        },
+        'test'
+      )
+    ).not.toThrow();
+  });
+
+  it('accepts a product without repos (legacy / context-only product)', async () => {
+    const validate = await importValidator();
+    expect(() =>
+      validate(
+        {
+          pipelines: [],
+          products: [{ id: 'context-only', contextSources: [] }],
+        },
+        'test'
+      )
+    ).not.toThrow();
+  });
+
+  it('rejects repos that is not an array', async () => {
+    const validate = await importValidator();
+    expect(() =>
+      validate(
+        {
+          pipelines: [],
+          products: [{ id: 'p', repos: 'not-an-array' }],
+        },
+        'test'
+      )
+    ).toThrow(/repos must be an array/);
+  });
+
+  it('rejects a repo entry without a name', async () => {
+    const validate = await importValidator();
+    expect(() =>
+      validate(
+        {
+          pipelines: [],
+          products: [
+            {
+              id: 'p',
+              repos: [{ cloneUrl: 'https://github.com/org/r.git' }],
+            },
+          ],
+        },
+        'test'
+      )
+    ).toThrow(/name must be a non-empty string/);
+  });
+
+  it('rejects a repo entry without a cloneUrl', async () => {
+    const validate = await importValidator();
+    expect(() =>
+      validate(
+        {
+          pipelines: [],
+          products: [{ id: 'p', repos: [{ name: 'r' }] }],
+        },
+        'test'
+      )
+    ).toThrow(/cloneUrl must be a non-empty string/);
+  });
+
+  it('rejects duplicate repo names within a product', async () => {
+    const validate = await importValidator();
+    expect(() =>
+      validate(
+        {
+          pipelines: [],
+          products: [
+            {
+              id: 'p',
+              repos: [
+                { name: 'shared', cloneUrl: 'a' },
+                { name: 'shared', cloneUrl: 'b' },
+              ],
+            },
+          ],
+        },
+        'test'
+      )
+    ).toThrow(/duplicate name "shared"/);
+  });
+
+  it('rejects empty-string baseRef / path overrides', async () => {
+    const validate = await importValidator();
+    expect(() =>
+      validate(
+        {
+          pipelines: [],
+          products: [
+            {
+              id: 'p',
+              repos: [{ name: 'r', cloneUrl: 'u', baseRef: '' }],
+            },
+          ],
+        },
+        'test'
+      )
+    ).toThrow(/baseRef must be a non-empty string/);
+  });
+});

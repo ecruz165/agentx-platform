@@ -576,9 +576,33 @@ async function handleSubmitJob(
     };
     const useContainer =
       process.env.AGENTX_USE_CONTAINER === '1' && resolver !== undefined;
-    const submissionRepos = parseRepos(body.repos);
 
-    if (useContainer && submissionRepos !== null && submissionRepos.length > 0) {
+    // Resolve repos for the container path. Priority: explicit
+    // body.repos wins; otherwise look up from the catalog product
+    // (slice 9d-5). Either source must yield a non-empty list before
+    // we route through the container path; otherwise fall through to
+    // the in-process path.
+    let containerRepos: SpawnRepoSpec[] | null = null;
+    if (useContainer) {
+      const submissionRepos = parseRepos(body.repos);
+      if (submissionRepos !== null && submissionRepos.length > 0) {
+        containerRepos = submissionRepos;
+      } else if (job.productId) {
+        const product = findProduct(ctx.catalog, job.productId);
+        if (product?.repos && product.repos.length > 0) {
+          // ProductRepo and SpawnRepoSpec are structurally identical;
+          // copy the array so callers can't mutate the catalog.
+          containerRepos = product.repos.map((r) => ({
+            name: r.name,
+            cloneUrl: r.cloneUrl,
+            ...(r.baseRef ? { baseRef: r.baseRef } : {}),
+            ...(r.path ? { path: r.path } : {}),
+          }));
+        }
+      }
+    }
+
+    if (useContainer && containerRepos !== null && containerRepos.length > 0) {
       const containerProductId = job.productId ?? 'unknown';
       const containerPipeline = pipelineId ?? 'noop';
       queueMicrotask(() => {
@@ -589,7 +613,7 @@ async function handleSubmitJob(
           broker,
           resolver: resolver!,
           workspaceRoot: ctx.workspaceRoot,
-          repos: submissionRepos,
+          repos: containerRepos!,
           productId: containerProductId,
           pipeline: containerPipeline,
           setName,

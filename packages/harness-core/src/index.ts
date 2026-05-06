@@ -17,6 +17,7 @@ export {
   type PipelineCatalog,
   type PipelineDef,
   type ProductDef,
+  type ProductRepo,
   type ContextSourceDef,
   type AgentDef,
   type AdapterId,
