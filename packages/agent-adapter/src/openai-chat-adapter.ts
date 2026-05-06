@@ -22,8 +22,8 @@
  */
 
 import type { CredentialBroker } from '@agentx/agent-auth-lib';
-import { AdapterEventBus, type TokenUsage } from './events.ts';
 import { classifyHttpError, classifyNetworkError } from './errors.ts';
+import { AdapterEventBus, type TokenUsage } from './events.ts';
 import type { AgentAdapter, InvocationSpec } from './types.ts';
 
 const OPENAI_CHAT_URL = 'https://api.openai.com/v1/chat/completions';

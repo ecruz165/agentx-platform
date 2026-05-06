@@ -34,7 +34,7 @@ export class FileBroker implements CredentialBroker {
         `Provider ${provider} still holds the placeholder credential. ` +
           (provider === 'github-copilot'
             ? `Run: pnpm harness auth login github-copilot`
-            : `Edit ${this.path} and paste a real key.`)
+            : `Edit ${this.path} and paste a real key.`),
       );
     }
     return {
@@ -53,7 +53,7 @@ export class FileBroker implements CredentialBroker {
     if (mode !== 0o600) {
       throw new Error(
         `${this.path} has mode 0${mode.toString(8)}; required 0600. ` +
-          `Run: chmod 600 ${this.path}`
+          `Run: chmod 600 ${this.path}`,
       );
     }
   }

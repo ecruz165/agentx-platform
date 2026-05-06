@@ -18,10 +18,10 @@
  *   - buildInitialState override flows through
  */
 
-import { describe, expect, it } from 'vitest';
 import { Annotation, END, START, StateGraph } from '@langchain/langgraph';
-import { LangGraphAdapter, type CompiledGraph } from './langgraph-adapter.ts';
+import { describe, expect, it } from 'vitest';
 import type { AdapterEvent } from './events.ts';
+import { type CompiledGraph, LangGraphAdapter } from './langgraph-adapter.ts';
 
 /** Echo graph: { input: string } → { output: 'echo: <input>' }. */
 function echoGraph(): CompiledGraph {

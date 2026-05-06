@@ -24,9 +24,9 @@
 
 import type { CredentialBroker, ResolvedBinding, ToolId } from '@agentx/agent-auth-lib';
 import { ClaudeSdkAdapter } from './claude-sdk-adapter.ts';
-import { OpenCodeCliAdapter } from './opencode-cli-adapter.ts';
 import { CopilotChatAdapter } from './copilot-chat-adapter.ts';
 import { OpenAiChatAdapter } from './openai-chat-adapter.ts';
+import { OpenCodeCliAdapter } from './opencode-cli-adapter.ts';
 import type { AgentAdapter } from './types.ts';
 
 export interface BindingToAdapterOptions {
@@ -110,7 +110,7 @@ export function defaultLocalEndpointResolver(providerId: string): string | undef
 
 export function bindingToAdapter(
   binding: ResolvedBinding,
-  options: BindingToAdapterOptions
+  options: BindingToAdapterOptions,
 ): AgentAdapter {
   // Explicit-tool dispatch wins when the binding spec was 3-part. Per
   // memory `project_three_axis_binding`: tool is the axis distinct from
@@ -135,7 +135,7 @@ export function bindingToAdapter(
 function dispatchByTool(
   tool: ToolId,
   binding: ResolvedBinding,
-  options: BindingToAdapterOptions
+  options: BindingToAdapterOptions,
 ): AgentAdapter {
   const providerId = binding.provider.id;
   const modelId = binding.model.vendorModelId ?? binding.model.id;
@@ -145,7 +145,7 @@ function dispatchByTool(
     case 'claude-sdk':
       if (providerId !== 'anthropic') {
         throw new Error(
-          `bindingToAdapter: tool=claude-sdk requires provider=anthropic, got ${providerId}`
+          `bindingToAdapter: tool=claude-sdk requires provider=anthropic, got ${providerId}`,
         );
       }
       return new ClaudeSdkAdapter({ broker, model: modelId });
@@ -156,7 +156,7 @@ function dispatchByTool(
       // endpoints (Azure-OpenAI, OpenRouter, etc.) by relaxing this check.
       if (providerId !== 'openai') {
         throw new Error(
-          `bindingToAdapter: tool=openai-api requires provider=openai, got ${providerId}`
+          `bindingToAdapter: tool=openai-api requires provider=openai, got ${providerId}`,
         );
       }
       return new OpenAiChatAdapter({ broker, model: modelId });
@@ -164,14 +164,12 @@ function dispatchByTool(
     case 'copilot-api': {
       if (providerId !== 'github-copilot') {
         throw new Error(
-          `bindingToAdapter: tool=copilot-api requires provider=github-copilot, got ${providerId}`
+          `bindingToAdapter: tool=copilot-api requires provider=github-copilot, got ${providerId}`,
         );
       }
       const authPath = options.copilotAuthPath;
       if (!authPath) {
-        throw new Error(
-          `bindingToAdapter: copilot-api binding requires options.copilotAuthPath`
-        );
+        throw new Error(`bindingToAdapter: copilot-api binding requires options.copilotAuthPath`);
       }
       return new CopilotChatAdapter({ authPath, model: modelId });
     }
@@ -184,7 +182,7 @@ function dispatchByTool(
         throw new Error(
           `bindingToAdapter: tool=opencode-cli does not support provider=${providerId} ` +
             `(opencode 1.4 has no native ${providerId} routing). ` +
-            `Use the provider's dedicated tool instead.`
+            `Use the provider's dedicated tool instead.`,
         );
       }
       if (binding.kind === 'local') {
@@ -192,7 +190,7 @@ function dispatchByTool(
         if (!endpoint) {
           throw new Error(
             `bindingToAdapter: no endpoint configured for local provider "${providerId}". ` +
-              `Set AGENTX_LOCAL_QWEN_ENDPOINT or pass options.localEndpoint.`
+              `Set AGENTX_LOCAL_QWEN_ENDPOINT or pass options.localEndpoint.`,
           );
         }
         const localModelId = binding.model.vendorModelId ?? binding.model.id;
@@ -228,7 +226,7 @@ function dispatchByTool(
  */
 function dispatchByProviderDefault(
   binding: ResolvedBinding,
-  options: BindingToAdapterOptions
+  options: BindingToAdapterOptions,
 ): AgentAdapter {
   const { broker, localEndpoint = defaultLocalEndpointResolver, opencodeServerUrl } = options;
 
@@ -238,7 +236,7 @@ function dispatchByProviderDefault(
     if (!endpoint) {
       throw new Error(
         `bindingToAdapter: no endpoint configured for local provider "${binding.provider.id}". ` +
-          `Set AGENTX_LOCAL_QWEN_ENDPOINT or pass options.localEndpoint.`
+          `Set AGENTX_LOCAL_QWEN_ENDPOINT or pass options.localEndpoint.`,
       );
     }
     const localModelId = binding.model.vendorModelId ?? binding.model.id;
@@ -271,7 +269,7 @@ function dispatchByProviderDefault(
     if (!authPath) {
       throw new Error(
         `bindingToAdapter: github-copilot binding requires options.copilotAuthPath. ` +
-          `Pass the path to your auth.json (typically ~/.agentx/auth.json).`
+          `Pass the path to your auth.json (typically ~/.agentx/auth.json).`,
       );
     }
     return new CopilotChatAdapter({ authPath, model: modelId });
@@ -287,7 +285,7 @@ function dispatchByProviderDefault(
   if (providerId === 'bedrock') {
     throw new Error(
       `bindingToAdapter: no adapter for bedrock yet — BedrockAdapter is the gap. ` +
-        `Remove bedrock:* entries from this agent's accepts list, or implement the adapter.`
+        `Remove bedrock:* entries from this agent's accepts list, or implement the adapter.`,
     );
   }
   throw new Error(`bindingToAdapter: unhandled provider id "${providerId}"`);

@@ -27,21 +27,17 @@
  *      diagnostic
  */
 
-import { mkdtempSync, writeFileSync, rmSync, chmodSync, mkdirSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { bindingToAdapter, ClaudeSdkAdapter, OpenCodeCliAdapter } from '@agentx/agent-adapter';
 import {
   AuthStore,
+  BindingResolutionError,
   DefaultBindingResolver,
   FileBroker,
-  BindingResolutionError,
   type Provider,
 } from '@agentx/agent-auth-lib';
-import {
-  bindingToAdapter,
-  ClaudeSdkAdapter,
-  OpenCodeCliAdapter,
-} from '@agentx/agent-adapter';
 
 // ─── helpers ──────────────────────────────────────────────────────────────
 
@@ -54,18 +50,14 @@ interface AuthFixture {
 }
 
 async function makeAuthFixture(
-  configured: Partial<Record<Provider, string>>
+  configured: Partial<Record<Provider, string>>,
 ): Promise<AuthFixture> {
   const workspace = mkdtempSync(join(tmpdir(), 'agentx-e2e-subscription-'));
   const authDir = join(workspace, '.agentx');
   mkdirSync(authDir, { recursive: true, mode: 0o700 });
   const authPath = join(authDir, 'auth.json');
   // Initialize an empty auth file with mode 0600.
-  writeFileSync(
-    authPath,
-    JSON.stringify({ version: 1, providers: {} }, null, 2),
-    { mode: 0o600 }
-  );
+  writeFileSync(authPath, JSON.stringify({ version: 1, providers: {} }, null, 2), { mode: 0o600 });
   chmodSync(authPath, 0o600);
 
   const store = new AuthStore(authPath);
@@ -109,7 +101,9 @@ async function scenario1AnthropicWins(): Promise<void> {
     const accepts = ['anthropic:claude-haiku-4-5', 'local-qwen:qwen3'];
     console.log(`  agent.accepts = ${JSON.stringify(accepts)}`);
     const binding = await fix.resolver.resolveBinding(accepts);
-    console.log(`  → resolved kind=${binding.kind} provider=${binding.provider.id} model=${binding.model.id}`);
+    console.log(
+      `  → resolved kind=${binding.kind} provider=${binding.provider.id} model=${binding.model.id}`,
+    );
     if (binding.kind === 'cloud') {
       console.log(`  → credential.apiKey starts with "${binding.credential.apiKey.slice(0, 10)}…"`);
     }
@@ -133,13 +127,17 @@ async function scenario2LocalFirstBeatsAnthropic(): Promise<void> {
     const accepts = ['local-qwen:qwen3', 'anthropic:claude-haiku-4-5'];
     console.log(`  agent.accepts = ${JSON.stringify(accepts)}`);
     const binding = await fix.resolver.resolveBinding(accepts);
-    console.log(`  → resolved kind=${binding.kind} provider=${binding.provider.id} model=${binding.model.id}`);
+    console.log(
+      `  → resolved kind=${binding.kind} provider=${binding.provider.id} model=${binding.model.id}`,
+    );
     const adapter = bindingToAdapter(binding, {
       broker: fix.broker,
       localEndpoint: () => 'http://test-llm:8080/v1',
     });
     console.log(`  → adapter class = ${adapterClassName(adapter)}`);
-    console.log(`  ← note: local won despite anthropic being available — accept-list ordering is policy`);
+    console.log(
+      `  ← note: local won despite anthropic being available — accept-list ordering is policy`,
+    );
   } finally {
     rmSync(fix.workspace, { recursive: true, force: true });
   }
@@ -155,7 +153,9 @@ async function scenario3FallThroughToOpenAI(): Promise<void> {
     const accepts = ['anthropic:claude-haiku-4-5', 'openai:gpt-4o', 'local-qwen:qwen3'];
     console.log(`  agent.accepts = ${JSON.stringify(accepts)}`);
     const binding = await fix.resolver.resolveBinding(accepts);
-    console.log(`  → resolved kind=${binding.kind} provider=${binding.provider.id} model=${binding.model.id}`);
+    console.log(
+      `  → resolved kind=${binding.kind} provider=${binding.provider.id} model=${binding.model.id}`,
+    );
     if (binding.kind === 'cloud') {
       console.log(`  → credential.apiKey starts with "${binding.credential.apiKey.slice(0, 10)}…"`);
     }
@@ -178,7 +178,9 @@ async function scenario4FallThroughToLocal(): Promise<void> {
     const accepts = ['anthropic:claude-haiku-4-5', 'openai:gpt-4o', 'local-qwen:qwen3'];
     console.log(`  agent.accepts = ${JSON.stringify(accepts)}`);
     const binding = await fix.resolver.resolveBinding(accepts);
-    console.log(`  → resolved kind=${binding.kind} provider=${binding.provider.id} model=${binding.model.id}`);
+    console.log(
+      `  → resolved kind=${binding.kind} provider=${binding.provider.id} model=${binding.model.id}`,
+    );
     const adapter = bindingToAdapter(binding, {
       broker: fix.broker,
       localEndpoint: () => 'http://test-llm:8080/v1',
@@ -200,9 +202,9 @@ async function scenario5MixedPipelineSameJob(): Promise<void> {
   try {
     const pipeline = [
       { id: 'summarizer', accepts: ['local-qwen:qwen3', 'openai:gpt-4o-mini'] },
-      { id: 'planner',    accepts: ['anthropic:claude-haiku-4-5'] },
-      { id: 'reviewer',   accepts: ['anthropic:claude-opus-4-7'] },
-      { id: 'fallback',   accepts: ['anthropic:fake-model', 'openai:gpt-4o'] },
+      { id: 'planner', accepts: ['anthropic:claude-haiku-4-5'] },
+      { id: 'reviewer', accepts: ['anthropic:claude-opus-4-7'] },
+      { id: 'fallback', accepts: ['anthropic:fake-model', 'openai:gpt-4o'] },
     ];
     console.log(`  pipeline has ${pipeline.length} agents, each with its own accept-list`);
     for (const agent of pipeline) {
@@ -216,7 +218,7 @@ async function scenario5MixedPipelineSameJob(): Promise<void> {
           ? `cloud ${binding.provider.id}:${binding.model.id}`
           : `local ${binding.provider.id}:${binding.model.id}`;
       console.log(
-        `    [${agent.id.padEnd(11)}] accepts=${JSON.stringify(agent.accepts).padEnd(60)} → ${summary.padEnd(35)} (${adapterClassName(adapter)})`
+        `    [${agent.id.padEnd(11)}] accepts=${JSON.stringify(agent.accepts).padEnd(60)} → ${summary.padEnd(35)} (${adapterClassName(adapter)})`,
       );
     }
     console.log(`  ← three different vendors bound for one pipeline run`);

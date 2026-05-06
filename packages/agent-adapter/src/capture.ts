@@ -46,7 +46,7 @@ export class FileEventSubscriber {
   readonly handler = (event: AdapterEvent): void => {
     this.queue = this.queue.then(async () => {
       await mkdir(dirname(this.path), { recursive: true });
-      await appendFile(this.path, JSON.stringify(event) + '\n', 'utf8');
+      await appendFile(this.path, `${JSON.stringify(event)}\n`, 'utf8');
     });
   };
 

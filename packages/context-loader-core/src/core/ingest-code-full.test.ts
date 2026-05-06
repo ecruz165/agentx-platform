@@ -7,11 +7,11 @@
  * or external services needed.
  */
 
-import { describe, expect, it } from 'vitest';
 import { resolve } from 'node:path';
+import { describe, expect, it } from 'vitest';
 import { InMemoryGraphBackend } from '../backends/in-memory.ts';
-import { ingest } from './ingest.ts';
 import type { EmbedderClient, IngestionEvent } from '../index.ts';
+import { ingest } from './ingest.ts';
 
 function mockEmbedder(dim = 8): EmbedderClient {
   let counter = 0;
@@ -54,7 +54,8 @@ describe('ingest() — code-full (smoke)', () => {
     expect(fileNodes.length).toBe(summary.filesIngested);
 
     // The package has at least these classes/functions; confirm a few land.
-    const symbolNames = backend.nodesByLabel('Function')
+    const symbolNames = backend
+      .nodesByLabel('Function')
       .concat(backend.nodesByLabel('Class'))
       .map((n) => n.properties.name);
     expect(symbolNames.length).toBeGreaterThan(0);

@@ -1,16 +1,12 @@
 import { randomUUID } from 'node:crypto';
-import { request } from 'node:http';
 import { rm } from 'node:fs/promises';
+import { request } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
-import {
-  AdapterEventBus,
-  type AgentAdapter,
-  type InvocationSpec,
-} from '@agentx/agent-adapter';
+import { AdapterEventBus, type AgentAdapter, type InvocationSpec } from '@agentx/agent-adapter';
 import type { CredentialBroker } from '@agentx/agent-auth-lib';
 import type { AdapterId, PipelineCatalog } from '@agentx/harness-core';
+import { afterEach, describe, expect, it } from 'vitest';
 import { startHarnessServer } from './index.ts';
 
 const tmpSocket = () => join(tmpdir(), `ax-${randomUUID().slice(0, 8)}.sock`);
@@ -29,7 +25,7 @@ class TestAdapter implements AgentAdapter {
   constructor(
     private readonly behavior:
       | { kind: 'ok'; reply: string; usage?: { promptTokens?: number; completionTokens?: number } }
-      | { kind: 'throw'; message: string }
+      | { kind: 'throw'; message: string },
   ) {}
 
   async invoke(spec: InvocationSpec): Promise<string> {
@@ -113,7 +109,7 @@ describe('orchestrator wired into POST /v1/jobs', () => {
     const detail = await udsJson(socketPath, 'GET', '/v1/jobs/j1');
     expect(detail.body.job.status).toBe('completed');
     const statuses = (detail.body.job.agents as Array<{ id: string; status: string }>).map(
-      (a) => `${a.id}=${a.status}`
+      (a) => `${a.id}=${a.status}`,
     );
     // Both synthetic coordinators stay pending (skipped — they're
     // placeholders today); pipeline agents run to completed.
@@ -171,7 +167,11 @@ describe('orchestrator wired into POST /v1/jobs', () => {
     const detail = await udsJson(socketPath, 'GET', '/v1/jobs/j-tokens');
     const job = detail.body.job as {
       tokens?: { in: number; out: number };
-      agents: Array<{ id: string; tokens?: { in: number; out: number }; tokenHistory?: Array<{ in: number; out: number }> }>;
+      agents: Array<{
+        id: string;
+        tokens?: { in: number; out: number };
+        tokenHistory?: Array<{ in: number; out: number }>;
+      }>;
     };
 
     // Per-job total = sum of per-agent totals.
@@ -264,7 +264,7 @@ function udsJson(
   socketPath: string,
   method: string,
   path: string,
-  body?: unknown
+  body?: unknown,
 ): Promise<UdsResponse> {
   return new Promise((resolve, reject) => {
     const req = request(
@@ -279,7 +279,7 @@ function udsJson(
             reject(err);
           }
         });
-      }
+      },
     );
     req.on('error', reject);
     if (body !== undefined) req.write(JSON.stringify(body));

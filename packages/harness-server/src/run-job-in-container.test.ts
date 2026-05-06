@@ -17,17 +17,13 @@
  * (skoolscout-com URL).
  */
 
-import { chmod, mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
+import { spawn } from 'node:child_process';
+import { chmod, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { spawn } from 'node:child_process';
-import { afterEach, describe, expect, it } from 'vitest';
-import {
-  JobBus,
-  type Envelope,
-  type JobRecord,
-} from '@agentx/harness-core';
 import type { BindingResolver, CredentialBroker, ResolvedBinding } from '@agentx/agent-auth-lib';
+import { type Envelope, JobBus, type JobRecord } from '@agentx/harness-core';
+import { afterEach, describe, expect, it } from 'vitest';
 import { buildJobSpec, runJobInContainer } from './run-job-in-container.ts';
 
 const tmps: string[] = [];
@@ -171,8 +167,20 @@ function jobRecord(jobId: string, agents: JobRecord['agents']): JobRecord {
 describe('buildJobSpec', () => {
   it('produces a valid spec with bindings keyed by agent id', async () => {
     const job = jobRecord('j1', [
-      { id: 'planner', role: 'Plan', adapter: 'claude-sdk', status: 'pending', accepts: ['anthropic:claude-haiku-4-5'] },
-      { id: 'reviewer', role: 'Review', adapter: 'claude-sdk', status: 'pending', accepts: ['openai:gpt-4o'] },
+      {
+        id: 'planner',
+        role: 'Plan',
+        adapter: 'claude-sdk',
+        status: 'pending',
+        accepts: ['anthropic:claude-haiku-4-5'],
+      },
+      {
+        id: 'reviewer',
+        role: 'Review',
+        adapter: 'claude-sdk',
+        status: 'pending',
+        accepts: ['openai:gpt-4o'],
+      },
     ]);
 
     const spec = await buildJobSpec({
@@ -196,7 +204,13 @@ describe('buildJobSpec', () => {
   it('skips synthetic coordinators (no bindingId, no entry in bindings map)', async () => {
     const job = jobRecord('j-coord', [
       { id: 'coordinator', role: 'C', adapter: 'claude-sdk', status: 'pending' },
-      { id: 'planner', role: 'Plan', adapter: 'claude-sdk', status: 'pending', accepts: ['anthropic:claude-haiku-4-5'] },
+      {
+        id: 'planner',
+        role: 'Plan',
+        adapter: 'claude-sdk',
+        status: 'pending',
+        accepts: ['anthropic:claude-haiku-4-5'],
+      },
       { id: 'checkout-coordinator', role: 'X', adapter: 'claude-sdk', status: 'pending' },
     ]);
 
@@ -263,7 +277,9 @@ describe('buildJobSpec', () => {
 });
 
 describe('runJobInContainer (integration via fake devcontainer-cli)', () => {
-  it('drives a job to completion via spawnWorker → runWorker → runPipelineInContainer', { timeout: 15_000 }, async () => {
+  it('drives a job to completion via spawnWorker → runWorker → runPipelineInContainer', {
+    timeout: 15_000,
+  }, async () => {
     const wsRoot = await tmpDir('ws');
     const bare = await localRemote();
 
@@ -286,8 +302,10 @@ describe('runJobInContainer (integration via fake devcontainer-cli)', () => {
           jobId: 'j-int-1',
           agentId: 'planner',
           event: { kind: 'response', ts: 't', text: 'hello-from-container' },
-        }) + '\n' +
-        JSON.stringify({ kind: 'job-complete', jobId: 'j-int-1', status: 'completed' }) + '\n',
+        }) +
+        '\n' +
+        JSON.stringify({ kind: 'job-complete', jobId: 'j-int-1', status: 'completed' }) +
+        '\n',
     });
 
     // Worker template directory is referenced by runWorker but not
@@ -337,7 +355,7 @@ describe('runJobInContainer (integration via fake devcontainer-cli)', () => {
       'j-fail',
       jobRecord('j-fail', [
         { id: 'coordinator', role: 'C', adapter: 'claude-sdk', status: 'pending' },
-      ])
+      ]),
     );
 
     const bus = new JobBus();
@@ -386,7 +404,7 @@ describe('runJobInContainer (integration via fake devcontainer-cli)', () => {
       'j-up-fail',
       jobRecord('j-up-fail', [
         { id: 'coordinator', role: 'C', adapter: 'claude-sdk', status: 'pending' },
-      ])
+      ]),
     );
 
     const bus = new JobBus();
@@ -436,25 +454,21 @@ describe('runJobInContainer (integration via fake devcontainer-cli)', () => {
       'j-cleanup',
       jobRecord('j-cleanup', [
         { id: 'coordinator', role: 'C', adapter: 'claude-sdk', status: 'pending' },
-      ])
+      ]),
     );
 
     const bus = new JobBus();
 
     const fake = await fakeDevcontainer({
       containerId: 'fake-ctr-for-cleanup',
-      execStdout:
-        JSON.stringify({ kind: 'job-complete', jobId: 'j-cleanup', status: 'completed' }) + '\n',
+      execStdout: `${JSON.stringify({ kind: 'job-complete', jobId: 'j-cleanup', status: 'completed' })}\n`,
     });
 
     // Fake docker that records its args + exits 0 (cleanup "succeeds").
     const dockerLog = await tmpDir('docker-log');
     const fakeDocker = join(dockerLog, 'fake-docker.sh');
     const argsLog = join(dockerLog, 'invocations.log');
-    await writeFile(
-      fakeDocker,
-      `#!/bin/sh\necho "$@" >> ${shellSingleQuote(argsLog)}\nexit 0\n`
-    );
+    await writeFile(fakeDocker, `#!/bin/sh\necho "$@" >> ${shellSingleQuote(argsLog)}\nexit 0\n`);
     await chmod(fakeDocker, 0o755);
 
     await mkdir(join(wsRoot, '.harness/run'), { recursive: true });
@@ -491,14 +505,13 @@ describe('runJobInContainer (integration via fake devcontainer-cli)', () => {
       'j-keep',
       jobRecord('j-keep', [
         { id: 'coordinator', role: 'C', adapter: 'claude-sdk', status: 'pending' },
-      ])
+      ]),
     );
     const bus = new JobBus();
 
     const fake = await fakeDevcontainer({
       containerId: 'kept-ctr',
-      execStdout:
-        JSON.stringify({ kind: 'job-complete', jobId: 'j-keep', status: 'completed' }) + '\n',
+      execStdout: `${JSON.stringify({ kind: 'job-complete', jobId: 'j-keep', status: 'completed' })}\n`,
     });
     // Fake docker that would fail loudly if invoked.
     const dockerLog = await tmpDir('docker-log');

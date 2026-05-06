@@ -6,7 +6,7 @@
  * ingest.test.ts and is gated behind RUN_NEO4J_INTEGRATION=1.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { chunkCodeFull, pickGrammar } from './tree-sitter.ts';
 
 describe('pickGrammar', () => {
@@ -65,7 +65,7 @@ function helper(x: number): number {
     const classNodes = out.nodes.filter((n) => n.label === 'Class');
     expect(classNodes.map((n) => n.properties.name)).toContain('Greeter');
     expect(fnNodes.map((n) => n.properties.name)).toEqual(
-      expect.arrayContaining(['hello', 'helper'])
+      expect.arrayContaining(['hello', 'helper']),
     );
   });
 
@@ -114,9 +114,7 @@ function beta() { return 2; }
       sourceTypeId: 'code-full',
       sourceId: 'test',
     });
-    const fn = out.nodes.find(
-      (n) => n.label === 'Function' && n.properties.name === 'first'
-    );
+    const fn = out.nodes.find((n) => n.label === 'Function' && n.properties.name === 'first');
     expect(fn).toBeDefined();
     expect(fn!.properties.startLine).toBe(3);
     expect(fn!.properties.endLine).toBe(5);
@@ -141,9 +139,7 @@ function foo(a: number | string): number | string {
       sourceTypeId: 'code-full',
       sourceId: 'test',
     });
-    const ids = out.nodes
-      .filter((n) => n.label === 'Function')
-      .map((n) => n.id);
+    const ids = out.nodes.filter((n) => n.label === 'Function').map((n) => n.id);
     // All foo ids are unique because the line number is part of the id.
     expect(new Set(ids).size).toBe(ids.length);
   });

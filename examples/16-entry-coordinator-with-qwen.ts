@@ -28,26 +28,25 @@
  *   bun examples/16-entry-coordinator-with-qwen.ts
  */
 
-import {
-  bindingToAdapter,
-  createHarnessChatModel,
-} from '@agentx/agent-adapter';
-import { runEntryCoordinator } from '@agentx/harness-server';
-import type { Catalog } from '@agentx/harness-core';
+import { bindingToAdapter, createHarnessChatModel } from '@agentx/agent-adapter';
 import type { ResolvedBinding } from '@agentx/agent-auth-lib';
+import type { Catalog } from '@agentx/harness-core';
+import { runEntryCoordinator } from '@agentx/harness-server';
 
 const DMR_CHAT_URL = 'http://localhost:12434/engines/llama.cpp/v1';
 
 async function preflight(): Promise<void> {
   console.log('preflight…');
   const res = await fetch('http://localhost:12434/v1/models').catch(() => null);
-  if (!res || !res.ok) {
+  if (!res?.ok) {
     throw new Error('Docker Model Runner not reachable at localhost:12434');
   }
   const json = await res.json();
   const ids: string[] = (json.data ?? []).map((m: { id: string }) => m.id);
   if (!ids.some((id) => id.endsWith('ai/qwen3:0.6B-Q4_K_M'))) {
-    throw new Error('DMR has no qwen3 chat model. Pull with: docker model pull ai/qwen3:0.6B-Q4_K_M');
+    throw new Error(
+      'DMR has no qwen3 chat model. Pull with: docker model pull ai/qwen3:0.6B-Q4_K_M',
+    );
   }
   console.log('  ✓ DMR up, qwen3:0.6B-Q4_K_M available');
   try {
@@ -112,9 +111,15 @@ const sampleCatalog: Catalog = {
 // expect a competent router to pick — reported as ground truth alongside
 // what Qwen actually says.
 const intents = [
-  { text: 'Login throws a 500 when password contains special characters', expected: 'bugfix-triage' },
+  {
+    text: 'Login throws a 500 when password contains special characters',
+    expected: 'bugfix-triage',
+  },
   { text: 'Add dark mode to the settings panel', expected: 'feature-add' },
-  { text: 'The README needs a quickstart section explaining the install steps', expected: 'docs-update' },
+  {
+    text: 'The README needs a quickstart section explaining the install steps',
+    expected: 'docs-update',
+  },
 ];
 
 // Stub broker — local-qwen has authMethods=[] so no real auth is read.
@@ -192,7 +197,7 @@ async function main(): Promise<void> {
 main().catch((err: Error) => {
   console.error();
   console.error('coordinator e2e FAILED:');
-  console.error('  ' + err.message);
+  console.error(`  ${err.message}`);
   if (err.stack) console.error(err.stack.split('\n').slice(1, 6).join('\n'));
   process.exit(1);
 });

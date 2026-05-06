@@ -14,11 +14,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import {
-  OpenCodeServer,
-  OpenCodeServerError,
-  type SpawnFn,
-} from './opencode-server.ts';
+import { OpenCodeServer, OpenCodeServerError, type SpawnFn } from './opencode-server.ts';
 
 interface FakeChild extends EventEmitter {
   stdout: EventEmitter;
@@ -64,7 +60,7 @@ describe('OpenCodeServer (unit, injected spawnFn)', () => {
     setImmediate(() => {
       child.stderr.emit(
         'data',
-        Buffer.from('opencode server listening on http://127.0.0.1:31337\n')
+        Buffer.from('opencode server listening on http://127.0.0.1:31337\n'),
       );
     });
     const handle = await startPromise;
@@ -87,7 +83,7 @@ describe('OpenCodeServer (unit, injected spawnFn)', () => {
     setImmediate(() => {
       child.stdout.emit(
         'data',
-        Buffer.from('opencode server listening on http://127.0.0.1:31338\n')
+        Buffer.from('opencode server listening on http://127.0.0.1:31338\n'),
       );
     });
     const handle = await startPromise;
@@ -103,7 +99,7 @@ describe('OpenCodeServer (unit, injected spawnFn)', () => {
     setImmediate(() => {
       child.stderr.emit(
         'data',
-        Buffer.from('opencode server listening on http://127.0.0.1:31339\n')
+        Buffer.from('opencode server listening on http://127.0.0.1:31339\n'),
       );
     });
     await startPromise;
@@ -122,7 +118,7 @@ describe('OpenCodeServer (unit, injected spawnFn)', () => {
     setImmediate(() => {
       child.stderr.emit(
         'data',
-        Buffer.from('opencode server listening on http://127.0.0.1:31340\n')
+        Buffer.from('opencode server listening on http://127.0.0.1:31340\n'),
       );
     });
     await startPromise;
@@ -159,9 +155,9 @@ describe('OpenCodeServer (unit, injected spawnFn)', () => {
     const server = new OpenCodeServer();
 
     // Tiny timeout, child never logs "listening" — timeout fires
-    await expect(
-      server.start({ startupTimeoutMs: 50, spawnFn: fn })
-    ).rejects.toThrow(/did not log "listening" within 50ms/);
+    await expect(server.start({ startupTimeoutMs: 50, spawnFn: fn })).rejects.toThrow(
+      /did not log "listening" within 50ms/,
+    );
   });
 
   it('kill() SIGTERMs the process and resolves on exit', async () => {
@@ -173,7 +169,7 @@ describe('OpenCodeServer (unit, injected spawnFn)', () => {
     setImmediate(() => {
       child.stderr.emit(
         'data',
-        Buffer.from('opencode server listening on http://127.0.0.1:31342\n')
+        Buffer.from('opencode server listening on http://127.0.0.1:31342\n'),
       );
     });
     await startPromise;
@@ -203,7 +199,7 @@ describe('OpenCodeServer (unit, injected spawnFn)', () => {
     setImmediate(() => {
       child.stderr.emit(
         'data',
-        Buffer.from('opencode server listening on http://127.0.0.1:31343\n')
+        Buffer.from('opencode server listening on http://127.0.0.1:31343\n'),
       );
     });
     await startPromise;
@@ -276,8 +272,8 @@ describe('OpenCodeServer (tmux mode, injected spawnFn)', () => {
     const logPath = join(tmpDir, 'opencode-server.log');
     const socketPath = join(tmpDir, 'tmux.sock');
 
-    let hasSessionResponse = false; // session "doesn't exist" — simulating crash
-    const fn: SpawnFn = (cmd, args) => {
+    const hasSessionResponse = false; // session "doesn't exist" — simulating crash
+    const fn: SpawnFn = (_cmd, args) => {
       const child = fakeChild();
       const isHasSession = args.includes('has-session');
       setImmediate(() => {
@@ -303,7 +299,7 @@ describe('OpenCodeServer (tmux mode, injected spawnFn)', () => {
           port: 31338,
           pollIntervalMs: 10,
           startupTimeoutMs: 1000,
-        })
+        }),
       ).rejects.toThrow(/session ended before logging "listening"/);
     } finally {
       rmSync(tmpDir, { recursive: true, force: true });

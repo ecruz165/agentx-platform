@@ -16,7 +16,7 @@ const SKILL_PATH = join(
   'workspace-template',
   '.harness',
   'skills',
-  'harness-cli.md'
+  'harness-cli.md',
 );
 
 console.log('=== Scripted agent — SKILL.md → harness CLI demo ===\n');
@@ -28,7 +28,7 @@ console.log(`Source: ${SKILL_PATH}`);
 console.log(`Length: ${skill.length} chars\n`);
 
 console.log('A real agent would ingest this SKILL.md as system context, then');
-console.log("plan + execute. Here we simulate that plan directly:\n");
+console.log('plan + execute. Here we simulate that plan directly:\n');
 console.log('  1. ensure productId is set (per SKILL.md "Required precondition")');
 console.log('  2. write a memory entry about a refactor decision');
 console.log('  3. read it back');
@@ -50,11 +50,9 @@ console.log('  #5  UDS sockets at mode 0600 — udsRequest verifies before conne
 function runHarness(args: string[]): Promise<void> {
   console.log(`\n  agent$ harness ${args.join(' ')}`);
   return new Promise((resolve, reject) => {
-    const child = spawn(
-      'pnpm',
-      ['--silent', 'harness', ...args],
-      { stdio: ['ignore', 'pipe', 'inherit'] }
-    );
+    const child = spawn('pnpm', ['--silent', 'harness', ...args], {
+      stdio: ['ignore', 'pipe', 'inherit'],
+    });
     let out = '';
     child.stdout.on('data', (c) => (out += c.toString()));
     child.on('error', reject);

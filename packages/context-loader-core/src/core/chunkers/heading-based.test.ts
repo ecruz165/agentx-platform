@@ -63,10 +63,7 @@ content of second
       sourceId: 'ws',
     });
     const linkedFrom = out.edges.filter((e) => e.label === 'LinkedFrom');
-    expect(linkedFrom.map((e) => e.to)).toEqual([
-      'other.md',
-      'https://example.com',
-    ]);
+    expect(linkedFrom.map((e) => e.to)).toEqual(['other.md', 'https://example.com']);
   });
 
   it('produces one chunk text per section node, in order', () => {
@@ -96,7 +93,7 @@ content of second
       overlapTokens: 10,
     });
     const sectionsForBig = out.nodes.filter(
-      (n) => n.label === 'Section' && n.properties.heading === 'Big'
+      (n) => n.label === 'Section' && n.properties.heading === 'Big',
     );
     expect(sectionsForBig.length).toBeGreaterThan(1);
   });

@@ -68,7 +68,7 @@ export function bridgeAdapter(
   bus: JobBus,
   jobId: string,
   agentId: string,
-  source: AdapterEventSource
+  source: AdapterEventSource,
 ): () => void {
   return source.subscribe((event) => {
     bus.publish(jobId, agentId, event);

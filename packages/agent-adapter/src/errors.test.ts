@@ -16,11 +16,11 @@ import {
   AuthError,
   BillingError,
   ConfigError,
+  classifyHttpError,
+  classifyNetworkError,
   NetworkError,
   ProviderError,
   RateLimitError,
-  classifyHttpError,
-  classifyNetworkError,
 } from './errors.ts';
 
 describe('classifyHttpError — status code routing', () => {

@@ -1,5 +1,5 @@
-import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { chmod, mkdir, unlink } from 'node:fs/promises';
+import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { dirname } from 'node:path';
 
 export interface MemoryServerOptions {
@@ -51,7 +51,7 @@ function echo(req: IncomingMessage, res: ServerResponse, service: string) {
         path: req.url,
         body: body ? safeJson(body) : null,
         ts: new Date().toISOString(),
-      })
+      }),
     );
   });
 }

@@ -16,15 +16,12 @@
  * runs against the skoolscout-com URL.
  */
 
-import { chmod, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { chmod, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
-import {
-  JobBus,
-  type Envelope,
-} from '@agentx/harness-core';
+import { type Envelope, JobBus } from '@agentx/harness-core';
 import type { JobSpec } from '@agentx/harness-pipeline';
+import { afterEach, describe, expect, it } from 'vitest';
 import { runPipelineInContainer } from './run-pipeline-in-container.ts';
 
 const tmps: string[] = [];
@@ -228,7 +225,9 @@ describe('runPipelineInContainer', () => {
     const bus = new JobBus();
 
     const fakeBin = await fakeDevcontainer({
-      stdoutLines: [JSON.stringify({ kind: 'job-complete', jobId: 'j-custom', status: 'completed' })],
+      stdoutLines: [
+        JSON.stringify({ kind: 'job-complete', jobId: 'j-custom', status: 'completed' }),
+      ],
     });
 
     await runPipelineInContainer({
@@ -247,7 +246,7 @@ describe('runPipelineInContainer', () => {
     await expect(stat(customPath)).resolves.toBeDefined();
     // Default path NOT used.
     await expect(
-      stat(join(wsRoot, '.harness', 'run', 'jobs', 'j-custom', 'spec.json'))
+      stat(join(wsRoot, '.harness', 'run', 'jobs', 'j-custom', 'spec.json')),
     ).rejects.toThrow();
   });
 });

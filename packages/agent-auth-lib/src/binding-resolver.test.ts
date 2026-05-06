@@ -20,14 +20,14 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import type { Credential, CredentialBroker, Provider } from './types.ts';
 import {
   BindingResolutionError,
   DefaultBindingResolver,
+  type ResolvedBinding,
   resolveAllBindingsFor,
   resolveBindingFor,
-  type ResolvedBinding,
 } from './binding-resolver.ts';
+import type { Credential, CredentialBroker, Provider } from './types.ts';
 
 // ─── stubs ────────────────────────────────────────────────────────────────
 
@@ -35,7 +35,7 @@ import {
  *  providers. Throws "not configured" for missing providers, mirroring
  *  what FileBroker would do. */
 function stubGetCred(
-  authed: Partial<Record<Provider, Credential>>
+  authed: Partial<Record<Provider, Credential>>,
 ): (id: Provider) => Promise<Credential> {
   return async (id) => {
     const cred = authed[id];
@@ -70,7 +70,7 @@ describe('resolveBindingFor', () => {
   it('returns cloud binding when first entry has auth', async () => {
     const result = await resolveBindingFor(
       ['anthropic:claude-haiku-4-5', 'local-qwen:qwen3'],
-      stubGetCred({ anthropic: fakeCred('anthropic') })
+      stubGetCred({ anthropic: fakeCred('anthropic') }),
     );
     expect(result.kind).toBe('cloud');
     expect(result.provider.id).toBe('anthropic');
@@ -83,7 +83,7 @@ describe('resolveBindingFor', () => {
   it('falls back to second entry when first lacks auth', async () => {
     const result = await resolveBindingFor(
       ['anthropic:claude-haiku-4-5', 'openai:gpt-4o'],
-      stubGetCred({ openai: fakeCred('openai') })
+      stubGetCred({ openai: fakeCred('openai') }),
     );
     expect(result.kind).toBe('cloud');
     expect(result.provider.id).toBe('openai');
@@ -93,7 +93,7 @@ describe('resolveBindingFor', () => {
   it('falls back to local when no cloud entry has auth', async () => {
     const result = await resolveBindingFor(
       ['anthropic:claude-haiku-4-5', 'openai:gpt-4o', 'local-qwen:qwen3'],
-      stubGetCred({})
+      stubGetCred({}),
     );
     expect(result.kind).toBe('local');
     expect(result.provider.id).toBe('local-qwen');
@@ -105,7 +105,7 @@ describe('resolveBindingFor', () => {
     // the resolver respects that ordering.
     const result = await resolveBindingFor(
       ['local-qwen:qwen3', 'anthropic:claude-haiku-4-5'],
-      stubGetCred({ anthropic: fakeCred('anthropic') })
+      stubGetCred({ anthropic: fakeCred('anthropic') }),
     );
     expect(result.kind).toBe('local');
     expect(result.provider.id).toBe('local-qwen');
@@ -114,7 +114,7 @@ describe('resolveBindingFor', () => {
   it('skips entries not in the registry, continues to next', async () => {
     const result = await resolveBindingFor(
       ['anthropic:fake-model-name', 'local-qwen:qwen3'],
-      stubGetCred({})
+      stubGetCred({}),
     );
     expect(result.kind).toBe('local');
   });
@@ -122,43 +122,31 @@ describe('resolveBindingFor', () => {
   it('skips unknown providers, continues to next', async () => {
     const result = await resolveBindingFor(
       ['mystery-provider:foo', 'local-qwen:qwen3'],
-      stubGetCred({})
+      stubGetCred({}),
     );
     expect(result.kind).toBe('local');
   });
 
   it('skips malformed entries (no colon)', async () => {
-    const result = await resolveBindingFor(
-      ['anthropic', 'local-qwen:qwen3'],
-      stubGetCred({})
-    );
+    const result = await resolveBindingFor(['anthropic', 'local-qwen:qwen3'], stubGetCred({}));
     expect(result.kind).toBe('local');
   });
 
   it('skips entries with empty model id', async () => {
-    const result = await resolveBindingFor(
-      ['anthropic:', 'local-qwen:qwen3'],
-      stubGetCred({})
-    );
+    const result = await resolveBindingFor(['anthropic:', 'local-qwen:qwen3'], stubGetCred({}));
     expect(result.kind).toBe('local');
   });
 
   it('throws BindingResolutionError when nothing satisfies', async () => {
     await expect(
-      resolveBindingFor(
-        ['anthropic:claude-haiku-4-5', 'openai:gpt-4o'],
-        stubGetCred({})
-      )
+      resolveBindingFor(['anthropic:claude-haiku-4-5', 'openai:gpt-4o'], stubGetCred({})),
     ).rejects.toThrow(BindingResolutionError);
   });
 
   it('error carries the original accepts list AND every failure reason', async () => {
     let caught: BindingResolutionError | null = null;
     try {
-      await resolveBindingFor(
-        ['anthropic:fake-model', 'openai:gpt-4o'],
-        stubGetCred({})
-      );
+      await resolveBindingFor(['anthropic:fake-model', 'openai:gpt-4o'], stubGetCred({}));
     } catch (err) {
       caught = err as BindingResolutionError;
     }
@@ -170,15 +158,13 @@ describe('resolveBindingFor', () => {
   });
 
   it('throws BindingResolutionError on empty accept-list', async () => {
-    await expect(
-      resolveBindingFor([], stubGetCred({}))
-    ).rejects.toThrow(BindingResolutionError);
+    await expect(resolveBindingFor([], stubGetCred({}))).rejects.toThrow(BindingResolutionError);
   });
 
   it('preserves the model descriptor type field on cloud bindings', async () => {
     const result = await resolveBindingFor(
       ['openai:text-embedding-3-small'],
-      stubGetCred({ openai: fakeCred('openai') })
+      stubGetCred({ openai: fakeCred('openai') }),
     );
     expect(result.kind).toBe('cloud');
     expect(result.model.type).toBe('text-embedding');
@@ -186,10 +172,7 @@ describe('resolveBindingFor', () => {
   });
 
   it('preserves the model descriptor type field on local bindings', async () => {
-    const result = await resolveBindingFor(
-      ['local-qwen:qwen3-embedding'],
-      stubGetCred({})
-    );
+    const result = await resolveBindingFor(['local-qwen:qwen3-embedding'], stubGetCred({}));
     expect(result.kind).toBe('local');
     expect(result.model.type).toBe('text-embedding');
     expect(result.model.embeddingDim).toBe(1024);
@@ -198,7 +181,7 @@ describe('resolveBindingFor', () => {
   it('returns vendorModelId on bedrock bindings (resolver passes through)', async () => {
     const result = await resolveBindingFor(
       ['bedrock:claude-haiku-4-5-bedrock'],
-      stubGetCred({ bedrock: fakeCred('bedrock') })
+      stubGetCred({ bedrock: fakeCred('bedrock') }),
     );
     expect(result.kind).toBe('cloud');
     expect(result.model.vendorModelId).toMatch(/^anthropic\./);
@@ -211,9 +194,7 @@ describe('DefaultBindingResolver', () => {
   it('delegates to the wrapped broker for cloud entries', async () => {
     const broker = new StubBroker({ anthropic: fakeCred('anthropic') });
     const resolver = new DefaultBindingResolver(broker);
-    const result = await resolver.resolveBinding([
-      'anthropic:claude-haiku-4-5',
-    ]);
+    const result = await resolver.resolveBinding(['anthropic:claude-haiku-4-5']);
     expect(result.kind).toBe('cloud');
     expect(result.provider.id).toBe('anthropic');
   });
@@ -234,9 +215,9 @@ describe('DefaultBindingResolver', () => {
 
   it('propagates BindingResolutionError when nothing satisfies', async () => {
     const resolver = new DefaultBindingResolver(new StubBroker({}));
-    await expect(
-      resolver.resolveBinding(['anthropic:claude-haiku-4-5'])
-    ).rejects.toThrow(BindingResolutionError);
+    await expect(resolver.resolveBinding(['anthropic:claude-haiku-4-5'])).rejects.toThrow(
+      BindingResolutionError,
+    );
   });
 
   it('walks the broker once per cloud entry until one succeeds', async () => {
@@ -270,7 +251,7 @@ describe('resolveAllBindingsFor', () => {
       stubGetCred({
         anthropic: fakeCred('anthropic'),
         openai: fakeCred('openai'),
-      })
+      }),
     );
     expect(result).toHaveLength(2);
     expect(result[0]?.provider.id).toBe('anthropic');
@@ -280,7 +261,7 @@ describe('resolveAllBindingsFor', () => {
   it('mixes local + cloud — local satisfied without broker call', async () => {
     const result = await resolveAllBindingsFor(
       ['anthropic:claude-haiku-4-5', 'local-qwen:qwen3', 'openai:gpt-4o'],
-      stubGetCred({ openai: fakeCred('openai') })
+      stubGetCred({ openai: fakeCred('openai') }),
     );
     // anthropic skipped (no auth); local satisfied; openai authenticated.
     expect(result).toHaveLength(2);
@@ -293,7 +274,7 @@ describe('resolveAllBindingsFor', () => {
   it('skips unauthenticated entries silently — no failures collected', async () => {
     const result = await resolveAllBindingsFor(
       ['anthropic:claude-haiku-4-5', 'openai:gpt-4o'],
-      stubGetCred({ openai: fakeCred('openai') })
+      stubGetCred({ openai: fakeCred('openai') }),
     );
     expect(result).toHaveLength(1);
     expect(result[0]?.provider.id).toBe('openai');
@@ -302,7 +283,7 @@ describe('resolveAllBindingsFor', () => {
   it('returns empty array when nothing is satisfiable — does NOT throw', async () => {
     const result = await resolveAllBindingsFor(
       ['anthropic:claude-haiku-4-5', 'openai:gpt-4o'],
-      stubGetCred({})
+      stubGetCred({}),
     );
     expect(result).toEqual([]);
   });
@@ -315,13 +296,13 @@ describe('resolveAllBindingsFor', () => {
   it('skips unknown providers and malformed entries silently', async () => {
     const result = await resolveAllBindingsFor(
       [
-        'mystery:foo',           // unknown provider
-        'anthropic:fake-model',  // unknown model
-        'anthropic',             // no colon
-        'anthropic:',            // empty model
-        'local-qwen:qwen3',      // valid
+        'mystery:foo', // unknown provider
+        'anthropic:fake-model', // unknown model
+        'anthropic', // no colon
+        'anthropic:', // empty model
+        'local-qwen:qwen3', // valid
       ],
-      stubGetCred({})
+      stubGetCred({}),
     );
     expect(result).toHaveLength(1);
     expect(result[0]?.provider.id).toBe('local-qwen');
@@ -332,7 +313,7 @@ describe('resolveAllBindingsFor', () => {
     // explicit-tool form per memory `project_three_axis_binding`.
     const result = await resolveAllBindingsFor(
       ['claude-sdk:anthropic:claude-haiku-4-5'],
-      stubGetCred({ anthropic: fakeCred('anthropic') })
+      stubGetCred({ anthropic: fakeCred('anthropic') }),
     );
     expect(result).toHaveLength(1);
     expect(result[0]?.tool).toBe('claude-sdk');
@@ -341,7 +322,7 @@ describe('resolveAllBindingsFor', () => {
   it('omits the tool field on 2-part bindings (legacy shorthand)', async () => {
     const result = await resolveAllBindingsFor(
       ['anthropic:claude-haiku-4-5'],
-      stubGetCred({ anthropic: fakeCred('anthropic') })
+      stubGetCred({ anthropic: fakeCred('anthropic') }),
     );
     expect(result).toHaveLength(1);
     expect(result[0]?.tool).toBeUndefined();
@@ -366,9 +347,7 @@ describe('DefaultBindingResolver.resolveAllBindings', () => {
 
   it('returns empty array (does not throw) when nothing satisfies', async () => {
     const resolver = new DefaultBindingResolver(new StubBroker({}));
-    const result = await resolver.resolveAllBindings([
-      'anthropic:claude-haiku-4-5',
-    ]);
+    const result = await resolver.resolveAllBindings(['anthropic:claude-haiku-4-5']);
     expect(result).toEqual([]);
   });
 });

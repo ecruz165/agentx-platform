@@ -1,18 +1,18 @@
-import { describe, expect, it } from 'vitest';
 import {
+  type AdapterEvent,
   AdapterEventBus,
+  type AgentAdapter,
   AuthError,
   BillingError,
-  RateLimitError,
-  type AdapterEvent,
-  type AgentAdapter,
   type InvocationSpec,
+  RateLimitError,
 } from '@agentx/agent-adapter';
 import type { CredentialBroker, ResolvedBinding } from '@agentx/agent-auth-lib';
+import { describe, expect, it } from 'vitest';
 import type { PipelineCatalog } from './catalog.ts';
-import { JobBus } from './job-bus.ts';
 import type { JobRecord } from './job.ts';
-import { runJob, type AdapterFactory } from './orchestrator.ts';
+import { JobBus } from './job-bus.ts';
+import { type AdapterFactory, runJob } from './orchestrator.ts';
 
 const dummyBroker: CredentialBroker = {
   async getCredential(provider) {
@@ -26,9 +26,7 @@ class TestAdapter implements AgentAdapter {
   invokeCalls: InvocationSpec[] = [];
 
   constructor(
-    private readonly behavior:
-      | { kind: 'ok'; reply: string }
-      | { kind: 'throw'; message: string }
+    private readonly behavior: { kind: 'ok'; reply: string } | { kind: 'throw'; message: string },
   ) {}
 
   async invoke(spec: InvocationSpec): Promise<string> {
@@ -84,8 +82,20 @@ describe('runJob (in-process)', () => {
       input: 'Add a button',
       agents: [
         { id: 'coordinator', role: 'Coordinator', adapter: 'claude-sdk', status: 'pending' },
-        { id: 'planner', role: 'Plan', adapter: 'claude-sdk', systemPrompt: 'plan it', status: 'pending' },
-        { id: 'implementer', role: 'Implement', adapter: 'claude-sdk', systemPrompt: 'build it', status: 'pending' },
+        {
+          id: 'planner',
+          role: 'Plan',
+          adapter: 'claude-sdk',
+          systemPrompt: 'plan it',
+          status: 'pending',
+        },
+        {
+          id: 'implementer',
+          role: 'Implement',
+          adapter: 'claude-sdk',
+          systemPrompt: 'build it',
+          status: 'pending',
+        },
       ],
     };
     jobs.set('j1', job);
@@ -181,7 +191,7 @@ describe('runJob (in-process)', () => {
         bus,
         broker: dummyBroker,
         adapterFactory: () => new TestAdapter({ kind: 'ok', reply: 'x' }),
-      })
+      }),
     ).resolves.toBeUndefined();
   });
 
@@ -213,7 +223,9 @@ describe('runJob (in-process)', () => {
     expect(job.agents.find((a) => a.id === 'planner')?.status).toBe('failed');
     expect(seen).toHaveLength(1);
     expect(seen[0]).toMatchObject({ kind: 'error' });
-    expect((seen[0] as Extract<AdapterEvent, { kind: 'error' }>).message).toContain('factory says no');
+    expect((seen[0] as Extract<AdapterEvent, { kind: 'error' }>).message).toContain(
+      'factory says no',
+    );
   });
 
   it('fires onStatusChange hook for every transition', async () => {
@@ -285,9 +297,18 @@ describe('runJob — accepts-aware adapter selection', () => {
         // opencode-cli which can hang waiting for a non-existent server.)
         return {
           kind: 'cloud' as const,
-          provider: { id: 'anthropic' as const, name: 'Anthropic', authMethods: ['api-key' as const], models: [] },
+          provider: {
+            id: 'anthropic' as const,
+            name: 'Anthropic',
+            authMethods: ['api-key' as const],
+            models: [],
+          },
           model: { id: 'claude-haiku-4-5', type: 'text' as const },
-          credential: { provider: 'anthropic' as const, apiKey: 'sk-ant-stub', source: 'host-file' as const },
+          credential: {
+            provider: 'anthropic' as const,
+            apiKey: 'sk-ant-stub',
+            source: 'host-file' as const,
+          },
         };
       },
     };
@@ -326,9 +347,7 @@ describe('runJob — accepts-aware adapter selection', () => {
       status: 'received',
       submittedAt: 'now',
       input: 'do it',
-      agents: [
-        { id: 'planner', role: 'Plan', adapter: 'claude-sdk', status: 'pending' },
-      ],
+      agents: [{ id: 'planner', role: 'Plan', adapter: 'claude-sdk', status: 'pending' }],
     };
     jobs.set('j-legacy', job);
 
@@ -383,7 +402,11 @@ describe('runJob — accepts-aware adapter selection', () => {
       jobs,
       bus,
       broker: dummyBroker,
-      resolver: { async resolveBinding() { throw new Error('not used'); } },
+      resolver: {
+        async resolveBinding() {
+          throw new Error('not used');
+        },
+      },
       adapterFactory: () => {
         factoryCalls += 1;
         return new TestAdapter({ kind: 'ok', reply: 'ok' });
@@ -578,10 +601,7 @@ describe('runJob — slice 13c runtime fallback', () => {
           throw new Error('should not be reached when resolveAllBindings is present');
         },
         async resolveAllBindings() {
-          return [
-            fakeBinding('anthropic', 'claude-haiku-4-5'),
-            fakeBinding('openai', 'gpt-4o'),
-          ];
+          return [fakeBinding('anthropic', 'claude-haiku-4-5'), fakeBinding('openai', 'gpt-4o')];
         },
       },
       bindingToAdapterFn: (binding) => {
@@ -626,17 +646,12 @@ describe('runJob — slice 13c runtime fallback', () => {
           throw new Error('not used');
         },
         async resolveAllBindings() {
-          return [
-            fakeBinding('anthropic', 'claude-haiku-4-5'),
-            fakeBinding('openai', 'gpt-4o'),
-          ];
+          return [fakeBinding('anthropic', 'claude-haiku-4-5'), fakeBinding('openai', 'gpt-4o')];
         },
       },
       bindingToAdapterFn: (binding) => {
         if (binding.provider.id === 'anthropic') {
-          return new FailingAdapter(
-            new RateLimitError('rate-limited', { retryAfterSeconds: 60 })
-          );
+          return new FailingAdapter(new RateLimitError('rate-limited', { retryAfterSeconds: 60 }));
         }
         return new TestAdapter({ kind: 'ok', reply: 'served-by-openai' });
       },
@@ -682,10 +697,7 @@ describe('runJob — slice 13c runtime fallback', () => {
           throw new Error('not used');
         },
         async resolveAllBindings() {
-          return [
-            fakeBinding('anthropic', 'claude-haiku-4-5'),
-            fakeBinding('openai', 'gpt-4o'),
-          ];
+          return [fakeBinding('anthropic', 'claude-haiku-4-5'), fakeBinding('openai', 'gpt-4o')];
         },
       },
       bindingToAdapterFn: (binding) => {
@@ -733,10 +745,7 @@ describe('runJob — slice 13c runtime fallback', () => {
           throw new Error('not used');
         },
         async resolveAllBindings() {
-          return [
-            fakeBinding('anthropic', 'claude-haiku-4-5'),
-            fakeBinding('openai', 'gpt-4o'),
-          ];
+          return [fakeBinding('anthropic', 'claude-haiku-4-5'), fakeBinding('openai', 'gpt-4o')];
         },
       },
       bindingToAdapterFn: (binding) => {
@@ -782,10 +791,7 @@ describe('runJob — slice 13c runtime fallback', () => {
           throw new Error('not used');
         },
         async resolveAllBindings() {
-          return [
-            fakeBinding('anthropic', 'claude-haiku-4-5'),
-            fakeBinding('openai', 'gpt-4o'),
-          ];
+          return [fakeBinding('anthropic', 'claude-haiku-4-5'), fakeBinding('openai', 'gpt-4o')];
         },
       },
       bindingToAdapterFn: (binding) => {
@@ -833,10 +839,7 @@ describe('runJob — slice 13c runtime fallback', () => {
           throw new Error('not used');
         },
         async resolveAllBindings() {
-          return [
-            fakeBinding('anthropic', 'claude-haiku-4-5'),
-            fakeBinding('openai', 'gpt-4o'),
-          ];
+          return [fakeBinding('anthropic', 'claude-haiku-4-5'), fakeBinding('openai', 'gpt-4o')];
         },
       },
       bindingToAdapterFn: (binding) => {
@@ -884,10 +887,7 @@ describe('runJob — slice 13c runtime fallback', () => {
           throw new Error('not used');
         },
         async resolveAllBindings() {
-          return [
-            fakeBinding('anthropic', 'claude-haiku-4-5'),
-            fakeBinding('openai', 'gpt-4o'),
-          ];
+          return [fakeBinding('anthropic', 'claude-haiku-4-5'), fakeBinding('openai', 'gpt-4o')];
         },
       },
       bindingToAdapterFn: (binding) => {
@@ -904,8 +904,12 @@ describe('runJob — slice 13c runtime fallback', () => {
     // message should be present somewhere.
     const errorEvents = seen.filter((e) => e.kind === 'error');
     expect(errorEvents).toHaveLength(1);
-    expect((errorEvents[0] as Extract<AdapterEvent, { kind: 'error' }>).message).toContain('BillingError');
-    expect((errorEvents[0] as Extract<AdapterEvent, { kind: 'error' }>).message).toContain('falling back');
+    expect((errorEvents[0] as Extract<AdapterEvent, { kind: 'error' }>).message).toContain(
+      'BillingError',
+    );
+    expect((errorEvents[0] as Extract<AdapterEvent, { kind: 'error' }>).message).toContain(
+      'falling back',
+    );
   });
 
   it('fails the job when ALL candidates throw AdapterError (exhausted)', async () => {
@@ -937,10 +941,7 @@ describe('runJob — slice 13c runtime fallback', () => {
           throw new Error('not used');
         },
         async resolveAllBindings() {
-          return [
-            fakeBinding('anthropic', 'claude-haiku-4-5'),
-            fakeBinding('openai', 'gpt-4o'),
-          ];
+          return [fakeBinding('anthropic', 'claude-haiku-4-5'), fakeBinding('openai', 'gpt-4o')];
         },
       },
       bindingToAdapterFn: (binding) => {
@@ -988,10 +989,7 @@ describe('runJob — slice 13c runtime fallback', () => {
           throw new Error('not used');
         },
         async resolveAllBindings() {
-          return [
-            fakeBinding('anthropic', 'claude-haiku-4-5'),
-            fakeBinding('openai', 'gpt-4o'),
-          ];
+          return [fakeBinding('anthropic', 'claude-haiku-4-5'), fakeBinding('openai', 'gpt-4o')];
         },
       },
       bindingToAdapterFn: (binding) => {
@@ -1041,8 +1039,7 @@ describe('runJob — slice 13c runtime fallback', () => {
           return [fakeBinding('anthropic', 'claude-haiku-4-5')];
         },
       },
-      bindingToAdapterFn: () =>
-        new FailingAdapter(new BillingError('credits exhausted')),
+      bindingToAdapterFn: () => new FailingAdapter(new BillingError('credits exhausted')),
     });
 
     expect(job.status).toBe('failed');
@@ -1127,10 +1124,7 @@ describe('runJob — slice 13c runtime fallback', () => {
           throw new Error('not used');
         },
         async resolveAllBindings() {
-          return [
-            fakeBinding('anthropic', 'claude-haiku-4-5'),
-            fakeBinding('openai', 'gpt-4o'),
-          ];
+          return [fakeBinding('anthropic', 'claude-haiku-4-5'), fakeBinding('openai', 'gpt-4o')];
         },
       },
       bindingToAdapterFn: (binding) => {
@@ -1160,11 +1154,7 @@ describe('runJob — slice 13c runtime fallback', () => {
           role: 'Plan',
           adapter: 'claude-sdk',
           status: 'pending',
-          accepts: [
-            'anthropic:claude-haiku-4-5',
-            'openai:gpt-4o',
-            'github-copilot:gpt-4o',
-          ],
+          accepts: ['anthropic:claude-haiku-4-5', 'openai:gpt-4o', 'github-copilot:gpt-4o'],
         },
       ],
     };

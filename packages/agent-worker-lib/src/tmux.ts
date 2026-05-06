@@ -71,10 +71,7 @@ function runTmux(args: string[]): Promise<void> {
 /** Send a literal command line to the session's first window — the
  *  shell there executes it. Used by the worker to launch the agent
  *  binary inside the sandboxed terminal. */
-export function tmuxSendCommand(
-  session: TmuxSession,
-  commandLine: string
-): Promise<void> {
+export function tmuxSendCommand(session: TmuxSession, commandLine: string): Promise<void> {
   return runTmux([
     '-S',
     session.socketPath,

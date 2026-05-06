@@ -195,15 +195,14 @@ export async function spawnWorker(spec: WorkerSpawnSpec): Promise<SpawnResult> {
         await runGitInDir(
           bareDir,
           ['fetch', 'origin', '+refs/heads/*:refs/heads/*', '--prune'],
-          gitEnv
+          gitEnv,
         );
         refreshed = true;
       } catch (err) {
         // Likely placeholder bare repo (no remote) or transient
         // network issue. Don't fail the spawn — the worktree-add
         // below will still work off whatever HEAD points at.
-        placeholder =
-          placeholder ?? (err as Error).message.split('\n')[0]?.slice(0, 120);
+        placeholder = placeholder ?? (err as Error).message.split('\n')[0]?.slice(0, 120);
       }
     }
 
@@ -231,7 +230,7 @@ export async function spawnWorker(spec: WorkerSpawnSpec): Promise<SpawnResult> {
       await mkdir(wtPath, { recursive: true });
       await writeFile(
         join(wtPath, '.placeholder'),
-        `worktree placeholder for ${repo.name} (real clone unavailable)\n`
+        `worktree placeholder for ${repo.name} (real clone unavailable)\n`,
       );
     }
 
@@ -249,9 +248,7 @@ export async function spawnWorker(spec: WorkerSpawnSpec): Promise<SpawnResult> {
   }
 
   const containerName =
-    subagentId === 'main'
-      ? `agentx-job-${spec.jobId}`
-      : `agentx-job-${spec.jobId}-${subagentId}`;
+    subagentId === 'main' ? `agentx-job-${spec.jobId}` : `agentx-job-${spec.jobId}-${subagentId}`;
 
   // Slice 9d-6: optional SSH agent socket mount for in-container git
   // auth. Resolves to undefined when forwardSshAgent is false/unset,
@@ -277,17 +274,19 @@ export async function spawnWorker(spec: WorkerSpawnSpec): Promise<SpawnResult> {
     name: containerName,
     image: 'agentx/worker:0.0.0',
     runArgs: [
-      '--label', 'harness-worker=true',
-      '--label', `harness-job-id=${spec.jobId}`,
-      '--label', `harness-product=${spec.productId}`,
-      '--label', `harness-pipeline=${spec.pipeline}`,
-      '--name', containerName,
+      '--label',
+      'harness-worker=true',
+      '--label',
+      `harness-job-id=${spec.jobId}`,
+      '--label',
+      `harness-product=${spec.productId}`,
+      '--label',
+      `harness-pipeline=${spec.pipeline}`,
+      '--name',
+      containerName,
     ],
     mounts: sshMount
-      ? [
-          ...baseMounts,
-          `source=${sshMount.hostPath},target=${sshMount.containerPath},type=bind`,
-        ]
+      ? [...baseMounts, `source=${sshMount.hostPath},target=${sshMount.containerPath},type=bind`]
       : baseMounts,
     containerEnv: sshMount
       ? { ...baseContainerEnv, SSH_AUTH_SOCK: sshMount.containerPath }
@@ -342,7 +341,7 @@ export function _clearBaseRefCache(): void {
  */
 export function resolveSshAgentMount(
   spec: Pick<WorkerSpawnSpec, 'forwardSshAgent' | 'sshAgentContainerPath'>,
-  env: NodeJS.ProcessEnv = process.env
+  env: NodeJS.ProcessEnv = process.env,
 ): { hostPath: string; containerPath: string } | undefined {
   const containerPath = spec.sshAgentContainerPath ?? '/ssh-agent.sock';
   if (spec.forwardSshAgent === undefined || spec.forwardSshAgent === false) {
@@ -358,7 +357,7 @@ export function resolveSshAgentMount(
       'forwardSshAgent: true requires SSH_AUTH_SOCK in the environment. ' +
         'Either start an ssh-agent (`eval $(ssh-agent)`) and add your key ' +
         '(`ssh-add ~/.ssh/id_ed25519`), or pass an explicit host path: ' +
-        '`forwardSshAgent: "/path/to/ssh-agent.sock"`.'
+        '`forwardSshAgent: "/path/to/ssh-agent.sock"`.',
     );
   }
   return { hostPath: fromEnv, containerPath };
@@ -413,16 +412,17 @@ export async function runWorker(opts: RunWorkerOptions): Promise<RunWorkerResult
   opts.onSpawnArtifacts?.(artifacts);
 
   const bin = opts.devcontainerBin ?? 'devcontainer';
-  const workerTemplate = join(
-    opts.spec.workspaceRoot,
-    'workspace-template/.devcontainer/worker'
-  );
+  const workerTemplate = join(opts.spec.workspaceRoot, 'workspace-template/.devcontainer/worker');
   const args = [
     'up',
-    '--workspace-folder', workerTemplate,
-    '--id-label', `harness-job-id=${opts.spec.jobId}`,
-    '--id-label', `harness-subagent=${artifacts.subagentId}`,
-    '--override-config', artifacts.overrideConfigPath,
+    '--workspace-folder',
+    workerTemplate,
+    '--id-label',
+    `harness-job-id=${opts.spec.jobId}`,
+    '--id-label',
+    `harness-subagent=${artifacts.subagentId}`,
+    '--override-config',
+    artifacts.overrideConfigPath,
     '--remove-existing-container',
     ...(opts.extraUpArgs ?? []),
   ];
@@ -430,7 +430,7 @@ export async function runWorker(opts: RunWorkerOptions): Promise<RunWorkerResult
   const { stdout, stderr, code } = await runProcCapture(bin, args);
   if (code !== 0) {
     throw new Error(
-      `devcontainer up exited ${code}: ${stderr.trim() || stdout.trim() || '(no output)'}`
+      `devcontainer up exited ${code}: ${stderr.trim() || stdout.trim() || '(no output)'}`,
     );
   }
 
@@ -438,7 +438,7 @@ export async function runWorker(opts: RunWorkerOptions): Promise<RunWorkerResult
   if (!containerId) {
     throw new Error(
       `devcontainer up succeeded but containerId was not parseable from stdout. ` +
-        `First 500 chars: ${stdout.slice(0, 500)}`
+        `First 500 chars: ${stdout.slice(0, 500)}`,
     );
   }
 
@@ -466,7 +466,12 @@ export function parseDevcontainerUpStdout(stdout: string): string | undefined {
     const line = lines[i]!;
     try {
       const obj = JSON.parse(line);
-      if (obj && typeof obj === 'object' && typeof obj.containerId === 'string' && obj.containerId.length > 0) {
+      if (
+        obj &&
+        typeof obj === 'object' &&
+        typeof obj.containerId === 'string' &&
+        obj.containerId.length > 0
+      ) {
         return obj.containerId;
       }
     } catch {
@@ -480,11 +485,7 @@ function runGit(args: string[], env?: NodeJS.ProcessEnv): Promise<void> {
   return runProc('git', args, undefined, env);
 }
 
-function runGitInDir(
-  dir: string,
-  args: string[],
-  env?: NodeJS.ProcessEnv
-): Promise<void> {
+function runGitInDir(dir: string, args: string[], env?: NodeJS.ProcessEnv): Promise<void> {
   return runProc('git', args, dir, env);
 }
 
@@ -496,7 +497,7 @@ function runProc(
   cmd: string,
   args: string[],
   cwd?: string,
-  env?: NodeJS.ProcessEnv
+  env?: NodeJS.ProcessEnv,
 ): Promise<void> {
   return new Promise((resolve, reject) => {
     const child = spawn(cmd, args, {
@@ -508,7 +509,8 @@ function runProc(
     child.stderr.on('data', (c) => (stderr += c.toString()));
     child.on('error', reject);
     child.on('close', (code) => {
-      if (code !== 0) reject(new Error(`${cmd} ${args.join(' ')} exited ${code}: ${stderr.trim()}`));
+      if (code !== 0)
+        reject(new Error(`${cmd} ${args.join(' ')} exited ${code}: ${stderr.trim()}`));
       else resolve();
     });
   });
@@ -526,7 +528,8 @@ function runProcOutput(cmd: string, args: string[], cwd?: string): Promise<strin
     child.stderr?.on('data', (c) => (stderr += c.toString()));
     child.on('error', reject);
     child.on('close', (code) => {
-      if (code !== 0) reject(new Error(`${cmd} ${args.join(' ')} exited ${code}: ${stderr.trim()}`));
+      if (code !== 0)
+        reject(new Error(`${cmd} ${args.join(' ')} exited ${code}: ${stderr.trim()}`));
       else resolve(stdout);
     });
   });
@@ -538,7 +541,7 @@ function runProcOutput(cmd: string, args: string[], cwd?: string): Promise<strin
 function runProcCapture(
   cmd: string,
   args: string[],
-  cwd?: string
+  cwd?: string,
 ): Promise<{ stdout: string; stderr: string; code: number }> {
   return new Promise((resolve, reject) => {
     const child = spawn(cmd, args, { stdio: ['ignore', 'pipe', 'pipe'], cwd });

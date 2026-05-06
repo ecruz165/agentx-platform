@@ -34,9 +34,9 @@
  * is one node-config change away when consumers actually need fields.
  */
 
-import { Annotation, END, START, StateGraph } from '@langchain/langgraph';
-import { HumanMessage, SystemMessage } from '@langchain/core/messages';
 import type { BaseChatModel } from '@langchain/core/language_models/chat_models';
+import { HumanMessage, SystemMessage } from '@langchain/core/messages';
+import { Annotation, END, START, StateGraph } from '@langchain/langgraph';
 
 const SYSTEM_PROMPT =
   'You are a post-job lessons-learned distiller for an agent harness. Given a job ' +
@@ -73,7 +73,8 @@ export function buildCheckoutCoordinatorGraph(model: BaseChatModel) {
         new SystemMessage(SYSTEM_PROMPT),
         new HumanMessage(prompt),
       ]);
-      const text = typeof response.content === 'string' ? response.content : JSON.stringify(response.content);
+      const text =
+        typeof response.content === 'string' ? response.content : JSON.stringify(response.content);
       return { lessons: text };
     })
     .addEdge(START, 'distill')
@@ -100,7 +101,7 @@ export interface RunCheckoutCoordinatorResult {
 }
 
 export async function runCheckoutCoordinator(
-  args: RunCheckoutCoordinatorArgs
+  args: RunCheckoutCoordinatorArgs,
 ): Promise<RunCheckoutCoordinatorResult> {
   const graph = buildCheckoutCoordinatorGraph(args.model);
   const result = await graph.invoke({

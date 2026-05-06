@@ -1,14 +1,15 @@
 /** @jsxImportSource @opentui/react */
-import { useEffect, useRef, useState } from 'react';
+
 import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
+import type { AgentTokens, Envelope, RegisteredAgent } from '@agentx/harness-core';
 import { createCliRenderer } from '@opentui/core';
 import { createRoot, useKeyboard, useOnResize, useRenderer } from '@opentui/react';
-import type { AgentTokens, Envelope, RegisteredAgent } from '@agentx/harness-core';
-import { formatTokens, formatTokenHistory } from './token-format.ts';
+import { useEffect, useRef, useState } from 'react';
 import { eventPreview } from './event-preview.ts';
 import { connectSseStream } from './sse-client.ts';
+import { formatTokenHistory, formatTokens } from './token-format.ts';
 import { udsRequest } from './uds-client.ts';
 
 /**
@@ -74,15 +75,15 @@ async function fetchDetail(id: string): Promise<JobSummary | null> {
 // ─── pure helpers ─────────────────────────────────────────────────────────
 
 function trunc(s: string, w: number): string {
-  return s.length <= w ? s : s.slice(0, Math.max(0, w - 1)) + '…';
+  return s.length <= w ? s : `${s.slice(0, Math.max(0, w - 1))}…`;
 }
 
 function statusFg(s?: string): string {
   if (s === 'received' || s === 'completed') return '#4ade80'; // green
-  if (s === 'failed' || s === 'errored') return '#f87171';     // red
+  if (s === 'failed' || s === 'errored') return '#f87171'; // red
   if (s === 'cancelled' || s === 'rejected') return '#facc15'; // yellow
-  if (s === 'running') return '#06b6d4';                        // cyan
-  return '#9ca3af';                                             // gray
+  if (s === 'running') return '#06b6d4'; // cyan
+  return '#9ca3af'; // gray
 }
 
 function agentDot(status: string): { dot: string; fg: string } {
@@ -105,7 +106,7 @@ function eventKindFg(kind: Envelope['event']['kind']): string {
 }
 
 function shortJobId(id: string): string {
-  return id.startsWith('job_') ? '#' + id.slice(4, 11) : id.slice(0, 8);
+  return id.startsWith('job_') ? `#${id.slice(4, 11)}` : id.slice(0, 8);
 }
 
 // ─── React app ────────────────────────────────────────────────────────────
@@ -125,7 +126,8 @@ function useDims(): { width: number; height: number } {
   const [dims, setDims] = useState(measure);
   useEffect(() => {
     setDims(measure());
-  }, [renderer]);
+    // biome-ignore lint/correctness/useExhaustiveDependencies: measure is component-scoped; intentionally unstable to re-read terminal dims on every re-mount of the consumer
+  }, [measure]);
   useOnResize((w, h) => {
     setDims({
       width: w || process.stdout.columns || 80,
@@ -175,7 +177,8 @@ function App() {
       void loadJobs();
     }, POLL_MS);
     return () => clearInterval(id);
-  }, []);
+    // biome-ignore lint/correctness/useExhaustiveDependencies: loadJobs is component-scoped; effect intentionally re-installs the interval if it changes (rare in practice)
+  }, [loadJobs]);
 
   // ── Re-fetch detail + attach SSE when selection or jobs list changes ──
   useEffect(() => {
@@ -191,14 +194,19 @@ function App() {
     }
     const id = jobs[safeIdx]!.jobId;
     let cancelled = false;
-    fetchDetail(id).then((detail) => {
-      if (!cancelled) setSelectedDetail(detail);
-    }).catch(() => {
-      if (!cancelled) setSelectedDetail(null);
-    });
+    fetchDetail(id)
+      .then((detail) => {
+        if (!cancelled) setSelectedDetail(detail);
+      })
+      .catch(() => {
+        if (!cancelled) setSelectedDetail(null);
+      });
     attachSse(id);
-    return () => { cancelled = true; };
-  }, [jobs, selectedIndex]);
+    return () => {
+      cancelled = true;
+    };
+    // biome-ignore lint/correctness/useExhaustiveDependencies: detachSse/attachSse are component-scoped and only mutate refs — re-creation per render is harmless here
+  }, [jobs, selectedIndex, detachSse, attachSse]);
 
   // ── SSE management (refs, not state — doesn't drive renders) ──────────
   function attachSse(jobId: string): void {
@@ -211,28 +219,36 @@ function App() {
       (envelope) => {
         setEvents((prev) => {
           const next = [...prev, envelope];
-          return next.length > EVENT_BUFFER_CAP
-            ? next.slice(-EVENT_BUFFER_CAP)
-            : next;
+          return next.length > EVENT_BUFFER_CAP ? next.slice(-EVENT_BUFFER_CAP) : next;
         });
       },
       (err) => {
         setError(`SSE: ${err.message}`);
         setStreaming(false);
-      }
+      },
     );
   }
 
   function detachSse(): void {
     if (sseUnsubRef.current) {
-      try { sseUnsubRef.current(); } catch { /* ignore */ }
+      try {
+        sseUnsubRef.current();
+      } catch {
+        /* ignore */
+      }
       sseUnsubRef.current = null;
     }
     setStreaming(false);
   }
 
   // Cleanup SSE on unmount
-  useEffect(() => () => { detachSse(); }, []);
+  useEffect(
+    () => () => {
+      detachSse();
+    },
+    // biome-ignore lint/correctness/useExhaustiveDependencies: unmount cleanup; detachSse is component-scoped + ref-mutating, safe across re-creates
+    [detachSse],
+  );
 
   // ── Keyboard ─────────────────────────────────────────────────────────
   useKeyboard((e) => {
@@ -241,12 +257,12 @@ function App() {
       process.exit(0);
     } else if (e.name === 'm') {
       // tmux: switch to main window without killing this process
-      const child = spawn(
-        'tmux',
-        ['select-window', '-t', `${TMUX_SESSION}:dash`],
-        { stdio: 'ignore' }
-      );
-      child.on('error', () => { /* tmux may not be installed; ignore */ });
+      const child = spawn('tmux', ['select-window', '-t', `${TMUX_SESSION}:dash`], {
+        stdio: 'ignore',
+      });
+      child.on('error', () => {
+        /* tmux may not be installed; ignore */
+      });
     } else if (e.name === 'r' || e.name === 'return') {
       setLoading(true);
       void loadJobs();
@@ -262,7 +278,7 @@ function App() {
   if (dims.width === 0 || dims.height === 0) return null;
 
   const leftW = Math.max(20, Math.floor(dims.width * 0.22));
-  const midW = Math.max(28, Math.floor(dims.width * 0.30));
+  const midW = Math.max(28, Math.floor(dims.width * 0.3));
 
   return (
     <box flexDirection="column" width={dims.width} height={dims.height}>
@@ -280,9 +296,7 @@ function App() {
         </box>
         <box width={midW}>
           <text fg="#9ca3af">
-            {selectedDetail?.agents
-              ? `${selectedDetail.agents.length} agents`
-              : '—'}
+            {selectedDetail?.agents ? `${selectedDetail.agents.length} agents` : '—'}
           </text>
         </box>
         <box flexGrow={1}>
@@ -296,7 +310,7 @@ function App() {
       </box>
 
       {/* Hint line */}
-      <text fg="#6b7280"> j/k or ↑↓ nav   enter/r refresh   m main   q quit</text>
+      <text fg="#6b7280"> j/k or ↑↓ nav enter/r refresh m main q quit</text>
     </box>
   );
 }
@@ -313,14 +327,7 @@ function JobsColumn({
   selectedIndex: number;
 }) {
   return (
-    <box
-      width={width}
-      flexShrink={0}
-      border
-      title="Jobs"
-      flexDirection="column"
-      padding={1}
-    >
+    <box width={width} flexShrink={0} border title="Jobs" flexDirection="column" padding={1}>
       {jobs.length === 0 ? (
         <text fg="#6b7280">(no jobs yet)</text>
       ) : (
@@ -330,9 +337,7 @@ function JobsColumn({
           const name = trunc(j.name ?? '(unnamed)', 30);
           return (
             <text key={j.jobId}>
-              <span fg={selected ? '#06b6d4' : '#6b7280'}>
-                {selected ? '▸ ' : '  '}
-              </span>
+              <span fg={selected ? '#06b6d4' : '#6b7280'}>{selected ? '▸ ' : '  '}</span>
               <span fg="#6b7280">{id}</span>
               <span> </span>
               <span fg={selected ? '#f3f4f6' : '#9ca3af'}>{name}</span>
@@ -348,14 +353,7 @@ function JobsColumn({
 function AgentsColumn({ width, job }: { width: number; job: JobSummary | null }) {
   if (!job) {
     return (
-      <box
-        width={width}
-        flexShrink={0}
-        border
-        title="Agents"
-        flexDirection="column"
-        padding={1}
-      >
+      <box width={width} flexShrink={0} border title="Agents" flexDirection="column" padding={1}>
         <text fg="#6b7280">(no job selected)</text>
       </box>
     );
@@ -369,25 +367,18 @@ function AgentsColumn({ width, job }: { width: number; job: JobSummary | null })
   const tokenRowWidth = Math.max(8, width - 4 - 2);
 
   return (
-    <box
-      width={width}
-      flexShrink={0}
-      border
-      title="Agents"
-      flexDirection="column"
-      padding={1}
-    >
+    <box width={width} flexShrink={0} border title="Agents" flexDirection="column" padding={1}>
       <text>
         <span fg="#9ca3af">pipeline: </span>
         <span fg="#f3f4f6">{trunc(job.pipeline ?? '?', 40)}</span>
       </text>
       <text>
-        <span fg="#9ca3af">product:  </span>
+        <span fg="#9ca3af">product: </span>
         <span fg="#f3f4f6">{trunc(job.productId ?? '?', 40)}</span>
       </text>
       {job.tokens ? (
         <text>
-          <span fg="#9ca3af">tokens:   </span>
+          <span fg="#9ca3af">tokens: </span>
           <span fg="#fbbf24">{formatTokens(job.tokens)}</span>
         </text>
       ) : null}
@@ -396,7 +387,7 @@ function AgentsColumn({ width, job }: { width: number; job: JobSummary | null })
         <text fg="#6b7280">(no agents registered)</text>
       ) : (
         <>
-          <text fg="#f3f4f6">agent             role        status</text>
+          <text fg="#f3f4f6">agent role status</text>
           {agents.flatMap((a) => {
             const ad = agentDot(a.status);
             const rows = [
@@ -419,9 +410,9 @@ function AgentsColumn({ width, job }: { width: number; job: JobSummary | null })
             if (history && history.length > 0) {
               rows.push(
                 <text key={`${a.id}-tokens`}>
-                  <span>  </span>
+                  <span> </span>
                   <span fg="#fbbf24">{formatTokenHistory(history, tokenRowWidth)}</span>
-                </text>
+                </text>,
               );
             }
             return rows;
@@ -432,13 +423,7 @@ function AgentsColumn({ width, job }: { width: number; job: JobSummary | null })
   );
 }
 
-function EventsColumn({
-  job,
-  events,
-}: {
-  job: JobSummary | null;
-  events: Envelope[];
-}) {
+function EventsColumn({ job, events }: { job: JobSummary | null; events: Envelope[] }) {
   if (!job) {
     return (
       <box flexGrow={1} border title="Events" flexDirection="column" padding={1}>
@@ -448,23 +433,17 @@ function EventsColumn({
   }
 
   return (
-    <box
-      flexGrow={1}
-      border
-      title={`Events · ${job.jobId}`}
-      flexDirection="column"
-      padding={1}
-    >
+    <box flexGrow={1} border title={`Events · ${job.jobId}`} flexDirection="column" padding={1}>
       <text>
-        <span fg="#9ca3af">jobId:      </span>
+        <span fg="#9ca3af">jobId: </span>
         <span fg="#e5e7eb">{job.jobId}</span>
       </text>
       <text>
-        <span fg="#9ca3af">status:     </span>
+        <span fg="#9ca3af">status: </span>
         <span fg={statusFg(job.status)}>{job.status ?? '?'}</span>
       </text>
       <text>
-        <span fg="#9ca3af">submitted:  </span>
+        <span fg="#9ca3af">submitted: </span>
         <span fg="#e5e7eb">{job.submittedAt ?? '?'}</span>
       </text>
       <text> </text>
@@ -477,14 +456,13 @@ function EventsColumn({
           <text fg="#6b7280">(awaiting events…)</text>
         ) : (
           events.map((env, i) => (
+            // biome-ignore lint/suspicious/noArrayIndexKey: append-only event log — index is stable
             <text key={i}>
               <span fg="#6b7280">{formatTs(env.event.ts)}</span>
               <span> </span>
               <span fg="#9ca3af">{trunc(env.agentId, 12).padEnd(12)}</span>
               <span> </span>
-              <span fg={eventKindFg(env.event.kind)}>
-                {env.event.kind.padEnd(8)}
-              </span>
+              <span fg={eventKindFg(env.event.kind)}>{env.event.kind.padEnd(8)}</span>
               <span> </span>
               <span fg="#e5e7eb">{eventPreview(env)}</span>
             </text>
@@ -516,7 +494,7 @@ function FooterStatus({
     return (
       <text>
         <span fg="#4ade80">● live</span>
-        <span fg="#6b7280">  {eventCount} events buffered</span>
+        <span fg="#6b7280"> {eventCount} events buffered</span>
       </text>
     );
   }

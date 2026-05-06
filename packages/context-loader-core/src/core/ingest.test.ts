@@ -1,7 +1,7 @@
-import { mkdtempSync, writeFileSync, mkdirSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { InMemoryGraphBackend } from '../backends/in-memory.ts';
 import type { EmbedderClient, IngestionEvent } from '../index.ts';
 import { ingest } from './ingest.ts';
@@ -37,17 +37,14 @@ describe('ingest() — prose-markdown', () => {
   it('walks a directory of markdown files and writes nodes/edges/vectors', async () => {
     writeFileSync(
       join(workdir, 'README.md'),
-      '# Project\n\nIntro.\n\n## Setup\n\nInstall steps.\n'
+      '# Project\n\nIntro.\n\n## Setup\n\nInstall steps.\n',
     );
     writeFileSync(
       join(workdir, 'guide.md'),
-      '# Guide\n\n## Getting started\n\nDo this.\n\n## Advanced\n\nDo that.\n'
+      '# Guide\n\n## Getting started\n\nDo this.\n\n## Advanced\n\nDo that.\n',
     );
     mkdirSync(join(workdir, 'subdir'));
-    writeFileSync(
-      join(workdir, 'subdir', 'nested.md'),
-      '## A\n\ntext\n'
-    );
+    writeFileSync(join(workdir, 'subdir', 'nested.md'), '## A\n\ntext\n');
 
     const backend = new InMemoryGraphBackend();
     const events: IngestionEvent[] = [];
@@ -114,10 +111,7 @@ describe('ingest() — prose-markdown', () => {
 
   it('skips files matching exclude patterns', async () => {
     mkdirSync(join(workdir, 'node_modules', 'lib'), { recursive: true });
-    writeFileSync(
-      join(workdir, 'node_modules', 'lib', 'README.md'),
-      '# lib\n\ntext\n'
-    );
+    writeFileSync(join(workdir, 'node_modules', 'lib', 'README.md'), '# lib\n\ntext\n');
     writeFileSync(join(workdir, 'real.md'), '# real\n\ntext\n');
 
     const backend = new InMemoryGraphBackend();
@@ -141,7 +135,7 @@ describe('ingest() — prose-markdown', () => {
         source: { type: 'pdf', ref: { kind: 'path', path: workdir } },
         backend,
         embedderClient: mockEmbedder(8),
-      })
+      }),
     ).rejects.toThrow(/chunker '.+' which is not yet implemented/);
   });
 
@@ -155,7 +149,7 @@ describe('ingest() — prose-markdown', () => {
         },
         backend,
         embedderClient: mockEmbedder(8),
-      })
+      }),
     ).rejects.toThrow(/only SourceRef \{ kind: 'path' \} is implemented/);
   });
 
@@ -177,10 +171,7 @@ describe('ingest() — prose-markdown', () => {
 
 describe('InMemoryGraphBackend — vector search smoke test', () => {
   it('searchVectors returns top-K cosine matches', async () => {
-    writeFileSync(
-      join(workdir, 'a.md'),
-      '# A\n\nfirst\n\n## sub\n\nsecond\n'
-    );
+    writeFileSync(join(workdir, 'a.md'), '# A\n\nfirst\n\n## sub\n\nsecond\n');
     const backend = new InMemoryGraphBackend();
     await ingest({
       source: { type: 'prose-markdown', ref: { kind: 'path', path: workdir } },
@@ -214,7 +205,7 @@ describe('embedder client — error path (no real network)', () => {
         source: { type: 'prose-markdown', ref: { kind: 'path', path: workdir } },
         backend,
         embedderClient: brokenEmbedder,
-      })
+      }),
     ).rejects.toThrow();
   });
 });

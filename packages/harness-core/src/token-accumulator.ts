@@ -27,8 +27,8 @@
  * cumulative `in` as "billed input" not "context size."
  */
 
-import type { Envelope, JobBus } from './job-bus.ts';
 import type { AgentTokens, JobRecord } from './job.ts';
+import type { Envelope, JobBus } from './job-bus.ts';
 
 export class TokenAccumulator {
   private readonly unsubs = new Map<string, () => void>();

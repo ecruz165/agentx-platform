@@ -1,7 +1,7 @@
-import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { chmod, mkdir, unlink } from 'node:fs/promises';
+import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { dirname } from 'node:path';
-import { ContextQueryService, type ContextQueryRequest } from './query.ts';
+import type { ContextQueryRequest, ContextQueryService } from './query.ts';
 
 export interface ContextServerOptions {
   socketPath: string;
@@ -52,11 +52,7 @@ export async function startContextServer(opts: ContextServerOptions): Promise<Co
   };
 }
 
-function route(
-  req: IncomingMessage,
-  res: ServerResponse,
-  opts: ContextServerOptions
-): void {
+function route(req: IncomingMessage, res: ServerResponse, opts: ContextServerOptions): void {
   const url = (req.url ?? '/').split('?')[0]!.replace(/\/$/, '') || '/';
 
   if (req.method === 'GET' && url === '/health') {
@@ -94,7 +90,9 @@ function route(
           q: reqBody.q,
           productId: typeof reqBody.productId === 'string' ? reqBody.productId : undefined,
           topK: typeof reqBody.topK === 'number' ? reqBody.topK : undefined,
-          labels: Array.isArray(reqBody.labels) ? reqBody.labels.filter((l) => typeof l === 'string') : undefined,
+          labels: Array.isArray(reqBody.labels)
+            ? reqBody.labels.filter((l) => typeof l === 'string')
+            : undefined,
         });
         ok(res, { service: 'context', result, ts: new Date().toISOString() });
       } catch (err) {
@@ -145,10 +143,10 @@ function safeJson(s: string): unknown {
   }
 }
 
-export { ContextQueryService } from './query.ts';
 export type {
-  ContextQueryServiceOptions,
+  ContextQueryHit,
   ContextQueryRequest,
   ContextQueryResult,
-  ContextQueryHit,
+  ContextQueryServiceOptions,
 } from './query.ts';
+export { ContextQueryService } from './query.ts';

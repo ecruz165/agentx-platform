@@ -1,6 +1,6 @@
+import { type AdapterEvent, AdapterEventBus } from '@agentx/agent-adapter';
 import { describe, expect, it } from 'vitest';
-import { AdapterEventBus, type AdapterEvent } from '@agentx/agent-adapter';
-import { JobBus, bridgeAdapter, type Envelope } from './job-bus.ts';
+import { bridgeAdapter, type Envelope, JobBus } from './job-bus.ts';
 
 const requestEvent = (user = 'u'): AdapterEvent => ({
   kind: 'request',

@@ -4,17 +4,11 @@
  * extraction (slice 13a) and typed-error classification (slice 13b).
  */
 
-import { describe, expect, it, vi } from 'vitest';
 import type { CredentialBroker } from '@agentx/agent-auth-lib';
-import { OpenAiChatAdapter } from './openai-chat-adapter.ts';
+import { describe, expect, it, vi } from 'vitest';
+import { AuthError, BillingError, ConfigError, NetworkError, RateLimitError } from './errors.ts';
 import type { AdapterEvent } from './events.ts';
-import {
-  AuthError,
-  BillingError,
-  ConfigError,
-  NetworkError,
-  RateLimitError,
-} from './errors.ts';
+import { OpenAiChatAdapter } from './openai-chat-adapter.ts';
 
 interface MockResponse {
   status: number;
@@ -75,7 +69,10 @@ describe('OpenAiChatAdapter — happy path + usage', () => {
     adapter.events.subscribe((e) => events.push(e));
     await adapter.invoke({ user: 'hi' });
 
-    const responseEvent = events.find((e) => e.kind === 'response') as Extract<AdapterEvent, { kind: 'response' }>;
+    const responseEvent = events.find((e) => e.kind === 'response') as Extract<
+      AdapterEvent,
+      { kind: 'response' }
+    >;
     expect(responseEvent.usage).toEqual({
       promptTokens: 9,
       completionTokens: 3,
@@ -92,7 +89,10 @@ describe('OpenAiChatAdapter — happy path + usage', () => {
     adapter.events.subscribe((e) => events.push(e));
     await adapter.invoke({ user: 'hi' });
 
-    const responseEvent = events.find((e) => e.kind === 'response') as Extract<AdapterEvent, { kind: 'response' }>;
+    const responseEvent = events.find((e) => e.kind === 'response') as Extract<
+      AdapterEvent,
+      { kind: 'response' }
+    >;
     expect(responseEvent.usage).toBeUndefined();
   });
 });

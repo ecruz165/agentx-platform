@@ -31,7 +31,7 @@
 import { readFile } from 'node:fs/promises';
 import { JobBus } from '@agentx/harness-core';
 import { runHarnessPipeline } from './index.ts';
-import { parseJobSpec, JobSpecError } from './spec.ts';
+import { type JobSpec, JobSpecError, parseJobSpec } from './spec.ts';
 
 interface JobCompleteSentinel {
   kind: 'job-complete';
@@ -51,7 +51,7 @@ async function main(): Promise<number> {
   if (!specPath) {
     process.stderr.write(
       'usage: harness-pipeline <spec.json>\n' +
-        '       harness-pipeline -    (read spec from stdin)\n'
+        '       harness-pipeline -    (read spec from stdin)\n',
     );
     return EXIT.SPEC_ERROR;
   }
@@ -64,7 +64,7 @@ async function main(): Promise<number> {
     return EXIT.SPEC_ERROR;
   }
 
-  let spec;
+  let spec: JobSpec;
   try {
     spec = parseJobSpec(JSON.parse(raw), specPath);
   } catch (err) {
@@ -85,7 +85,7 @@ async function main(): Promise<number> {
     // streaming reader sees envelopes as they happen (not on
     // process exit). process.stdout.write() doesn't buffer for pipes
     // so the immediate flush is implicit.
-    process.stdout.write(JSON.stringify(env) + '\n');
+    process.stdout.write(`${JSON.stringify(env)}\n`);
   });
 
   try {
@@ -95,12 +95,12 @@ async function main(): Promise<number> {
       jobId: spec.jobId,
       status: result.status,
     };
-    process.stdout.write(JSON.stringify(sentinel) + '\n');
+    process.stdout.write(`${JSON.stringify(sentinel)}\n`);
     return result.status === 'completed' ? EXIT.COMPLETED : EXIT.JOB_FAILED;
   } catch (err) {
     process.stderr.write(`runtime error: ${(err as Error).message}\n`);
     if ((err as Error).stack) {
-      process.stderr.write((err as Error).stack + '\n');
+      process.stderr.write(`${(err as Error).stack}\n`);
     }
     return EXIT.RUNTIME_ERROR;
   } finally {
@@ -123,5 +123,5 @@ main().then(
   (err) => {
     process.stderr.write(`unhandled: ${(err as Error).message}\n`);
     process.exit(EXIT.RUNTIME_ERROR);
-  }
+  },
 );

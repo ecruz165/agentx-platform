@@ -24,20 +24,22 @@
  *   bun examples/15-real-qwen-via-pipeline.ts
  */
 
-import { runHarnessPipeline, type JobSpec } from '@agentx/harness-pipeline';
+import { type JobSpec, runHarnessPipeline } from '@agentx/harness-pipeline';
 
 const DMR_CHAT_URL = 'http://localhost:12434/engines/llama.cpp/v1';
 
 async function preflight(): Promise<void> {
   console.log('preflight…');
   const res = await fetch('http://localhost:12434/v1/models').catch(() => null);
-  if (!res || !res.ok) {
+  if (!res?.ok) {
     throw new Error('Docker Model Runner not reachable at localhost:12434');
   }
   const json = await res.json();
   const ids: string[] = (json.data ?? []).map((m: { id: string }) => m.id);
   if (!ids.some((id) => id.endsWith('ai/qwen3:0.6B-Q4_K_M'))) {
-    throw new Error(`DMR has no qwen3 chat model. Pull with: docker model pull ai/qwen3:0.6B-Q4_K_M`);
+    throw new Error(
+      `DMR has no qwen3 chat model. Pull with: docker model pull ai/qwen3:0.6B-Q4_K_M`,
+    );
   }
   console.log('  ✓ DMR up, qwen3:0.6B-Q4_K_M available');
   try {
@@ -103,7 +105,7 @@ async function main(): Promise<void> {
   const t0 = Date.now();
   const result = await runHarnessPipeline(spec, {
     localEndpoint: () => DMR_CHAT_URL,
-    onStatusChange: (jobId, agentId, status) => {
+    onStatusChange: (_jobId, agentId, status) => {
       const who = agentId ?? 'job';
       console.log(`  [status] ${who}: ${status}`);
     },
@@ -139,7 +141,7 @@ async function main(): Promise<void> {
 main().catch((err: Error) => {
   console.error();
   console.error('e2e via runHarnessPipeline FAILED:');
-  console.error('  ' + err.message);
+  console.error(`  ${err.message}`);
   if (err.stack) console.error(err.stack.split('\n').slice(1, 6).join('\n'));
   process.exit(1);
 });

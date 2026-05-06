@@ -1,23 +1,20 @@
 /** @jsxImportSource @opentui/react */
-import { useEffect, useState } from 'react';
-import { createCliRenderer } from '@opentui/core';
-import { createRoot, useKeyboard } from '@opentui/react';
-import {
-  AdapterEventBus,
-  type AgentAdapter,
-  type InvocationSpec,
-} from '@agentx/agent-adapter';
+
+import { AdapterEventBus, type AgentAdapter, type InvocationSpec } from '@agentx/agent-adapter';
 import type { CredentialBroker } from '@agentx/agent-auth-lib';
 import {
-  JobBus,
-  findPipeline,
-  resolveAccepts,
-  runJob,
   type AdapterFactory,
   type Envelope,
+  findPipeline,
+  JobBus,
   type JobRecord,
   type PipelineCatalog,
+  resolveAccepts,
+  runJob,
 } from '@agentx/harness-core';
+import { createCliRenderer } from '@opentui/core';
+import { createRoot, useKeyboard } from '@opentui/react';
+import { useEffect, useState } from 'react';
 
 /**
  * In-process `harness run <pipeline> [input]` — Bun + OpenTUI demo surface.
@@ -51,14 +48,29 @@ const catalog: PipelineCatalog = {
       id: 'feature-add',
       agents: [
         { id: 'planner', role: 'Plan', adapter: 'claude-sdk', systemPrompt: 'Plan the work.' },
-        { id: 'implementer', role: 'Implement', adapter: 'claude-sdk', systemPrompt: 'Implement the plan.' },
-        { id: 'reviewer', role: 'Review', adapter: 'claude-sdk', systemPrompt: 'Review the changes.' },
+        {
+          id: 'implementer',
+          role: 'Implement',
+          adapter: 'claude-sdk',
+          systemPrompt: 'Implement the plan.',
+        },
+        {
+          id: 'reviewer',
+          role: 'Review',
+          adapter: 'claude-sdk',
+          systemPrompt: 'Review the changes.',
+        },
       ],
     },
     {
       id: 'fix-bug',
       agents: [
-        { id: 'diagnose', role: 'Diagnose', adapter: 'claude-sdk', systemPrompt: 'Diagnose the failure.' },
+        {
+          id: 'diagnose',
+          role: 'Diagnose',
+          adapter: 'claude-sdk',
+          systemPrompt: 'Diagnose the failure.',
+        },
         { id: 'patch', role: 'Patch', adapter: 'claude-sdk', systemPrompt: 'Write the fix.' },
       ],
     },
@@ -133,29 +145,41 @@ const bus = new JobBus();
 // ─── helpers ──────────────────────────────────────────────────────────────
 function statusIcon(status: string): string {
   switch (status) {
-    case 'pending': return '○';
-    case 'running': return '◐';
-    case 'completed': return '●';
-    case 'failed': return '✗';
-    default: return '?';
+    case 'pending':
+      return '○';
+    case 'running':
+      return '◐';
+    case 'completed':
+      return '●';
+    case 'failed':
+      return '✗';
+    default:
+      return '?';
   }
 }
 
 function statusColor(status: string): string {
   switch (status) {
-    case 'completed': return '#4ade80'; // green
-    case 'running': return '#facc15'; // yellow
-    case 'failed': return '#f87171'; // red
-    default: return '#9ca3af'; // gray
+    case 'completed':
+      return '#4ade80'; // green
+    case 'running':
+      return '#facc15'; // yellow
+    case 'failed':
+      return '#f87171'; // red
+    default:
+      return '#9ca3af'; // gray
   }
 }
 
 function eventPreview(env: Envelope): string {
   const e = env.event;
   switch (e.kind) {
-    case 'request': return e.user.slice(0, 80);
-    case 'response': return e.text.slice(0, 80);
-    case 'error': return e.message;
+    case 'request':
+      return e.user.slice(0, 80);
+    case 'response':
+      return e.text.slice(0, 80);
+    case 'error':
+      return e.message;
     case 'loader-event':
       return `[${e.innerKind}] files=${e.counts.files} chunks=${e.counts.chunks} vectors=${e.counts.vectors}`;
   }
@@ -213,16 +237,10 @@ function App() {
         <span fg="#60a5fa"> · jobId: </span>
         <span fg="#9ca3af">{jobId}</span>
       </text>
-      <text fg="#9ca3af">  Input: {input}</text>
+      <text fg="#9ca3af"> Input: {input}</text>
       <text> </text>
       <box flexDirection="row" flexGrow={1}>
-        <box
-          flexDirection="column"
-          width={32}
-          border
-          title="Agents"
-          padding={1}
-        >
+        <box flexDirection="column" width={32} border title="Agents" padding={1}>
           {job.agents.map((a) => (
             <text key={a.id} fg={statusColor(a.status)}>
               {statusIcon(a.status)} {a.id.padEnd(14)} {a.status}
@@ -234,10 +252,13 @@ function App() {
             <text fg="#6b7280">(waiting for events…)</text>
           ) : (
             events.map((env, i) => (
+              // biome-ignore lint/suspicious/noArrayIndexKey: append-only event log — index is stable
               <text key={i}>
                 <span fg="#9ca3af">{env.agentId.padEnd(14)}</span>
                 <span> </span>
-                <span fg={env.event.kind === 'error' ? '#f87171' : '#a78bfa'}>{env.event.kind.padEnd(8)}</span>
+                <span fg={env.event.kind === 'error' ? '#f87171' : '#a78bfa'}>
+                  {env.event.kind.padEnd(8)}
+                </span>
                 <span> </span>
                 <span fg="#e5e7eb">{eventPreview(env)}</span>
               </text>
@@ -250,7 +271,10 @@ function App() {
         <span fg={done ? statusColor(job.status) : '#facc15'}>
           {done ? statusIcon(job.status) : '◐'} {job.status}
         </span>
-        <span fg="#9ca3af"> · {events.length} events{done ? ` · ${elapsedMs}ms · press q to exit` : ''}</span>
+        <span fg="#9ca3af">
+          {' '}
+          · {events.length} events{done ? ` · ${elapsedMs}ms · press q to exit` : ''}
+        </span>
       </text>
     </box>
   );

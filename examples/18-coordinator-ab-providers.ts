@@ -27,24 +27,19 @@
  *   (default: both)
  */
 
-import { readFileSync, existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import {
-  createHarnessChatModel,
-  type CopilotChatAdapterOptions,
-} from '@agentx/agent-adapter';
-import { runEntryCoordinator } from '@agentx/harness-server';
-import {
-  FileBroker,
-  type CredentialBroker,
-  type ResolvedBinding,
-} from '@agentx/agent-auth-lib';
+import { type CopilotChatAdapterOptions, createHarnessChatModel } from '@agentx/agent-adapter';
+import { type CredentialBroker, FileBroker, type ResolvedBinding } from '@agentx/agent-auth-lib';
 import type { Catalog } from '@agentx/harness-core';
+import { runEntryCoordinator } from '@agentx/harness-server';
 
 const AUTH_PATH = join(homedir(), '.agentx', 'auth.json');
 const PROVIDERS_RAW = process.env.AGENTX_AB_PROVIDERS ?? 'copilot,openai';
-const PROVIDERS = PROVIDERS_RAW.split(',').map((s) => s.trim()).filter(Boolean);
+const PROVIDERS = PROVIDERS_RAW.split(',')
+  .map((s) => s.trim())
+  .filter(Boolean);
 
 // Same catalog as examples/17 + 16 — keeps cross-demo comparability.
 const sampleCatalog: Catalog = {
@@ -73,10 +68,19 @@ const sampleCatalog: Catalog = {
 };
 
 const intents = [
-  { text: 'Login throws a 500 when password contains special characters', expected: 'bugfix-triage' },
+  {
+    text: 'Login throws a 500 when password contains special characters',
+    expected: 'bugfix-triage',
+  },
   { text: 'Add dark mode to the settings panel', expected: 'feature-add' },
-  { text: 'The README needs a quickstart section explaining the install steps', expected: 'docs-update' },
-  { text: 'Check whether our JWT signing routine has any timing-attack vulnerabilities', expected: 'security-audit' },
+  {
+    text: 'The README needs a quickstart section explaining the install steps',
+    expected: 'docs-update',
+  },
+  {
+    text: 'Check whether our JWT signing routine has any timing-attack vulnerabilities',
+    expected: 'security-audit',
+  },
 ];
 
 // ─── binding builders ─────────────────────────────────────────────────────
@@ -84,7 +88,12 @@ const intents = [
 function copilotBinding(): ResolvedBinding {
   return {
     kind: 'cloud',
-    provider: { id: 'github-copilot', name: 'GitHub Copilot', authMethods: ['device-code'], models: [] },
+    provider: {
+      id: 'github-copilot',
+      name: 'GitHub Copilot',
+      authMethods: ['device-code'],
+      models: [],
+    },
     model: { id: 'gpt-4o', type: 'text' },
     credential: {
       provider: 'github-copilot',
@@ -119,7 +128,13 @@ const stubBroker: CredentialBroker = {
 interface ProviderResult {
   provider: string;
   modelLabel: string;
-  results: Array<{ intent: string; expected: string; picked: string; ms: number; correct: boolean }>;
+  results: Array<{
+    intent: string;
+    expected: string;
+    picked: string;
+    ms: number;
+    correct: boolean;
+  }>;
 }
 
 async function runProvider(name: string): Promise<ProviderResult | null> {
@@ -130,7 +145,9 @@ async function runProvider(name: string): Promise<ProviderResult | null> {
 
   if (name === 'copilot') {
     if (!authHasProvider('github-copilot')) {
-      console.log(`  ✗ skipped — github-copilot not in auth.json (run: harness auth login github-copilot)\n`);
+      console.log(
+        `  ✗ skipped — github-copilot not in auth.json (run: harness auth login github-copilot)\n`,
+      );
       return null;
     }
     modelLabel = 'github-copilot:gpt-4o (Copilot-routed)';
@@ -173,7 +190,7 @@ async function runProvider(name: string): Promise<ProviderResult | null> {
     const correct = picked === expected;
     results.push({ intent: text, expected, picked, ms, correct });
     console.log(
-      `    [${correct ? '✓' : '✗'}] ${truncate(text, 60).padEnd(62)} → ${picked.padEnd(20)} (${ms}ms)`
+      `    [${correct ? '✓' : '✗'}] ${truncate(text, 60).padEnd(62)} → ${picked.padEnd(20)} (${ms}ms)`,
     );
   }
   console.log();
@@ -210,7 +227,7 @@ function readApiKey(id: string): string | null {
 }
 
 function truncate(s: string, max: number): string {
-  return s.length > max ? s.slice(0, max - 1) + '…' : s;
+  return s.length > max ? `${s.slice(0, max - 1)}…` : s;
 }
 
 void {} as CopilotChatAdapterOptions; // type ref to keep import alive when checking
@@ -268,7 +285,7 @@ async function main(): Promise<void> {
 main().catch((err: Error) => {
   console.error();
   console.error('A/B run FAILED:');
-  console.error('  ' + err.message);
+  console.error(`  ${err.message}`);
   if (err.stack) console.error(err.stack.split('\n').slice(1, 6).join('\n'));
   process.exit(1);
 });

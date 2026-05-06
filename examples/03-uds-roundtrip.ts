@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process';
 import { join } from 'node:path';
-import { startMemoryServer } from '@agentx/edge-memory-server';
 import { startContextServer } from '@agentx/edge-context-server';
+import { startMemoryServer } from '@agentx/edge-memory-server';
 
 const SOCKET_DIR = join(process.cwd(), '.harness', 'run');
 const memorySocket = join(SOCKET_DIR, 'memory.sock');
@@ -18,19 +18,22 @@ let failures = 0;
 
 try {
   await expectCli(['session', 'set', 'productId', 'skoolscout-com'], (out) =>
-    out.includes('session.productId = skoolscout-com')
+    out.includes('session.productId = skoolscout-com'),
   );
 
-  await expectCli(['memory', 'put', 'recent-edit', 'fixed null bug in auth.ts'], (out) =>
-    out.includes('"service": "memory"') && out.includes('skoolscout-com')
+  await expectCli(
+    ['memory', 'put', 'recent-edit', 'fixed null bug in auth.ts'],
+    (out) => out.includes('"service": "memory"') && out.includes('skoolscout-com'),
   );
 
-  await expectCli(['memory', 'query', 'recent-edit'], (out) =>
-    out.includes('"service": "memory"') && out.includes('recent-edit')
+  await expectCli(
+    ['memory', 'query', 'recent-edit'],
+    (out) => out.includes('"service": "memory"') && out.includes('recent-edit'),
   );
 
-  await expectCli(['context', 'query', 'where is the auth broker defined?'], (out) =>
-    out.includes('"service": "context"') && out.includes('auth broker')
+  await expectCli(
+    ['context', 'query', 'where is the auth broker defined?'],
+    (out) => out.includes('"service": "context"') && out.includes('auth broker'),
   );
 
   if (failures === 0) {
@@ -56,11 +59,9 @@ async function expectCli(args: string[], check: (stdout: string) => boolean): Pr
 
 function runCli(args: string[]): Promise<string> {
   return new Promise((resolve, reject) => {
-    const child = spawn(
-      'pnpm',
-      ['--silent', 'harness', ...args],
-      { stdio: ['ignore', 'pipe', 'inherit'] }
-    );
+    const child = spawn('pnpm', ['--silent', 'harness', ...args], {
+      stdio: ['ignore', 'pipe', 'inherit'],
+    });
     let out = '';
     child.stdout.on('data', (c) => (out += c.toString()));
     child.on('error', reject);

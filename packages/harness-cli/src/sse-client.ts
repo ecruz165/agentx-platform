@@ -19,7 +19,7 @@ export function connectSseStream<T = unknown>(
   socketPath: string,
   urlPath: string,
   onEvent: (event: T) => void,
-  onError?: (err: Error) => void
+  onError?: (err: Error) => void,
 ): () => void {
   let buffer = '';
   let closed = false;
@@ -35,8 +35,9 @@ export function connectSseStream<T = unknown>(
     res.on('data', (chunk: string) => {
       received = true;
       buffer += chunk;
-      let idx;
-      while ((idx = buffer.indexOf('\n\n')) >= 0) {
+      while (true) {
+        const idx = buffer.indexOf('\n\n');
+        if (idx < 0) break;
         const frame = buffer.slice(0, idx);
         buffer = buffer.slice(idx + 2);
         for (const line of frame.split('\n')) {

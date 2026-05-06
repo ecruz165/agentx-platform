@@ -1,7 +1,7 @@
-import Anthropic, { APIError as AnthropicAPIError } from '@anthropic-ai/sdk';
 import type { CredentialBroker } from '@agentx/agent-auth-lib';
+import Anthropic, { APIError as AnthropicAPIError } from '@anthropic-ai/sdk';
+import { type AdapterError, classifyHttpError, classifyNetworkError } from './errors.ts';
 import { AdapterEventBus, type TokenUsage } from './events.ts';
-import { AdapterError, classifyHttpError, classifyNetworkError } from './errors.ts';
 import type { AgentAdapter, InvocationSpec } from './types.ts';
 
 export interface ClaudeSdkAdapterOptions {

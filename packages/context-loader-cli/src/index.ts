@@ -12,6 +12,6 @@
 // from two places when wrapping the CLI.
 export type {
   IngestionEvent,
-  SourceTypeId,
   SourceRef,
+  SourceTypeId,
 } from '@agentx/context-loader-core';

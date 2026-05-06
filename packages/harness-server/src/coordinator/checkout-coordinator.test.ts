@@ -16,13 +16,10 @@
  *   - buildCheckoutCoordinatorGraph compiled graph invocable directly
  */
 
-import { describe, expect, it } from 'vitest';
 import { SimpleChatModel } from '@langchain/core/language_models/chat_models';
 import type { BaseMessage } from '@langchain/core/messages';
-import {
-  buildCheckoutCoordinatorGraph,
-  runCheckoutCoordinator,
-} from './checkout-coordinator.ts';
+import { describe, expect, it } from 'vitest';
+import { buildCheckoutCoordinatorGraph, runCheckoutCoordinator } from './checkout-coordinator.ts';
 
 class StubChatModel extends SimpleChatModel {
   readonly seenMessages: BaseMessage[][] = [];
@@ -47,7 +44,7 @@ describe('runCheckoutCoordinator', () => {
     const model = new StubChatModel(
       'What went well:\n- Planner picked the right approach\n\n' +
         "What didn't:\n- Tests took 2 retries\n\n" +
-        'Key lessons:\n- Run smoke tests before integration tests'
+        'Key lessons:\n- Run smoke tests before integration tests',
     );
     const result = await runCheckoutCoordinator({
       jobId: 'j1',
@@ -120,7 +117,7 @@ describe('runCheckoutCoordinator', () => {
 
   it('passes long transcripts through unchanged (no v1 truncation)', async () => {
     const model = new StubChatModel('lessons');
-    const long = 'x '.repeat(1000) + 'unique-marker-here ' + 'y '.repeat(1000);
+    const long = `${'x '.repeat(1000)}unique-marker-here ${'y '.repeat(1000)}`;
     await runCheckoutCoordinator({
       jobId: 'j-long',
       intent: 'x',
@@ -140,10 +137,9 @@ describe('runCheckoutCoordinator', () => {
         intent: 'x',
         transcript: 't',
         model,
-      })
+      }),
     ).rejects.toThrow(/upstream rate limit/);
   });
-
 });
 
 describe('buildCheckoutCoordinatorGraph', () => {

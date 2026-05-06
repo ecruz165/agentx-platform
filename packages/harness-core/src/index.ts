@@ -7,31 +7,28 @@
  */
 
 export {
-  loadCatalog,
+  type AdapterId,
+  type AgentDef,
+  type Catalog,
+  CatalogError,
+  type ContextSourceDef,
   findPipeline,
   findProduct,
-  validateUnifiedCatalog,
-  resolveAccepts,
-  CatalogError,
-  type Catalog,
+  loadCatalog,
   type PipelineCatalog,
   type PipelineDef,
   type ProductDef,
   type ProductRepo,
-  type ContextSourceDef,
-  type AgentDef,
-  type AdapterId,
+  resolveAccepts,
+  validateUnifiedCatalog,
 } from './catalog.ts';
-
-export { JobBus, bridgeAdapter, type Envelope } from './job-bus.ts';
-
+export type { AgentStatus, AgentTokens, JobRecord, RegisteredAgent } from './job.ts';
+export { bridgeAdapter, type Envelope, JobBus } from './job-bus.ts';
 export {
-  runJob,
-  defaultAdapterFactory,
-  DEFAULT_FALLBACK_ERRORS,
   type AdapterFactory,
+  DEFAULT_FALLBACK_ERRORS,
+  defaultAdapterFactory,
   type RunJobDeps,
+  runJob,
 } from './orchestrator.ts';
-
-export type { AgentStatus, RegisteredAgent, JobRecord, AgentTokens } from './job.ts';
 export { TokenAccumulator } from './token-accumulator.ts';

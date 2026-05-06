@@ -25,17 +25,8 @@
  * parameters and are never spliced.
  */
 
-import neo4j, {
-  type Driver,
-  type Session,
-  type Config as Neo4jConfig,
-} from 'neo4j-driver';
-import type {
-  GraphEdge,
-  GraphIngestionBackend,
-  GraphNode,
-  SourceTypeSchema,
-} from '../types.ts';
+import neo4j, { type Driver, type Config as Neo4jConfig, type Session } from 'neo4j-driver';
+import type { GraphEdge, GraphIngestionBackend, GraphNode, SourceTypeSchema } from '../types.ts';
 
 export interface Neo4jBackendOptions {
   /** Bolt URL — e.g., bolt://neo4j-edge:7687 or neo4j+s://… */
@@ -61,7 +52,7 @@ const SAFE_IDENT = /^[A-Za-z_][A-Za-z0-9_]*$/;
 function assertSafeLabel(label: string, kind: 'node' | 'edge'): void {
   if (!SAFE_IDENT.test(label)) {
     throw new Error(
-      `Neo4jBackend: invalid ${kind} label '${label}'. Labels must match /^[A-Za-z_][A-Za-z0-9_]*$/.`
+      `Neo4jBackend: invalid ${kind} label '${label}'. Labels must match /^[A-Za-z_][A-Za-z0-9_]*$/.`,
     );
   }
 }
@@ -89,7 +80,7 @@ export class Neo4jBackend implements GraphIngestionBackend {
         // index, so MERGE-by-id stays O(log n) rather than scanning.
         await session.run(
           `CREATE CONSTRAINT \`${label}_id_unique\` IF NOT EXISTS
-           FOR (n:\`${label}\`) REQUIRE n.id IS UNIQUE`
+           FOR (n:\`${label}\`) REQUIRE n.id IS UNIQUE`,
         );
         // Vector index on .embedding. Idempotent: IF NOT EXISTS guards
         // against re-creation on subsequent runs.
@@ -104,7 +95,7 @@ export class Neo4jBackend implements GraphIngestionBackend {
              \`vector.dimensions\`: $dim,
              \`vector.similarity_function\`: $sim
            } }`,
-          { dim: neo4j.int(this.vectorDim), sim: this.vectorSimilarity }
+          { dim: neo4j.int(this.vectorDim), sim: this.vectorSimilarity },
         );
       }
       // Edge labels don't need explicit DDL in Neo4j — they're created
@@ -142,8 +133,8 @@ export class Neo4jBackend implements GraphIngestionBackend {
                  n.sourceTypeId = row.sourceTypeId,
                  n.sourceId = row.sourceId,
                  n.license = row.license`,
-            { rows: group.map(serializeNode) }
-          )
+            { rows: group.map(serializeNode) },
+          ),
         );
       }
     } finally {
@@ -182,8 +173,8 @@ export class Neo4jBackend implements GraphIngestionBackend {
              MERGE (a)-[r:\`${label}\`]->(b)
              SET r += row.props,
                  r.sourceTypeId = row.sourceTypeId`,
-            { rows: group.map(serializeEdge) }
-          )
+            { rows: group.map(serializeEdge) },
+          ),
         );
       }
     } finally {
@@ -194,13 +185,13 @@ export class Neo4jBackend implements GraphIngestionBackend {
   async upsertVector(
     nodeId: string,
     vector: Float32Array,
-    meta: Record<string, unknown>
+    meta: Record<string, unknown>,
   ): Promise<void> {
     return this.upsertVectorsBulk([{ nodeId, vector, meta }]);
   }
 
   async upsertVectorsBulk(
-    items: Array<{ nodeId: string; vector: Float32Array; meta: Record<string, unknown> }>
+    items: Array<{ nodeId: string; vector: Float32Array; meta: Record<string, unknown> }>,
   ): Promise<void> {
     if (items.length === 0) return;
     // Validate dim early — Neo4j's vector index will reject mismatches at
@@ -208,7 +199,7 @@ export class Neo4jBackend implements GraphIngestionBackend {
     for (const it of items) {
       if (it.vector.length !== this.vectorDim) {
         throw new Error(
-          `Neo4jBackend: vector dim mismatch for node ${it.nodeId} (got ${it.vector.length}, expected ${this.vectorDim})`
+          `Neo4jBackend: vector dim mismatch for node ${it.nodeId} (got ${it.vector.length}, expected ${this.vectorDim})`,
         );
       }
     }
@@ -237,8 +228,8 @@ export class Neo4jBackend implements GraphIngestionBackend {
               vector: Array.from(it.vector),
               meta: JSON.stringify(it.meta),
             })),
-          }
-        )
+          },
+        ),
       );
     } finally {
       await session.close();
@@ -295,8 +286,8 @@ export class Neo4jBackend implements GraphIngestionBackend {
              ON CREATE SET r.createdAt = datetime()
              ON MATCH  SET r.refreshedAt = datetime()
            RETURN count(r) AS edges`,
-          { pkg: packageName }
-        )
+          { pkg: packageName },
+        ),
       );
       const rec = result.records[0];
       return rec ? asJsNumber(rec.get('edges')) : 0;
@@ -365,7 +356,10 @@ function jsonSafeMeta(props: Record<string, unknown>): Record<string, unknown> {
     const t = typeof v;
     if (t === 'string' || t === 'number' || t === 'boolean') {
       out[k] = v;
-    } else if (Array.isArray(v) && v.every((x) => ['string', 'number', 'boolean'].includes(typeof x))) {
+    } else if (
+      Array.isArray(v) &&
+      v.every((x) => ['string', 'number', 'boolean'].includes(typeof x))
+    ) {
       out[k] = v;
     }
     // else: silently dropped. Loader-emitted props are flat by convention.

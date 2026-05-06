@@ -1,6 +1,6 @@
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { AuthStore, FileBroker, callCopilot } from '@agentx/agent-auth-lib';
+import { AuthStore, type Credential, callCopilot, FileBroker } from '@agentx/agent-auth-lib';
 
 const authPath = join(homedir(), '.agentx', 'auth.json');
 const broker = new FileBroker(authPath);
@@ -10,7 +10,7 @@ console.log('=== Stub agent — auth propagation demo ===\n');
 console.log(`Broker: FileBroker(${authPath})`);
 console.log(`Asking broker for github-copilot credential…\n`);
 
-let cred;
+let cred: Credential;
 try {
   cred = await broker.getCredential('github-copilot');
   console.log('✓ Credential received by stub agent');
@@ -42,13 +42,13 @@ try {
       { role: 'system', content: 'Reply with a single short sentence.' },
       { role: 'user', content: 'Say hello in 5 words or less.' },
     ],
-    'gpt-4o'
+    'gpt-4o',
   );
   const text = resp.choices[0]?.message.content ?? '';
   console.log(`✓ Copilot replied: ${text.trim()}`);
   if (resp.usage) {
     console.log(
-      `  tokens: prompt=${resp.usage.prompt_tokens ?? '?'}, completion=${resp.usage.completion_tokens ?? '?'}, total=${resp.usage.total_tokens ?? '?'}`
+      `  tokens: prompt=${resp.usage.prompt_tokens ?? '?'}, completion=${resp.usage.completion_tokens ?? '?'}, total=${resp.usage.total_tokens ?? '?'}`,
     );
   }
   console.log('');

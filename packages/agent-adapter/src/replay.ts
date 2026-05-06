@@ -39,7 +39,7 @@ import type { AdapterEvent, AdapterEventSource } from './events.ts';
 export async function replayThenSubscribe(
   path: string,
   source: AdapterEventSource,
-  handler: (event: AdapterEvent) => void
+  handler: (event: AdapterEvent) => void,
 ): Promise<() => void> {
   const historical = await readJsonlEvents(path);
   for (const event of historical) {

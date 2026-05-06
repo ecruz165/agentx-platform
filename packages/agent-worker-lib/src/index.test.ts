@@ -4,10 +4,10 @@
  * so tests stay fast + offline).
  */
 
-import { describe, expect, it } from 'vitest';
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync, existsSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { describe, expect, it } from 'vitest';
 import { runAgentWorker } from './index.ts';
 
 function makeWorkspace(): string {
@@ -16,11 +16,11 @@ function makeWorkspace(): string {
   mkdirSync(join(dir, '.harness/skills'), { recursive: true });
   writeFileSync(
     join(dir, '.harness/skills/memory.md'),
-    '# SKILL: memory\n\nUse `harness memory query/put`.\n'
+    '# SKILL: memory\n\nUse `harness memory query/put`.\n',
   );
   writeFileSync(
     join(dir, '.harness/skills/context.md'),
-    '# SKILL: context\n\nUse `harness context query`.\n'
+    '# SKILL: context\n\nUse `harness context query`.\n',
   );
   return dir;
 }

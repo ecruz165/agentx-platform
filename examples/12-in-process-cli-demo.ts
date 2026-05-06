@@ -1,17 +1,13 @@
-import {
-  AdapterEventBus,
-  type AgentAdapter,
-  type InvocationSpec,
-} from '@agentx/agent-adapter';
+import { AdapterEventBus, type AgentAdapter, type InvocationSpec } from '@agentx/agent-adapter';
 import type { CredentialBroker } from '@agentx/agent-auth-lib';
 import {
-  JobBus,
-  findPipeline,
-  runJob,
   type AdapterFactory,
   type Envelope,
+  findPipeline,
+  JobBus,
   type JobRecord,
   type PipelineCatalog,
+  runJob,
 } from '@agentx/harness-core';
 
 /**
@@ -53,14 +49,29 @@ const catalog: PipelineCatalog = {
       id: 'feature-add',
       agents: [
         { id: 'planner', role: 'Plan', adapter: 'claude-sdk', systemPrompt: 'Plan the work.' },
-        { id: 'implementer', role: 'Implement', adapter: 'claude-sdk', systemPrompt: 'Implement the plan.' },
-        { id: 'reviewer', role: 'Review', adapter: 'claude-sdk', systemPrompt: 'Review the changes.' },
+        {
+          id: 'implementer',
+          role: 'Implement',
+          adapter: 'claude-sdk',
+          systemPrompt: 'Implement the plan.',
+        },
+        {
+          id: 'reviewer',
+          role: 'Review',
+          adapter: 'claude-sdk',
+          systemPrompt: 'Review the changes.',
+        },
       ],
     },
     {
       id: 'fix-bug',
       agents: [
-        { id: 'diagnose', role: 'Diagnose', adapter: 'claude-sdk', systemPrompt: 'Diagnose the failure.' },
+        {
+          id: 'diagnose',
+          role: 'Diagnose',
+          adapter: 'claude-sdk',
+          systemPrompt: 'Diagnose the failure.',
+        },
         { id: 'patch', role: 'Patch', adapter: 'claude-sdk', systemPrompt: 'Write the fix.' },
       ],
     },
@@ -174,5 +185,5 @@ if (job.status !== 'completed') {
 
 // ─── helpers ──────────────────────────────────────────────────────────────
 function truncate(s: string, n: number): string {
-  return s.length <= n ? s : s.slice(0, n - 1) + '…';
+  return s.length <= n ? s : `${s.slice(0, n - 1)}…`;
 }

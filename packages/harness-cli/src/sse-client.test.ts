@@ -2,8 +2,12 @@ import { randomUUID } from 'node:crypto';
 import { rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import {
+  type Envelope,
+  type HarnessServerHandle,
+  startHarnessServer,
+} from '@agentx/harness-server';
 import { afterEach, describe, expect, it } from 'vitest';
-import { startHarnessServer, type Envelope, type HarnessServerHandle } from '@agentx/harness-server';
 import { connectSseStream } from './sse-client.ts';
 
 // macOS AF_UNIX sun_path is 104 chars — keep this short.
@@ -38,10 +42,8 @@ describe('connectSseStream', () => {
     const handle = await start();
     const seen: Envelope[] = [];
 
-    const close = connectSseStream<Envelope>(
-      handle.socketPath,
-      '/v1/jobs/job-1/events',
-      (e) => seen.push(e)
+    const close = connectSseStream<Envelope>(handle.socketPath, '/v1/jobs/job-1/events', (e) =>
+      seen.push(e),
     );
 
     // Wait for the server to register the subscription before publishing.
@@ -70,11 +72,7 @@ describe('connectSseStream', () => {
 
   it('close() unsubscribes on the server side', async () => {
     const handle = await start();
-    const close = connectSseStream<Envelope>(
-      handle.socketPath,
-      '/v1/jobs/job-1/events',
-      () => {}
-    );
+    const close = connectSseStream<Envelope>(handle.socketPath, '/v1/jobs/job-1/events', () => {});
 
     await waitFor(() => handle.bus.subscriberCount('job-1') === 1);
     expect(handle.bus.subscriberCount('job-1')).toBe(1);
@@ -89,10 +87,8 @@ describe('connectSseStream', () => {
     const handle = await start();
     const seen: Envelope[] = [];
 
-    const close = connectSseStream<Envelope>(
-      handle.socketPath,
-      '/v1/jobs/job-1/events',
-      (e) => seen.push(e)
+    const close = connectSseStream<Envelope>(handle.socketPath, '/v1/jobs/job-1/events', (e) =>
+      seen.push(e),
     );
 
     await waitFor(() => handle.bus.subscriberCount('job-1') === 1);

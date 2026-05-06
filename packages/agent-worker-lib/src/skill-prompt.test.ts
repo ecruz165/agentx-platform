@@ -11,11 +11,11 @@
  *     PRD §3 sandboxing preamble
  */
 
-import { describe, expect, it, beforeEach } from 'vitest';
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { loadWorkspaceSkills, buildSystemPrompt } from './skill-prompt.ts';
+import { beforeEach, describe, expect, it } from 'vitest';
+import { buildSystemPrompt, loadWorkspaceSkills } from './skill-prompt.ts';
 
 let workdir: string;
 
@@ -84,7 +84,11 @@ describe('buildSystemPrompt', () => {
       workspaceRoot: '/ws/root',
       skills: [
         { name: 'memory', path: '/ws/.harness/skills/memory.md', content: '# memory\nmem-content' },
-        { name: 'context', path: '/ws/.harness/skills/context.md', content: '# context\nctx-content' },
+        {
+          name: 'context',
+          path: '/ws/.harness/skills/context.md',
+          content: '# context\nctx-content',
+        },
       ],
     });
     // Sandbox preamble fields

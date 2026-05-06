@@ -1,32 +1,36 @@
-export type { Credential, CredentialBroker, Provider } from './types.ts';
-export { FileBroker } from './file-broker.ts';
-export { AuthStore, type AuthFile, type ProviderEntry, type ProviderStatus } from './auth-store.ts';
-export { loginGitHubCopilot, type DeviceFlowOptions, type DeviceFlowResult } from './github-device-flow.ts';
+export { type AuthFile, AuthStore, type ProviderEntry, type ProviderStatus } from './auth-store.ts';
 export {
-  callCopilot,
-  getCopilotSessionToken,
-  fetchGitHubUsername,
-  type ChatMessage,
+  BindingResolutionError,
+  type BindingResolver,
+  DefaultBindingResolver,
+  type ResolvedBinding,
+  resolveAllBindingsFor,
+  resolveBindingFor,
+} from './binding-resolver.ts';
+export {
   type ChatCompletionResponse,
+  type ChatMessage,
+  callCopilot,
+  fetchGitHubUsername,
+  getCopilotSessionToken,
 } from './copilot-api.ts';
+export { FileBroker } from './file-broker.ts';
+export {
+  type DeviceFlowOptions,
+  type DeviceFlowResult,
+  loginGitHubCopilot,
+} from './github-device-flow.ts';
 export type {
   AuthMethod,
-  ModelType,
-  ModelDescriptor,
   LLMProvider,
+  ModelDescriptor,
+  ModelType,
   ResolvedRegistryEntry,
   ToolId,
 } from './llm-provider.ts';
 export {
   BUILT_IN_PROVIDERS,
-  findProvider,
   findBinding,
+  findProvider,
 } from './provider-registry.ts';
-export {
-  BindingResolutionError,
-  DefaultBindingResolver,
-  resolveBindingFor,
-  resolveAllBindingsFor,
-  type BindingResolver,
-  type ResolvedBinding,
-} from './binding-resolver.ts';
+export type { Credential, CredentialBroker, Provider } from './types.ts';

@@ -47,7 +47,7 @@ export function formatTokens(t: AgentTokens): string {
  */
 export function formatTokenHistory(
   history: readonly AgentTokens[] | undefined,
-  maxWidth: number
+  maxWidth: number,
 ): string {
   if (!history || history.length === 0) return '';
   const parts: string[] = [];

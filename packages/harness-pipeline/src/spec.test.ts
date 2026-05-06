@@ -7,13 +7,22 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { parseJobSpec, JobSpecError, type JobSpec } from './spec.ts';
+import { type JobSpec, JobSpecError, parseJobSpec } from './spec.ts';
 
 const validBinding = {
   kind: 'cloud' as const,
-  provider: { id: 'anthropic' as const, name: 'Anthropic', authMethods: ['api-key' as const], models: [] },
+  provider: {
+    id: 'anthropic' as const,
+    name: 'Anthropic',
+    authMethods: ['api-key' as const],
+    models: [],
+  },
   model: { id: 'claude-haiku-4-5', type: 'text' as const },
-  credential: { provider: 'anthropic' as const, apiKey: 'sk-ant-stub', source: 'host-file' as const },
+  credential: {
+    provider: 'anthropic' as const,
+    apiKey: 'sk-ant-stub',
+    source: 'host-file' as const,
+  },
 };
 
 function validSpec(): JobSpec {
@@ -23,9 +32,7 @@ function validSpec(): JobSpec {
     pipeline: 'feature-add',
     set: 'default',
     input: 'do the thing',
-    agents: [
-      { id: 'planner', role: 'Plan', adapter: 'claude-sdk', bindingId: 'planner' },
-    ],
+    agents: [{ id: 'planner', role: 'Plan', adapter: 'claude-sdk', bindingId: 'planner' }],
     bindings: {
       planner: validBinding,
     },
@@ -45,7 +52,9 @@ describe('parseJobSpec', () => {
 
   it('rejects unsupported version', () => {
     expect(() => parseJobSpec({ ...validSpec(), version: 2 })).toThrow(/unsupported version/);
-    expect(() => parseJobSpec({ ...validSpec(), version: undefined })).toThrow(/unsupported version/);
+    expect(() => parseJobSpec({ ...validSpec(), version: undefined })).toThrow(
+      /unsupported version/,
+    );
   });
 
   it('rejects missing jobId', () => {
@@ -62,48 +71,50 @@ describe('parseJobSpec', () => {
   });
 
   it('rejects non-array agents', () => {
-    expect(() => parseJobSpec({ ...validSpec(), agents: 'not-array' })).toThrow(/agents must be an array/);
+    expect(() => parseJobSpec({ ...validSpec(), agents: 'not-array' })).toThrow(
+      /agents must be an array/,
+    );
   });
 
   it('rejects non-object bindings', () => {
-    expect(() => parseJobSpec({ ...validSpec(), bindings: 'not-object' })).toThrow(/bindings must be an object/);
+    expect(() => parseJobSpec({ ...validSpec(), bindings: 'not-object' })).toThrow(
+      /bindings must be an object/,
+    );
   });
 
   it('rejects an agent with empty role', () => {
     const s = validSpec();
-    expect(() =>
-      parseJobSpec({ ...s, agents: [{ ...s.agents[0]!, role: '' }] })
-    ).toThrow(/role must be a non-empty string/);
+    expect(() => parseJobSpec({ ...s, agents: [{ ...s.agents[0]!, role: '' }] })).toThrow(
+      /role must be a non-empty string/,
+    );
   });
 
   it('rejects an agent with unknown adapter', () => {
     const s = validSpec();
     expect(() =>
-      parseJobSpec({ ...s, agents: [{ ...s.agents[0]!, adapter: 'gpt-direct' }] })
+      parseJobSpec({ ...s, agents: [{ ...s.agents[0]!, adapter: 'gpt-direct' }] }),
     ).toThrow(/adapter must be "claude-sdk" or "opencode-cli"/);
   });
 
   it('rejects an agent with bindingId not present in bindings map', () => {
     const s = validSpec();
     expect(() =>
-      parseJobSpec({ ...s, agents: [{ ...s.agents[0]!, bindingId: 'nonexistent' }] })
+      parseJobSpec({ ...s, agents: [{ ...s.agents[0]!, bindingId: 'nonexistent' }] }),
     ).toThrow(/bindingId "nonexistent" not present in bindings map/);
   });
 
   it('rejects an agent with empty bindingId string', () => {
     const s = validSpec();
-    expect(() =>
-      parseJobSpec({ ...s, agents: [{ ...s.agents[0]!, bindingId: '' }] })
-    ).toThrow(/bindingId must be a non-empty string when present/);
+    expect(() => parseJobSpec({ ...s, agents: [{ ...s.agents[0]!, bindingId: '' }] })).toThrow(
+      /bindingId must be a non-empty string when present/,
+    );
   });
 
   it('accepts an agent without bindingId (synthetic / placeholder agent)', () => {
     const s = validSpec();
     const { bindingId, ...withoutBinding } = s.agents[0]!;
     void bindingId;
-    expect(() =>
-      parseJobSpec({ ...s, agents: [withoutBinding] })
-    ).not.toThrow();
+    expect(() => parseJobSpec({ ...s, agents: [withoutBinding] })).not.toThrow();
   });
 
   it('accepts a multi-agent spec where some have bindings and others do not', () => {

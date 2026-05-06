@@ -1,20 +1,16 @@
 import {
   AdapterError,
-  ClaudeSdkAdapter,
-  OpenCodeCliAdapter,
-  bindingToAdapter,
   type AgentAdapter,
   type BindingToAdapterOptions,
+  bindingToAdapter,
+  ClaudeSdkAdapter,
+  OpenCodeCliAdapter,
   type OpenCodeCliAdapterOptions,
 } from '@agentx/agent-adapter';
-import type {
-  BindingResolver,
-  CredentialBroker,
-  ResolvedBinding,
-} from '@agentx/agent-auth-lib';
+import type { BindingResolver, CredentialBroker, ResolvedBinding } from '@agentx/agent-auth-lib';
 import type { AdapterId } from './catalog.ts';
-import { bridgeAdapter, type JobBus } from './job-bus.ts';
 import type { JobRecord, RegisteredAgent } from './job.ts';
+import { bridgeAdapter, type JobBus } from './job-bus.ts';
 
 /**
  * Default set of AdapterError subclasses that trigger fall-through to
@@ -50,7 +46,7 @@ export const DEFAULT_FALLBACK_ERRORS: readonly string[] = Object.freeze([
 export type AdapterFactory = (
   adapterId: AdapterId,
   broker: CredentialBroker,
-  config?: Record<string, unknown>
+  config?: Record<string, unknown>,
 ) => AgentAdapter;
 
 export const defaultAdapterFactory: AdapterFactory = (id, broker, config) => {
@@ -115,10 +111,7 @@ export interface RunJobDeps {
    * SDK clients — important for slice 13c fallback tests, where each
    * candidate must produce a controllable success/failure.
    */
-  bindingToAdapterFn?: (
-    binding: ResolvedBinding,
-    options: BindingToAdapterOptions
-  ) => AgentAdapter;
+  bindingToAdapterFn?: (binding: ResolvedBinding, options: BindingToAdapterOptions) => AgentAdapter;
   /** Hook for tests / future telemetry. Fires on every status transition. */
   onStatusChange?: (jobId: string, agentId: string | null, status: string) => void;
 }
@@ -249,7 +242,7 @@ async function runCandidates(
   agent: RegisteredAgent,
   userInput: string,
   deps: RunJobDeps,
-  jobId: string
+  jobId: string,
 ): Promise<CandidateOutcome> {
   let lastError: unknown;
   let lastWasConstruction = false;
@@ -356,18 +349,20 @@ async function runCandidates(
 async function buildCandidates(
   agent: RegisteredAgent,
   deps: RunJobDeps,
-  factory: AdapterFactory
+  factory: AdapterFactory,
 ): Promise<AgentCandidate[]> {
   // Path 1: pre-built (highest priority — executor pre-resolved at boot
   // and the auth boundary is sharp; we never re-resolve).
   if (deps.adapters) {
     const prebuilt = deps.adapters.get(agent.id);
     if (prebuilt) {
-      return [{
-        label: `prebuilt:${agent.id}`,
-        fallbackEligible: false,
-        build: async () => prebuilt,
-      }];
+      return [
+        {
+          label: `prebuilt:${agent.id}`,
+          fallbackEligible: false,
+          build: async () => prebuilt,
+        },
+      ];
     }
     // fall-through: agent absent from the map — executors can pre-build
     // only some agents and let others go through resolver/factory.
@@ -382,41 +377,44 @@ async function buildCandidates(
         // Parity with single-shot `resolveBinding`: no satisfiable entry
         // is a hard failure, not an empty success. Throw so the outer
         // caller treats it as construction failure.
-        throw new Error(
-          `No satisfiable binding for accepts=[${accepts.join(', ')}]`
-        );
+        throw new Error(`No satisfiable binding for accepts=[${accepts.join(', ')}]`);
       }
       const ctor = deps.bindingToAdapterFn ?? bindingToAdapter;
       return bindings.map((binding) => ({
         label: bindingLabel(binding),
         fallbackEligible: bindings.length > 1,
-        build: async () => ctor(binding, {
-          broker: deps.broker,
-          localEndpoint: deps.localEndpoint,
-        }),
+        build: async () =>
+          ctor(binding, {
+            broker: deps.broker,
+            localEndpoint: deps.localEndpoint,
+          }),
       }));
     }
     // Path 3: single-shot resolver (no resolveAllBindings).
-    return [{
-      label: 'resolver',
-      fallbackEligible: false,
-      build: async () => {
-        const binding = await deps.resolver!.resolveBinding(accepts);
-        const ctor = deps.bindingToAdapterFn ?? bindingToAdapter;
-        return ctor(binding, {
-          broker: deps.broker,
-          localEndpoint: deps.localEndpoint,
-        });
+    return [
+      {
+        label: 'resolver',
+        fallbackEligible: false,
+        build: async () => {
+          const binding = await deps.resolver!.resolveBinding(accepts);
+          const ctor = deps.bindingToAdapterFn ?? bindingToAdapter;
+          return ctor(binding, {
+            broker: deps.broker,
+            localEndpoint: deps.localEndpoint,
+          });
+        },
       },
-    }];
+    ];
   }
 
   // Path 4: legacy adapter-id factory.
-  return [{
-    label: `factory:${agent.adapter}`,
-    fallbackEligible: false,
-    build: async () => factory(agent.adapter, deps.broker, agent.config),
-  }];
+  return [
+    {
+      label: `factory:${agent.adapter}`,
+      fallbackEligible: false,
+      build: async () => factory(agent.adapter, deps.broker, agent.config),
+    },
+  ];
 }
 
 function bindingLabel(b: ResolvedBinding): string {
@@ -429,7 +427,7 @@ function failAgent(
   agent: RegisteredAgent,
   job: JobRecord,
   deps: RunJobDeps,
-  message: string
+  message: string,
 ): void {
   agent.status = 'failed';
   job.status = 'failed';

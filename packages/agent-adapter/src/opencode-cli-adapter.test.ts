@@ -15,7 +15,10 @@ vi.mock('node:child_process', () => ({
  * given exit code on the next event-loop tick. Mirrors the surface of
  * node:child_process's ChildProcess that OpenCodeCliAdapter consumes.
  */
-function fakeChild(stdout = 'mock output', exitCode = 0): EventEmitter & {
+function fakeChild(
+  stdout = 'mock output',
+  exitCode = 0,
+): EventEmitter & {
   stdout: EventEmitter;
   stderr: EventEmitter;
   kill: ReturnType<typeof vi.fn>;
@@ -85,9 +88,7 @@ describe('OpenCodeCliAdapter — local endpoint path', () => {
     const { opts } = lastSpawnCall();
     const configDir = opts.env.XDG_CONFIG_HOME;
     expect(configDir).toBeDefined();
-    const cfg = JSON.parse(
-      readFileSync(join(configDir!, 'opencode', 'opencode.json'), 'utf8')
-    );
+    const cfg = JSON.parse(readFileSync(join(configDir!, 'opencode', 'opencode.json'), 'utf8'));
     // The default model is `<providerId>/qwen3-coder` so the registered
     // model id is `qwen3-coder`. opencode 1.4 requires this models map.
     expect(cfg).toEqual({
@@ -222,7 +223,7 @@ describe('OpenCodeCliAdapter — hosted-provider path (regression)', () => {
 
     const { opts } = lastSpawnCall();
     const cfg = JSON.parse(
-      readFileSync(join(opts.env.XDG_CONFIG_HOME!, 'opencode', 'opencode.json'), 'utf8')
+      readFileSync(join(opts.env.XDG_CONFIG_HOME!, 'opencode', 'opencode.json'), 'utf8'),
     );
     expect(cfg.mcp).toEqual({});
     // Cloud-mode now registers the model under the built-in provider

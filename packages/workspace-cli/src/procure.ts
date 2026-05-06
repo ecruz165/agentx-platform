@@ -27,8 +27,8 @@ import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { validateRepoAccess } from '@agentx/harness-server';
 import { generateCodeWorkspace } from './code-workspace.ts';
-import { generateWorkspaceYml } from './yml.ts';
 import type { ProcureResult, ProcureSpec, RepoSpec } from './types.ts';
+import { generateWorkspaceYml } from './yml.ts';
 
 /** Locate workspace-template/ in the monorepo. Walks up from this file
  *  to find the directory; falls back to a CLI flag if relocated. */
@@ -40,16 +40,52 @@ function findWorkspaceTemplate(): string {
     if (existsSync(candidate)) return candidate;
     const parent = dirname(dir);
     if (parent === dir) {
-      throw new Error(
-        `Could not locate workspace-template/ by walking up from ${here}`
-      );
+      throw new Error(`Could not locate workspace-template/ by walking up from ${here}`);
     }
     dir = parent;
   }
 }
 
+/** Resolve the toplevel git working tree containing `path`, or null if
+ *  it isn't inside one. Walks up to the first existing ancestor before
+ *  shelling out, since the workspace dest's parent may not exist yet.
+ *  Exported for tests. */
+export async function findEnclosingGitRepo(path: string): Promise<string | null> {
+  let dir = resolve(path);
+  while (!existsSync(dir)) {
+    const parent = dirname(dir);
+    if (parent === dir) return null;
+    dir = parent;
+  }
+  return new Promise((resolveP) => {
+    const child = spawn('git', ['-C', dir, 'rev-parse', '--show-toplevel'], {
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    let stdout = '';
+    child.stdout.on('data', (c) => (stdout += c.toString()));
+    child.on('error', () => resolveP(null));
+    child.on('close', (code) => {
+      resolveP(code === 0 ? stdout.trim() || null : null);
+    });
+  });
+}
+
 export async function procure(spec: ProcureSpec): Promise<ProcureResult> {
   const projectDir = isAbsolute(spec.dest) ? spec.dest : resolve(spec.dest);
+
+  // Refuse to procure inside a git-managed project — would either pollute
+  // the parent's working tree or create a nested repo. Workspaces must
+  // sit alongside cloned repos in a non-tracked parent dir.
+  const enclosing = await findEnclosingGitRepo(dirname(projectDir));
+  if (enclosing) {
+    throw new Error(
+      `Cannot procure workspace inside a git-managed project.\n` +
+        `  Target:   ${projectDir}\n` +
+        `  Inside:   ${enclosing}\n` +
+        `Workspaces should sit alongside cloned repos. cd to a non-tracked ` +
+        `parent directory (e.g. ~/Development/Workspaces/) and try again.`,
+    );
+  }
   const result: ProcureResult = {
     ok: false,
     projectDir,
@@ -79,7 +115,7 @@ export async function procure(spec: ProcureSpec): Promise<ProcureResult> {
   if (existsSync(projectDir)) {
     throw new Error(
       `Destination already exists: ${projectDir}\n` +
-        `Refusing to overwrite. Pick a different --dest or remove the directory.`
+        `Refusing to overwrite. Pick a different --dest or remove the directory.`,
     );
   }
   await mkdir(projectDir, { recursive: true, mode: 0o755 });
@@ -129,11 +165,7 @@ export async function procure(spec: ProcureSpec): Promise<ProcureResult> {
     // ── 7. Optional: install skillzkit catalog items ────────────────────
     if (spec.skills && spec.skills.length > 0) {
       const skillzkitBin = spec.skillzkitBin ?? 'npx -y @ecruz165/skillzkit';
-      const installResult = await runSkillzkitInstall(
-        skillzkitBin,
-        spec.skills,
-        projectDir
-      );
+      const installResult = await runSkillzkitInstall(skillzkitBin, spec.skills, projectDir);
       result.skillsInstalled = {
         requested: spec.skills,
         exitCode: installResult.exitCode,
@@ -162,7 +194,7 @@ export async function procure(spec: ProcureSpec): Promise<ProcureResult> {
 function runSkillzkitInstall(
   binCommand: string,
   slugs: readonly string[],
-  targetDir: string
+  targetDir: string,
 ): Promise<{ exitCode: number; output?: string }> {
   return new Promise((resolveP) => {
     const parts = binCommand.split(/\s+/).filter(Boolean);
@@ -171,11 +203,9 @@ function runSkillzkitInstall(
       return;
     }
     const [cmd, ...args] = parts as [string, ...string[]];
-    const child = spawn(
-      cmd,
-      [...args, 'install', ...slugs, '--target', targetDir],
-      { stdio: ['ignore', 'pipe', 'pipe'] }
-    );
+    const child = spawn(cmd, [...args, 'install', ...slugs, '--target', targetDir], {
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
     let buf = '';
     child.stdout.on('data', (c) => (buf += c.toString()));
     child.stderr.on('data', (c) => (buf += c.toString()));
@@ -185,7 +215,7 @@ function runSkillzkitInstall(
     child.on('close', (code) => {
       resolveP({
         exitCode: code ?? 1,
-        output: buf.length > 4000 ? buf.slice(0, 4000) + '\n…(truncated)' : buf,
+        output: buf.length > 4000 ? `${buf.slice(0, 4000)}\n…(truncated)` : buf,
       });
     });
   });
@@ -206,7 +236,7 @@ function buildCloneEnv(tokenEnv: string | undefined): NodeJS.ProcessEnv | undefi
 function runGitClone(
   url: string,
   target: string,
-  env: NodeJS.ProcessEnv | undefined
+  env: NodeJS.ProcessEnv | undefined,
 ): Promise<void> {
   return new Promise((resolveP, rejectP) => {
     const child = spawn('git', ['clone', url, target], {
@@ -264,7 +294,7 @@ export function specsFromCli(
   tokenEnv: string | undefined,
   noClone: boolean,
   skills: readonly string[] | undefined,
-  skillzkitBin: string | undefined
+  skillzkitBin: string | undefined,
 ): { spec: ProcureSpec | null; missing: string[]; orgUrls: string[] } {
   const missing: string[] = [];
   const orgUrls: string[] = [];
@@ -286,7 +316,7 @@ export function specsFromCli(
   }));
 
   const productName = name!;
-  const destDir = dest ?? `./${productName}`;
+  const destDir = dest ?? `./workspace-${productName}`;
 
   return {
     spec: {

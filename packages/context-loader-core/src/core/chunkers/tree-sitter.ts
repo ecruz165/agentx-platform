@@ -32,9 +32,9 @@
  * is dominated by embedding HTTP latency, not parser throughput.
  */
 
-import { extname, dirname } from 'node:path';
 import { createRequire } from 'node:module';
-import { Parser, Language, type Node as TSNode } from 'web-tree-sitter';
+import { dirname, extname } from 'node:path';
+import { Language, Parser, type Node as TSNode } from 'web-tree-sitter';
 import type { GraphEdge, GraphNode } from '../../types.ts';
 
 // ─── Public types ──────────────────────────────────────────────────────────
@@ -113,15 +113,8 @@ const DECLARATION_NODE_TYPES: Record<string, ReadonlySet<string>> = {
     'enum_declaration',
     'type_alias_declaration',
   ]),
-  javascript: new Set([
-    'function_declaration',
-    'class_declaration',
-    'method_definition',
-  ]),
-  python: new Set([
-    'function_definition',
-    'class_definition',
-  ]),
+  javascript: new Set(['function_declaration', 'class_declaration', 'method_definition']),
+  python: new Set(['function_definition', 'class_definition']),
 };
 
 /** Map AST node type → graph node label for our schema. */
@@ -171,9 +164,7 @@ async function getLanguage(grammarKey: string): Promise<Language> {
   await ensureParserInit();
   // @vscode/tree-sitter-wasm doesn't restrict subpath access via `exports`,
   // so we can resolve the .wasm directly without going through package.json.
-  const wasmPath = require_.resolve(
-    `@vscode/tree-sitter-wasm/wasm/tree-sitter-${grammarKey}.wasm`
-  );
+  const wasmPath = require_.resolve(`@vscode/tree-sitter-wasm/wasm/tree-sitter-${grammarKey}.wasm`);
   const lang = await Language.load(wasmPath);
   languageCache.set(grammarKey, lang);
   return lang;
@@ -191,9 +182,7 @@ export function pickGrammar(relativePath: string): string | null {
 
 // ─── Main entry point ──────────────────────────────────────────────────────
 
-export async function chunkCodeFull(
-  input: CodeFullChunkInput
-): Promise<CodeFullChunkOutput> {
+export async function chunkCodeFull(input: CodeFullChunkInput): Promise<CodeFullChunkOutput> {
   const grammarKey = pickGrammar(input.relativePath);
   if (!grammarKey) {
     return { nodes: [], edges: [], chunks: [] };
@@ -269,7 +258,7 @@ function extractDeclaration(
   node: TSNode,
   input: CodeFullChunkInput,
   fileId: string,
-  grammarKey: string
+  grammarKey: string,
 ): { node: GraphNode; containsEdge: GraphEdge; chunk: { nodeId: string; text: string } } | null {
   const name = symbolName(node);
   if (!name) return null;
@@ -279,11 +268,9 @@ function extractDeclaration(
   // mode this is the lever that makes "which functions does this package
   // export?" answerable from the chunk text alone — without it, every
   // signature loses its public/private signal.
-  const exportNode =
-    node.parent?.type === 'export_statement' ? node.parent : null;
+  const exportNode = node.parent?.type === 'export_statement' ? node.parent : null;
   const declStart = exportNode ? exportNode.startIndex : node.startIndex;
-  const startLine =
-    (exportNode ? exportNode.startPosition.row : node.startPosition.row) + 1;
+  const startLine = (exportNode ? exportNode.startPosition.row : node.startPosition.row) + 1;
   const endLine = node.endPosition.row + 1;
   const fullText = input.content.slice(declStart, node.endIndex);
 

@@ -160,7 +160,12 @@ export type ChunkerRef =
   | { type: 'pdf-page'; visionFallback?: boolean }
   | { type: 'image-vision' }
   | { type: 'issue-thread'; issueBodyMinChars?: number; commentMinChars?: number }
-  | { type: 'crawler'; scope?: 'page' | 'subtree' | 'site'; maxDepth?: number; rateLimitPerHost?: number };
+  | {
+      type: 'crawler';
+      scope?: 'page' | 'subtree' | 'site';
+      maxDepth?: number;
+      rateLimitPerHost?: number;
+    };
 
 // ─── Graph data shapes ────────────────────────────────────────────────────
 
@@ -210,17 +215,13 @@ export interface GraphIngestionBackend {
    * Idempotent vector upsert. Vector is associated with a node; backend
    * stores in its native vector index.
    */
-  upsertVector(
-    nodeId: string,
-    vector: Float32Array,
-    meta: Record<string, unknown>
-  ): Promise<void>;
+  upsertVector(nodeId: string, vector: Float32Array, meta: Record<string, unknown>): Promise<void>;
 
   // Bulk variants (preferred for throughput; backend may batch).
   upsertNodesBulk(nodes: GraphNode[]): Promise<void>;
   upsertEdgesBulk(edges: GraphEdge[]): Promise<void>;
   upsertVectorsBulk(
-    items: Array<{ nodeId: string; vector: Float32Array; meta: Record<string, unknown> }>
+    items: Array<{ nodeId: string; vector: Float32Array; meta: Record<string, unknown> }>,
   ): Promise<void>;
 
   /**

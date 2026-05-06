@@ -1,9 +1,4 @@
-import type {
-  GraphEdge,
-  GraphIngestionBackend,
-  GraphNode,
-  SourceTypeSchema,
-} from '../types.ts';
+import type { GraphEdge, GraphIngestionBackend, GraphNode, SourceTypeSchema } from '../types.ts';
 
 /**
  * In-memory test backend for the context loader's graph ingestion path.
@@ -31,10 +26,7 @@ import type {
 export class InMemoryGraphBackend implements GraphIngestionBackend {
   readonly nodes = new Map<string, GraphNode>();
   readonly edges = new Map<string, GraphEdge>();
-  readonly vectors = new Map<
-    string,
-    { vector: Float32Array; meta: Record<string, unknown> }
-  >();
+  readonly vectors = new Map<string, { vector: Float32Array; meta: Record<string, unknown> }>();
   readonly schemas: SourceTypeSchema[] = [];
 
   async upsertNode(node: GraphNode): Promise<void> {
@@ -49,7 +41,7 @@ export class InMemoryGraphBackend implements GraphIngestionBackend {
   async upsertVector(
     nodeId: string,
     vector: Float32Array,
-    meta: Record<string, unknown>
+    meta: Record<string, unknown>,
   ): Promise<void> {
     this.vectors.set(nodeId, { vector, meta });
   }
@@ -67,7 +59,7 @@ export class InMemoryGraphBackend implements GraphIngestionBackend {
       nodeId: string;
       vector: Float32Array;
       meta: Record<string, unknown>;
-    }>
+    }>,
   ): Promise<void> {
     for (const it of items) await this.upsertVector(it.nodeId, it.vector, it.meta);
   }

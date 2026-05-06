@@ -13,18 +13,18 @@
  * worktree would be rooted at the OLD commit.
  */
 
-import { mkdtemp, rm, writeFile, readFile } from 'node:fs/promises';
+import { spawn } from 'node:child_process';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { spawn } from 'node:child_process';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
-  spawnWorker,
+  _clearBaseRefCache,
   parseDevcontainerUpStdout,
   resolveSshAgentMount,
   type SpawnedWorktree,
+  spawnWorker,
 } from './spawn-worker.ts';
-import { _clearBaseRefCache } from './spawn-worker.ts';
 
 const tmps: string[] = [];
 
@@ -41,7 +41,11 @@ async function tmpDir(prefix: string): Promise<string> {
   return dir;
 }
 
-function runProc(cmd: string, args: string[], cwd?: string): Promise<{ stdout: string; code: number }> {
+function runProc(
+  cmd: string,
+  args: string[],
+  cwd?: string,
+): Promise<{ stdout: string; code: number }> {
   return new Promise((resolveP, rejectP) => {
     const child = spawn(cmd, args, { stdio: ['ignore', 'pipe', 'pipe'], cwd });
     let stdout = '';
@@ -94,7 +98,9 @@ describe('spawnWorker — bare-clone refresh (slice 9d-2 staleness fix)', () => 
   // back-to-back. Under parallel test execution the default 5s isn't
   // enough on busy disks; bump to 15s. (Same applies to `multi-repo
   // product` below.)
-  it('first call clones bare; second call against cached bare runs git fetch', { timeout: 15_000 }, async () => {
+  it('first call clones bare; second call against cached bare runs git fetch', {
+    timeout: 15_000,
+  }, async () => {
     const { bare, working } = await localRemote();
     const workspaceRoot = await tmpDir('ws');
 
@@ -315,7 +321,7 @@ describe('spawnWorker — bare-clone refresh (slice 9d-2 staleness fix)', () => 
     // Mount entries: .harness/run dir + the demo worktree.
     expect(cfg.mounts).toHaveLength(2);
     expect(cfg.mounts[0]).toContain('.harness/run');
-    expect(cfg.mounts[1]).toContain('source=' + r.worktrees[0]?.path);
+    expect(cfg.mounts[1]).toContain(`source=${r.worktrees[0]?.path}`);
   });
 });
 
@@ -362,14 +368,14 @@ describe('resolveSshAgentMount (slice 9d-6)', () => {
 
   it('returns undefined when forwardSshAgent is false', () => {
     expect(
-      resolveSshAgentMount({ forwardSshAgent: false }, { SSH_AUTH_SOCK: '/tmp/agent' })
+      resolveSshAgentMount({ forwardSshAgent: false }, { SSH_AUTH_SOCK: '/tmp/agent' }),
     ).toBeUndefined();
   });
 
   it('auto-detects from SSH_AUTH_SOCK when forwardSshAgent is true', () => {
     const result = resolveSshAgentMount(
       { forwardSshAgent: true },
-      { SSH_AUTH_SOCK: '/private/tmp/com.apple.launchd.abc/Listeners' }
+      { SSH_AUTH_SOCK: '/private/tmp/com.apple.launchd.abc/Listeners' },
     );
     expect(result).toEqual({
       hostPath: '/private/tmp/com.apple.launchd.abc/Listeners',
@@ -378,16 +384,11 @@ describe('resolveSshAgentMount (slice 9d-6)', () => {
   });
 
   it('throws when forwardSshAgent: true but SSH_AUTH_SOCK is unset', () => {
-    expect(() => resolveSshAgentMount({ forwardSshAgent: true }, {})).toThrow(
-      /SSH_AUTH_SOCK/
-    );
+    expect(() => resolveSshAgentMount({ forwardSshAgent: true }, {})).toThrow(/SSH_AUTH_SOCK/);
   });
 
   it('uses an explicit string path verbatim', () => {
-    const result = resolveSshAgentMount(
-      { forwardSshAgent: '/explicit/host/path/agent.sock' },
-      {}
-    );
+    const result = resolveSshAgentMount({ forwardSshAgent: '/explicit/host/path/agent.sock' }, {});
     expect(result).toEqual({
       hostPath: '/explicit/host/path/agent.sock',
       containerPath: '/ssh-agent.sock',
@@ -400,7 +401,7 @@ describe('resolveSshAgentMount (slice 9d-6)', () => {
         forwardSshAgent: true,
         sshAgentContainerPath: '/run/host-services/ssh-auth.sock',
       },
-      { SSH_AUTH_SOCK: '/tmp/agent' }
+      { SSH_AUTH_SOCK: '/tmp/agent' },
     );
     expect(result).toEqual({
       hostPath: '/tmp/agent',
@@ -444,9 +445,7 @@ describe('spawnWorker — SSH agent forwarding in override-config (slice 9d-6)',
 
     const cfg = JSON.parse(await readFile(r.overrideConfigPath, 'utf8'));
     expect(cfg.mounts).toHaveLength(3);
-    expect(cfg.mounts[2]).toBe(
-      'source=/host/socket/path.sock,target=/ssh-agent.sock,type=bind'
-    );
+    expect(cfg.mounts[2]).toBe('source=/host/socket/path.sock,target=/ssh-agent.sock,type=bind');
     expect(cfg.containerEnv.SSH_AUTH_SOCK).toBe('/ssh-agent.sock');
   });
 
@@ -466,7 +465,7 @@ describe('spawnWorker — SSH agent forwarding in override-config (slice 9d-6)',
 
     const cfg = JSON.parse(await readFile(r.overrideConfigPath, 'utf8'));
     expect(cfg.mounts[2]).toBe(
-      'source=/host/sock,target=/run/host-services/ssh-auth.sock,type=bind'
+      'source=/host/sock,target=/run/host-services/ssh-auth.sock,type=bind',
     );
     expect(cfg.containerEnv.SSH_AUTH_SOCK).toBe('/run/host-services/ssh-auth.sock');
   });

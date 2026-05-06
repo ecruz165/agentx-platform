@@ -16,41 +16,9 @@
  *   - events are captured in result.events
  */
 
-import { describe, expect, it } from 'vitest';
-import {
-  AdapterEventBus,
-  type AdapterEvent,
-  type AgentAdapter,
-  type InvocationSpec,
-} from '@agentx/agent-adapter';
 import type { ResolvedBinding } from '@agentx/agent-auth-lib';
-import { runHarnessPipeline, type JobSpec } from './index.ts';
-
-/** Tracking adapter — records what it was asked to do; used as a stub
- *  for tests so we don't need real LLM endpoints. */
-class TrackingAdapter implements AgentAdapter {
-  readonly events = new AdapterEventBus();
-  readonly invocations: InvocationSpec[] = [];
-
-  constructor(private readonly reply: string) {}
-
-  async invoke(spec: InvocationSpec): Promise<string> {
-    this.invocations.push(spec);
-    this.events.emit({
-      kind: 'request',
-      ts: new Date().toISOString(),
-      system: spec.system,
-      user: spec.user,
-      model: 'test-model',
-    });
-    this.events.emit({
-      kind: 'response',
-      ts: new Date().toISOString(),
-      text: this.reply,
-    });
-    return this.reply;
-  }
-}
+import { describe, expect, it } from 'vitest';
+import { type JobSpec, runHarnessPipeline } from './index.ts';
 
 function cloudBinding(): ResolvedBinding {
   return {
@@ -61,7 +29,7 @@ function cloudBinding(): ResolvedBinding {
   };
 }
 
-function localBinding(): ResolvedBinding {
+function _localBinding(): ResolvedBinding {
   return {
     kind: 'local',
     provider: { id: 'local-qwen', name: 'Local', authMethods: [], models: [] },
@@ -134,9 +102,7 @@ describe('runHarnessPipeline', () => {
       pipeline: 'p',
       set: 'default',
       input: 'go',
-      agents: [
-        { id: 'planner', role: 'Plan', adapter: 'claude-sdk', bindingId: 'planner' },
-      ],
+      agents: [{ id: 'planner', role: 'Plan', adapter: 'claude-sdk', bindingId: 'planner' }],
       bindings: { planner: cloudBinding() },
     };
 

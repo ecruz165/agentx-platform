@@ -46,7 +46,7 @@
  *     bindings)
  */
 
-import { spawn, type ChildProcess } from 'node:child_process';
+import { type ChildProcess, spawn } from 'node:child_process';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -108,7 +108,7 @@ export interface RunPipelineSubprocessResult {
  *  regardless of cwd. */
 const DEFAULT_BIN_PATH = resolve(
   fileURLToPath(import.meta.url),
-  '../../../harness-pipeline/src/bin.ts'
+  '../../../harness-pipeline/src/bin.ts',
 );
 
 /** Default tsx binary path in the workspace's pnpm-managed
@@ -116,11 +116,11 @@ const DEFAULT_BIN_PATH = resolve(
  *  override to the runtime they ship with. */
 const DEFAULT_RUNTIME = resolve(
   fileURLToPath(import.meta.url),
-  '../../../../node_modules/.bin/tsx'
+  '../../../../node_modules/.bin/tsx',
 );
 
 export async function runPipelineSubprocess(
-  options: RunPipelineSubprocessOptions
+  options: RunPipelineSubprocessOptions,
 ): Promise<RunPipelineSubprocessResult> {
   const { spec, bus } = options;
   const specDir = options.specDir ?? defaultSpecDir(spec.jobId);
@@ -160,11 +160,9 @@ export async function runPipelineSubprocess(
   // Step 5: await child exit AND stream-drain in parallel. The exit
   // event fires first; the stream-drain may have a tiny lag while
   // pending buffer flushes.
-  const exitPromise = new Promise<{ code: number; signal: NodeJS.Signals | null }>(
-    (resolveP) => {
-      child.on('close', (c, s) => resolveP({ code: c ?? 0, signal: s }));
-    }
-  );
+  const exitPromise = new Promise<{ code: number; signal: NodeJS.Signals | null }>((resolveP) => {
+    child.on('close', (c, s) => resolveP({ code: c ?? 0, signal: s }));
+  });
   const [{ code, signal }, { sentinel, stderrTail }] = await Promise.all([
     exitPromise,
     streamPromise,

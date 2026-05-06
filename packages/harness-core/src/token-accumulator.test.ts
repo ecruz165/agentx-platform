@@ -1,7 +1,7 @@
-import { describe, expect, it } from 'vitest';
 import type { AdapterEvent } from '@agentx/agent-adapter';
-import { JobBus } from './job-bus.ts';
+import { describe, expect, it } from 'vitest';
 import type { JobRecord } from './job.ts';
+import { JobBus } from './job-bus.ts';
 import { TokenAccumulator } from './token-accumulator.ts';
 
 function emptyJob(jobId: string, agentIds: string[]): JobRecord {
@@ -18,7 +18,10 @@ function emptyJob(jobId: string, agentIds: string[]): JobRecord {
   };
 }
 
-function responseEvt(text: string, usage?: { promptTokens?: number; completionTokens?: number }): AdapterEvent {
+function responseEvt(
+  text: string,
+  usage?: { promptTokens?: number; completionTokens?: number },
+): AdapterEvent {
   return {
     kind: 'response',
     ts: '2026-01-01T00:00:00Z',
@@ -155,7 +158,11 @@ describe('TokenAccumulator', () => {
     const acc = new TokenAccumulator(jobs);
     acc.attach(bus, 'j1');
 
-    bus.publish('j1', 'phantom-agent', responseEvt('?', { promptTokens: 99, completionTokens: 99 }));
+    bus.publish(
+      'j1',
+      'phantom-agent',
+      responseEvt('?', { promptTokens: 99, completionTokens: 99 }),
+    );
 
     expect(job.agents[0]?.tokenHistory).toBeUndefined();
     expect(job.tokens).toBeUndefined();
@@ -207,7 +214,11 @@ describe('TokenAccumulator', () => {
     bus.publish('j1', 'planner', responseEvt('first', { promptTokens: 10, completionTokens: 5 }));
     acc.detach('j1');
     // After detach, this event must NOT update state.
-    bus.publish('j1', 'planner', responseEvt('after-detach', { promptTokens: 999, completionTokens: 999 }));
+    bus.publish(
+      'j1',
+      'planner',
+      responseEvt('after-detach', { promptTokens: 999, completionTokens: 999 }),
+    );
 
     expect(job.agents[0]?.tokenHistory).toEqual([{ in: 10, out: 5 }]);
     expect(job.agents[0]?.tokens).toEqual({ in: 10, out: 5 });

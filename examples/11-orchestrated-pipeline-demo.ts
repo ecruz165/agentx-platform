@@ -1,19 +1,19 @@
-import { request } from 'node:http';
 import { mkdtempSync, rmSync } from 'node:fs';
+import { request } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
-  AdapterEventBus,
   type AdapterEvent,
+  AdapterEventBus,
   type AgentAdapter,
   type InvocationSpec,
 } from '@agentx/agent-adapter';
 import type { CredentialBroker } from '@agentx/agent-auth-lib';
 import {
-  startHarnessServer,
   type AdapterFactory,
   type Envelope,
   type PipelineCatalog,
+  startHarnessServer,
 } from '@agentx/harness-server';
 
 /**
@@ -41,8 +41,18 @@ const catalog: PipelineCatalog = {
       id: 'feature-add',
       agents: [
         { id: 'planner', role: 'Plan', adapter: 'claude-sdk', systemPrompt: 'Plan the work.' },
-        { id: 'implementer', role: 'Implement', adapter: 'claude-sdk', systemPrompt: 'Implement the plan.' },
-        { id: 'reviewer', role: 'Review', adapter: 'claude-sdk', systemPrompt: 'Review the changes.' },
+        {
+          id: 'implementer',
+          role: 'Implement',
+          adapter: 'claude-sdk',
+          systemPrompt: 'Implement the plan.',
+        },
+        {
+          id: 'reviewer',
+          role: 'Review',
+          adapter: 'claude-sdk',
+          systemPrompt: 'Review the changes.',
+        },
       ],
     },
   ],
@@ -155,7 +165,9 @@ try {
   closeSse();
   await waitFor(() => handle.bus.subscriberCount(jobId) === 0);
 
-  console.log(`✓ Demo complete — ${seen.length} envelopes streamed; orchestrator drove pipeline to completion.`);
+  console.log(
+    `✓ Demo complete — ${seen.length} envelopes streamed; orchestrator drove pipeline to completion.`,
+  );
 } finally {
   await handle.stop();
   rmSync(sockDir, { recursive: true, force: true });
@@ -180,7 +192,7 @@ function udsJson(method: string, path: string, body?: unknown): Promise<UdsRespo
             reject(err);
           }
         });
-      }
+      },
     );
     req.on('error', reject);
     if (body !== undefined) req.write(JSON.stringify(body));
@@ -191,7 +203,7 @@ function udsJson(method: string, path: string, body?: unknown): Promise<UdsRespo
 function openSseStream(
   socketPath: string,
   path: string,
-  onEnvelope: (env: Envelope) => void
+  onEnvelope: (env: Envelope) => void,
 ): () => void {
   let buffer = '';
   let closed = false;
@@ -202,8 +214,9 @@ function openSseStream(
     res.on('data', (chunk: string) => {
       received = true;
       buffer += chunk;
-      let idx;
-      while ((idx = buffer.indexOf('\n\n')) >= 0) {
+      while (true) {
+        const idx = buffer.indexOf('\n\n');
+        if (idx < 0) break;
         const frame = buffer.slice(0, idx);
         buffer = buffer.slice(idx + 2);
         for (const line of frame.split('\n')) {
@@ -231,7 +244,10 @@ function openSseStream(
   };
 }
 
-async function waitFor(predicate: () => boolean | Promise<boolean>, timeoutMs = 1_500): Promise<void> {
+async function waitFor(
+  predicate: () => boolean | Promise<boolean>,
+  timeoutMs = 1_500,
+): Promise<void> {
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
     if (await predicate()) return;
@@ -241,7 +257,7 @@ async function waitFor(predicate: () => boolean | Promise<boolean>, timeoutMs = 
 }
 
 function truncate(s: string, n: number): string {
-  return s.length <= n ? s : s.slice(0, n - 1) + '…';
+  return s.length <= n ? s : `${s.slice(0, n - 1)}…`;
 }
 
 // Silence unused-import warning if AdapterEvent gets pruned by tooling

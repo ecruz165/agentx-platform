@@ -8,14 +8,14 @@
  *    with the right shape
  */
 
-import { describe, expect, it, beforeEach } from 'vitest';
-import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { chunkWholeFile } from './whole-file.ts';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { InMemoryGraphBackend } from '../../backends/in-memory.ts';
-import { ingest } from '../ingest.ts';
 import type { EmbedderClient } from '../../index.ts';
+import { ingest } from '../ingest.ts';
+import { chunkWholeFile } from './whole-file.ts';
 
 function mockEmbedder(dim = 8): EmbedderClient {
   let counter = 0;
@@ -102,15 +102,15 @@ describe('ingest() — learned source type (whole-file dispatch)', () => {
     mkdirSync(join(workdir, 'lessons'));
     writeFileSync(
       join(workdir, 'lessons', 'auth-mock.md'),
-      '# Auth mocking burned us\n\nDont mock the database in integration tests.\n'
+      '# Auth mocking burned us\n\nDont mock the database in integration tests.\n',
     );
     writeFileSync(
       join(workdir, 'lessons', 'tui-dims.md'),
-      '# OpenTUI useTerminalDimensions returns {0, 0} on first render\n\nUse a fallback hook.\n'
+      '# OpenTUI useTerminalDimensions returns {0, 0} on first render\n\nUse a fallback hook.\n',
     );
     writeFileSync(
       join(workdir, 'lessons', 'untitled.md'),
-      'no heading; should fall back to filename for title\n'
+      'no heading; should fall back to filename for title\n',
     );
   });
 

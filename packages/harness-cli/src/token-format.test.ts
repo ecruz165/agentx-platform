@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { compactNum, formatTokens, formatTokenHistory } from './token-format.ts';
+import { compactNum, formatTokenHistory, formatTokens } from './token-format.ts';
 
 describe('compactNum', () => {
   it('returns plain digits below 1000', () => {
@@ -49,8 +49,11 @@ describe('formatTokenHistory', () => {
 
   it('joins multiple entries with single-space separator', () => {
     const out = formatTokenHistory(
-      [{ in: 1234, out: 340 }, { in: 1500, out: 220 }],
-      50
+      [
+        { in: 1234, out: 340 },
+        { in: 1500, out: 220 },
+      ],
+      50,
     );
     expect(out).toBe('↑1.2k ↓340 ↑1.5k ↓220');
   });
@@ -85,8 +88,11 @@ describe('formatTokenHistory', () => {
     // 11. With width=11, both fit because the last entry doesn't
     // reserve tail space.
     const out = formatTokenHistory(
-      [{ in: 1, out: 1 }, { in: 1, out: 1 }],
-      11
+      [
+        { in: 1, out: 1 },
+        { in: 1, out: 1 },
+      ],
+      11,
     );
     expect(out).toBe('↑1 ↓1 ↑1 ↓1');
   });

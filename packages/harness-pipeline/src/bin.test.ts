@@ -110,9 +110,7 @@ describe('bin.ts (slice 9d-1 subprocess executor)', () => {
       version: 1,
       jobId: 'j-coord-only',
       set: 'default',
-      agents: [
-        { id: 'coordinator', role: 'Coordinator', adapter: 'claude-sdk' },
-      ],
+      agents: [{ id: 'coordinator', role: 'Coordinator', adapter: 'claude-sdk' }],
       bindings: {},
     };
     const path = await tmpSpecFile(spec);
@@ -135,9 +133,7 @@ describe('bin.ts (slice 9d-1 subprocess executor)', () => {
       version: 1,
       jobId: 'j-stdin',
       set: 'default',
-      agents: [
-        { id: 'coordinator', role: 'Coordinator', adapter: 'claude-sdk' },
-      ],
+      agents: [{ id: 'coordinator', role: 'Coordinator', adapter: 'claude-sdk' }],
       bindings: {},
     };
     const result = await run(['-'], JSON.stringify(spec));

@@ -1,11 +1,11 @@
 import { randomUUID } from 'node:crypto';
-import { request } from 'node:http';
 import { rm } from 'node:fs/promises';
+import { request } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
-import { startHarnessServer, type HarnessServerHandle } from './index.ts';
 import type { Envelope } from '@agentx/harness-core';
+import { afterEach, describe, expect, it } from 'vitest';
+import { type HarnessServerHandle, startHarnessServer } from './index.ts';
 
 // macOS AF_UNIX sun_path is 104 chars — keep this short.
 const tmpSocket = () => join(tmpdir(), `ax-${randomUUID().slice(0, 8)}.sock`);
@@ -19,7 +19,12 @@ interface SseClient {
  * Minimal SSE-over-UDS client. Resolves to all `data:` frames received before
  * the server closes the response. Caller can `abort()` to disconnect early.
  */
-function connectSse(socketPath: string, urlPath: string, expectN: number, timeoutMs = 2_000): SseClient {
+function connectSse(
+  socketPath: string,
+  urlPath: string,
+  expectN: number,
+  timeoutMs = 2_000,
+): SseClient {
   const envelopes: Envelope[] = [];
   let abort = () => {};
 
@@ -32,8 +37,9 @@ function connectSse(socketPath: string, urlPath: string, expectN: number, timeou
       let buffer = '';
       const onData = (chunk: Buffer | string) => {
         buffer += chunk.toString();
-        let idx;
-        while ((idx = buffer.indexOf('\n\n')) >= 0) {
+        while (true) {
+          const idx = buffer.indexOf('\n\n');
+          if (idx < 0) break;
           const frame = buffer.slice(0, idx);
           buffer = buffer.slice(idx + 2);
           for (const line of frame.split('\n')) {
@@ -73,7 +79,9 @@ function connectSse(socketPath: string, urlPath: string, expectN: number, timeou
 
     setTimeout(() => {
       req.destroy();
-      reject(new Error(`SSE timed out after ${timeoutMs}ms (received ${envelopes.length}/${expectN})`));
+      reject(
+        new Error(`SSE timed out after ${timeoutMs}ms (received ${envelopes.length}/${expectN})`),
+      );
     }, timeoutMs);
   });
 

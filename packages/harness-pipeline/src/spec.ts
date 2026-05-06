@@ -87,7 +87,7 @@ export function parseJobSpec(raw: unknown, source = 'spec.json'): JobSpec {
   const obj = raw as Record<string, unknown>;
   if (obj.version !== 1) {
     throw new JobSpecError(
-      `${source}: unsupported version ${JSON.stringify(obj.version)} (this executor handles version 1)`
+      `${source}: unsupported version ${JSON.stringify(obj.version)} (this executor handles version 1)`,
     );
   }
   if (typeof obj.jobId !== 'string' || !obj.jobId) {
@@ -116,19 +116,19 @@ export function parseJobSpec(raw: unknown, source = 'spec.json'): JobSpec {
     }
     if (agent.adapter !== 'claude-sdk' && agent.adapter !== 'opencode-cli') {
       throw new JobSpecError(
-        `${source}: agents[${i}].adapter must be "claude-sdk" or "opencode-cli"`
+        `${source}: agents[${i}].adapter must be "claude-sdk" or "opencode-cli"`,
       );
     }
     // bindingId is optional; if present, it must reference a real binding.
     if (agent.bindingId !== undefined) {
       if (typeof agent.bindingId !== 'string' || !agent.bindingId) {
         throw new JobSpecError(
-          `${source}: agents[${i}].bindingId must be a non-empty string when present`
+          `${source}: agents[${i}].bindingId must be a non-empty string when present`,
         );
       }
       if (!(agent.bindingId in bindings)) {
         throw new JobSpecError(
-          `${source}: agents[${i}].bindingId "${agent.bindingId}" not present in bindings map`
+          `${source}: agents[${i}].bindingId "${agent.bindingId}" not present in bindings map`,
         );
       }
     }

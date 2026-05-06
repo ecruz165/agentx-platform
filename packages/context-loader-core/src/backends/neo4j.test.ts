@@ -16,9 +16,9 @@
  * don't collide and don't have to clean up between runs.
  */
 
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import type { GraphEdge, GraphNode, SourceTypeSchema } from '../types.ts';
 import { Neo4jBackend } from './neo4j.ts';
-import type { GraphNode, GraphEdge, SourceTypeSchema } from '../types.ts';
 
 /** Coerce a Neo4j scalar (JS number OR neo4j-driver Integer) to a JS number.
  *  Aggregates like count() return Integer; plain numeric properties round-trip
@@ -96,7 +96,7 @@ describe.skipIf(!RUN_INTEGRATION)('Neo4jBackend integration', () => {
     };
     try {
       const r = await session.run(
-        `MATCH (n:\`${NODE_LABEL}\` {id: 'doc-1'}) RETURN count(n) AS c, n.wordCount AS w`
+        `MATCH (n:\`${NODE_LABEL}\` {id: 'doc-1'}) RETURN count(n) AS c, n.wordCount AS w`,
       );
       expect(asNumber(r.records[0]!.get('c'))).toBe(1);
       expect(asNumber(r.records[0]!.get('w'))).toBe(100);
@@ -132,7 +132,7 @@ describe.skipIf(!RUN_INTEGRATION)('Neo4jBackend integration', () => {
     try {
       const r = await session.run(
         `MATCH (a:\`${NODE_LABEL}\` {id: 'a'})-[r:\`${EDGE_LABEL}\`]->(b:\`${NODE_LABEL}\` {id: 'b'})
-         RETURN count(r) AS c`
+         RETURN count(r) AS c`,
       );
       expect(asNumber(r.records[0]!.get('c'))).toBe(1);
     } finally {
@@ -159,7 +159,7 @@ describe.skipIf(!RUN_INTEGRATION)('Neo4jBackend integration', () => {
     };
     try {
       const r = await session.run(
-        `MATCH (n:\`${NODE_LABEL}\` {id: 'vec-node'}) RETURN n.embedding AS e`
+        `MATCH (n:\`${NODE_LABEL}\` {id: 'vec-node'}) RETURN n.embedding AS e`,
       );
       const stored = r.records[0]!.get('e') as number[];
       expect(stored).toHaveLength(8);
@@ -172,9 +172,7 @@ describe.skipIf(!RUN_INTEGRATION)('Neo4jBackend integration', () => {
 
   it('rejects vectors with the wrong dim before sending', async () => {
     const wrongDim = new Float32Array(4); // backend expects 8
-    await expect(
-      backend.upsertVector('any-id', wrongDim, {})
-    ).rejects.toThrow(/dim mismatch/);
+    await expect(backend.upsertVector('any-id', wrongDim, {})).rejects.toThrow(/dim mismatch/);
   });
 
   it('round-trips a code-full ingest of harness-core through Cypher', async () => {
@@ -227,7 +225,7 @@ describe.skipIf(!RUN_INTEGRATION)('Neo4jBackend integration', () => {
     try {
       const r = await session.run(
         `MATCH (f:\`${fileLabel}\`)-[:\`${containsLabel}\`]->(fn:\`${functionLabel}\`)
-         RETURN f.path AS path, fn.name AS name, fn.startLine AS line, fn.embedding AS emb`
+         RETURN f.path AS path, fn.name AS name, fn.startLine AS line, fn.embedding AS emb`,
       );
       expect(r.records).toHaveLength(1);
       expect(r.records[0]!.get('path')).toBe('src/foo.ts');
@@ -295,9 +293,7 @@ describe('Neo4jBackend — server-free unit checks', () => {
     });
     try {
       const wrongDim = new Float32Array(8);
-      await expect(
-        backend.upsertVector('any', wrongDim, {})
-      ).rejects.toThrow(/dim mismatch/);
+      await expect(backend.upsertVector('any', wrongDim, {})).rejects.toThrow(/dim mismatch/);
     } finally {
       await backend.close();
     }

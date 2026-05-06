@@ -19,7 +19,7 @@
  * dedicated workspace-isolated containers (Phase H+ or ECS path).
  */
 
-import { spawn, type ChildProcess } from 'node:child_process';
+import { type ChildProcess, spawn } from 'node:child_process';
 import { mkdir, unlink } from 'node:fs/promises';
 import { createServer, type Server } from 'node:net';
 import { dirname, join } from 'node:path';
@@ -117,11 +117,16 @@ function defaultAgentxLoadCommand(): { command: string; prefixArgs: string[] } {
 function buildArgs(spec: LoaderSpawnSpec, udsPath: string): string[] {
   const args: string[] = [
     spec.target,
-    '--type', spec.type,
-    '--backend', spec.backend,
-    '--embedder-url', spec.embedderUrl,
-    '--output-events-uds', udsPath,
-    '--output', spec.output ?? 'silent',
+    '--type',
+    spec.type,
+    '--backend',
+    spec.backend,
+    '--embedder-url',
+    spec.embedderUrl,
+    '--output-events-uds',
+    udsPath,
+    '--output',
+    spec.output ?? 'silent',
   ];
   if (spec.backendUser) args.push('--backend-user', spec.backendUser);
   if (spec.backendPassword) args.push('--backend-password', spec.backendPassword);
@@ -147,7 +152,7 @@ export async function spawnLoaderJob(spec: LoaderSpawnSpec): Promise<LoaderJobHa
   if (udsPath.length >= UDS_PATH_MAX) {
     throw new Error(
       `loader UDS path exceeds ${UDS_PATH_MAX}-byte OS limit (${udsPath.length} bytes): ${udsPath}. ` +
-        `Use a shorter workspaceRoot or jobId — Unix sockets cannot be created at long paths.`
+        `Use a shorter workspaceRoot or jobId — Unix sockets cannot be created at long paths.`,
     );
   }
   // Best-effort cleanup of any stale socket from a crashed prior run.
@@ -172,8 +177,9 @@ export async function spawnLoaderJob(spec: LoaderSpawnSpec): Promise<LoaderJobHa
     let buf = '';
     sock.on('data', (chunk) => {
       buf += chunk.toString();
-      let idx: number;
-      while ((idx = buf.indexOf('\n')) !== -1) {
+      while (true) {
+        const idx = buf.indexOf('\n');
+        if (idx === -1) break;
         const line = buf.slice(0, idx).trim();
         buf = buf.slice(idx + 1);
         if (!line) continue;
@@ -251,8 +257,7 @@ export async function spawnLoaderJob(spec: LoaderSpawnSpec): Promise<LoaderJobHa
         resolve(completion);
         return;
       }
-      const detail =
-        stderr.trim() || (lastError ? `JSON parse: ${lastError.message}` : '');
+      const detail = stderr.trim() || (lastError ? `JSON parse: ${lastError.message}` : '');
       const reason =
         signal !== null
           ? `killed by ${signal}`
@@ -260,9 +265,7 @@ export async function spawnLoaderJob(spec: LoaderSpawnSpec): Promise<LoaderJobHa
             ? `exit code ${code}`
             : 'no source-completed event';
       reject(
-        new Error(
-          `loader job ${spec.jobId} failed: ${reason}${detail ? ` — ${detail}` : ''}`
-        )
+        new Error(`loader job ${spec.jobId} failed: ${reason}${detail ? ` — ${detail}` : ''}`),
       );
     });
     child.on('error', (err) => {
@@ -324,7 +327,7 @@ function setupTmuxLoader(deps: {
     const ensureWindow = spawn(
       'tmux',
       ['new-window', '-d', '-t', `${pane.session}:`, '-n', pane.window],
-      { stdio: ['ignore', 'pipe', 'pipe'] }
+      { stdio: ['ignore', 'pipe', 'pipe'] },
     );
     // Drain to avoid backpressure; we don't care about the result.
     ensureWindow.stdout?.on('data', () => {});
@@ -380,11 +383,9 @@ function setupTmuxLoader(deps: {
         // what `list-panes -F '#{pane_title}'` returns.
         const id = tmuxOut.trim();
         if (id) {
-          const tag = spawn(
-            'tmux',
-            ['select-pane', '-t', id, '-T', `load-${spec.jobId}`],
-            { stdio: 'ignore' }
-          );
+          const tag = spawn('tmux', ['select-pane', '-t', id, '-T', `load-${spec.jobId}`], {
+            stdio: 'ignore',
+          });
           tag.on('error', () => {
             /* tmux may have died between split + select; harmless */
           });
@@ -395,8 +396,8 @@ function setupTmuxLoader(deps: {
           void cleanup();
           reject(
             new Error(
-              `loader job ${spec.jobId}: tmux split-window failed (exit ${code}) — ${tmuxErr.trim() || 'no stderr'}`
-            )
+              `loader job ${spec.jobId}: tmux split-window failed (exit ${code}) — ${tmuxErr.trim() || 'no stderr'}`,
+            ),
           );
         });
       } else {
@@ -413,8 +414,8 @@ function setupTmuxLoader(deps: {
         const detail = lastError() ? `JSON parse: ${lastError()!.message}` : '';
         reject(
           new Error(
-            `loader job ${spec.jobId}: no UDS events for ${idleTimeoutMs}ms — pane likely crashed${detail ? ` — ${detail}` : ''}`
-          )
+            `loader job ${spec.jobId}: no UDS events for ${idleTimeoutMs}ms — pane likely crashed${detail ? ` — ${detail}` : ''}`,
+          ),
         );
       });
     }

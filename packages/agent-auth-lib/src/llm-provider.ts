@@ -119,8 +119,4 @@ export interface ResolvedRegistryEntry {
  * Future tools (Bedrock SDK, Gemini direct API, LangChain) get added here
  * as they're implemented; the binding parser sees them via this same union.
  */
-export type ToolId =
-  | 'claude-sdk'
-  | 'openai-api'
-  | 'opencode-cli'
-  | 'copilot-api';
+export type ToolId = 'claude-sdk' | 'openai-api' | 'opencode-cli' | 'copilot-api';

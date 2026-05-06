@@ -41,18 +41,11 @@
  */
 
 import { spawn } from 'node:child_process';
-import type { CredentialBroker, BindingResolver, ResolvedBinding } from '@agentx/agent-auth-lib';
+import type { BindingResolver, CredentialBroker, ResolvedBinding } from '@agentx/agent-auth-lib';
 import type { JobBus, JobRecord, RegisteredAgent } from '@agentx/harness-core';
 import type { JobSpec, SpecAgent } from '@agentx/harness-pipeline';
-import {
-  spawnWorker,
-  runWorker,
-  type SpawnRepoSpec,
-} from './spawn-worker.ts';
-import {
-  runPipelineInContainer,
-  type RunPipelineInContainerOptions,
-} from './run-pipeline-in-container.ts';
+import { runPipelineInContainer } from './run-pipeline-in-container.ts';
+import { runWorker, type SpawnRepoSpec } from './spawn-worker.ts';
 
 export interface RunJobInContainerOptions {
   jobId: string;
@@ -114,7 +107,7 @@ export interface RunJobInContainerResult {
 }
 
 export async function runJobInContainer(
-  opts: RunJobInContainerOptions
+  opts: RunJobInContainerOptions,
 ): Promise<RunJobInContainerResult> {
   const job = opts.jobs.get(opts.jobId);
   if (!job) {
@@ -153,9 +146,7 @@ export async function runJobInContainer(
         repos: opts.repos,
         workspaceRoot: opts.workspaceRoot,
         ...(opts.cloneEnv ? { cloneEnv: opts.cloneEnv } : {}),
-        ...(opts.forwardSshAgent !== undefined
-          ? { forwardSshAgent: opts.forwardSshAgent }
-          : {}),
+        ...(opts.forwardSshAgent !== undefined ? { forwardSshAgent: opts.forwardSshAgent } : {}),
         ...(opts.sshAgentContainerPath
           ? { sshAgentContainerPath: opts.sshAgentContainerPath }
           : {}),
@@ -196,8 +187,7 @@ export async function runJobInContainer(
   const removeOnSuccess = opts.removeContainerOnSuccess ?? false;
   const removeOnFailure = opts.removeContainerOnFailure ?? true;
   const shouldRemove =
-    (status === 'completed' && removeOnSuccess) ||
-    (status === 'failed' && removeOnFailure);
+    (status === 'completed' && removeOnSuccess) || (status === 'failed' && removeOnFailure);
   let containerRemoved = false;
   if (shouldRemove) {
     try {

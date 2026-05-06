@@ -26,10 +26,7 @@ export interface EmbedderClient {
  * Matches the standard fetch signature so tests can use vi.fn() returning
  * a Response.
  */
-export type FetchFn = (
-  input: string | URL,
-  init?: RequestInit
-) => Promise<Response>;
+export type FetchFn = (input: string | URL, init?: RequestInit) => Promise<Response>;
 
 export interface CreateHttpEmbedderClientOpts {
   config: EmbedderConfig;
@@ -40,14 +37,12 @@ export interface CreateHttpEmbedderClientOpts {
  * Create an HTTP embedder client for an OpenAI-compatible /v1/embeddings
  * endpoint.
  */
-export function createHttpEmbedderClient(
-  opts: CreateHttpEmbedderClientOpts
-): EmbedderClient {
+export function createHttpEmbedderClient(opts: CreateHttpEmbedderClientOpts): EmbedderClient {
   const { config } = opts;
   const fetchFn: FetchFn = opts.fetch ?? globalThis.fetch.bind(globalThis);
   const url = config.url.endsWith('/embeddings')
     ? config.url
-    : config.url.replace(/\/+$/, '') + '/embeddings';
+    : `${config.url.replace(/\/+$/, '')}/embeddings`;
 
   // Default batch size 1 because Docker Model Runner's llama.cpp slot
   // scheduler crashes under certain N>1 batch shapes (see bug surfaced
@@ -93,7 +88,7 @@ export function createHttpEmbedderClient(
     if (!resp.ok) {
       const body = await resp.text().catch(() => '');
       throw new EmbedderError(
-        `embedder ${url} returned HTTP ${resp.status}: ${body.slice(0, 500)}`
+        `embedder ${url} returned HTTP ${resp.status}: ${body.slice(0, 500)}`,
       );
     }
     const json = (await resp.json()) as {
@@ -101,7 +96,7 @@ export function createHttpEmbedderClient(
     };
     if (!json.data || !Array.isArray(json.data) || json.data.length !== input.length) {
       throw new EmbedderError(
-        `embedder ${url} returned ${json.data?.length ?? 0} vectors for ${input.length} inputs`
+        `embedder ${url} returned ${json.data?.length ?? 0} vectors for ${input.length} inputs`,
       );
     }
     return json.data.map((d) => {
@@ -110,7 +105,7 @@ export function createHttpEmbedderClient(
       }
       if (d.embedding.length !== config.dim) {
         throw new EmbedderError(
-          `embedder dim mismatch: configured ${config.dim}, got ${d.embedding.length}`
+          `embedder dim mismatch: configured ${config.dim}, got ${d.embedding.length}`,
         );
       }
       return Float32Array.from(d.embedding);

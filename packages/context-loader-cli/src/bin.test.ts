@@ -10,10 +10,10 @@
  * contract: argv parsing, error messages, exit codes, output formats.
  */
 
-import { describe, it, expect } from 'vitest';
 import { spawnSync } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { describe, expect, it } from 'vitest';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const BIN = resolve(__dirname, 'bin.ts');

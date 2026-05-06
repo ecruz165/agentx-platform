@@ -40,7 +40,12 @@ interface AccessTokenSuccess {
 }
 
 interface AccessTokenPending {
-  error: 'authorization_pending' | 'slow_down' | 'expired_token' | 'access_denied' | 'unsupported_grant_type';
+  error:
+    | 'authorization_pending'
+    | 'slow_down'
+    | 'expired_token'
+    | 'access_denied'
+    | 'unsupported_grant_type';
   error_description?: string;
 }
 
@@ -94,7 +99,7 @@ async function requestDeviceCode(clientId: string, scopes: string[]): Promise<De
 
 async function pollForAccessToken(
   clientId: string,
-  code: DeviceCodeResponse
+  code: DeviceCodeResponse,
 ): Promise<AccessTokenSuccess> {
   let intervalMs = code.interval * 1000;
   const deadline = Date.now() + code.expires_in * 1000;
@@ -122,17 +127,23 @@ async function pollForAccessToken(
       intervalMs += 5_000;
       continue;
     }
-    throw new Error(`Device flow failed: ${body.error}${body.error_description ? ` — ${body.error_description}` : ''}`);
+    throw new Error(
+      `Device flow failed: ${body.error}${body.error_description ? ` — ${body.error_description}` : ''}`,
+    );
   }
 
   throw new Error(`Device flow timed out after ${code.expires_in}s without authorization.`);
 }
 
-function defaultPrompt(info: { verificationUri: string; userCode: string; expiresIn: number }): void {
+function defaultPrompt(info: {
+  verificationUri: string;
+  userCode: string;
+  expiresIn: number;
+}): void {
   process.stderr.write(
     `\n  Open ${info.verificationUri}\n` +
       `  Enter code: ${info.userCode}\n` +
-      `  (expires in ${Math.round(info.expiresIn / 60)}m)\n\n`
+      `  (expires in ${Math.round(info.expiresIn / 60)}m)\n\n`,
   );
 }
 

@@ -53,8 +53,7 @@ const FIRST_H1 = /^\s*#\s+(.+?)\s*$/m;
 export function chunkWholeFile(input: WholeFileChunkInput): WholeFileChunkOutput {
   const label = input.label ?? 'Learning';
   const titleFromH1 = FIRST_H1.exec(input.content)?.[1];
-  const title =
-    titleFromH1 ?? input.docId.replace(/^.*\//, '').replace(/\.\w+$/, '');
+  const title = titleFromH1 ?? input.docId.replace(/^.*\//, '').replace(/\.\w+$/, '');
 
   const node: GraphNode = {
     id: input.docId,

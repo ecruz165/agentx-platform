@@ -30,16 +30,13 @@
  *     binding (one that supports tools natively).
  */
 
-import {
-  SimpleChatModel,
-  type BaseChatModelParams,
-} from '@langchain/core/language_models/chat_models';
-import type {
-  BaseMessage,
-  MessageContent,
-} from '@langchain/core/messages';
-import { bindingToAdapter, type BindingToAdapterOptions } from './binding-to-adapter.ts';
 import type { CredentialBroker, ResolvedBinding } from '@agentx/agent-auth-lib';
+import {
+  type BaseChatModelParams,
+  SimpleChatModel,
+} from '@langchain/core/language_models/chat_models';
+import type { BaseMessage, MessageContent } from '@langchain/core/messages';
+import { type BindingToAdapterOptions, bindingToAdapter } from './binding-to-adapter.ts';
 import type { AgentAdapter } from './types.ts';
 
 export interface HarnessChatModelOptions extends BaseChatModelParams {
@@ -85,9 +82,7 @@ export interface CreateHarnessChatModelOptions {
   copilotAuthPath?: string;
 }
 
-export function createHarnessChatModel(
-  opts: CreateHarnessChatModelOptions
-): HarnessChatModel {
+export function createHarnessChatModel(opts: CreateHarnessChatModelOptions): HarnessChatModel {
   const adapter = bindingToAdapter(opts.binding, {
     broker: opts.broker,
     localEndpoint: opts.localEndpoint,
@@ -133,11 +128,15 @@ function flattenMessages(messages: BaseMessage[]): FlattenedMessages {
       continue;
     }
     const label =
-      type === 'human' ? 'User' :
-      type === 'ai' ? 'Assistant' :
-      type === 'tool' ? 'Tool' :
-      type === 'function' ? 'Function' :
-      type;
+      type === 'human'
+        ? 'User'
+        : type === 'ai'
+          ? 'Assistant'
+          : type === 'tool'
+            ? 'Tool'
+            : type === 'function'
+              ? 'Function'
+              : type;
     others.push(`${label}: ${content}`);
   }
   return {

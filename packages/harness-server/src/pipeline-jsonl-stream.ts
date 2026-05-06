@@ -21,8 +21,8 @@
  * to re-implement the framing.
  */
 
-import type { Envelope, JobBus } from '@agentx/harness-core';
 import type { Readable } from 'node:stream';
+import type { Envelope, JobBus } from '@agentx/harness-core';
 
 /** Sentinel emitted by harness-pipeline's bin.ts as its final stdout
  *  line — communicates job-level outcome distinct from any envelope. */
@@ -118,7 +118,10 @@ export function consumeJsonlStream(args: {
   });
 }
 
-type LineResult = { kind: 'sentinel'; sentinel: JobCompleteSentinel } | { kind: 'envelope' } | undefined;
+type LineResult =
+  | { kind: 'sentinel'; sentinel: JobCompleteSentinel }
+  | { kind: 'envelope' }
+  | undefined;
 
 function processLine(line: string, expectedJobId: string, bus: JobBus): LineResult {
   let parsed: unknown;
@@ -136,14 +139,18 @@ function processLine(line: string, expectedJobId: string, bus: JobBus): LineResu
   }
 
   // Envelope shape: {jobId, agentId, event}
-  if (typeof obj.jobId !== 'string' || typeof obj.agentId !== 'string' || typeof obj.event !== 'object') {
+  if (
+    typeof obj.jobId !== 'string' ||
+    typeof obj.agentId !== 'string' ||
+    typeof obj.event !== 'object'
+  ) {
     process.stderr.write(`harness-pipeline: malformed envelope on stdout: ${line.slice(0, 200)}\n`);
     return undefined;
   }
 
   if (obj.jobId !== expectedJobId) {
     process.stderr.write(
-      `harness-pipeline: dropping envelope with mismatched jobId (got ${String(obj.jobId)}, expected ${expectedJobId})\n`
+      `harness-pipeline: dropping envelope with mismatched jobId (got ${String(obj.jobId)}, expected ${expectedJobId})\n`,
     );
     return undefined;
   }

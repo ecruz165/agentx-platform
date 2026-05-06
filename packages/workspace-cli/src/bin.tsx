@@ -14,32 +14,25 @@
 import { Command } from 'commander';
 import { procure, specsFromCli } from './procure.ts';
 import { runTui } from './tui.tsx';
-import type { ProcureSpec } from './types.ts';
+import type { ProcureResult, ProcureSpec } from './types.ts';
 
 const program = new Command()
   .name('agentx-workspace')
   .description('Procure a new agentx project folder from workspace-template/')
   .argument('[name]', 'Product name (positional shorthand for --name)')
   .option('--name <name>', 'Product name; doubles as workspace dir name + product id')
-  .option(
-    '--repos <urls...>',
-    'Repository clone URLs (HTTPS or SSH). Repeatable; space-separated.'
-  )
-  .option('--dest <dir>', 'Destination directory (default: ./<name>)')
-  .option(
-    '--token-env <var>',
-    'Env var holding a GitHub token for HTTPS clones',
-    'GITHUB_TOKEN'
-  )
+  .option('--repos <urls...>', 'Repository clone URLs (HTTPS or SSH). Repeatable; space-separated.')
+  .option('--dest <dir>', 'Destination directory (default: ./workspace-<name>)')
+  .option('--token-env <var>', 'Env var holding a GitHub token for HTTPS clones', 'GITHUB_TOKEN')
   .option('--no-tui', 'Fail fast on missing/invalid input instead of launching the TUI')
   .option('--no-clone', 'Skip the eager git clone step (advanced)')
   .option(
     '--skills <slugs...>',
-    'skillzkit catalog items to install after procurement (e.g. core:tools:npm)'
+    'skillzkit catalog items to install after procurement (e.g. core:tools:npm)',
   )
   .option(
     '--skillzkit-bin <command>',
-    'Override the skillzkit invocation (default: "npx -y @ecruz165/skillzkit")'
+    'Override the skillzkit invocation (default: "npx -y @ecruz165/skillzkit")',
   )
   .parse();
 
@@ -64,7 +57,7 @@ const { spec, missing, orgUrls } = specsFromCli(
   opts.tokenEnv,
   !opts.clone,
   opts.skills,
-  opts.skillzkitBin
+  opts.skillzkitBin,
 );
 
 let finalSpec: ProcureSpec | null = spec;
@@ -76,7 +69,7 @@ if (!finalSpec) {
         (missing.length ? ` (missing: ${missing.join(', ')})` : '') +
         (orgUrls.length
           ? `\n  org URLs detected (need full repo URLs): ${orgUrls.join(', ')}`
-          : '')
+          : ''),
     );
     process.exit(2);
   }
@@ -102,7 +95,13 @@ for (const r of finalSpec.repos) {
 }
 console.log();
 
-const result = await procure(finalSpec);
+let result: ProcureResult;
+try {
+  result = await procure(finalSpec);
+} catch (err) {
+  console.error(`error: ${(err as Error).message}`);
+  process.exit(1);
+}
 
 if (!result.ok) {
   console.error(`✗ Procurement failed.`);
@@ -136,9 +135,11 @@ if (result.skillsInstalled) {
       for (const line of tail.split('\n')) console.log(`       ${line}`);
     }
     const binHint = spec?.skillzkitBin ?? 'npx -y @ecruz165/skillzkit';
-    console.log(`    re-run manually: ${binHint} install ${s.requested.join(' ')} --target ${result.projectDir}`);
+    console.log(
+      `    re-run manually: ${binHint} install ${s.requested.join(' ')} --target ${result.projectDir}`,
+    );
   }
 }
 
 console.log();
-console.log(`Next: cd ${finalSpec.name} && pnpm dev:servers`);
+console.log(`Next: cd ${finalSpec.dest} && pnpm dev:servers`);

@@ -8,11 +8,8 @@
  */
 
 import { PassThrough } from 'node:stream';
+import { type Envelope, JobBus } from '@agentx/harness-core';
 import { describe, expect, it } from 'vitest';
-import {
-  JobBus,
-  type Envelope,
-} from '@agentx/harness-core';
 import { consumeJsonlStream } from './pipeline-jsonl-stream.ts';
 
 function makeStreams() {
@@ -36,8 +33,8 @@ describe('consumeJsonlStream', () => {
 
     const promise = consumeJsonlStream({ stdout, stderr, bus, expectedJobId: 'j1' });
 
-    stdout.write(JSON.stringify(envelope('j1', 'planner', 'hello')) + '\n');
-    stdout.write(JSON.stringify(envelope('j1', 'planner', 'world')) + '\n');
+    stdout.write(`${JSON.stringify(envelope('j1', 'planner', 'hello'))}\n`);
+    stdout.write(`${JSON.stringify(envelope('j1', 'planner', 'world'))}\n`);
     stdout.end();
     stderr.end();
 
@@ -51,9 +48,7 @@ describe('consumeJsonlStream', () => {
     const bus = new JobBus();
     const promise = consumeJsonlStream({ stdout, stderr, bus, expectedJobId: 'j1' });
 
-    stdout.write(
-      JSON.stringify({ kind: 'job-complete', jobId: 'j1', status: 'completed' }) + '\n'
-    );
+    stdout.write(`${JSON.stringify({ kind: 'job-complete', jobId: 'j1', status: 'completed' })}\n`);
     stdout.end();
     stderr.end();
 
@@ -77,7 +72,7 @@ describe('consumeJsonlStream', () => {
     // Split the JSON string mid-byte across multiple data events.
     stdout.write(env.slice(0, 10));
     stdout.write(env.slice(10, 20));
-    stdout.write(env.slice(20) + '\n');
+    stdout.write(`${env.slice(20)}\n`);
     stdout.end();
     stderr.end();
 
@@ -97,9 +92,12 @@ describe('consumeJsonlStream', () => {
     const promise = consumeJsonlStream({ stdout, stderr, bus, expectedJobId: 'j1' });
 
     stdout.write(
-      JSON.stringify(envelope('j1', 'a', 'one')) + '\n' +
-      JSON.stringify(envelope('j1', 'a', 'two')) + '\n' +
-      JSON.stringify(envelope('j1', 'a', 'three')) + '\n'
+      JSON.stringify(envelope('j1', 'a', 'one')) +
+        '\n' +
+        JSON.stringify(envelope('j1', 'a', 'two')) +
+        '\n' +
+        JSON.stringify(envelope('j1', 'a', 'three')) +
+        '\n',
     );
     stdout.end();
     stderr.end();
@@ -117,7 +115,7 @@ describe('consumeJsonlStream', () => {
     const promise = consumeJsonlStream({ stdout, stderr, bus, expectedJobId: 'j1' });
 
     stdout.write('this is not JSON\n');
-    stdout.write(JSON.stringify(envelope('j1', 'a', 'real')) + '\n');
+    stdout.write(`${JSON.stringify(envelope('j1', 'a', 'real'))}\n`);
     stdout.write('garbage line again\n');
     stdout.end();
     stderr.end();
@@ -136,8 +134,8 @@ describe('consumeJsonlStream', () => {
 
     const promise = consumeJsonlStream({ stdout, stderr, bus, expectedJobId: 'j1' });
 
-    stdout.write(JSON.stringify(envelope('j2-poison', 'a', 'should-drop')) + '\n');
-    stdout.write(JSON.stringify(envelope('j1', 'a', 'should-keep')) + '\n');
+    stdout.write(`${JSON.stringify(envelope('j2-poison', 'a', 'should-drop'))}\n`);
+    stdout.write(`${JSON.stringify(envelope('j1', 'a', 'should-keep'))}\n`);
     stdout.end();
     stderr.end();
 
@@ -172,9 +170,9 @@ describe('consumeJsonlStream', () => {
 
     const promise = consumeJsonlStream({ stdout, stderr, bus, expectedJobId: 'j1' });
 
-    stdout.write(JSON.stringify({ jobId: 'j1' }) + '\n'); // missing agentId
-    stdout.write(JSON.stringify({ jobId: 'j1', agentId: 'a' }) + '\n'); // missing event
-    stdout.write(JSON.stringify(envelope('j1', 'a', 'good')) + '\n');
+    stdout.write(`${JSON.stringify({ jobId: 'j1' })}\n`); // missing agentId
+    stdout.write(`${JSON.stringify({ jobId: 'j1', agentId: 'a' })}\n`); // missing event
+    stdout.write(`${JSON.stringify(envelope('j1', 'a', 'good'))}\n`);
     stdout.end();
     stderr.end();
 
@@ -199,10 +197,8 @@ describe('consumeJsonlStream', () => {
       },
     });
 
-    stdout.write(JSON.stringify(envelope('j1', 'a', 'noise')) + '\n');
-    stdout.write(
-      JSON.stringify({ kind: 'job-complete', jobId: 'j1', status: 'failed' }) + '\n'
-    );
+    stdout.write(`${JSON.stringify(envelope('j1', 'a', 'noise'))}\n`);
+    stdout.write(`${JSON.stringify({ kind: 'job-complete', jobId: 'j1', status: 'failed' })}\n`);
     stdout.end();
     stderr.end();
 

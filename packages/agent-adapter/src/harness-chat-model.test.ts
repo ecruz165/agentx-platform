@@ -12,16 +12,11 @@
  * Uses a stub AgentAdapter that captures invocation specs — no real LLM.
  */
 
-import { describe, expect, it } from 'vitest';
-import {
-  AIMessage,
-  HumanMessage,
-  SystemMessage,
-  ToolMessage,
-} from '@langchain/core/messages';
+import { AIMessage, HumanMessage, SystemMessage, ToolMessage } from '@langchain/core/messages';
 import { Annotation, END, START, StateGraph } from '@langchain/langgraph';
+import { describe, expect, it } from 'vitest';
 import { AdapterEventBus } from './events.ts';
-import { HarnessChatModel, createHarnessChatModel } from './harness-chat-model.ts';
+import { createHarnessChatModel, HarnessChatModel } from './harness-chat-model.ts';
 import type { CompiledGraph } from './langgraph-adapter.ts';
 import type { AgentAdapter, InvocationSpec } from './types.ts';
 
@@ -58,10 +53,7 @@ describe('HarnessChatModel', () => {
   it('joins SystemMessages into the system field', async () => {
     const adapter = new StubAdapter();
     const model = new HarnessChatModel({ adapter });
-    await model.invoke([
-      new SystemMessage('you are concise'),
-      new HumanMessage('hi'),
-    ]);
+    await model.invoke([new SystemMessage('you are concise'), new HumanMessage('hi')]);
     expect(adapter.invocations[0]).toMatchObject({
       system: 'you are concise',
       user: 'User: hi',
@@ -88,7 +80,7 @@ describe('HarnessChatModel', () => {
       new HumanMessage('and what is 3+3?'),
     ]);
     expect(adapter.invocations[0]?.user).toBe(
-      'User: what is 2+2?\n\nAssistant: 4\n\nUser: and what is 3+3?'
+      'User: what is 2+2?\n\nAssistant: 4\n\nUser: and what is 3+3?',
     );
   });
 
@@ -161,7 +153,7 @@ describe('createHarnessChatModel — bindingToAdapter helper', () => {
           },
         },
         localEndpoint: () => undefined,
-      })
+      }),
     ).toThrow(/no endpoint configured for local provider/);
   });
 

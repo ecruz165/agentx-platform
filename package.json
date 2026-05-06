@@ -8,6 +8,10 @@
     "typecheck": "pnpm -r typecheck",
     "test": "vitest run",
     "test:watch": "vitest",
+    "format": "biome format --write .",
+    "lint": "biome lint .",
+    "check": "biome check .",
+    "check:fix": "biome check --write .",
     "host-only": "tsx examples/01-host-only.ts",
     "opencode-only": "tsx examples/02-opencode-host-only.ts",
     "roundtrip": "tsx examples/03-uds-roundtrip.ts",
@@ -40,6 +44,7 @@
     "@agentx/harness-server": "workspace:*"
   },
   "devDependencies": {
+    "@biomejs/biome": "^2.4.14",
     "@types/node": "^22.7.0",
     "tsx": "^4.19.0",
     "typescript": "^5.6.0",

@@ -76,7 +76,7 @@ export interface ValidateRepoAccessResult {
 const DEFAULT_TIMEOUT_MS = 10_000;
 
 export async function validateRepoAccess(
-  options: ValidateRepoAccessOptions
+  options: ValidateRepoAccessOptions,
 ): Promise<ValidateRepoAccessResult> {
   const env = options.cloneEnv ? { ...process.env, ...options.cloneEnv } : undefined;
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
@@ -104,7 +104,7 @@ export async function validateRepoAccess(
 async function checkRepo(
   repo: SpawnRepoSpec,
   env: NodeJS.ProcessEnv | undefined,
-  timeoutMs: number
+  timeoutMs: number,
 ): Promise<RepoAccessCheck> {
   const start = Date.now();
   try {
@@ -140,7 +140,7 @@ async function checkRepo(
 function runLsRemote(
   url: string,
   env: NodeJS.ProcessEnv | undefined,
-  timeoutMs: number
+  timeoutMs: number,
 ): Promise<string> {
   return new Promise((resolveP, rejectP) => {
     const child = spawn('git', ['ls-remote', '--exit-code', url, 'HEAD'], {
@@ -208,8 +208,10 @@ export function suggestFix(url: string, reason: string): string | undefined {
 
   if (isSsh) {
     if (lower.includes('permission denied') || lower.includes('publickey')) {
-      return 'SSH auth failed. Run `ssh-add ~/.ssh/id_ed25519` (or your key path), then retry. ' +
-        'Verify with `ssh -T git@github.com`.';
+      return (
+        'SSH auth failed. Run `ssh-add ~/.ssh/id_ed25519` (or your key path), then retry. ' +
+        'Verify with `ssh -T git@github.com`.'
+      );
     }
     if (lower.includes('could not resolve hostname') || lower.includes('name or service')) {
       return 'DNS / network issue — host unreachable. Check connectivity.';
@@ -218,22 +220,28 @@ export function suggestFix(url: string, reason: string): string | undefined {
       // SSH "not found" usually means the user's key doesn't have access
       // (GitHub returns the same error for nonexistent + no-access for
       // privacy reasons).
-      return 'Repository inaccessible. Either the URL is wrong, OR your SSH key ' +
-        'doesn\'t have access. Try: `ssh -T git@github.com` to confirm identity, ' +
-        'then check the key has access to this org/repo.';
+      return (
+        'Repository inaccessible. Either the URL is wrong, OR your SSH key ' +
+        "doesn't have access. Try: `ssh -T git@github.com` to confirm identity, " +
+        'then check the key has access to this org/repo.'
+      );
     }
   }
 
   if (isHttps) {
     if (lower.includes('authentication failed') || lower.includes('401')) {
-      return 'HTTPS auth failed. Configure a Git Credential Manager OR provide a ' +
+      return (
+        'HTTPS auth failed. Configure a Git Credential Manager OR provide a ' +
         'PAT via cloneEnv: `{ GIT_ASKPASS: "echo", GIT_USERNAME: "<token>" }` ' +
-        'or use SSH form `git@github.com:org/repo.git`.';
+        'or use SSH form `git@github.com:org/repo.git`.'
+      );
     }
     if (lower.includes('repository not found') || lower.includes('404')) {
-      return 'Repo not found at this URL. Either typo, or repo is private and ' +
-        'your credentials don\'t have access. For private repos, switch to SSH ' +
-        'form (`git@github.com:org/repo.git`) or configure a PAT with appropriate scopes.';
+      return (
+        'Repo not found at this URL. Either typo, or repo is private and ' +
+        "your credentials don't have access. For private repos, switch to SSH " +
+        'form (`git@github.com:org/repo.git`) or configure a PAT with appropriate scopes.'
+      );
     }
     if (lower.includes('could not resolve host')) {
       return 'DNS / network issue — host unreachable. Check connectivity.';

@@ -12,11 +12,11 @@
  * integration tests.
  */
 
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { Neo4jBackend, ingest } from '../index.ts';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { EmbedderClient } from '../index.ts';
+import { ingest, Neo4jBackend } from '../index.ts';
 
 const RUN_INTEGRATION = process.env.RUN_NEO4J_INTEGRATION === '1';
 const NEO4J_URL = process.env.NEO4J_TEST_URL ?? 'bolt://localhost:7687';
@@ -56,17 +56,17 @@ describe.skipIf(!RUN_INTEGRATION)(
       workdir = mkdtempSync('/tmp/link-test-');
       writeFileSync(
         join(workdir, 'package.json'),
-        JSON.stringify({ name: PKG_NAME, version: PKG_VERSION })
+        JSON.stringify({ name: PKG_NAME, version: PKG_VERSION }),
       );
       mkdirSync(join(workdir, 'src'));
       writeFileSync(
         join(workdir, 'src', 'hooks.ts'),
-        'export function useState(initial) { return initial; }\nexport function useEffect(fn) { fn(); }\n'
+        'export function useState(initial) { return initial; }\nexport function useEffect(fn) { fn(); }\n',
       );
       mkdirSync(join(workdir, 'docs'));
       writeFileSync(
         join(workdir, 'docs', 'guide.md'),
-        '# Guide\n\n## State\n\nUse useState to track a value.\n\n## Effects\n\nuseEffect runs after render.\n'
+        '# Guide\n\n## State\n\nUse useState to track a value.\n\n## Effects\n\nuseEffect runs after render.\n',
       );
 
       backend = new Neo4jBackend({
@@ -112,7 +112,7 @@ describe.skipIf(!RUN_INTEGRATION)(
            OPTIONAL MATCH (v)<-[:BelongsTo]-(rooted)
            OPTIONAL MATCH (rooted)-[:Contains]->(child)
            DETACH DELETE p, v, rooted, child`,
-          { pkg: PKG_NAME }
+          { pkg: PKG_NAME },
         );
       } finally {
         await session.close();
@@ -124,7 +124,10 @@ describe.skipIf(!RUN_INTEGRATION)(
       const session = (
         backend as unknown as { driver: { session(): unknown } }
       ).driver.session() as {
-        run(q: string, p?: object): Promise<{
+        run(
+          q: string,
+          p?: object,
+        ): Promise<{
           records: Array<{ get(k: string): unknown }>;
         }>;
         close(): Promise<void>;
@@ -136,7 +139,7 @@ describe.skipIf(!RUN_INTEGRATION)(
            MATCH (file:OssFile)-[:Contains]->(sym)
            MATCH (file)-[:BelongsTo]->(v)
            RETURN sec.heading AS heading, sym.name AS name`,
-          { pkg: PKG_NAME }
+          { pkg: PKG_NAME },
         );
         const pairs = r.records.map((rec) => ({
           heading: rec.get('heading') as string,
@@ -159,19 +162,16 @@ describe.skipIf(!RUN_INTEGRATION)(
       // state with the suite's setup (which used oss-code → oss-docs).
       const pkg2 = `linktest-rev-${RUN_ID}`;
       const dir2 = mkdtempSync('/tmp/link-rev-');
-      writeFileSync(
-        join(dir2, 'package.json'),
-        JSON.stringify({ name: pkg2, version: '1.0.0' })
-      );
+      writeFileSync(join(dir2, 'package.json'), JSON.stringify({ name: pkg2, version: '1.0.0' }));
       mkdirSync(join(dir2, 'src'));
       writeFileSync(
         join(dir2, 'src', 'utils.ts'),
-        'export function uniqueHelper(x) { return x; }\n'
+        'export function uniqueHelper(x) { return x; }\n',
       );
       mkdirSync(join(dir2, 'docs'));
       writeFileSync(
         join(dir2, 'docs', 'g.md'),
-        '# Helper\n\n## Usage\n\nCall uniqueHelper to do the thing.\n'
+        '# Helper\n\n## Usage\n\nCall uniqueHelper to do the thing.\n',
       );
 
       // Reverse order: docs first (no symbols exist yet → 0 edges from
@@ -191,7 +191,10 @@ describe.skipIf(!RUN_INTEGRATION)(
       const session = (
         backend as unknown as { driver: { session(): unknown } }
       ).driver.session() as {
-        run(q: string, p?: object): Promise<{
+        run(
+          q: string,
+          p?: object,
+        ): Promise<{
           records: Array<{ get(k: string): unknown }>;
         }>;
         close(): Promise<void>;
@@ -203,7 +206,7 @@ describe.skipIf(!RUN_INTEGRATION)(
            MATCH (file:OssFile)-[:Contains]->(sym)
            MATCH (file)-[:BelongsTo]->(v)
            RETURN sym.name AS name`,
-          { pkg: pkg2 }
+          { pkg: pkg2 },
         );
         const names = r.records.map((rec) => rec.get('name'));
         expect(names).toContain('uniqueHelper');
@@ -225,7 +228,7 @@ describe.skipIf(!RUN_INTEGRATION)(
            OPTIONAL MATCH (v)<-[:BelongsTo]-(rooted)
            OPTIONAL MATCH (rooted)-[:Contains]->(child)
            DETACH DELETE p, v, rooted, child`,
-          { pkg: pkg2 }
+          { pkg: pkg2 },
         );
       } finally {
         await cleanupSession.close();
@@ -238,7 +241,10 @@ describe.skipIf(!RUN_INTEGRATION)(
       const session = (
         backend as unknown as { driver: { session(): unknown } }
       ).driver.session() as {
-        run(q: string, p?: object): Promise<{
+        run(
+          q: string,
+          p?: object,
+        ): Promise<{
           records: Array<{ get(k: string): unknown }>;
         }>;
         close(): Promise<void>;
@@ -251,7 +257,7 @@ describe.skipIf(!RUN_INTEGRATION)(
              WHERE sec.heading = 'Guide'
            OPTIONAL MATCH (sec)-[r:Documents]->()
            RETURN count(r) AS edges`,
-          { pkg: PKG_NAME }
+          { pkg: PKG_NAME },
         );
         const rec = r.records[0]!;
         const edges = rec.get('edges') as { toNumber(): number } | number;
@@ -261,5 +267,5 @@ describe.skipIf(!RUN_INTEGRATION)(
         await session.close();
       }
     });
-  }
+  },
 );

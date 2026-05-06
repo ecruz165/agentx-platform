@@ -11,12 +11,9 @@
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
-import {
-  JobBus,
-  type Envelope,
-} from '@agentx/harness-core';
+import { type Envelope, JobBus } from '@agentx/harness-core';
 import type { JobSpec } from '@agentx/harness-pipeline';
+import { afterEach, describe, expect, it } from 'vitest';
 import { runPipelineSubprocess, type SubprocessLifecycleEvent } from './run-pipeline-subprocess.ts';
 
 const tmps: string[] = [];

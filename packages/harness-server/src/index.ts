@@ -1,118 +1,109 @@
-import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
+import { randomUUID } from 'node:crypto';
 import { chmod, mkdir, unlink } from 'node:fs/promises';
+import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { dirname } from 'node:path';
+import type { BindingResolver, CredentialBroker } from '@agentx/agent-auth-lib';
 import {
-  JobBus,
-  TokenAccumulator,
-  findPipeline,
-  findProduct,
-  resolveAccepts,
-  runJob,
   type AdapterFactory,
   type AdapterId,
   type AgentDef,
-  type AgentStatus,
   type Catalog,
   type Envelope,
+  findPipeline,
+  findProduct,
+  JobBus,
   type JobRecord,
   type PipelineCatalog,
-  type ProductDef,
   type RegisteredAgent,
+  resolveAccepts,
+  runJob,
+  TokenAccumulator,
 } from '@agentx/harness-core';
-import type { BindingResolver, CredentialBroker } from '@agentx/agent-auth-lib';
 import type { BaseChatModel } from '@langchain/core/language_models/chat_models';
 import { runEntryCoordinator } from './coordinator/entry-coordinator.ts';
-import { randomUUID } from 'node:crypto';
-import { spawnLoaderJob, type LoaderEvent } from './loader-spawn.ts';
 import { inlineCatalogLoader } from './load-catalog.ts';
+import { type LoaderEvent, spawnLoaderJob } from './loader-spawn.ts';
 import { runJobInContainer } from './run-job-in-container.ts';
 import type { SpawnRepoSpec } from './spawn-worker.ts';
-
-export {
-  spawnWorker,
-  runWorker,
-  parseDevcontainerUpStdout,
-  resolveSshAgentMount,
-  type SpawnRepoSpec,
-  type WorkerSpawnSpec,
-  type SpawnResult,
-  type SpawnedWorktree,
-  type RunWorkerOptions,
-  type RunWorkerResult,
-} from './spawn-worker.ts';
-
-export {
-  validateRepoAccess,
-  parseHeadSha,
-  suggestFix,
-  type RepoAccessCheck,
-  type ValidateRepoAccessOptions,
-  type ValidateRepoAccessResult,
-} from './validate-repo-access.ts';
-
-export {
-  runPipelineSubprocess,
-  type RunPipelineSubprocessOptions,
-  type RunPipelineSubprocessResult,
-  type SubprocessLifecycleEvent,
-} from './run-pipeline-subprocess.ts';
-
-export {
-  runPipelineInContainer,
-  type RunPipelineInContainerOptions,
-  type RunPipelineInContainerResult,
-} from './run-pipeline-in-container.ts';
-
-export {
-  runJobInContainer,
-  buildJobSpec,
-  removeContainer,
-  type RunJobInContainerOptions,
-  type RunJobInContainerResult,
-} from './run-job-in-container.ts';
-
-export {
-  consumeJsonlStream,
-  type JobCompleteSentinel,
-  type ConsumeStreamResult,
-} from './pipeline-jsonl-stream.ts';
-
-export {
-  spawnLoaderJob,
-  type LoaderSpawnSpec,
-  type LoaderJobHandle,
-  type LoaderEvent,
-} from './loader-spawn.ts';
-
-export {
-  loadCatalogFromWorkspaceYaml,
-  inlineCatalogLoader,
-} from './load-catalog.ts';
 
 // Re-export the harness-core surface so existing consumers (harness-cli,
 // examples) that import from '@agentx/harness-server' keep working unchanged.
 // New consumers should prefer importing from '@agentx/harness-core' directly.
 export {
-  JobBus,
+  type AdapterFactory,
+  type AdapterId,
+  type AgentDef,
   bridgeAdapter,
-  loadCatalog,
-  findPipeline,
-  findProduct,
-  validateUnifiedCatalog,
+  type Catalog,
   CatalogError,
-  resolveAccepts,
-  runJob,
+  type ContextSourceDef,
   defaultAdapterFactory,
   type Envelope,
-  type Catalog,
+  findPipeline,
+  findProduct,
+  JobBus,
+  loadCatalog,
   type PipelineCatalog,
   type PipelineDef,
   type ProductDef,
-  type ContextSourceDef,
-  type AgentDef,
-  type AdapterId,
-  type AdapterFactory,
+  resolveAccepts,
+  runJob,
+  validateUnifiedCatalog,
 } from '@agentx/harness-core';
+export {
+  inlineCatalogLoader,
+  loadCatalogFromWorkspaceYaml,
+} from './load-catalog.ts';
+export {
+  type LoaderEvent,
+  type LoaderJobHandle,
+  type LoaderSpawnSpec,
+  spawnLoaderJob,
+} from './loader-spawn.ts';
+export {
+  type ConsumeStreamResult,
+  consumeJsonlStream,
+  type JobCompleteSentinel,
+} from './pipeline-jsonl-stream.ts';
+
+export {
+  buildJobSpec,
+  type RunJobInContainerOptions,
+  type RunJobInContainerResult,
+  removeContainer,
+  runJobInContainer,
+} from './run-job-in-container.ts';
+export {
+  type RunPipelineInContainerOptions,
+  type RunPipelineInContainerResult,
+  runPipelineInContainer,
+} from './run-pipeline-in-container.ts';
+export {
+  type RunPipelineSubprocessOptions,
+  type RunPipelineSubprocessResult,
+  runPipelineSubprocess,
+  type SubprocessLifecycleEvent,
+} from './run-pipeline-subprocess.ts';
+export {
+  parseDevcontainerUpStdout,
+  type RunWorkerOptions,
+  type RunWorkerResult,
+  resolveSshAgentMount,
+  runWorker,
+  type SpawnedWorktree,
+  type SpawnRepoSpec,
+  type SpawnResult,
+  spawnWorker,
+  type WorkerSpawnSpec,
+} from './spawn-worker.ts';
+export {
+  parseHeadSha,
+  type RepoAccessCheck,
+  suggestFix,
+  type ValidateRepoAccessOptions,
+  type ValidateRepoAccessResult,
+  validateRepoAccess,
+} from './validate-repo-access.ts';
 
 export interface HarnessServerOptions {
   socketPath: string;
@@ -196,25 +187,24 @@ export interface HarnessServerHandle {
   stop(): Promise<void>;
 }
 
-export type { AgentStatus, RegisteredAgent, JobRecord } from '@agentx/harness-core';
-
+export type { AgentStatus, JobRecord, RegisteredAgent } from '@agentx/harness-core';
+export {
+  buildCheckoutCoordinatorGraph,
+  type RunCheckoutCoordinatorArgs,
+  type RunCheckoutCoordinatorResult,
+  runCheckoutCoordinator,
+} from './coordinator/checkout-coordinator.ts';
 // Coordinator workflows (admin-owned, run inside harness-server). Per
 // memory project_langgraph_two_scopes — these graphs replace the
 // hardcoded placeholder COORDINATOR_AGENT records when slice 10c wires
 // them into handleSubmitJob.
 export {
   buildEntryCoordinatorGraph,
-  runEntryCoordinator,
+  type CoordinatorPipelineSummary,
   type RunEntryCoordinatorArgs,
   type RunEntryCoordinatorResult,
-  type CoordinatorPipelineSummary,
+  runEntryCoordinator,
 } from './coordinator/entry-coordinator.ts';
-export {
-  buildCheckoutCoordinatorGraph,
-  runCheckoutCoordinator,
-  type RunCheckoutCoordinatorArgs,
-  type RunCheckoutCoordinatorResult,
-} from './coordinator/checkout-coordinator.ts';
 
 /**
  * Synthetic agents harness-server inserts around every pipelined job's
@@ -279,9 +269,7 @@ export async function startHarnessServer(opts: HarnessServerOptions): Promise<Ha
     catalog = await loader();
   } catch (err) {
     // Fail fast — never serve traffic with a partial catalog.
-    throw new Error(
-      `harness-server: catalog load failed at startup — ${(err as Error).message}`
-    );
+    throw new Error(`harness-server: catalog load failed at startup — ${(err as Error).message}`);
   }
   const jobs = new Map<string, JobRecord>();
   // TokenAccumulator subscribes to the JobBus per-job and mutates the
@@ -438,7 +426,12 @@ function route(req: IncomingMessage, res: ServerResponse, ctx: ServerCtx) {
     // a JobRecord, bridge its events onto the JobBus as 'loader-event'
     // adapter envelopes. Once registered, jobs-tui sees the loader in
     // GET /v1/jobs and the SSE stream picks up its progress envelopes.
-    if (req.method === 'POST' && url === '/v1/loader-jobs' && parsed && typeof parsed === 'object') {
+    if (
+      req.method === 'POST' &&
+      url === '/v1/loader-jobs' &&
+      parsed &&
+      typeof parsed === 'object'
+    ) {
       void handleSubmitLoaderJob(res, parsed as Record<string, unknown>, ctx);
       return;
     }
@@ -476,7 +469,7 @@ function route(req: IncomingMessage, res: ServerResponse, ctx: ServerCtx) {
 async function handleSubmitJob(
   res: ServerResponse,
   body: Record<string, unknown>,
-  ctx: ServerCtx
+  ctx: ServerCtx,
 ): Promise<void> {
   const jobId = typeof body.jobId === 'string' ? body.jobId : null;
   let pipelineId = typeof body.pipeline === 'string' ? body.pipeline : null;
@@ -513,7 +506,7 @@ async function handleSubmitJob(
         badRequest(
           res,
           `coordinator could not pick a valid pipeline for the intent. ` +
-            `Coordinator returned: "${decision.pipelineId}". Known pipelines: ${known.join(', ') || '(none)'}.`
+            `Coordinator returned: "${decision.pipelineId}". Known pipelines: ${known.join(', ') || '(none)'}.`,
         );
         return;
       }
@@ -530,7 +523,10 @@ async function handleSubmitJob(
       const pipeline = findPipeline(ctx.catalog, pipelineId);
       if (!pipeline) {
         const known = ctx.catalog.pipelines.map((p) => p.id);
-        badRequest(res, `unknown pipeline "${pipelineId}". Known: ${known.join(', ') || '(none registered)'}`);
+        badRequest(
+          res,
+          `unknown pipeline "${pipelineId}". Known: ${known.join(', ') || '(none registered)'}`,
+        );
         return;
       }
       agents = [
@@ -606,8 +602,7 @@ async function handleSubmitJob(
         tokens.detach(jobId);
       }
     };
-    const useContainer =
-      process.env.AGENTX_USE_CONTAINER === '1' && resolver !== undefined;
+    const useContainer = process.env.AGENTX_USE_CONTAINER === '1' && resolver !== undefined;
 
     // Resolve repos for the container path. Priority: explicit
     // body.repos wins; otherwise look up from the catalog product
@@ -686,31 +681,23 @@ async function handleSubmitLoaderProductJobs(
   res: ServerResponse,
   body: Record<string, unknown>,
   productId: string,
-  ctx: ServerCtx
+  ctx: ServerCtx,
 ): Promise<void> {
   const product = findProduct(ctx.catalog, productId);
   if (!product) {
     const known = (ctx.catalog.products ?? []).map((p) => p.id);
-    badRequest(
-      res,
-      `unknown product '${productId}'. Known: ${known.join(', ') || '(none)'}`
-    );
+    badRequest(res, `unknown product '${productId}'. Known: ${known.join(', ') || '(none)'}`);
     return;
   }
   if (!product.contextSources || product.contextSources.length === 0) {
-    badRequest(
-      res,
-      `product '${productId}' has no contextSources declared in the catalog`
-    );
+    badRequest(res, `product '${productId}' has no contextSources declared in the catalog`);
     return;
   }
   // Workspace-default fallbacks come from the request body. Per-source
   // overrides in the catalog (embedderUrl/embedderModel/backend) win.
   const defaultBackend = typeof body.backend === 'string' ? body.backend : undefined;
-  const defaultEmbedderUrl =
-    typeof body.embedderUrl === 'string' ? body.embedderUrl : undefined;
-  const workspaceRoot =
-    typeof body.workspaceRoot === 'string' ? body.workspaceRoot : null;
+  const defaultEmbedderUrl = typeof body.embedderUrl === 'string' ? body.embedderUrl : undefined;
+  const workspaceRoot = typeof body.workspaceRoot === 'string' ? body.workspaceRoot : null;
   if (!workspaceRoot) {
     badRequest(res, 'workspaceRoot is required for productId-form intent');
     return;
@@ -745,10 +732,8 @@ async function handleSubmitLoaderProductJobs(
       target: resolveProductTarget(src.target, workspaceRoot),
       type: src.type,
       backend,
-      backendUser:
-        typeof body.backendUser === 'string' ? body.backendUser : undefined,
-      backendPassword:
-        typeof body.backendPassword === 'string' ? body.backendPassword : undefined,
+      backendUser: typeof body.backendUser === 'string' ? body.backendUser : undefined,
+      backendPassword: typeof body.backendPassword === 'string' ? body.backendPassword : undefined,
       embedderUrl,
       embedderModel: src.embedderModel,
       embedderDim: src.embedderDim,
@@ -833,7 +818,7 @@ interface ResolvedSingleSpec {
  *  single-source POST and the product fan-out path). */
 async function handleSubmitLoaderSingleResolved(
   spec: ResolvedSingleSpec,
-  ctx: ServerCtx
+  ctx: ServerCtx,
 ): Promise<void> {
   const submittedAt = new Date().toISOString();
   const loaderAgent: RegisteredAgent = {
@@ -844,9 +829,7 @@ async function handleSubmitLoaderSingleResolved(
   };
   const job: JobRecord = {
     jobId: spec.jobId,
-    name: spec.productId
-      ? `load: ${spec.type} (${spec.productId})`
-      : `load: ${spec.type}`,
+    name: spec.productId ? `load: ${spec.type} (${spec.productId})` : `load: ${spec.type}`,
     productId: spec.productId,
     status: 'running',
     submittedAt,
@@ -940,7 +923,7 @@ async function handleSubmitLoaderSingleResolved(
 async function handleSubmitLoaderJob(
   res: ServerResponse,
   body: Record<string, unknown>,
-  ctx: ServerCtx
+  ctx: ServerCtx,
 ): Promise<void> {
   // Two acceptance shapes:
   //   1. {productId, ...defaults} — server resolves from catalog and
@@ -959,13 +942,12 @@ async function handleSubmitLoaderJob(
   const type = typeof body.type === 'string' ? body.type : null;
   const backend = typeof body.backend === 'string' ? body.backend : null;
   const embedderUrl = typeof body.embedderUrl === 'string' ? body.embedderUrl : null;
-  const workspaceRoot =
-    typeof body.workspaceRoot === 'string' ? body.workspaceRoot : null;
+  const workspaceRoot = typeof body.workspaceRoot === 'string' ? body.workspaceRoot : null;
 
   if (!jobId || !target || !type || !backend || !embedderUrl || !workspaceRoot) {
     badRequest(
       res,
-      'either {productId, ...} or {jobId, target, type, backend, embedderUrl, workspaceRoot} required'
+      'either {productId, ...} or {jobId, target, type, backend, embedderUrl, workspaceRoot} required',
     );
     return;
   }
@@ -1023,13 +1005,10 @@ async function handleSubmitLoaderJob(
       type,
       backend,
       backendUser: typeof body.backendUser === 'string' ? body.backendUser : undefined,
-      backendPassword:
-        typeof body.backendPassword === 'string' ? body.backendPassword : undefined,
+      backendPassword: typeof body.backendPassword === 'string' ? body.backendPassword : undefined,
       embedderUrl,
-      embedderModel:
-        typeof body.embedderModel === 'string' ? body.embedderModel : undefined,
-      embedderDim:
-        typeof body.embedderDim === 'number' ? body.embedderDim : undefined,
+      embedderModel: typeof body.embedderModel === 'string' ? body.embedderModel : undefined,
+      embedderDim: typeof body.embedderDim === 'number' ? body.embedderDim : undefined,
       workspaceRoot,
       // Auto-tmux: if the harness-server itself was started inside a
       // tmux session, spawn each loader in its own pane in the
@@ -1076,8 +1055,7 @@ async function handleSubmitLoaderJob(
         counts.errors++;
         break;
     }
-    const lastItem =
-      typeof event.itemId === 'string' ? event.itemId : undefined;
+    const lastItem = typeof event.itemId === 'string' ? event.itemId : undefined;
     ctx.bus.publish(jobId, 'loader', {
       kind: 'loader-event',
       ts: new Date().toISOString(),
@@ -1164,11 +1142,16 @@ function registeredFromDef(def: AgentDef, setName: string): RegisteredAgent {
  * Constraint: the heartbeat must not block the event loop and must be cleared
  * on `req.close` / `res.close`. ~5–10 lines including the interval setup.
  */
-function streamJobEvents(req: IncomingMessage, res: ServerResponse, jobId: string, bus: JobBus): void {
+function streamJobEvents(
+  req: IncomingMessage,
+  res: ServerResponse,
+  jobId: string,
+  bus: JobBus,
+): void {
   res.writeHead(200, {
     'content-type': 'text/event-stream',
     'cache-control': 'no-cache',
-    'connection': 'keep-alive',
+    connection: 'keep-alive',
   });
   res.write(': connected\n\n');
 

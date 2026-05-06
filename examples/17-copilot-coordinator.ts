@@ -35,9 +35,9 @@ import { existsSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { createHarnessChatModel } from '@agentx/agent-adapter';
-import { runEntryCoordinator } from '@agentx/harness-server';
 import type { CredentialBroker, ResolvedBinding } from '@agentx/agent-auth-lib';
 import type { Catalog } from '@agentx/harness-core';
+import { runEntryCoordinator } from '@agentx/harness-server';
 
 const AUTH_PATH = join(homedir(), '.agentx', 'auth.json');
 
@@ -54,38 +54,67 @@ const sampleCatalog: Catalog = {
       id: 'feature-add',
       description: 'plan, build, and review a brand-new feature end-to-end',
       agents: [
-        { id: 'planner', role: 'Plan', adapter: 'opencode-cli', accepts: ['github-copilot:gpt-4o'] },
+        {
+          id: 'planner',
+          role: 'Plan',
+          adapter: 'opencode-cli',
+          accepts: ['github-copilot:gpt-4o'],
+        },
       ],
     },
     {
       id: 'bugfix-triage',
       description: 'reproduce, isolate, and fix a reported bug with tests',
       agents: [
-        { id: 'reproducer', role: 'Repro', adapter: 'opencode-cli', accepts: ['github-copilot:gpt-4o'] },
+        {
+          id: 'reproducer',
+          role: 'Repro',
+          adapter: 'opencode-cli',
+          accepts: ['github-copilot:gpt-4o'],
+        },
       ],
     },
     {
       id: 'docs-update',
       description: 'rewrite or expand documentation files',
       agents: [
-        { id: 'writer', role: 'Write', adapter: 'opencode-cli', accepts: ['github-copilot:gpt-4o'] },
+        {
+          id: 'writer',
+          role: 'Write',
+          adapter: 'opencode-cli',
+          accepts: ['github-copilot:gpt-4o'],
+        },
       ],
     },
     {
       id: 'security-audit',
       description: 'scan code for vulnerabilities and propose remediations',
       agents: [
-        { id: 'auditor', role: 'Audit', adapter: 'opencode-cli', accepts: ['github-copilot:gpt-4o'] },
+        {
+          id: 'auditor',
+          role: 'Audit',
+          adapter: 'opencode-cli',
+          accepts: ['github-copilot:gpt-4o'],
+        },
       ],
     },
   ],
 };
 
 const intents = [
-  { text: 'Login throws a 500 when password contains special characters', expected: 'bugfix-triage' },
+  {
+    text: 'Login throws a 500 when password contains special characters',
+    expected: 'bugfix-triage',
+  },
   { text: 'Add dark mode to the settings panel', expected: 'feature-add' },
-  { text: 'The README needs a quickstart section explaining the install steps', expected: 'docs-update' },
-  { text: 'Check whether our JWT signing routine has any timing-attack vulnerabilities', expected: 'security-audit' },
+  {
+    text: 'The README needs a quickstart section explaining the install steps',
+    expected: 'docs-update',
+  },
+  {
+    text: 'Check whether our JWT signing routine has any timing-attack vulnerabilities',
+    expected: 'security-audit',
+  },
 ];
 
 // Stub broker — Copilot's adapter reads auth.json directly via authPath,
@@ -121,8 +150,7 @@ async function preflight(): Promise<void> {
 
   if (!existsSync(AUTH_PATH)) {
     throw new Error(
-      `auth.json not found at ${AUTH_PATH}\n` +
-        `Run: pnpm harness auth login github-copilot`
+      `auth.json not found at ${AUTH_PATH}\nRun: pnpm harness auth login github-copilot`,
     );
   }
 
@@ -135,8 +163,7 @@ async function preflight(): Promise<void> {
   const cred = parsed.providers?.['github-copilot'];
   if (!cred?.apiKey || cred.apiKey.includes('REPLACE_ME')) {
     throw new Error(
-      `github-copilot not authenticated.\n` +
-        `Run: pnpm harness auth login github-copilot`
+      `github-copilot not authenticated.\n` + `Run: pnpm harness auth login github-copilot`,
     );
   }
   console.log(`  ✓ github-copilot authenticated${cred.username ? ` as @${cred.username}` : ''}`);
@@ -178,7 +205,9 @@ async function main(): Promise<void> {
     if (match) correct += 1;
     console.log(`  Copilot picked:    ${result.pipelineId} ${match ? '✓' : '✗'} (${ms}ms)`);
     if (!match) {
-      console.log(`  reasoning:         ${result.reasoning.split('\n').slice(0, 2).join(' / ').slice(0, 200)}`);
+      console.log(
+        `  reasoning:         ${result.reasoning.split('\n').slice(0, 2).join(' / ').slice(0, 200)}`,
+      );
     }
     console.log();
   }
@@ -195,7 +224,7 @@ async function main(): Promise<void> {
 main().catch((err: Error) => {
   console.error();
   console.error('coordinator e2e FAILED:');
-  console.error('  ' + err.message);
+  console.error(`  ${err.message}`);
   if (err.stack) console.error(err.stack.split('\n').slice(1, 6).join('\n'));
   process.exit(1);
 });

@@ -4,16 +4,20 @@ import { existsSync } from 'node:fs';
 import { chmod, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
-import { AuthStore, fetchGitHubUsername, loginGitHubCopilot, type Provider } from '@agentx/agent-auth-lib';
-import { spawnLoaderJob, type LoaderEvent } from '@agentx/harness-server';
+import {
+  AuthStore,
+  fetchGitHubUsername,
+  loginGitHubCopilot,
+  type Provider,
+} from '@agentx/agent-auth-lib';
+import { type LoaderEvent, spawnLoaderJob } from '@agentx/harness-server';
 import { udsRequest } from './uds-client.ts';
 import {
   findProduct,
   listProductIds,
   readWorkspaceConfig,
-  WorkspaceConfigError,
-  type ProductConfig,
   type WorkspaceConfig,
+  WorkspaceConfigError,
 } from './workspace-config.ts';
 
 /**
@@ -118,12 +122,12 @@ async function handleAttach(args: string[]) {
       } else {
         process.stderr.write(
           `harness attach: no pane titled '${target}' in ${session}:${window}.\n` +
-            `  Attaching to the whole loaders window — you can navigate panes with ctrl-b o or ctrl-b q.\n`
+            `  Attaching to the whole loaders window — you can navigate panes with ctrl-b o or ctrl-b q.\n`,
         );
       }
     } catch (err) {
       process.stderr.write(
-        `harness attach: pane lookup failed (${(err as Error).message}); attaching to the loaders window.\n`
+        `harness attach: pane lookup failed (${(err as Error).message}); attaching to the loaders window.\n`,
       );
     }
   }
@@ -142,10 +146,7 @@ interface PaneInfo {
   title: string;
 }
 
-async function tmuxListPanes(
-  session: string,
-  window: string
-): Promise<PaneInfo[]> {
+async function tmuxListPanes(session: string, window: string): Promise<PaneInfo[]> {
   const out = await tmuxOutput([
     'list-panes',
     '-t',
@@ -206,7 +207,7 @@ async function loadWorkspaceConfig(): Promise<WorkspaceConfig> {
     if (!cfg) {
       die(
         `No harness-workspace.yml found in ${WORKSPACE_CONFIG_PATH}.\n` +
-          `Create one or run from a workspace directory.`
+          `Create one or run from a workspace directory.`,
       );
     }
     return cfg;
@@ -265,7 +266,7 @@ async function handleSubmit(args: string[]) {
   if (!productId) {
     die(
       'No productId provided. Pass --product <id>, or run:\n' +
-        `  harness session set productId <id>\nKnown: ${listProductIds(cfg).join(', ')}`
+        `  harness session set productId <id>\nKnown: ${listProductIds(cfg).join(', ')}`,
     );
   }
   const product = findProduct(cfg, productId);
@@ -324,7 +325,7 @@ function parseSubmitArgs(args: string[]): SubmitOptions {
   }
   if (positional.length === 0) {
     die(
-      'Usage: harness submit <pipeline> [--product <id>] [--name "<title>"] [--input <file>|--input-text "<text>"]'
+      'Usage: harness submit <pipeline> [--product <id>] [--name "<title>"] [--input <file>|--input-text "<text>"]',
     );
   }
   opts.pipeline = positional[0]!;
@@ -373,7 +374,7 @@ async function handleAuth(args: string[]) {
       username: username ?? undefined,
     });
     console.log(
-      `✓ github-copilot authenticated${username ? ` as @${username}` : ''}. Token saved to ${AUTH_PATH}`
+      `✓ github-copilot authenticated${username ? ` as @${username}` : ''}. Token saved to ${AUTH_PATH}`,
     );
     console.log(`  Length: ${result.apiKey.length}, scope: ${result.scope || '(default)'}`);
     return;
@@ -425,7 +426,9 @@ async function handleServer(args: string[]) {
     ];
     for (const [name, path] of sockets) {
       const live = existsSync(path);
-      console.log(`  ${live ? '✓' : '✗'} ${name.padEnd(8)} ${live ? 'running' : 'down  '}  ${path}`);
+      console.log(
+        `  ${live ? '✓' : '✗'} ${name.padEnd(8)} ${live ? 'running' : 'down  '}  ${path}`,
+      );
     }
     return;
   }
@@ -592,10 +595,7 @@ async function handleContextLoad(args: string[]) {
   return loadSingleSource(flagsToLoadFlags(parsed, resolve(parsed.positional!)), undefined);
 }
 
-async function loadAllProductSources(
-  productId: string,
-  parsed: ParsedRawArgs
-): Promise<void> {
+async function loadAllProductSources(productId: string, parsed: ParsedRawArgs): Promise<void> {
   // When harness-server is up, delegate the entire fan-out: server reads
   // its catalog (sourced from harness-workspace.yml at startup), spawns
   // one worker per contextSource, and registers each as a separate job
@@ -609,19 +609,20 @@ async function loadAllProductSources(
       backendPassword: parsed.flags['backend-password'] ?? process.env.NEO4J_PASSWORD,
       embedderUrl: parsed.flags['embedder-url'],
       embedderModel: parsed.flags['embedder-model'],
-      embedderDim: parsed.flags['embedder-dim']
-        ? Number(parsed.flags['embedder-dim'])
-        : undefined,
+      embedderDim: parsed.flags['embedder-dim'] ? Number(parsed.flags['embedder-dim']) : undefined,
       workspaceRoot: WORKSPACE_ROOT,
     });
-    const body = resp.body as
-      | { ok: boolean; spawnedJobIds?: string[]; count?: number; error?: string }
-      | null;
-    if (!body || !body.ok) {
+    const body = resp.body as {
+      ok: boolean;
+      spawnedJobIds?: string[];
+      count?: number;
+      error?: string;
+    } | null;
+    if (!body?.ok) {
       die(`harness-server: ${body?.error ?? 'unknown error'}`);
     }
     process.stderr.write(
-      `harness context load: spawned ${body.count ?? 0} loader job(s) for product '${productId}':\n`
+      `harness context load: spawned ${body.count ?? 0} loader job(s) for product '${productId}':\n`,
     );
     for (const id of body.spawnedJobIds ?? []) {
       process.stderr.write(`  ${id}\n`);
@@ -642,27 +643,31 @@ async function loadAllProductSources(
   if (!product.contextSources || product.contextSources.length === 0) {
     die(
       `product '${productId}' has no contextSources declared in harness-workspace.yml.\n` +
-        `Add a contextSources: [{ type, target, ... }] block under the product.`
+        `Add a contextSources: [{ type, target, ... }] block under the product.`,
     );
   }
   const defaultBackend = parsed.flags.backend;
   const defaultEmbedderUrl = parsed.flags['embedder-url'];
   process.stderr.write(
-    `harness context load: product '${productId}' has ${product.contextSources.length} source(s) (in-process; harness-server not running)\n`
+    `harness context load: product '${productId}' has ${product.contextSources.length} source(s) (in-process; harness-server not running)\n`,
   );
   let totalErrors = 0;
   for (const src of product.contextSources) {
     const backend = src.backend ?? defaultBackend;
     const embedderUrl = src.embedderUrl ?? defaultEmbedderUrl;
-    if (!backend) die(`source ${src.type}/${src.target}: no backend (set --backend or contextSources[].backend)`);
+    if (!backend)
+      die(
+        `source ${src.type}/${src.target}: no backend (set --backend or contextSources[].backend)`,
+      );
     if (!embedderUrl) {
       die(
-        `source ${src.type}/${src.target}: no embedder-url (set --embedder-url or contextSources[].embedderUrl)`
+        `source ${src.type}/${src.target}: no embedder-url (set --embedder-url or contextSources[].embedderUrl)`,
       );
     }
-    const target = src.target.startsWith('/') || src.target.includes('://')
-      ? src.target
-      : resolve(WORKSPACE_ROOT, src.target);
+    const target =
+      src.target.startsWith('/') || src.target.includes('://')
+        ? src.target
+        : resolve(WORKSPACE_ROOT, src.target);
     process.stderr.write(`\n[${src.type}] ${target}\n`);
     const errs = await loadSingleSource(
       {
@@ -673,10 +678,12 @@ async function loadAllProductSources(
         backendPassword: parsed.flags['backend-password'] ?? process.env.NEO4J_PASSWORD,
         embedderUrl,
         embedderModel: src.embedderModel ?? parsed.flags['embedder-model'],
-        embedderDim: src.embedderDim ?? (parsed.flags['embedder-dim'] ? Number(parsed.flags['embedder-dim']) : undefined),
+        embedderDim:
+          src.embedderDim ??
+          (parsed.flags['embedder-dim'] ? Number(parsed.flags['embedder-dim']) : undefined),
       },
       productId,
-      { exitOnComplete: false }
+      { exitOnComplete: false },
     );
     totalErrors += errs;
   }
@@ -693,7 +700,7 @@ async function loadViaHarnessServer(
   jobId: string,
   flags: LoadFlags,
   productId: string | undefined,
-  exitOnComplete: boolean
+  exitOnComplete: boolean,
 ): Promise<number> {
   // Submit the intent — server responds OK once it has registered the job
   // and started the loader. Progress flows back via SSE on the existing
@@ -716,7 +723,7 @@ async function loadViaHarnessServer(
   process.stderr.write(
     `harness context load: submitted ${jobId} to harness-server.\n` +
       `  Open jobs-tui (\`harness jobs-tui\`) to watch progress live.\n` +
-      `  Or follow events: harness jobs ${jobId} events (TBD).\n`
+      `  Or follow events: harness jobs ${jobId} events (TBD).\n`,
   );
 
   // We deliberately do NOT block on completion — the server owns the
@@ -731,7 +738,7 @@ async function loadViaHarnessServer(
 async function loadSingleSource(
   flags: LoadFlags,
   productId: string | undefined,
-  opts: LoadOpts = { exitOnComplete: true }
+  opts: LoadOpts = { exitOnComplete: true },
 ): Promise<number> {
   const exitOnComplete = opts.exitOnComplete ?? true;
   // jobId stays short to keep the per-job UDS path under the 104-byte
@@ -862,7 +869,7 @@ function requireProductId(session: Session): string {
   if (!id) {
     die(
       'productId not set. Run: harness session set productId <id>\n' +
-        '(Decision #4: every memory/context call must be product-scoped.)'
+        '(Decision #4: every memory/context call must be product-scoped.)',
     );
   }
   return id;
@@ -891,9 +898,9 @@ function usage(): void {
       '  harness memory <query|put> <key> [value]',
       '  harness context query <text>',
       '  harness context load <target> --type <id> --backend <url> --embedder-url <url>',
-      '  harness context load --product <id>            # loads all of a product\'s declared contextSources',
+      "  harness context load --product <id>            # loads all of a product's declared contextSources",
       '  harness attach [jobId]                         # read-only tmux peek; attaches to loaders window',
-    ].join('\n')
+    ].join('\n'),
   );
 }
 

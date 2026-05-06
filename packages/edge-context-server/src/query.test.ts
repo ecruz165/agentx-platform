@@ -17,18 +17,16 @@
  * depending on the harness-core ingest having been run.
  */
 
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { Neo4jBackend } from '@agentx/context-loader-core';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ContextQueryService } from './query.ts';
 
 const RUN_INTEGRATION = process.env.RUN_NEO4J_INTEGRATION === '1';
 const NEO4J_URL = process.env.NEO4J_TEST_URL ?? 'bolt://localhost:7687';
 const NEO4J_USER = process.env.NEO4J_TEST_USER ?? 'neo4j';
 const NEO4J_PASSWORD = process.env.NEO4J_TEST_PASSWORD ?? 'devpassword';
-const EMBEDDER_URL =
-  process.env.EMBEDDER_TEST_URL ?? 'http://localhost:12434/engines/llama.cpp/v1';
-const EMBEDDER_MODEL =
-  process.env.EMBEDDER_TEST_MODEL ?? 'ai/qwen3-embedding:0.6B-F16';
+const EMBEDDER_URL = process.env.EMBEDDER_TEST_URL ?? 'http://localhost:12434/engines/llama.cpp/v1';
+const EMBEDDER_MODEL = process.env.EMBEDDER_TEST_MODEL ?? 'ai/qwen3-embedding:0.6B-F16';
 
 const RUN_ID = `t${Date.now().toString(36)}_${Math.floor(Math.random() * 1e6).toString(36)}`;
 const LABEL = `Symbol_${RUN_ID}`;
@@ -61,7 +59,7 @@ describe.skipIf(!RUN_INTEGRATION)('ContextQueryService — real vector search', 
         properties: { text: d.text },
         sourceTypeId: 'test',
         sourceId: 'query-test-product',
-      }))
+      })),
     );
 
     // Embed each doc via the same embedder the query path uses, so
@@ -76,7 +74,7 @@ describe.skipIf(!RUN_INTEGRATION)('ContextQueryService — real vector search', 
         nodeId: d.id,
         vector: vectors[i]!,
         meta: { kind: 'test' },
-      }))
+      })),
     );
 
     svc = new ContextQueryService({
@@ -93,7 +91,9 @@ describe.skipIf(!RUN_INTEGRATION)('ContextQueryService — real vector search', 
     if (svc) await svc.close();
     if (backend) {
       // Best-effort teardown — drop the test label's nodes only.
-      const session = (backend as unknown as { driver: { session(): unknown } }).driver.session() as {
+      const session = (
+        backend as unknown as { driver: { session(): unknown } }
+      ).driver.session() as {
         run(q: string): Promise<unknown>;
         close(): Promise<void>;
       };
@@ -107,7 +107,11 @@ describe.skipIf(!RUN_INTEGRATION)('ContextQueryService — real vector search', 
   });
 
   it('ranks the most semantically similar node first', async () => {
-    const r = await svc.query({ q: 'how do I write SQL against postgres', topK: 4, labels: [LABEL] });
+    const r = await svc.query({
+      q: 'how do I write SQL against postgres',
+      topK: 4,
+      labels: [LABEL],
+    });
     expect(r.hits).toHaveLength(4);
     expect(r.hits[0]!.nodeId).toBe('d-database');
     // Cooking should rank last — it's wildly off-topic.

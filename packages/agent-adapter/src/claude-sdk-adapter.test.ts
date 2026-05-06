@@ -19,7 +19,6 @@ class MockAPIError extends Error {
 vi.mock('@anthropic-ai/sdk', () => ({
   default: class MockAnthropic {
     messages = { create: mockCreate };
-    constructor(_opts: unknown) {}
   },
   APIError: MockAPIError,
 }));
@@ -61,7 +60,7 @@ describe('ClaudeSdkAdapter', () => {
       expect.objectContaining({
         system: 'be brief',
         messages: [{ role: 'user', content: 'say hi' }],
-      })
+      }),
     );
   });
 
@@ -122,7 +121,9 @@ describe('ClaudeSdkAdapter', () => {
 
     const { ClaudeSdkAdapter } = await import('./claude-sdk-adapter.ts');
     const broker = {
-      getCredential: vi.fn().mockResolvedValue({ provider: 'anthropic', apiKey: 'sk-ant-fake', source: 'test' }),
+      getCredential: vi
+        .fn()
+        .mockResolvedValue({ provider: 'anthropic', apiKey: 'sk-ant-fake', source: 'test' }),
     };
     const adapter = new ClaudeSdkAdapter({
       broker: broker as unknown as ConstructorParameters<typeof ClaudeSdkAdapter>[0]['broker'],
@@ -132,7 +133,10 @@ describe('ClaudeSdkAdapter', () => {
     adapter.events.subscribe((e) => events.push(e));
     await adapter.invoke({ user: 'hi' });
 
-    const responseEvent = events.find((e) => e.kind === 'response') as Extract<AdapterEvent, { kind: 'response' }>;
+    const responseEvent = events.find((e) => e.kind === 'response') as Extract<
+      AdapterEvent,
+      { kind: 'response' }
+    >;
     expect(responseEvent.usage).toEqual({
       promptTokens: 12,
       completionTokens: 7,
@@ -147,7 +151,9 @@ describe('ClaudeSdkAdapter', () => {
 
     const { ClaudeSdkAdapter } = await import('./claude-sdk-adapter.ts');
     const broker = {
-      getCredential: vi.fn().mockResolvedValue({ provider: 'anthropic', apiKey: 'sk-ant-fake', source: 'test' }),
+      getCredential: vi
+        .fn()
+        .mockResolvedValue({ provider: 'anthropic', apiKey: 'sk-ant-fake', source: 'test' }),
     };
     const adapter = new ClaudeSdkAdapter({
       broker: broker as unknown as ConstructorParameters<typeof ClaudeSdkAdapter>[0]['broker'],
@@ -157,7 +163,10 @@ describe('ClaudeSdkAdapter', () => {
     adapter.events.subscribe((e) => events.push(e));
     await adapter.invoke({ user: 'hi' });
 
-    const responseEvent = events.find((e) => e.kind === 'response') as Extract<AdapterEvent, { kind: 'response' }>;
+    const responseEvent = events.find((e) => e.kind === 'response') as Extract<
+      AdapterEvent,
+      { kind: 'response' }
+    >;
     expect(responseEvent.usage).toBeUndefined();
   });
 
@@ -168,13 +177,18 @@ describe('ClaudeSdkAdapter', () => {
       new (msg: string, status?: number): Error & { status?: number; error?: unknown };
     };
     const apiErr = new MockAPIError('Bad Request: credit balance too low', 400);
-    (apiErr as { error?: unknown }).error = { type: 'invalid_request_error', message: 'credit balance too low' };
+    (apiErr as { error?: unknown }).error = {
+      type: 'invalid_request_error',
+      message: 'credit balance too low',
+    };
     mockCreate.mockRejectedValueOnce(apiErr);
 
     const { ClaudeSdkAdapter } = await import('./claude-sdk-adapter.ts');
     const { BillingError } = await import('./errors.ts');
     const broker = {
-      getCredential: vi.fn().mockResolvedValue({ provider: 'anthropic', apiKey: 'sk-ant-fake', source: 'test' }),
+      getCredential: vi
+        .fn()
+        .mockResolvedValue({ provider: 'anthropic', apiKey: 'sk-ant-fake', source: 'test' }),
     };
     const adapter = new ClaudeSdkAdapter({
       broker: broker as unknown as ConstructorParameters<typeof ClaudeSdkAdapter>[0]['broker'],

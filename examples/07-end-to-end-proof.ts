@@ -28,18 +28,18 @@
  */
 
 import { spawn } from 'node:child_process';
-import { existsSync, rmSync, mkdirSync, readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
 import { request } from 'node:http';
 import { dirname, join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { setTimeout as sleep } from 'node:timers/promises';
-import {
-  startHarnessServer,
-  loadCatalogFromWorkspaceYaml,
-  type HarnessServerHandle,
-} from '@agentx/harness-server';
+import { fileURLToPath } from 'node:url';
+import { ContextQueryService, startContextServer } from '@agentx/edge-context-server';
 import { startMemoryServer } from '@agentx/edge-memory-server';
-import { startContextServer, ContextQueryService } from '@agentx/edge-context-server';
+import {
+  type HarnessServerHandle,
+  loadCatalogFromWorkspaceYaml,
+  startHarnessServer,
+} from '@agentx/harness-server';
 
 // ─── Cosmetics ────────────────────────────────────────────────────────────
 
@@ -90,7 +90,12 @@ interface UdsResp {
   body: unknown;
 }
 
-function uds(socketPath: string, method: 'GET' | 'POST', path: string, body?: unknown): Promise<UdsResp> {
+function uds(
+  socketPath: string,
+  method: 'GET' | 'POST',
+  path: string,
+  body?: unknown,
+): Promise<UdsResp> {
   const payload = body !== undefined ? JSON.stringify(body) : undefined;
   return new Promise((resolve, reject) => {
     const req = request(
@@ -110,7 +115,7 @@ function uds(socketPath: string, method: 'GET' | 'POST', path: string, body?: un
             resolve({ status: res.statusCode ?? 0, body: data });
           }
         });
-      }
+      },
     );
     req.on('error', reject);
     if (payload) req.write(payload);
@@ -147,15 +152,17 @@ async function fetchOk(url: string, timeoutMs = 5000): Promise<boolean> {
 
 // ─── The proof ────────────────────────────────────────────────────────────
 
-console.log('\n' + BOLD('agentx end-to-end proof') + '\n' + DIM('—'.repeat(60)));
+console.log(`\n${BOLD('agentx end-to-end proof')}\n${DIM('—'.repeat(60))}`);
 
 // Phase 1: prerequisites
 step('Verify Docker Model Runner serving Qwen embeddings');
-const embedderUp = await fetchOk(EMBEDDER_URL.replace('/v1', '') + '/v1/models', 3000);
+const embedderUp = await fetchOk(`${EMBEDDER_URL.replace('/v1', '')}/v1/models`, 3000);
 if (!embedderUp) {
   console.log(`  ${CROSS} embedder not reachable at ${EMBEDDER_URL}`);
   console.log(`  Try: Settings → AI → Enable Docker Model Runner`);
-  console.log(`  Then: docker compose -f workspace-template/.devcontainer/docker-compose.yml up -d embedder`);
+  console.log(
+    `  Then: docker compose -f workspace-template/.devcontainer/docker-compose.yml up -d embedder`,
+  );
   process.exit(1);
 }
 ok(`embedder reachable at ${EMBEDDER_URL}`);
@@ -168,7 +175,7 @@ let dim = 0;
 const warmStart = Date.now();
 for (let attempt = 1; attempt <= 15; attempt++) {
   try {
-    const probe = await fetch(EMBEDDER_URL + '/embeddings', {
+    const probe = await fetch(`${EMBEDDER_URL}/embeddings`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ model: EMBEDDER_MODEL, input: 'ping' }),
@@ -186,16 +193,20 @@ for (let attempt = 1; attempt <= 15; attempt++) {
 if (dim !== EMBEDDER_DIM) {
   fail(
     `embedder didn't reach ready state in ${Date.now() - warmStart}ms ` +
-      `(expected ${EMBEDDER_DIM}-dim, got ${dim}). Try \`docker compose restart embedder\`.`
+      `(expected ${EMBEDDER_DIM}-dim, got ${dim}). Try \`docker compose restart embedder\`.`,
   );
 }
-ok(`embedder produces ${dim}-dim vectors (model: ${EMBEDDER_MODEL}), warmed in ${Date.now() - warmStart}ms`);
+ok(
+  `embedder produces ${dim}-dim vectors (model: ${EMBEDDER_MODEL}), warmed in ${Date.now() - warmStart}ms`,
+);
 
 step('Verify neo4j-edge reachable');
 const neo4jHttpUp = await fetchOk('http://localhost:7474', 3000);
 if (!neo4jHttpUp) {
   console.log(`  ${CROSS} neo4j-edge not reachable at http://localhost:7474`);
-  console.log(`  Try: docker compose -f workspace-template/.devcontainer/docker-compose.yml up -d neo4j-edge`);
+  console.log(
+    `  Try: docker compose -f workspace-template/.devcontainer/docker-compose.yml up -d neo4j-edge`,
+  );
   process.exit(1);
 }
 ok('neo4j-edge http reachable');
@@ -236,19 +247,32 @@ try {
   const catProducts = (await uds(HARNESS_SOCKET, 'GET', '/v1/catalog/products')).body as {
     products: Array<{ id: string; contextSources?: unknown[] }>;
   };
-  ok(`catalog has ${catProducts.products.length} products: ${catProducts.products.map((p) => p.id).join(', ')}`);
+  ok(
+    `catalog has ${catProducts.products.length} products: ${catProducts.products.map((p) => p.id).join(', ')}`,
+  );
   const catPipelines = (await uds(HARNESS_SOCKET, 'GET', '/v1/catalog/pipelines')).body as {
     pipelines: Array<{ id: string }>;
   };
-  ok(`catalog has ${catPipelines.pipelines.length} pipelines: ${catPipelines.pipelines.map((p) => p.id).join(', ')}`);
+  ok(
+    `catalog has ${catPipelines.pipelines.length} pipelines: ${catPipelines.pipelines.map((p) => p.id).join(', ')}`,
+  );
 
   // Phase 4: clear Neo4j
   step('Wipe Neo4j for a clean run');
   await new Promise<void>((res, rej) => {
     const child = spawn(
       'docker',
-      ['exec', 'agentx-neo4j-edge', 'cypher-shell', '-u', 'neo4j', '-p', NEO4J_PASSWORD, 'MATCH (n) DETACH DELETE n'],
-      { stdio: 'pipe' }
+      [
+        'exec',
+        'agentx-neo4j-edge',
+        'cypher-shell',
+        '-u',
+        'neo4j',
+        '-p',
+        NEO4J_PASSWORD,
+        'MATCH (n) DETACH DELETE n',
+      ],
+      { stdio: 'pipe' },
     );
     child.on('exit', (code) => (code === 0 ? res() : rej(new Error(`cypher-shell exit ${code}`))));
     child.on('error', rej);
@@ -284,7 +308,7 @@ try {
     const sseReq = await new Promise<{ body: NodeJS.ReadableStream }>((resolveReq, rejectReq) => {
       const req = request(
         { socketPath: HARNESS_SOCKET, method: 'GET', path: `/v1/jobs/${jobId}/events` },
-        (res) => resolveReq({ body: res })
+        (res) => resolveReq({ body: res }),
       );
       req.on('error', rejectReq);
       req.end();
@@ -293,8 +317,9 @@ try {
     return new Promise<void>((resolveStream) => {
       sseReq.body.on('data', (c: Buffer) => {
         buf += c.toString();
-        let nl: number;
-        while ((nl = buf.indexOf('\n')) !== -1) {
+        while (true) {
+          const nl = buf.indexOf('\n');
+          if (nl === -1) break;
           const line = buf.slice(0, nl);
           buf = buf.slice(nl + 1);
           if (!line.startsWith('data: ')) continue;
@@ -341,7 +366,7 @@ try {
         }
       }
       console.log(
-        `\n  ${WARN} this is the upstream Qwen / Docker MR flakiness — see workspace memory`
+        `\n  ${WARN} this is the upstream Qwen / Docker MR flakiness — see workspace memory`,
       );
       console.log(`  ${WARN} feedback_embedder_flakiness_local_qwen for the full picture.`);
       process.exit(1);
@@ -352,43 +377,50 @@ try {
 
   // Phase 7: verify Neo4j contents
   step('Verify Neo4j contains real graph data');
-  const cypherCount = await new Promise<{ files: number; functions: number; classes: number; vectors: number }>(
-    (resolveCount, reject) => {
-      const child = spawn(
-        'docker',
-        [
-          'exec',
-          'agentx-neo4j-edge',
-          'cypher-shell',
-          '-u',
-          'neo4j',
-          '-p',
-          NEO4J_PASSWORD,
-          '--format',
-          'plain',
-          'MATCH (f:File) WITH count(f) AS files MATCH (fn:Function) WITH files, count(fn) AS functions MATCH (c:Class) WITH files, functions, count(c) AS classes MATCH (n) WHERE n.embedding IS NOT NULL RETURN files, functions, classes, count(n) AS vectors',
-        ],
-        { stdio: ['ignore', 'pipe', 'pipe'] }
-      );
-      let out = '';
-      child.stdout.on('data', (c: Buffer) => (out += c.toString()));
-      child.on('exit', (code) => {
-        if (code !== 0) {
-          reject(new Error(`cypher-shell exit ${code}`));
-          return;
-        }
-        const lines = out.trim().split('\n');
-        const dataLine = lines[lines.length - 1]!;
-        const [files, functions, classes, vectors] = dataLine.split(',').map((s) => parseInt(s.trim(), 10));
-        resolveCount({ files: files!, functions: functions!, classes: classes!, vectors: vectors! });
-      });
-      child.on('error', reject);
-    }
-  );
+  const cypherCount = await new Promise<{
+    files: number;
+    functions: number;
+    classes: number;
+    vectors: number;
+  }>((resolveCount, reject) => {
+    const child = spawn(
+      'docker',
+      [
+        'exec',
+        'agentx-neo4j-edge',
+        'cypher-shell',
+        '-u',
+        'neo4j',
+        '-p',
+        NEO4J_PASSWORD,
+        '--format',
+        'plain',
+        'MATCH (f:File) WITH count(f) AS files MATCH (fn:Function) WITH files, count(fn) AS functions MATCH (c:Class) WITH files, functions, count(c) AS classes MATCH (n) WHERE n.embedding IS NOT NULL RETURN files, functions, classes, count(n) AS vectors',
+      ],
+      { stdio: ['ignore', 'pipe', 'pipe'] },
+    );
+    let out = '';
+    child.stdout.on('data', (c: Buffer) => (out += c.toString()));
+    child.on('exit', (code) => {
+      if (code !== 0) {
+        reject(new Error(`cypher-shell exit ${code}`));
+        return;
+      }
+      const lines = out.trim().split('\n');
+      const dataLine = lines[lines.length - 1]!;
+      const [files, functions, classes, vectors] = dataLine
+        .split(',')
+        .map((s) => parseInt(s.trim(), 10));
+      resolveCount({ files: files!, functions: functions!, classes: classes!, vectors: vectors! });
+    });
+    child.on('error', reject);
+  });
   if (cypherCount.files === 0) fail('no File nodes in Neo4j');
   if (cypherCount.functions + cypherCount.classes === 0) fail('no Function/Class nodes in Neo4j');
   if (cypherCount.vectors === 0) fail('no nodes with embedding property — vector storage broken');
-  ok(`Neo4j: ${cypherCount.files} File nodes, ${cypherCount.functions} Function, ${cypherCount.classes} Class`);
+  ok(
+    `Neo4j: ${cypherCount.files} File nodes, ${cypherCount.functions} Function, ${cypherCount.classes} Class`,
+  );
   ok(`Neo4j: ${cypherCount.vectors} nodes carry 1024-dim Qwen embeddings`);
 
   // Phase 8: SKILL.md + CLI agent simulation
@@ -419,13 +451,20 @@ try {
   let totalHits = 0;
   for (const q of queries) {
     info(`\n  agent → \`harness context query "${q}"\``);
-    const result = (await uds(CONTEXT_SOCKET, 'POST', '/v1/context/query', {
-      q,
-      // No productId filter — see note above
-      topK: 3,
-    })).body as {
+    const result = (
+      await uds(CONTEXT_SOCKET, 'POST', '/v1/context/query', {
+        q,
+        // No productId filter — see note above
+        topK: 3,
+      })
+    ).body as {
       result: {
-        hits: Array<{ nodeId: string; label: string; score: number; properties: { name?: string } }>;
+        hits: Array<{
+          nodeId: string;
+          label: string;
+          score: number;
+          properties: { name?: string };
+        }>;
         embeddingMs: number;
         searchMs: number;
       };
@@ -436,7 +475,9 @@ try {
       warn(`no hits for "${q}" — vector search returned empty`);
       continue;
     }
-    info(`    ${hits.length} hits in ${result.result.embeddingMs}ms embed + ${result.result.searchMs}ms search`);
+    info(
+      `    ${hits.length} hits in ${result.result.embeddingMs}ms embed + ${result.result.searchMs}ms search`,
+    );
     for (const h of hits.slice(0, 3)) {
       const name = (h.properties.name ?? h.nodeId).toString();
       info(`      ${h.score.toFixed(3)}  ${h.label.padEnd(8)}  ${name}`);
@@ -448,12 +489,16 @@ try {
   ok(`SKILL.md → CLI → query path returned ${totalHits} hits across ${queries.length} queries`);
 
   // Final summary
-  console.log('\n' + DIM('—'.repeat(60)));
-  console.log(BOLD('Proof complete.') + '\n');
+  console.log(`\n${DIM('—'.repeat(60))}`);
+  console.log(`${BOLD('Proof complete.')}\n`);
   console.log('What just happened, end to end:');
   console.log(`  • ai/qwen3-embedding embedded real text into ${EMBEDDER_DIM}-dim vectors`);
-  console.log(`  • neo4j-edge persisted ${cypherCount.functions + cypherCount.classes + cypherCount.files} nodes with embeddings`);
-  console.log(`  • harness-server unified Catalog served ${catProducts.products.length} products + ${catPipelines.pipelines.length} pipelines`);
+  console.log(
+    `  • neo4j-edge persisted ${cypherCount.functions + cypherCount.classes + cypherCount.files} nodes with embeddings`,
+  );
+  console.log(
+    `  • harness-server unified Catalog served ${catProducts.products.length} products + ${catPipelines.pipelines.length} pipelines`,
+  );
   console.log(`  • POST /v1/loader-jobs spawned a worker via UDS, streamed events through JobBus`);
   console.log(`  • A scripted agent followed SKILL.md to call \`harness context query\` `);
   console.log(`    and got back semantically ranked hits from the live graph`);
@@ -466,9 +511,11 @@ try {
   console.log(`  ${TICK} SKILL.md → harness CLI → UDS protocol`);
   console.log('\nKnown excluded layers (intentional, not in scope of this proof):');
   console.log(`  ${WARN} Real LLM-driven agent (no broker wired; scripted simulation only)`);
-  console.log(`  ${WARN} edge-memory persistence (still MVP-0 echo; demo did not exercise memory put/query)`);
+  console.log(
+    `  ${WARN} edge-memory persistence (still MVP-0 echo; demo did not exercise memory put/query)`,
+  );
 } finally {
-  console.log('\n' + DIM('cleaning up servers...'));
+  console.log(`\n${DIM('cleaning up servers...')}`);
   await cleanup();
   console.log(DIM('done.\n'));
 }

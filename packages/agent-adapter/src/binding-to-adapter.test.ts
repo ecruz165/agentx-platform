@@ -7,7 +7,6 @@
  * dispatcher; what it returns is what's tested.
  */
 
-import { describe, expect, it } from 'vitest';
 import type {
   CredentialBroker,
   LLMProvider,
@@ -15,14 +14,12 @@ import type {
   Provider,
   ResolvedBinding,
 } from '@agentx/agent-auth-lib';
+import { describe, expect, it } from 'vitest';
+import { bindingToAdapter, defaultLocalEndpointResolver } from './binding-to-adapter.ts';
 import { ClaudeSdkAdapter } from './claude-sdk-adapter.ts';
-import { OpenCodeCliAdapter } from './opencode-cli-adapter.ts';
 import { CopilotChatAdapter } from './copilot-chat-adapter.ts';
 import { OpenAiChatAdapter } from './openai-chat-adapter.ts';
-import {
-  bindingToAdapter,
-  defaultLocalEndpointResolver,
-} from './binding-to-adapter.ts';
+import { OpenCodeCliAdapter } from './opencode-cli-adapter.ts';
 
 const stubBroker: CredentialBroker = {
   getCredential: async () => {
@@ -30,7 +27,10 @@ const stubBroker: CredentialBroker = {
   },
 };
 
-function fakeProvider(id: Provider, authMethods: ('api-key' | 'iam-task-role' | 'device-code')[]): LLMProvider {
+function fakeProvider(
+  id: Provider,
+  authMethods: ('api-key' | 'iam-task-role' | 'device-code')[],
+): LLMProvider {
   return {
     id,
     name: `fake-${id}`,
@@ -43,7 +43,11 @@ function fakeModel(id: string, opts: Partial<ModelDescriptor> = {}): ModelDescri
   return { id, type: 'text', ...opts };
 }
 
-function cloudBinding(providerId: Provider, modelId: string, vendorModelId?: string): ResolvedBinding {
+function cloudBinding(
+  providerId: Provider,
+  modelId: string,
+  vendorModelId?: string,
+): ResolvedBinding {
   return {
     kind: 'cloud',
     provider: fakeProvider(providerId, ['api-key']),
@@ -66,10 +70,9 @@ function localBinding(providerId: Provider, modelId: string): ResolvedBinding {
 
 describe('bindingToAdapter — cloud bindings', () => {
   it('returns ClaudeSdkAdapter for direct anthropic', () => {
-    const adapter = bindingToAdapter(
-      cloudBinding('anthropic', 'claude-haiku-4-5'),
-      { broker: stubBroker }
-    );
+    const adapter = bindingToAdapter(cloudBinding('anthropic', 'claude-haiku-4-5'), {
+      broker: stubBroker,
+    });
     expect(adapter).toBeInstanceOf(ClaudeSdkAdapter);
   });
 
@@ -91,7 +94,7 @@ describe('bindingToAdapter — cloud bindings', () => {
     expect(() =>
       bindingToAdapter(cloudBinding('github-copilot', 'gpt-4o'), {
         broker: stubBroker,
-      })
+      }),
     ).toThrow(/github-copilot binding requires options.copilotAuthPath/);
   });
 
@@ -107,7 +110,7 @@ describe('bindingToAdapter — cloud bindings', () => {
     expect(() =>
       bindingToAdapter(cloudBinding('bedrock', 'claude-haiku-4-5-bedrock'), {
         broker: stubBroker,
-      })
+      }),
     ).toThrow(/no adapter for bedrock yet/);
   });
 
@@ -135,7 +138,7 @@ describe('bindingToAdapter — local bindings', () => {
       bindingToAdapter(localBinding('local-qwen', 'qwen3'), {
         broker: stubBroker,
         localEndpoint: () => undefined,
-      })
+      }),
     ).toThrow(/no endpoint configured for local provider "local-qwen"/);
   });
 
@@ -157,9 +160,7 @@ describe('defaultLocalEndpointResolver', () => {
     const orig = process.env.AGENTX_LOCAL_QWEN_ENDPOINT;
     process.env.AGENTX_LOCAL_QWEN_ENDPOINT = 'http://env-override:8080/v1';
     try {
-      expect(defaultLocalEndpointResolver('local-qwen')).toBe(
-        'http://env-override:8080/v1'
-      );
+      expect(defaultLocalEndpointResolver('local-qwen')).toBe('http://env-override:8080/v1');
     } finally {
       if (orig === undefined) delete process.env.AGENTX_LOCAL_QWEN_ENDPOINT;
       else process.env.AGENTX_LOCAL_QWEN_ENDPOINT = orig;
@@ -240,7 +241,7 @@ describe('bindingToAdapter — explicit tool dispatch (3-part bindings)', () => 
       tool: 'claude-sdk',
     };
     expect(() => bindingToAdapter(binding, { broker: stubBroker })).toThrow(
-      /tool=claude-sdk requires provider=anthropic/
+      /tool=claude-sdk requires provider=anthropic/,
     );
   });
 
@@ -250,7 +251,7 @@ describe('bindingToAdapter — explicit tool dispatch (3-part bindings)', () => 
       tool: 'openai-api',
     };
     expect(() => bindingToAdapter(binding, { broker: stubBroker })).toThrow(
-      /tool=openai-api requires provider=openai/
+      /tool=openai-api requires provider=openai/,
     );
   });
 
@@ -259,10 +260,12 @@ describe('bindingToAdapter — explicit tool dispatch (3-part bindings)', () => 
       ...cloudBinding('openai', 'gpt-4o'),
       tool: 'copilot-api',
     };
-    expect(() => bindingToAdapter(binding, {
-      broker: stubBroker,
-      copilotAuthPath: '/tmp/x',
-    })).toThrow(/tool=copilot-api requires provider=github-copilot/);
+    expect(() =>
+      bindingToAdapter(binding, {
+        broker: stubBroker,
+        copilotAuthPath: '/tmp/x',
+      }),
+    ).toThrow(/tool=copilot-api requires provider=github-copilot/);
   });
 
   it('throws when tool=opencode-cli is paired with github-copilot (opencode does not adapt copilot)', () => {
@@ -271,7 +274,7 @@ describe('bindingToAdapter — explicit tool dispatch (3-part bindings)', () => 
       tool: 'opencode-cli',
     };
     expect(() => bindingToAdapter(binding, { broker: stubBroker })).toThrow(
-      /tool=opencode-cli does not support provider=github-copilot/
+      /tool=opencode-cli does not support provider=github-copilot/,
     );
   });
 
@@ -281,7 +284,7 @@ describe('bindingToAdapter — explicit tool dispatch (3-part bindings)', () => 
       tool: 'opencode-cli',
     };
     expect(() => bindingToAdapter(binding, { broker: stubBroker })).toThrow(
-      /tool=opencode-cli does not support provider=bedrock/
+      /tool=opencode-cli does not support provider=bedrock/,
     );
   });
 
@@ -291,7 +294,7 @@ describe('bindingToAdapter — explicit tool dispatch (3-part bindings)', () => 
       tool: 'copilot-api',
     };
     expect(() => bindingToAdapter(binding, { broker: stubBroker })).toThrow(
-      /copilot-api binding requires options.copilotAuthPath/
+      /copilot-api binding requires options.copilotAuthPath/,
     );
   });
 });

@@ -213,9 +213,12 @@ const structuredSchema: SourceType = {
 
 const configType: SourceType = {
   id: 'config',
-  description: 'Small project configs (tsconfig, pyproject, etc.) — whole-file chunks for files <16 KB.',
+  description:
+    'Small project configs (tsconfig, pyproject, etc.) — whole-file chunks for files <16 KB.',
   matcher: {
-    include: ['**/{tsconfig,jsconfig,pyproject,Cargo,package,go,gradle,babel,eslint,prettier,vite,vitest,webpack,rollup,esbuild}.{json,toml,yaml,yml,ts,js}'],
+    include: [
+      '**/{tsconfig,jsconfig,pyproject,Cargo,package,go,gradle,babel,eslint,prettier,vite,vitest,webpack,rollup,esbuild}.{json,toml,yaml,yml,ts,js}',
+    ],
     maxFileBytes: 16384,
   },
   graphSchema: {
@@ -227,7 +230,8 @@ const configType: SourceType = {
 
 const issueTracker: SourceType = {
   id: 'issue-tracker',
-  description: 'Internal Jira/Confluence/etc. — same chunking as oss-issues but provider-aware via CredentialBroker.',
+  description:
+    'Internal Jira/Confluence/etc. — same chunking as oss-issues but provider-aware via CredentialBroker.',
   matcher: {}, // API-driven
   graphSchema: {
     nodes: ['Issue', 'Comment'],
@@ -253,7 +257,8 @@ const imageDescribed: SourceType = {
 
 const pdf: SourceType = {
   id: 'pdf',
-  description: 'PDFs — per-page text extraction; for scanned PDFs, falls back to per-page vision-LLM description.',
+  description:
+    'PDFs — per-page text extraction; for scanned PDFs, falls back to per-page vision-LLM description.',
   matcher: {
     include: ['**/*.pdf'],
   },
@@ -270,12 +275,7 @@ const learned: SourceType = {
     'End-of-job lessons — written canonically by the checkout-coordinator (per project_checkout_coordinator memory). Path-based ingest exists for hand-curated learnings + tests; programmatic emit lands when checkout-coordinator becomes a real LLM agent.',
   matcher: {
     include: ['**/*.{md,mdx,txt}'],
-    exclude: [
-      '**/node_modules/**',
-      '**/.git/**',
-      '**/dist/**',
-      '**/build/**',
-    ],
+    exclude: ['**/node_modules/**', '**/.git/**', '**/dist/**', '**/build/**'],
   },
   graphSchema: {
     // One Learning node per file. DerivedFrom (Learning → Job) and
@@ -339,5 +339,5 @@ export function getBuiltinSourceType(id: SourceTypeId): SourceType {
 
 /** All built-in ids in catalog order. */
 export const BUILTIN_SOURCE_TYPE_IDS: SourceTypeId[] = Object.keys(
-  BUILTIN_SOURCE_TYPES
+  BUILTIN_SOURCE_TYPES,
 ) as SourceTypeId[];

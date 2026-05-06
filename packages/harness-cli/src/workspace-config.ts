@@ -155,25 +155,23 @@ function validate(parsed: unknown, path: string): WorkspaceConfig {
     const sources = (p as { contextSources?: unknown }).contextSources;
     if (sources !== undefined) {
       if (!Array.isArray(sources)) {
-        throw new WorkspaceConfigError(
-          `${path}: products[${i}].contextSources must be an array`
-        );
+        throw new WorkspaceConfigError(`${path}: products[${i}].contextSources must be an array`);
       }
       for (const [j, s] of sources.entries()) {
         if (!s || typeof s !== 'object') {
           throw new WorkspaceConfigError(
-            `${path}: products[${i}].contextSources[${j}] must be an object`
+            `${path}: products[${i}].contextSources[${j}] must be an object`,
           );
         }
         const sObj = s as Record<string, unknown>;
         if (typeof sObj.type !== 'string') {
           throw new WorkspaceConfigError(
-            `${path}: products[${i}].contextSources[${j}].type must be a string`
+            `${path}: products[${i}].contextSources[${j}].type must be a string`,
           );
         }
         if (typeof sObj.target !== 'string') {
           throw new WorkspaceConfigError(
-            `${path}: products[${i}].contextSources[${j}].target must be a string`
+            `${path}: products[${i}].contextSources[${j}].target must be a string`,
           );
         }
       }
@@ -205,7 +203,11 @@ export async function readPipelines(workspaceRoot: string): Promise<PipelineCata
   } catch (err) {
     throw new WorkspaceConfigError(`${path}: invalid JSON — ${(err as Error).message}`);
   }
-  if (!parsed || typeof parsed !== 'object' || !Array.isArray((parsed as { pipelines?: unknown }).pipelines)) {
+  if (
+    !parsed ||
+    typeof parsed !== 'object' ||
+    !Array.isArray((parsed as { pipelines?: unknown }).pipelines)
+  ) {
     throw new WorkspaceConfigError(`${path}: must have a "pipelines" array`);
   }
   for (const [i, p] of (parsed as { pipelines: unknown[] }).pipelines.entries()) {

@@ -33,10 +33,10 @@
  * project_pipeline_tmux_topology memory). Tests pass stub models.
  */
 
-import { Annotation, END, START, StateGraph } from '@langchain/langgraph';
-import { HumanMessage, SystemMessage } from '@langchain/core/messages';
-import type { BaseChatModel } from '@langchain/core/language_models/chat_models';
 import type { Catalog, PipelineDef } from '@agentx/harness-core';
+import type { BaseChatModel } from '@langchain/core/language_models/chat_models';
+import { HumanMessage, SystemMessage } from '@langchain/core/messages';
+import { Annotation, END, START, StateGraph } from '@langchain/langgraph';
 
 /**
  * Compact pipeline summary used as input to the graph — id + optional
@@ -80,7 +80,8 @@ export function buildEntryCoordinatorGraph(model: BaseChatModel) {
         new SystemMessage(SYSTEM_PROMPT),
         new HumanMessage(prompt),
       ]);
-      const raw = typeof response.content === 'string' ? response.content : JSON.stringify(response.content);
+      const raw =
+        typeof response.content === 'string' ? response.content : JSON.stringify(response.content);
       const decision = pickPipelineFromResponse(raw, state.availablePipelines);
       return { decision, reasoning: raw };
     })
@@ -107,7 +108,7 @@ export function buildEntryCoordinatorGraph(model: BaseChatModel) {
  */
 export function pickPipelineFromResponse(
   raw: string,
-  availablePipelines: CoordinatorPipelineSummary[]
+  availablePipelines: CoordinatorPipelineSummary[],
 ): string {
   // (1) Scan for the LAST known pipeline id mention. Custom-boundary
   //     matching: not preceded or followed by a word-char OR a hyphen.
@@ -135,7 +136,12 @@ export function pickPipelineFromResponse(
   //     thinking-style responses but covers the bare-answer case where
   //     the model picked something not in the catalog (typo, hallucination)
   //     — still surfaces the model's choice for caller validation.
-  return raw.split('\n').map((l) => l.trim()).find((l) => l.length > 0) ?? '';
+  return (
+    raw
+      .split('\n')
+      .map((l) => l.trim())
+      .find((l) => l.length > 0) ?? ''
+  );
 }
 
 function escapeRegExp(s: string): string {
@@ -163,7 +169,7 @@ export interface RunEntryCoordinatorResult {
 }
 
 export async function runEntryCoordinator(
-  args: RunEntryCoordinatorArgs
+  args: RunEntryCoordinatorArgs,
 ): Promise<RunEntryCoordinatorResult> {
   const graph = buildEntryCoordinatorGraph(args.model);
   const availablePipelines = args.catalog.pipelines.map(toSummary);
@@ -186,10 +192,7 @@ function toSummary(p: PipelineDef): CoordinatorPipelineSummary {
   };
 }
 
-function renderPickPipelinePrompt(
-  intent: string,
-  pipelines: CoordinatorPipelineSummary[]
-): string {
+function renderPickPipelinePrompt(intent: string, pipelines: CoordinatorPipelineSummary[]): string {
   if (pipelines.length === 0) {
     return `User intent:\n${intent}\n\nNo pipelines are available. Reply NONE.`;
   }

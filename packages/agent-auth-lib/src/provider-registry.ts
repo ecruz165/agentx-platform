@@ -39,9 +39,27 @@ const ANTHROPIC: LLMProvider = {
   name: 'Anthropic (direct)',
   authMethods: ['api-key'],
   models: [
-    { id: 'claude-opus-4-7',   type: 'text', contextWindow: 200_000, capabilities: ['tools', 'vision', 'thinking'], costTier: 'frontier' },
-    { id: 'claude-sonnet-4-6', type: 'text', contextWindow: 200_000, capabilities: ['tools', 'vision', 'thinking'], costTier: 'frontier' },
-    { id: 'claude-haiku-4-5',  type: 'text', contextWindow: 200_000, capabilities: ['tools', 'vision'],             costTier: 'small' },
+    {
+      id: 'claude-opus-4-7',
+      type: 'text',
+      contextWindow: 200_000,
+      capabilities: ['tools', 'vision', 'thinking'],
+      costTier: 'frontier',
+    },
+    {
+      id: 'claude-sonnet-4-6',
+      type: 'text',
+      contextWindow: 200_000,
+      capabilities: ['tools', 'vision', 'thinking'],
+      costTier: 'frontier',
+    },
+    {
+      id: 'claude-haiku-4-5',
+      type: 'text',
+      contextWindow: 200_000,
+      capabilities: ['tools', 'vision'],
+      costTier: 'small',
+    },
   ],
 };
 
@@ -50,8 +68,20 @@ const OPENAI: LLMProvider = {
   name: 'OpenAI',
   authMethods: ['api-key'],
   models: [
-    { id: 'gpt-4o',                 type: 'text',           contextWindow: 128_000, capabilities: ['tools', 'vision'], costTier: 'frontier' },
-    { id: 'gpt-4o-mini',            type: 'text',           contextWindow: 128_000, capabilities: ['tools'],           costTier: 'small' },
+    {
+      id: 'gpt-4o',
+      type: 'text',
+      contextWindow: 128_000,
+      capabilities: ['tools', 'vision'],
+      costTier: 'frontier',
+    },
+    {
+      id: 'gpt-4o-mini',
+      type: 'text',
+      contextWindow: 128_000,
+      capabilities: ['tools'],
+      costTier: 'small',
+    },
     { id: 'text-embedding-3-small', type: 'text-embedding', embeddingDim: 1536 },
     { id: 'text-embedding-3-large', type: 'text-embedding', embeddingDim: 3072 },
   ],
@@ -62,8 +92,20 @@ const GOOGLE: LLMProvider = {
   name: 'Google (Gemini)',
   authMethods: ['api-key'],
   models: [
-    { id: 'gemini-1.5-pro',     type: 'text',           contextWindow: 2_000_000, capabilities: ['tools', 'vision'], costTier: 'frontier' },
-    { id: 'gemini-1.5-flash',   type: 'text',           contextWindow: 1_000_000, capabilities: ['tools', 'vision'], costTier: 'mid' },
+    {
+      id: 'gemini-1.5-pro',
+      type: 'text',
+      contextWindow: 2_000_000,
+      capabilities: ['tools', 'vision'],
+      costTier: 'frontier',
+    },
+    {
+      id: 'gemini-1.5-flash',
+      type: 'text',
+      contextWindow: 1_000_000,
+      capabilities: ['tools', 'vision'],
+      costTier: 'mid',
+    },
     { id: 'text-embedding-004', type: 'text-embedding', embeddingDim: 768 },
   ],
 };
@@ -80,9 +122,9 @@ const GITHUB_COPILOT: LLMProvider = {
   name: 'GitHub Copilot (meta-vendor)',
   authMethods: ['device-code'],
   models: [
-    { id: 'gpt-4o',            type: 'text', contextWindow: 128_000,   capabilities: ['tools', 'vision'] },
-    { id: 'claude-3-5-sonnet', type: 'text', contextWindow: 200_000,   capabilities: ['tools'] },
-    { id: 'gemini-1.5-pro',    type: 'text', contextWindow: 2_000_000, capabilities: ['tools'] },
+    { id: 'gpt-4o', type: 'text', contextWindow: 128_000, capabilities: ['tools', 'vision'] },
+    { id: 'claude-3-5-sonnet', type: 'text', contextWindow: 200_000, capabilities: ['tools'] },
+    { id: 'gemini-1.5-pro', type: 'text', contextWindow: 2_000_000, capabilities: ['tools'] },
   ],
 };
 
@@ -100,10 +142,34 @@ const BEDROCK: LLMProvider = {
   name: 'AWS Bedrock (meta-vendor)',
   authMethods: ['iam-task-role', 'api-key'],
   models: [
-    { id: 'claude-opus-4-7-bedrock',   type: 'text',           vendorModelId: 'anthropic.claude-opus-4-7-20251101-v1:0',  contextWindow: 200_000, capabilities: ['tools', 'vision', 'thinking'], costTier: 'frontier' },
-    { id: 'claude-haiku-4-5-bedrock',  type: 'text',           vendorModelId: 'anthropic.claude-haiku-4-5-20251001-v1:0', contextWindow: 200_000, capabilities: ['tools'],                       costTier: 'small' },
-    { id: 'titan-v2',                  type: 'text-embedding', vendorModelId: 'amazon.titan-embed-text-v2:0',             embeddingDim: 1024 },
-    { id: 'llama-3-70b',               type: 'text',           vendorModelId: 'meta.llama3-70b-instruct-v1:0',            contextWindow: 8_000 },
+    {
+      id: 'claude-opus-4-7-bedrock',
+      type: 'text',
+      vendorModelId: 'anthropic.claude-opus-4-7-20251101-v1:0',
+      contextWindow: 200_000,
+      capabilities: ['tools', 'vision', 'thinking'],
+      costTier: 'frontier',
+    },
+    {
+      id: 'claude-haiku-4-5-bedrock',
+      type: 'text',
+      vendorModelId: 'anthropic.claude-haiku-4-5-20251001-v1:0',
+      contextWindow: 200_000,
+      capabilities: ['tools'],
+      costTier: 'small',
+    },
+    {
+      id: 'titan-v2',
+      type: 'text-embedding',
+      vendorModelId: 'amazon.titan-embed-text-v2:0',
+      embeddingDim: 1024,
+    },
+    {
+      id: 'llama-3-70b',
+      type: 'text',
+      vendorModelId: 'meta.llama3-70b-instruct-v1:0',
+      contextWindow: 8_000,
+    },
   ],
 };
 
@@ -126,9 +192,28 @@ const LOCAL_QWEN: LLMProvider = {
     // what flows through OpenCode → DMR as the `model:` field. Choice of
     // tag/quant is a deployment detail (project_embedder_choice memory):
     // 0.6B-Q4_K_M is the smallest viable chat tag (~456 MiB pull).
-    { id: 'qwen3',           type: 'text',           vendorModelId: 'ai/qwen3:0.6B-Q4_K_M',       contextWindow: 32_000, capabilities: ['tools'], costTier: 'small' },
-    { id: 'qwen3-coder',     type: 'text',           vendorModelId: 'ai/qwen3-coder:8B-Q4_K_M',   contextWindow: 32_000, capabilities: ['tools'], costTier: 'small' },
-    { id: 'qwen3-embedding', type: 'text-embedding', vendorModelId: 'ai/qwen3-embedding:0.6B-F16', embeddingDim: 1024 },
+    {
+      id: 'qwen3',
+      type: 'text',
+      vendorModelId: 'ai/qwen3:0.6B-Q4_K_M',
+      contextWindow: 32_000,
+      capabilities: ['tools'],
+      costTier: 'small',
+    },
+    {
+      id: 'qwen3-coder',
+      type: 'text',
+      vendorModelId: 'ai/qwen3-coder:8B-Q4_K_M',
+      contextWindow: 32_000,
+      capabilities: ['tools'],
+      costTier: 'small',
+    },
+    {
+      id: 'qwen3-embedding',
+      type: 'text-embedding',
+      vendorModelId: 'ai/qwen3-embedding:0.6B-F16',
+      embeddingDim: 1024,
+    },
   ],
 };
 

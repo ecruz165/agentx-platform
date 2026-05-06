@@ -54,7 +54,7 @@ try {
     pipeline: PIPELINE,
     workspaceRoot: wsRoot,
     repos: [{ name: 'skoolscout-com', cloneUrl: REPO_URL, path: '/workspace/skoolscout-com' }],
-    forwardSshAgent: process.env.SSH_AUTH_SOCK ? true : false,
+    forwardSshAgent: !!process.env.SSH_AUTH_SOCK,
   });
   const t1Ms = Date.now() - t1;
 
@@ -70,7 +70,9 @@ try {
   console.log('');
 
   if (!w1.freshlyCloned) {
-    console.error(`  ❌ Expected freshlyCloned=true on first run (placeholder: ${w1.placeholder ?? 'none'})`);
+    console.error(
+      `  ❌ Expected freshlyCloned=true on first run (placeholder: ${w1.placeholder ?? 'none'})`,
+    );
     process.exit(1);
   }
   if (!w1.baseRef || !/^[a-f0-9]{40}$/.test(w1.baseRef)) {
@@ -89,7 +91,7 @@ try {
     pipeline: PIPELINE,
     workspaceRoot: wsRoot,
     repos: [{ name: 'skoolscout-com', cloneUrl: REPO_URL }],
-    forwardSshAgent: process.env.SSH_AUTH_SOCK ? true : false,
+    forwardSshAgent: !!process.env.SSH_AUTH_SOCK,
   });
   const t2Ms = Date.now() - t2;
 
@@ -108,7 +110,9 @@ try {
     process.exit(1);
   }
   if (w2.baseRef !== w1.baseRef) {
-    console.warn(`  ⚠ baseRef changed between runs (${w1.baseRef} → ${w2.baseRef}) — main got new commits during validation`);
+    console.warn(
+      `  ⚠ baseRef changed between runs (${w1.baseRef} → ${w2.baseRef}) — main got new commits during validation`,
+    );
   }
   console.log('  ✓ Run 2 ok\n');
 
@@ -128,7 +132,9 @@ try {
       process.exit(1);
     }
     if (cfg.containerEnv.SSH_AUTH_SOCK !== '/ssh-agent.sock') {
-      console.error(`  ❌ Expected containerEnv.SSH_AUTH_SOCK=/ssh-agent.sock, got: ${cfg.containerEnv.SSH_AUTH_SOCK}`);
+      console.error(
+        `  ❌ Expected containerEnv.SSH_AUTH_SOCK=/ssh-agent.sock, got: ${cfg.containerEnv.SSH_AUTH_SOCK}`,
+      );
       process.exit(1);
     }
     console.log('  ✓ SSH agent forwarding configured correctly\n');

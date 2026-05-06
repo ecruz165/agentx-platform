@@ -10,15 +10,14 @@
  *     contextSources block
  */
 
-import { describe, it, expect } from 'vitest';
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { CatalogError } from '@agentx/harness-core';
+import { describe, expect, it } from 'vitest';
 import { loadCatalogFromWorkspaceYaml } from './load-catalog.ts';
 
 function withWorkspace(
   files: Record<string, string>,
-  fn: (root: string) => Promise<void>
+  fn: (root: string) => Promise<void>,
 ): Promise<void> {
   const root = mkdtempSync('/tmp/agx-cat-test-');
   for (const [rel, content] of Object.entries(files)) {
@@ -85,7 +84,7 @@ describe('loadCatalogFromWorkspaceYaml — pipelines (phases → agents)', () =>
             tools: ['edit', 'bash'],
           },
         });
-      }
+      },
     );
   });
 
@@ -104,7 +103,7 @@ describe('loadCatalogFromWorkspaceYaml — pipelines (phases → agents)', () =>
       async (root) => {
         const cat = await loadCatalogFromWorkspaceYaml(root);
         expect(cat.pipelines[0]!.agents[0]!.role).toBe('plan');
-      }
+      },
     );
   });
 
@@ -131,7 +130,7 @@ describe('loadCatalogFromWorkspaceYaml — pipelines (phases → agents)', () =>
         const cat = await loadCatalogFromWorkspaceYaml(root);
         expect(cat.pipelines[0]!.agents[0]!.id).toBe('a1');
         expect(cat.pipelines[0]!.agents[0]!.role).toBe('Coordinator');
-      }
+      },
     );
   });
 
@@ -149,9 +148,9 @@ describe('loadCatalogFromWorkspaceYaml — pipelines (phases → agents)', () =>
       },
       async (root) => {
         await expect(loadCatalogFromWorkspaceYaml(root)).rejects.toThrow(
-          /must be "claude-sdk" or "opencode-cli"/
+          /must be "claude-sdk" or "opencode-cli"/,
         );
-      }
+      },
     );
   });
 
@@ -164,9 +163,9 @@ describe('loadCatalogFromWorkspaceYaml — pipelines (phases → agents)', () =>
       },
       async (root) => {
         await expect(loadCatalogFromWorkspaceYaml(root)).rejects.toThrow(
-          /needs either "agents" or "phases"/
+          /needs either "agents" or "phases"/,
         );
-      }
+      },
     );
   });
 
@@ -203,7 +202,7 @@ workspace:
         expect(cat.products![0]!.id).toBe('p1');
         expect(cat.products![0]!.contextSources).toHaveLength(2);
         expect(cat.products![1]!.contextSources).toBeUndefined();
-      }
+      },
     );
   });
 
@@ -225,7 +224,10 @@ describe('loadCatalogFromWorkspaceYaml — combined', () => {
       {
         '.harness/config/pipelines.json': JSON.stringify({
           pipelines: [
-            { id: 'feature-add', phases: [{ id: 'plan', agent: 'claude-sdk', model: 'claude-opus-4-7' }] },
+            {
+              id: 'feature-add',
+              phases: [{ id: 'plan', agent: 'claude-sdk', model: 'claude-opus-4-7' }],
+            },
           ],
         }),
         'harness-workspace.yml': `
@@ -242,18 +244,15 @@ workspace:
         const cat = await loadCatalogFromWorkspaceYaml(root);
         expect(cat.pipelines).toHaveLength(1);
         expect(cat.products).toHaveLength(1);
-      }
+      },
     );
   });
 
   it('surfaces malformed JSON with the file path', async () => {
-    await withWorkspace(
-      { '.harness/config/pipelines.json': '{ not json' },
-      async (root) => {
-        await expect(loadCatalogFromWorkspaceYaml(root)).rejects.toThrow(
-          /pipelines\.json: invalid JSON/
-        );
-      }
-    );
+    await withWorkspace({ '.harness/config/pipelines.json': '{ not json' }, async (root) => {
+      await expect(loadCatalogFromWorkspaceYaml(root)).rejects.toThrow(
+        /pipelines\.json: invalid JSON/,
+      );
+    });
   });
 });

@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process';
-import { startHarnessServer } from '@agentx/harness-server';
 import { join } from 'node:path';
+import { startHarnessServer } from '@agentx/harness-server';
 
 /**
  * Job-submit demo: proves the registered-yaml + CLI submit chain.
@@ -77,11 +77,9 @@ try {
 function runCli(args: string[]): Promise<void> {
   console.log(`  $ harness ${args.join(' ')}`);
   return new Promise((resolve, reject) => {
-    const child = spawn(
-      'pnpm',
-      ['--silent', 'harness', ...args],
-      { stdio: ['ignore', 'pipe', 'inherit'] }
-    );
+    const child = spawn('pnpm', ['--silent', 'harness', ...args], {
+      stdio: ['ignore', 'pipe', 'inherit'],
+    });
     let out = '';
     child.stdout.on('data', (c) => (out += c.toString()));
     child.on('error', reject);

@@ -4,11 +4,14 @@
  * (multiple bindings to the same provider share one credential).
  */
 
-import { describe, expect, it } from 'vitest';
 import type { ResolvedBinding } from '@agentx/agent-auth-lib';
+import { describe, expect, it } from 'vitest';
 import { SpecBroker } from './spec-broker.ts';
 
-function cloudBinding(provider: 'anthropic' | 'openai' | 'google', apiKey: string): ResolvedBinding {
+function cloudBinding(
+  provider: 'anthropic' | 'openai' | 'google',
+  apiKey: string,
+): ResolvedBinding {
   return {
     kind: 'cloud',
     provider: { id: provider, name: provider, authMethods: ['api-key'], models: [] },
@@ -36,7 +39,7 @@ describe('SpecBroker', () => {
   it('throws when asked for a provider not present in bindings', async () => {
     const broker = new SpecBroker({ a: cloudBinding('anthropic', 'sk-ant-1') });
     await expect(broker.getCredential('openai')).rejects.toThrow(
-      /no credential for provider "openai"/
+      /no credential for provider "openai"/,
     );
   });
 
@@ -50,7 +53,7 @@ describe('SpecBroker', () => {
     // The "first wins" rule is OK because authentication is provider-scoped,
     // not model-scoped — Anthropic's api-key works for any Claude model.
     const broker = new SpecBroker({
-      planner:  cloudBinding('anthropic', 'sk-ant-FIRST'),
+      planner: cloudBinding('anthropic', 'sk-ant-FIRST'),
       reviewer: cloudBinding('anthropic', 'sk-ant-SECOND'),
     });
     const cred = await broker.getCredential('anthropic');
@@ -59,7 +62,7 @@ describe('SpecBroker', () => {
 
   it('coexists with local bindings — only cloud contributes credentials', async () => {
     const broker = new SpecBroker({
-      planner:  cloudBinding('anthropic', 'sk-ant-1'),
+      planner: cloudBinding('anthropic', 'sk-ant-1'),
       summarizer: localBinding(),
       reviewer: cloudBinding('openai', 'sk-oa-1'),
     });

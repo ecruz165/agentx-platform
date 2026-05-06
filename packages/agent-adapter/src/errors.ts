@@ -72,10 +72,7 @@ export class RateLimitError extends AdapterError {
    *  that don't see it should pick their own backoff. */
   public readonly retryAfterSeconds?: number;
 
-  constructor(
-    message: string,
-    options?: { cause?: unknown; retryAfterSeconds?: number }
-  ) {
+  constructor(message: string, options?: { cause?: unknown; retryAfterSeconds?: number }) {
     super(message, { cause: options?.cause });
     this.name = 'RateLimitError';
     if (options?.retryAfterSeconds !== undefined) {
@@ -152,10 +149,20 @@ export function classifyHttpError(args: {
     return new BillingError(`${ctxPrefix}billing failed (402): ${tail}`, { cause });
   }
   if (status === 400) {
-    if (lower.includes('credit') || lower.includes('balance') || lower.includes('quota') || lower.includes('insufficient')) {
+    if (
+      lower.includes('credit') ||
+      lower.includes('balance') ||
+      lower.includes('quota') ||
+      lower.includes('insufficient')
+    ) {
       return new BillingError(`${ctxPrefix}billing failed (400): ${tail}`, { cause });
     }
-    if (lower.includes('model') && (lower.includes('not found') || lower.includes('does not exist') || lower.includes('not_found'))) {
+    if (
+      lower.includes('model') &&
+      (lower.includes('not found') ||
+        lower.includes('does not exist') ||
+        lower.includes('not_found'))
+    ) {
       return new ConfigError(`${ctxPrefix}config error (400): ${tail}`, { cause });
     }
     return new ProviderError(`${ctxPrefix}upstream rejected (400): ${tail}`, { cause });

@@ -33,8 +33,8 @@
  */
 
 import { AuthStore } from '@agentx/agent-auth-lib';
-import { AdapterEventBus, type TokenUsage } from './events.ts';
 import { classifyHttpError, classifyNetworkError } from './errors.ts';
+import { AdapterEventBus, type TokenUsage } from './events.ts';
 import type { AgentAdapter, InvocationSpec } from './types.ts';
 
 interface ChatMessage {
@@ -98,9 +98,7 @@ export class CopilotChatAdapter implements AgentAdapter {
     const file = await store.read();
     const cred = file.providers['github-copilot'];
     if (!cred?.apiKey || cred.apiKey.includes('REPLACE_ME')) {
-      throw new Error(
-        'github-copilot not authenticated. Run: harness auth login github-copilot'
-      );
+      throw new Error('github-copilot not authenticated. Run: harness auth login github-copilot');
     }
 
     const messages: ChatMessage[] = [];
@@ -133,10 +131,20 @@ export class CopilotChatAdapter implements AgentAdapter {
       // (the classifier doesn't see those) get classified as
       // NetworkError as the safe default — they're rarely seen in
       // practice but covered for completeness.
-      const classified = err instanceof Error && err.name.endsWith('Error') &&
-        ['AuthError', 'BillingError', 'RateLimitError', 'ConfigError', 'NetworkError', 'ProviderError', 'AdapterError'].includes(err.name)
-        ? err
-        : classifyNetworkError(err, 'github-copilot');
+      const classified =
+        err instanceof Error &&
+        err.name.endsWith('Error') &&
+        [
+          'AuthError',
+          'BillingError',
+          'RateLimitError',
+          'ConfigError',
+          'NetworkError',
+          'ProviderError',
+          'AdapterError',
+        ].includes(err.name)
+          ? err
+          : classifyNetworkError(err, 'github-copilot');
       this.events.emit({
         kind: 'error',
         ts: new Date().toISOString(),
@@ -152,7 +160,7 @@ export class CopilotChatAdapter implements AgentAdapter {
     store: AuthStore,
     githubToken: string,
     messages: ChatMessage[],
-    model: string
+    model: string,
   ): Promise<{ text: string; raw: ChatCompletionResponse }> {
     let token = await this.getSessionToken(fetchFn, store, githubToken);
     let res = await this.postChat(fetchFn, token, messages, model);
@@ -187,7 +195,7 @@ export class CopilotChatAdapter implements AgentAdapter {
   private async getSessionToken(
     fetchFn: typeof fetch,
     store: AuthStore,
-    githubToken: string
+    githubToken: string,
   ): Promise<string> {
     const file = await store.read();
     const existing = file.providers['github-copilot'];
@@ -201,7 +209,7 @@ export class CopilotChatAdapter implements AgentAdapter {
     if (!res.ok) {
       const body = await res.text().catch(() => '');
       throw new Error(
-        `Copilot session-token exchange failed (${res.status}): ${body.slice(0, 300)}`
+        `Copilot session-token exchange failed (${res.status}): ${body.slice(0, 300)}`,
       );
     }
     const data = (await res.json()) as CopilotTokenResponse;
@@ -228,7 +236,7 @@ export class CopilotChatAdapter implements AgentAdapter {
     fetchFn: typeof fetch,
     sessionToken: string,
     messages: ChatMessage[],
-    model: string
+    model: string,
   ): Promise<Response> {
     return fetchFn(COPILOT_CHAT_URL, {
       method: 'POST',

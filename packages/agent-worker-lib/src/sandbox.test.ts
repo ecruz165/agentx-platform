@@ -6,11 +6,11 @@
  * actually spawning child processes — pure-function-y and fast.
  */
 
-import { describe, expect, it } from 'vitest';
-import { mkdtempSync, existsSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { sandboxPaths, ensureSandboxDirs, sandboxEnv } from './sandbox.ts';
+import { describe, expect, it } from 'vitest';
+import { ensureSandboxDirs, sandboxEnv, sandboxPaths } from './sandbox.ts';
 
 describe('sandboxPaths', () => {
   it('anchors all three paths under <workspaceRoot>/.harness/', () => {

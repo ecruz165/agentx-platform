@@ -1,11 +1,11 @@
 import { randomUUID } from 'node:crypto';
-import { request } from 'node:http';
 import { rm } from 'node:fs/promises';
+import { request } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
-import { startHarnessServer, type HarnessServerHandle } from './index.ts';
 import type { PipelineCatalog } from '@agentx/harness-core';
+import { afterEach, describe, expect, it } from 'vitest';
+import { type HarnessServerHandle, startHarnessServer } from './index.ts';
 
 // macOS AF_UNIX sun_path is 104 chars — keep this short.
 const tmpSocket = () => join(tmpdir(), `ax-${randomUUID().slice(0, 8)}.sock`);
@@ -19,7 +19,7 @@ function udsRequest(
   socketPath: string,
   method: string,
   path: string,
-  body?: unknown
+  body?: unknown,
 ): Promise<UdsResponse> {
   return new Promise((resolve, reject) => {
     const req = request(
@@ -34,7 +34,7 @@ function udsRequest(
             reject(err);
           }
         });
-      }
+      },
     );
     req.on('error', reject);
     if (body !== undefined) req.write(JSON.stringify(body));

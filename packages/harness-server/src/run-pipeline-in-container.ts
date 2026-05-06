@@ -36,7 +36,7 @@
  * topologies.
  */
 
-import { spawn, type ChildProcess } from 'node:child_process';
+import { type ChildProcess, spawn } from 'node:child_process';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { JobBus } from '@agentx/harness-core';
@@ -100,7 +100,7 @@ export interface RunPipelineInContainerResult {
 }
 
 export async function runPipelineInContainer(
-  options: RunPipelineInContainerOptions
+  options: RunPipelineInContainerOptions,
 ): Promise<RunPipelineInContainerResult> {
   const { spec, bus, containerId, workspaceRoot } = options;
   const hostSpecDir =
@@ -124,13 +124,8 @@ export async function runPipelineInContainer(
   const cmdParts = pipelineCommand.split(/\s+/).filter((p) => p.length > 0);
   const child: ChildProcess = spawn(
     devcontainerBin,
-    [
-      'exec',
-      '--container-id', containerId,
-      ...cmdParts,
-      containerSpecPath,
-    ],
-    { stdio: ['ignore', 'pipe', 'pipe'] }
+    ['exec', '--container-id', containerId, ...cmdParts, containerSpecPath],
+    { stdio: ['ignore', 'pipe', 'pipe'] },
   );
 
   if (typeof child.pid === 'number') {
@@ -148,11 +143,9 @@ export async function runPipelineInContainer(
     },
   });
 
-  const exitPromise = new Promise<{ code: number; signal: NodeJS.Signals | null }>(
-    (resolveP) => {
-      child.on('close', (c, s) => resolveP({ code: c ?? 0, signal: s }));
-    }
-  );
+  const exitPromise = new Promise<{ code: number; signal: NodeJS.Signals | null }>((resolveP) => {
+    child.on('close', (c, s) => resolveP({ code: c ?? 0, signal: s }));
+  });
   const [{ code, signal }, { sentinel, stderrTail }] = await Promise.all([
     exitPromise,
     streamPromise,

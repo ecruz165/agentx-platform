@@ -3,7 +3,14 @@ import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { CatalogError, findPipeline, loadCatalog, resolveAccepts, type AgentDef, type PipelineCatalog } from './catalog.ts';
+import {
+  type AgentDef,
+  CatalogError,
+  findPipeline,
+  loadCatalog,
+  type PipelineCatalog,
+  resolveAccepts,
+} from './catalog.ts';
 
 const tmpWorkspace = () => join(tmpdir(), `agentx-catalog-${randomUUID()}`);
 
@@ -21,7 +28,7 @@ describe('loadCatalog', () => {
     await writeFile(
       join(dir, 'pipelines.json'),
       typeof body === 'string' ? body : JSON.stringify(body, null, 2),
-      'utf8'
+      'utf8',
     );
   };
 
@@ -188,9 +195,7 @@ describe('loadCatalog', () => {
       pipelines: [
         {
           id: 'p',
-          agents: [
-            { id: 'a', role: 'A', adapter: 'claude-sdk', accepts: [42] },
-          ],
+          agents: [{ id: 'a', role: 'A', adapter: 'claude-sdk', accepts: [42] }],
         },
       ],
     });
@@ -205,9 +210,7 @@ describe('loadCatalog', () => {
       pipelines: [
         {
           id: 'p',
-          agents: [
-            { id: 'a', role: 'A', adapter: 'claude-sdk', accepts: ['anthropic'] },
-          ],
+          agents: [{ id: 'a', role: 'A', adapter: 'claude-sdk', accepts: ['anthropic'] }],
         },
       ],
     });
@@ -222,9 +225,7 @@ describe('loadCatalog', () => {
       pipelines: [
         {
           id: 'p',
-          agents: [
-            { id: 'a', role: 'A', adapter: 'claude-sdk', accepts: ['anthropic:'] },
-          ],
+          agents: [{ id: 'a', role: 'A', adapter: 'claude-sdk', accepts: ['anthropic:'] }],
         },
       ],
     });
@@ -239,9 +240,7 @@ describe('loadCatalog', () => {
       pipelines: [
         {
           id: 'p',
-          agents: [
-            { id: 'a', role: 'A', adapter: 'claude-sdk', accepts: [':claude-haiku-4-5'] },
-          ],
+          agents: [{ id: 'a', role: 'A', adapter: 'claude-sdk', accepts: [':claude-haiku-4-5'] }],
         },
       ],
     });
@@ -284,10 +283,7 @@ describe('loadCatalog — fallbackOn (slice 13c per-agent policy)', () => {
     });
 
     const catalog = await loadCatalog(ws);
-    expect(catalog.pipelines[0]?.agents[0]?.fallbackOn).toEqual([
-      'BillingError',
-      'RateLimitError',
-    ]);
+    expect(catalog.pipelines[0]?.agents[0]?.fallbackOn).toEqual(['BillingError', 'RateLimitError']);
   });
 
   it('parses an empty fallbackOn list (explicit opt-out)', async () => {
@@ -297,9 +293,7 @@ describe('loadCatalog — fallbackOn (slice 13c per-agent policy)', () => {
       pipelines: [
         {
           id: 'p',
-          agents: [
-            { id: 'a', role: 'A', adapter: 'claude-sdk', fallbackOn: [] },
-          ],
+          agents: [{ id: 'a', role: 'A', adapter: 'claude-sdk', fallbackOn: [] }],
         },
       ],
     });
@@ -331,14 +325,14 @@ describe('loadCatalog — fallbackOn (slice 13c per-agent policy)', () => {
       pipelines: [
         {
           id: 'p',
-          agents: [
-            { id: 'a', role: 'A', adapter: 'claude-sdk', fallbackOn: 'BillingError' },
-          ],
+          agents: [{ id: 'a', role: 'A', adapter: 'claude-sdk', fallbackOn: 'BillingError' }],
         },
       ],
     });
 
-    await expect(loadCatalog(ws)).rejects.toThrow(/must be an array of AdapterError subclass names/);
+    await expect(loadCatalog(ws)).rejects.toThrow(
+      /must be an array of AdapterError subclass names/,
+    );
   });
 
   it('throws on unknown error class name (closed validation set)', async () => {
@@ -348,9 +342,7 @@ describe('loadCatalog — fallbackOn (slice 13c per-agent policy)', () => {
       pipelines: [
         {
           id: 'p',
-          agents: [
-            { id: 'a', role: 'A', adapter: 'claude-sdk', fallbackOn: ['MysteryError'] },
-          ],
+          agents: [{ id: 'a', role: 'A', adapter: 'claude-sdk', fallbackOn: ['MysteryError'] }],
         },
       ],
     });
@@ -365,9 +357,7 @@ describe('loadCatalog — fallbackOn (slice 13c per-agent policy)', () => {
       pipelines: [
         {
           id: 'p',
-          agents: [
-            { id: 'a', role: 'A', adapter: 'claude-sdk', fallbackOn: ['AdapterError'] },
-          ],
+          agents: [{ id: 'a', role: 'A', adapter: 'claude-sdk', fallbackOn: ['AdapterError'] }],
         },
       ],
     });
@@ -383,9 +373,7 @@ describe('loadCatalog — fallbackOn (slice 13c per-agent policy)', () => {
       pipelines: [
         {
           id: 'p',
-          agents: [
-            { id: 'a', role: 'A', adapter: 'claude-sdk', fallbackOn: [''] },
-          ],
+          agents: [{ id: 'a', role: 'A', adapter: 'claude-sdk', fallbackOn: [''] }],
         },
       ],
     });
@@ -405,11 +393,7 @@ describe('loadCatalog — skillz (skillzkit catalog references)', () => {
   const writeCatalog = async (workspaceRoot: string, body: object) => {
     const dir = join(workspaceRoot, '.harness', 'config');
     await mkdir(dir, { recursive: true });
-    await writeFile(
-      join(dir, 'pipelines.json'),
-      JSON.stringify(body, null, 2),
-      'utf8'
-    );
+    await writeFile(join(dir, 'pipelines.json'), JSON.stringify(body, null, 2), 'utf8');
   };
 
   const baseAgent = (extra: Record<string, unknown>) => ({
@@ -434,7 +418,7 @@ describe('loadCatalog — skillz (skillzkit catalog references)', () => {
           tasks: ['task:write-tests'],
           workflows: ['engineer:feature-build'],
         },
-      })
+      }),
     );
 
     const catalog = await loadCatalog(ws);
@@ -452,7 +436,7 @@ describe('loadCatalog — skillz (skillzkit catalog references)', () => {
     created.push(ws);
     await writeCatalog(
       ws,
-      baseAgent({ skillz: { routers: ['skillzkit-product-router', 'skillzkit-eng-router'] } })
+      baseAgent({ skillz: { routers: ['skillzkit-product-router', 'skillzkit-eng-router'] } }),
     );
 
     const catalog = await loadCatalog(ws);
@@ -504,14 +488,9 @@ describe('loadCatalog — skillz (skillzkit catalog references)', () => {
   it('throws on unknown skillz keys', async () => {
     const ws = tmpWorkspace();
     created.push(ws);
-    await writeCatalog(
-      ws,
-      baseAgent({ skillz: { tools: [], surprises: ['x'] } })
-    );
+    await writeCatalog(ws, baseAgent({ skillz: { tools: [], surprises: ['x'] } }));
 
-    await expect(loadCatalog(ws)).rejects.toThrow(
-      /skillz has unknown key "surprises"/
-    );
+    await expect(loadCatalog(ws)).rejects.toThrow(/skillz has unknown key "surprises"/);
   });
 
   it('throws when a skillz category is not an array', async () => {
@@ -519,22 +498,15 @@ describe('loadCatalog — skillz (skillzkit catalog references)', () => {
     created.push(ws);
     await writeCatalog(ws, baseAgent({ skillz: { tools: 'npm' } }));
 
-    await expect(loadCatalog(ws)).rejects.toThrow(
-      /skillz\.tools must be an array of strings/
-    );
+    await expect(loadCatalog(ws)).rejects.toThrow(/skillz\.tools must be an array of strings/);
   });
 
   it('throws when a skillz entry is not a string', async () => {
     const ws = tmpWorkspace();
     created.push(ws);
-    await writeCatalog(
-      ws,
-      baseAgent({ skillz: { tools: ['core:tools:npm', 42] } })
-    );
+    await writeCatalog(ws, baseAgent({ skillz: { tools: ['core:tools:npm', 42] } }));
 
-    await expect(loadCatalog(ws)).rejects.toThrow(
-      /skillz\.tools\[1\] must be a non-empty string/
-    );
+    await expect(loadCatalog(ws)).rejects.toThrow(/skillz\.tools\[1\] must be a non-empty string/);
   });
 
   it('throws when a skillz entry is an empty string', async () => {
@@ -542,9 +514,7 @@ describe('loadCatalog — skillz (skillzkit catalog references)', () => {
     created.push(ws);
     await writeCatalog(ws, baseAgent({ skillz: { tools: [''] } }));
 
-    await expect(loadCatalog(ws)).rejects.toThrow(
-      /skillz\.tools\[0\] must be a non-empty string/
-    );
+    await expect(loadCatalog(ws)).rejects.toThrow(/skillz\.tools\[0\] must be a non-empty string/);
   });
 });
 
@@ -594,9 +564,9 @@ describe('loadCatalog — Record-form accepts (named sets)', () => {
               role: 'A',
               adapter: 'claude-sdk',
               accepts: {
-                default:      ['anthropic:claude-haiku-4-5'],
-                cheap:        ['local-qwen:qwen3'],
-                'bench-gpt':  ['openai:gpt-4o'],
+                default: ['anthropic:claude-haiku-4-5'],
+                cheap: ['local-qwen:qwen3'],
+                'bench-gpt': ['openai:gpt-4o'],
               },
             },
           ],
@@ -608,7 +578,9 @@ describe('loadCatalog — Record-form accepts (named sets)', () => {
     const accepts = catalog.pipelines[0]?.agents[0]?.accepts;
     expect(accepts).toBeDefined();
     expect(accepts).not.toEqual(expect.any(Array));
-    expect((accepts as Record<string, readonly string[]>).default).toEqual(['anthropic:claude-haiku-4-5']);
+    expect((accepts as Record<string, readonly string[]>).default).toEqual([
+      'anthropic:claude-haiku-4-5',
+    ]);
     expect((accepts as Record<string, readonly string[]>).cheap).toEqual(['local-qwen:qwen3']);
     expect((accepts as Record<string, readonly string[]>)['bench-gpt']).toEqual(['openai:gpt-4o']);
   });
@@ -686,21 +658,27 @@ describe('loadCatalog — Record-form accepts (named sets)', () => {
 
 describe('resolveAccepts — projection by set name', () => {
   const flatAgent: AgentDef = {
-    id: 'a', role: 'A', adapter: 'claude-sdk',
+    id: 'a',
+    role: 'A',
+    adapter: 'claude-sdk',
     accepts: ['anthropic:claude-haiku-4-5', 'local-qwen:qwen3'],
   };
 
   const setAgent: AgentDef = {
-    id: 'b', role: 'B', adapter: 'claude-sdk',
+    id: 'b',
+    role: 'B',
+    adapter: 'claude-sdk',
     accepts: {
-      default:      ['anthropic:claude-haiku-4-5'],
-      cheap:        ['local-qwen:qwen3'],
-      'bench-gpt':  ['openai:gpt-4o'],
+      default: ['anthropic:claude-haiku-4-5'],
+      cheap: ['local-qwen:qwen3'],
+      'bench-gpt': ['openai:gpt-4o'],
     },
   };
 
   const partialSetAgent: AgentDef = {
-    id: 'c', role: 'C', adapter: 'claude-sdk',
+    id: 'c',
+    role: 'C',
+    adapter: 'claude-sdk',
     accepts: {
       cheap: ['local-qwen:qwen3'],
       // no default!
@@ -708,13 +686,24 @@ describe('resolveAccepts — projection by set name', () => {
   };
 
   const noAcceptsAgent: AgentDef = {
-    id: 'd', role: 'D', adapter: 'claude-sdk',
+    id: 'd',
+    role: 'D',
+    adapter: 'claude-sdk',
   };
 
   it('returns flat-form accepts unchanged regardless of set name', () => {
-    expect(resolveAccepts(flatAgent, 'cheap')).toEqual(['anthropic:claude-haiku-4-5', 'local-qwen:qwen3']);
-    expect(resolveAccepts(flatAgent, 'bench-gpt')).toEqual(['anthropic:claude-haiku-4-5', 'local-qwen:qwen3']);
-    expect(resolveAccepts(flatAgent, 'default')).toEqual(['anthropic:claude-haiku-4-5', 'local-qwen:qwen3']);
+    expect(resolveAccepts(flatAgent, 'cheap')).toEqual([
+      'anthropic:claude-haiku-4-5',
+      'local-qwen:qwen3',
+    ]);
+    expect(resolveAccepts(flatAgent, 'bench-gpt')).toEqual([
+      'anthropic:claude-haiku-4-5',
+      'local-qwen:qwen3',
+    ]);
+    expect(resolveAccepts(flatAgent, 'default')).toEqual([
+      'anthropic:claude-haiku-4-5',
+      'local-qwen:qwen3',
+    ]);
   });
 
   it('returns the named set when present', () => {
@@ -730,7 +719,7 @@ describe('resolveAccepts — projection by set name', () => {
 
   it('throws when the named set is absent AND no default declared', () => {
     expect(() => resolveAccepts(partialSetAgent, 'frontier')).toThrow(
-      /agent "c" has no "frontier" set and no "default" set/
+      /agent "c" has no "frontier" set and no "default" set/,
     );
     expect(() => resolveAccepts(partialSetAgent, 'frontier')).toThrow(/declared sets: cheap/);
   });
@@ -775,8 +764,8 @@ describe('validateUnifiedCatalog — ProductDef.repos (slice 9d-5)', () => {
             },
           ],
         },
-        'test'
-      )
+        'test',
+      ),
     ).not.toThrow();
   });
 
@@ -788,8 +777,8 @@ describe('validateUnifiedCatalog — ProductDef.repos (slice 9d-5)', () => {
           pipelines: [],
           products: [{ id: 'context-only', contextSources: [] }],
         },
-        'test'
-      )
+        'test',
+      ),
     ).not.toThrow();
   });
 
@@ -801,8 +790,8 @@ describe('validateUnifiedCatalog — ProductDef.repos (slice 9d-5)', () => {
           pipelines: [],
           products: [{ id: 'p', repos: 'not-an-array' }],
         },
-        'test'
-      )
+        'test',
+      ),
     ).toThrow(/repos must be an array/);
   });
 
@@ -819,8 +808,8 @@ describe('validateUnifiedCatalog — ProductDef.repos (slice 9d-5)', () => {
             },
           ],
         },
-        'test'
-      )
+        'test',
+      ),
     ).toThrow(/name must be a non-empty string/);
   });
 
@@ -832,8 +821,8 @@ describe('validateUnifiedCatalog — ProductDef.repos (slice 9d-5)', () => {
           pipelines: [],
           products: [{ id: 'p', repos: [{ name: 'r' }] }],
         },
-        'test'
-      )
+        'test',
+      ),
     ).toThrow(/cloneUrl must be a non-empty string/);
   });
 
@@ -853,8 +842,8 @@ describe('validateUnifiedCatalog — ProductDef.repos (slice 9d-5)', () => {
             },
           ],
         },
-        'test'
-      )
+        'test',
+      ),
     ).toThrow(/duplicate name "shared"/);
   });
 
@@ -871,8 +860,8 @@ describe('validateUnifiedCatalog — ProductDef.repos (slice 9d-5)', () => {
             },
           ],
         },
-        'test'
-      )
+        'test',
+      ),
     ).toThrow(/baseRef must be a non-empty string/);
   });
 });

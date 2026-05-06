@@ -48,7 +48,7 @@ if (inspected === 0) {
 if (totalLeaks > 0) {
   console.error(
     `\nVerification FAILED: ${totalLeaks} leak(s). ` +
-      `Check redactCapture() in packages/agent-adapter/src/capture.ts.`
+      `Check redactCapture() in packages/agent-adapter/src/capture.ts.`,
   );
   process.exit(1);
 }

@@ -12,17 +12,13 @@
  * external services.
  */
 
-import { describe, expect, it, beforeEach } from 'vitest';
-import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { InMemoryGraphBackend } from '../backends/in-memory.ts';
+import { BUILTIN_SOURCE_TYPES, type EmbedderClient, type SourceType } from '../index.ts';
 import { ingest } from './ingest.ts';
-import {
-  BUILTIN_SOURCE_TYPES,
-  type EmbedderClient,
-  type SourceType,
-} from '../index.ts';
 
 function mockEmbedder(dim = 8): EmbedderClient {
   let counter = 0;

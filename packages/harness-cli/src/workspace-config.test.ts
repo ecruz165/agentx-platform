@@ -3,14 +3,10 @@
  * landed in Phase G.5. Other fields are exercised via existing CLI tests.
  */
 
-import { describe, it, expect } from 'vitest';
-import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import {
-  readWorkspaceConfig,
-  WorkspaceConfigError,
-  findProduct,
-} from './workspace-config.ts';
+import { describe, expect, it } from 'vitest';
+import { findProduct, readWorkspaceConfig, WorkspaceConfigError } from './workspace-config.ts';
 
 function withWorkspace(yaml: string, fn: (root: string) => Promise<void>): Promise<void> {
   const root = mkdtempSync('/tmp/agx-cfg-');
@@ -51,7 +47,7 @@ workspace:
           target: 'react@18.2.0',
           embedderUrl: 'http://other-embedder:8080/v1',
         });
-      }
+      },
     );
   });
 
@@ -69,7 +65,7 @@ workspace:
         const product = findProduct(cfg!, 'p-no-sources');
         expect(product).not.toBeNull();
         expect(product!.contextSources).toBeUndefined();
-      }
+      },
     );
   });
 
@@ -84,10 +80,8 @@ workspace:
       contextSources: "not-an-array"
 `,
       async (root) => {
-        await expect(readWorkspaceConfig(root)).rejects.toThrow(
-          WorkspaceConfigError
-        );
-      }
+        await expect(readWorkspaceConfig(root)).rejects.toThrow(WorkspaceConfigError);
+      },
     );
   });
 
@@ -104,7 +98,7 @@ workspace:
 `,
       async (root) => {
         await expect(readWorkspaceConfig(root)).rejects.toThrow(/target/);
-      }
+      },
     );
   });
 });

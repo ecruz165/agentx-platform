@@ -1,8 +1,9 @@
 /** @jsxImportSource @opentui/react */
-import { useEffect, useMemo, useState } from 'react';
+
+import { validateRepoAccess } from '@agentx/harness-server';
 import { createCliRenderer } from '@opentui/core';
 import { createRoot, useKeyboard } from '@opentui/react';
-import { validateRepoAccess } from '@agentx/harness-server';
+import { useEffect, useMemo, useState } from 'react';
 import { looksLikeOrgUrl, repoNameFromUrl, suggestRepoFromOrgUrl } from './procure.ts';
 import type { ProcureSpec, RepoSpec } from './types.ts';
 
@@ -47,10 +48,10 @@ function App({ initial, onSubmit, onAbort }: TuiProps) {
     (initial.repos ?? []).map((url) => ({
       url,
       state: looksLikeOrgUrl(url) ? 'org' : 'pending',
-    }))
+    })),
   );
   const [mode, setMode] = useState<'name' | 'repos' | 'review'>(
-    initial.name ? (initial.repos?.length ? 'review' : 'repos') : 'name'
+    initial.name ? (initial.repos?.length ? 'review' : 'repos') : 'name',
   );
   const [editBuffer, setEditBuffer] = useState<string>('');
   const [hint, setHint] = useState<string | null>(null);
@@ -86,7 +87,7 @@ function App({ initial, onSubmit, onAbort }: TuiProps) {
                 ...(check.reason ? { reason: check.reason } : {}),
                 ...(check.suggestion ? { suggestion: check.suggestion } : {}),
               };
-        })
+        }),
       );
     });
     return () => {
@@ -96,7 +97,7 @@ function App({ initial, onSubmit, onAbort }: TuiProps) {
 
   const allValid = useMemo(
     () => name.trim() !== '' && repos.length > 0 && repos.every((r) => r.state === 'ok'),
-    [name, repos]
+    [name, repos],
   );
 
   useKeyboard((e) => {
@@ -160,7 +161,7 @@ function App({ initial, onSubmit, onAbort }: TuiProps) {
         const spec: ProcureSpec = {
           name: name.trim(),
           repos: validRepos,
-          dest: initial.dest ?? `./${name.trim()}`,
+          dest: initial.dest ?? `./workspace-${name.trim()}`,
           ...(initial.tokenEnv ? { tokenEnv: initial.tokenEnv } : {}),
           noClone: initial.noClone ?? false,
         };
@@ -189,22 +190,25 @@ function App({ initial, onSubmit, onAbort }: TuiProps) {
       <box flexDirection="column" marginTop={1}>
         <text fg="#f3f4f6">Repos:</text>
         {repos.length === 0 ? (
-          <text fg="#6b7280">  (none yet)</text>
+          <text fg="#6b7280"> (none yet)</text>
         ) : (
           repos.map((r, i) => (
+            // biome-ignore lint/suspicious/noArrayIndexKey: static list — order stable within a single TUI session
             <text key={i}>
-              <span fg="#6b7280">  {String(i + 1).padStart(2)}. </span>
-              <span fg={r.state === 'ok' ? '#4ade80' : r.state === 'pending' ? '#9ca3af' : '#f87171'}>
+              <span fg="#6b7280"> {String(i + 1).padStart(2)}. </span>
+              <span
+                fg={r.state === 'ok' ? '#4ade80' : r.state === 'pending' ? '#9ca3af' : '#f87171'}
+              >
                 {r.state === 'ok' ? '✓' : r.state === 'pending' ? '…' : '✗'}
               </span>
               <span fg="#e5e7eb"> {r.url}</span>
-              {r.suggestion ? <span fg="#6b7280">  → try: {r.suggestion}</span> : null}
+              {r.suggestion ? <span fg="#6b7280"> → try: {r.suggestion}</span> : null}
             </text>
           ))
         )}
         {mode === 'repos' ? (
           <text>
-            <span fg="#fbbf24">  &gt; </span>
+            <span fg="#fbbf24"> &gt; </span>
             <span fg="#fbbf24">{editBuffer}▎</span>
           </text>
         ) : null}
@@ -227,9 +231,7 @@ function controlsForMode(mode: 'name' | 'repos' | 'review', allValid: boolean): 
     : 'Resolve repo errors before procuring   [E] edit repos   [Esc] abort';
 }
 
-export async function runTui(
-  initial: TuiProps['initial']
-): Promise<ProcureSpec | null> {
+export async function runTui(initial: TuiProps['initial']): Promise<ProcureSpec | null> {
   const renderer = await createCliRenderer({ exitOnCtrlC: true });
   return new Promise((resolveP) => {
     const handleSubmit = (spec: ProcureSpec) => {
@@ -241,7 +243,7 @@ export async function runTui(
       resolveP(null);
     };
     createRoot(renderer).render(
-      <App initial={initial} onSubmit={handleSubmit} onAbort={handleAbort} />
+      <App initial={initial} onSubmit={handleSubmit} onAbort={handleAbort} />,
     );
   });
 }

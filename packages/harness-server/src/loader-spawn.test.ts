@@ -7,12 +7,11 @@
  * + mock://).
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, rmSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { dirname } from 'node:path';
-import { spawnLoaderJob, type LoaderEvent } from './loader-spawn.ts';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { type LoaderEvent, spawnLoaderJob } from './loader-spawn.ts';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const HARNESS_CORE = resolve(__dirname, '../../harness-core');

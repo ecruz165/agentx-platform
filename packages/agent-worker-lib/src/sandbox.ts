@@ -53,10 +53,7 @@ export async function ensureSandboxDirs(workspaceRoot: string): Promise<SandboxP
  *
  * Use as: spawn(cmd, args, { env: sandboxEnv(workspaceRoot, process.env), ... })
  */
-export function sandboxEnv(
-  workspaceRoot: string,
-  parentEnv: NodeJS.ProcessEnv
-): NodeJS.ProcessEnv {
+export function sandboxEnv(workspaceRoot: string, parentEnv: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   const paths = sandboxPaths(workspaceRoot);
   const out: NodeJS.ProcessEnv = { ...parentEnv };
   out.HOME = paths.home;

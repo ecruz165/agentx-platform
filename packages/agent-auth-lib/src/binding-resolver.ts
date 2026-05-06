@@ -21,9 +21,9 @@
  *     adapter factory) handles that
  */
 
-import type { Credential, CredentialBroker, Provider } from './types.ts';
 import type { LLMProvider, ModelDescriptor, ToolId } from './llm-provider.ts';
 import { findBinding } from './provider-registry.ts';
+import type { Credential, CredentialBroker, Provider } from './types.ts';
 
 /**
  * Result of resolving an accept-list entry. The `kind` field is the
@@ -77,11 +77,11 @@ export interface BindingResolver {
 export class BindingResolutionError extends Error {
   constructor(
     public readonly accepts: readonly string[],
-    public readonly failures: readonly string[]
+    public readonly failures: readonly string[],
   ) {
     super(
       `No satisfiable binding for accepts=[${accepts.join(', ')}]:\n` +
-        failures.map((f) => `  - ${f}`).join('\n')
+        failures.map((f) => `  - ${f}`).join('\n'),
     );
     this.name = 'BindingResolutionError';
   }
@@ -99,7 +99,7 @@ export class BindingResolutionError extends Error {
  */
 export async function resolveBindingFor(
   accepts: readonly string[],
-  getCredentialOrThrow: (id: Provider) => Promise<Credential>
+  getCredentialOrThrow: (id: Provider) => Promise<Credential>,
 ): Promise<ResolvedBinding> {
   const failures: string[] = [];
   for (const entry of accepts) {
@@ -149,7 +149,7 @@ export async function resolveBindingFor(
  */
 export async function resolveAllBindingsFor(
   accepts: readonly string[],
-  getCredentialOrThrow: (id: Provider) => Promise<Credential>
+  getCredentialOrThrow: (id: Provider) => Promise<Credential>,
 ): Promise<ResolvedBinding[]> {
   const out: ResolvedBinding[] = [];
   for (const entry of accepts) {
@@ -160,7 +160,7 @@ export async function resolveAllBindingsFor(
       out.push(
         tool !== undefined
           ? { kind: 'local', tool, provider, model }
-          : { kind: 'local', provider, model }
+          : { kind: 'local', provider, model },
       );
       continue;
     }
@@ -169,7 +169,7 @@ export async function resolveAllBindingsFor(
       out.push(
         tool !== undefined
           ? { kind: 'cloud', tool, provider, model, credential }
-          : { kind: 'cloud', provider, model, credential }
+          : { kind: 'cloud', provider, model, credential },
       );
     } catch {
       // skip unsatisfiable entry — no diagnostic, see contract above

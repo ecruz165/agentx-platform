@@ -29,27 +29,26 @@
  */
 
 export {
-  loadWorkspaceSkills,
+  ensureSandboxDirs,
+  type SandboxPaths,
+  sandboxEnv,
+  sandboxPaths,
+} from './sandbox.ts';
+export {
   buildSystemPrompt,
-  type LoadSkillsOptions,
   type LoadedSkill,
+  type LoadSkillsOptions,
+  loadWorkspaceSkills,
 } from './skill-prompt.ts';
 
 export {
-  sandboxPaths,
-  ensureSandboxDirs,
-  sandboxEnv,
-  type SandboxPaths,
-} from './sandbox.ts';
-
-export {
   startAgentTmuxSession,
-  tmuxSendCommand,
   type TmuxSession,
+  tmuxSendCommand,
 } from './tmux.ts';
 
-import { loadWorkspaceSkills, buildSystemPrompt } from './skill-prompt.ts';
 import { ensureSandboxDirs, sandboxEnv } from './sandbox.ts';
+import { buildSystemPrompt, loadWorkspaceSkills } from './skill-prompt.ts';
 
 export interface AgentWorkerSpec {
   jobId: string;

@@ -11,16 +11,12 @@
  *     edge cases that integration would be flaky on.
  */
 
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { spawn } from 'node:child_process';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import {
-  validateRepoAccess,
-  parseHeadSha,
-  suggestFix,
-} from './validate-repo-access.ts';
+import { parseHeadSha, suggestFix, validateRepoAccess } from './validate-repo-access.ts';
 
 const tmps: string[] = [];
 afterEach(async () => {
@@ -132,7 +128,9 @@ describe('validateRepoAccess — failure path', () => {
 });
 
 describe('validateRepoAccess — parallel vs sequential', () => {
-  it('parallel mode finishes faster than sequential for multiple repos', { timeout: 15_000 }, async () => {
+  it('parallel mode finishes faster than sequential for multiple repos', {
+    timeout: 15_000,
+  }, async () => {
     // Two local bares — each ls-remote takes ~50-200ms. Parallel run
     // should finish in close to the time of one; sequential takes
     // close to the sum.
@@ -190,23 +188,20 @@ describe('suggestFix', () => {
   it('SSH form + permission denied → suggests ssh-add', () => {
     const s = suggestFix(
       'git@github.com:org/repo.git',
-      'Permission denied (publickey).\nfatal: Could not read from remote repository.'
+      'Permission denied (publickey).\nfatal: Could not read from remote repository.',
     );
     expect(s).toMatch(/ssh-add/);
   });
 
   it('SSH form + repository not found → suggests checking key access', () => {
-    const s = suggestFix(
-      'git@github.com:org/private-repo.git',
-      'ERROR: Repository not found.'
-    );
+    const s = suggestFix('git@github.com:org/private-repo.git', 'ERROR: Repository not found.');
     expect(s).toMatch(/key.*access/i);
   });
 
   it('HTTPS form + 401 → suggests credential manager or PAT', () => {
     const s = suggestFix(
       'https://github.com/org/repo.git',
-      'fatal: Authentication failed for https://github.com/org/repo.git'
+      'fatal: Authentication failed for https://github.com/org/repo.git',
     );
     expect(s).toMatch(/PAT|credential/i);
   });
@@ -214,7 +209,7 @@ describe('suggestFix', () => {
   it('HTTPS form + 404 → suggests SSH form switch', () => {
     const s = suggestFix(
       'https://github.com/org/private-repo.git',
-      "remote: Repository not found.\nfatal: repository 'https://github.com/org/private-repo.git/' not found"
+      "remote: Repository not found.\nfatal: repository 'https://github.com/org/private-repo.git/' not found",
     );
     expect(s).toMatch(/SSH form/i);
   });
@@ -222,7 +217,7 @@ describe('suggestFix', () => {
   it('timeout → suggests checking network', () => {
     const s = suggestFix(
       'https://github.com/org/repo.git',
-      'timeout after 10000ms (process killed)'
+      'timeout after 10000ms (process killed)',
     );
     expect(s).toMatch(/network|timed out/i);
   });
@@ -230,7 +225,7 @@ describe('suggestFix', () => {
   it('returns undefined for unrecognized failure', () => {
     const s = suggestFix(
       'https://github.com/org/repo.git',
-      'something completely unexpected from git'
+      'something completely unexpected from git',
     );
     expect(s).toBeUndefined();
   });

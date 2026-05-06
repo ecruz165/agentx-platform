@@ -151,9 +151,9 @@ function splitByHeading(md: string): RawSection[] {
     const m = /^(#{1,2})\s+(.+?)\s*$/.exec(line);
     if (m) {
       if (current.text.trim() || current.heading) sections.push(current);
-      current = { heading: m[2]!, level: m[1]!.length, text: line + '\n' };
+      current = { heading: m[2]!, level: m[1]!.length, text: `${line}\n` };
     } else {
-      current.text += line + '\n';
+      current.text += `${line}\n`;
     }
   }
   if (current.text.trim() || current.heading) sections.push(current);
@@ -182,8 +182,7 @@ function extractFirstH1(md: string): string | null {
 function extractMarkdownLinks(md: string): string[] {
   const out: string[] = [];
   const re = /\[[^\]]*\]\(([^)\s]+)/g;
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(md)) !== null) {
+  for (const m of md.matchAll(re)) {
     if (m[1]) out.push(m[1]);
   }
   return out;

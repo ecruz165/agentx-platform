@@ -83,7 +83,7 @@ export class ContextQueryService {
     this.driver = neo4j.driver(
       opts.neo4jUrl,
       neo4j.auth.basic(opts.neo4jUser ?? 'neo4j', opts.neo4jPassword),
-      opts.driverConfig
+      opts.driverConfig,
     );
     this.database = opts.database ?? 'neo4j';
     this.embedder = createHttpEmbedderClient({
@@ -131,8 +131,7 @@ export class ContextQueryService {
           : '';
         if (req.productId) params.productPrefix = req.productId;
 
-        const cypher =
-          `CALL db.index.vector.queryNodes($indexName, $k, $vec)
+        const cypher = `CALL db.index.vector.queryNodes($indexName, $k, $vec)
            YIELD node AS n, score
            ${productPredicate}
            RETURN n.id AS id, labels(n) AS labels, score,
@@ -194,7 +193,7 @@ export class ContextQueryService {
       const r = await session.run(
         `SHOW INDEXES YIELD name, type, labelsOrTypes
          WHERE type = 'VECTOR'
-         RETURN name, labelsOrTypes`
+         RETURN name, labelsOrTypes`,
       );
       const labels: string[] = [];
       for (const rec of r.records) {

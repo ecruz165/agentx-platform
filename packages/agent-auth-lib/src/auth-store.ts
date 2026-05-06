@@ -56,7 +56,7 @@ export class AuthStore {
 
   async write(file: AuthFile): Promise<void> {
     await mkdir(dirname(this.path), { recursive: true, mode: 0o700 });
-    await writeFile(this.path, JSON.stringify(file, null, 2) + '\n', { mode: 0o600 });
+    await writeFile(this.path, `${JSON.stringify(file, null, 2)}\n`, { mode: 0o600 });
     await chmod(this.path, 0o600);
   }
 
@@ -90,8 +90,9 @@ export class AuthStore {
         createdAt: entry.createdAt,
         username: entry.username,
         hasCopilotSessionToken: !!entry.copilotToken,
-        copilotSessionExpiresIn:
-          entry.copilotTokenExpiresAt ? entry.copilotTokenExpiresAt - nowSec : undefined,
+        copilotSessionExpiresIn: entry.copilotTokenExpiresAt
+          ? entry.copilotTokenExpiresAt - nowSec
+          : undefined,
       };
     }
     return out;

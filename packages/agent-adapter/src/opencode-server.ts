@@ -23,7 +23,7 @@
  * flows in unescaped.
  */
 
-import { spawn as defaultSpawn, type ChildProcess } from 'node:child_process';
+import { type ChildProcess, spawn as defaultSpawn } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -32,7 +32,7 @@ import { dirname, join } from 'node:path';
 export type SpawnFn = (
   command: string,
   args: readonly string[],
-  options: { env?: NodeJS.ProcessEnv; stdio?: ['ignore', 'pipe', 'pipe'] }
+  options: { env?: NodeJS.ProcessEnv; stdio?: ['ignore', 'pipe', 'pipe'] },
 ) => ChildProcess;
 
 export interface OpenCodeServerOptions {
@@ -118,7 +118,8 @@ const LISTENING_RE = /opencode server listening on (\S+)/;
 export class OpenCodeServer {
   private child: ChildProcess | null = null;
   private handle: OpenCodeServerHandle | null = null;
-  private tmuxState: { socket: string; session: string; logPath: string; spawnFn: SpawnFn } | null = null;
+  private tmuxState: { socket: string; session: string; logPath: string; spawnFn: SpawnFn } | null =
+    null;
   /** When the server is started with `providers`, we create a temp
    *  XDG_CONFIG_HOME with opencode.json. Track it for cleanup on kill(). */
   private ownedConfigDir: string | null = null;
@@ -155,11 +156,25 @@ export class OpenCodeServer {
 
   /** Direct-spawn mode: original behavior, reads stderr for detection. */
   private async startDirect(opts: {
-    bin: string; port: number; hostname: string; pure: boolean;
-    startupTimeoutMs?: number; env?: NodeJS.ProcessEnv; forwardLogs?: boolean;
+    bin: string;
+    port: number;
+    hostname: string;
+    pure: boolean;
+    startupTimeoutMs?: number;
+    env?: NodeJS.ProcessEnv;
+    forwardLogs?: boolean;
     spawnFn?: SpawnFn;
   }): Promise<OpenCodeServerHandle> {
-    const { bin, port, hostname, pure, startupTimeoutMs = 30_000, env, forwardLogs, spawnFn } = opts;
+    const {
+      bin,
+      port,
+      hostname,
+      pure,
+      startupTimeoutMs = 30_000,
+      env,
+      forwardLogs,
+      spawnFn,
+    } = opts;
     const args = ['serve', '--port', String(port), '--hostname', hostname, '--print-logs'];
     if (pure) args.push('--pure');
 
@@ -174,7 +189,7 @@ export class OpenCodeServer {
       const buffer: string[] = [];
       const tail = (max = 600): string => {
         const all = buffer.join('');
-        return all.length > max ? '…' + all.slice(-max) : all;
+        return all.length > max ? `…${all.slice(-max)}` : all;
       };
 
       const cleanupListeners = () => {
@@ -195,7 +210,11 @@ export class OpenCodeServer {
       };
       const fail = (msg: string) => {
         cleanupListeners();
-        try { child.kill('SIGTERM'); } catch { /* best effort */ }
+        try {
+          child.kill('SIGTERM');
+        } catch {
+          /* best effort */
+        }
         this.child = null;
         reject(new OpenCodeServerError(msg));
       };
@@ -212,7 +231,9 @@ export class OpenCodeServer {
         fail(`opencode serve ${why} before logging "listening". Tail: ${tail()}`);
       };
       const timeoutHandle = setTimeout(() => {
-        fail(`opencode serve did not log "listening" within ${startupTimeoutMs}ms. Tail: ${tail()}`);
+        fail(
+          `opencode serve did not log "listening" within ${startupTimeoutMs}ms. Tail: ${tail()}`,
+        );
       }, startupTimeoutMs);
 
       child.stdout?.on('data', onData);
@@ -227,18 +248,30 @@ export class OpenCodeServer {
    *  `project_pipeline_tmux_topology` — the session is attachable via
    *  `tmux -S <socket> attach -t <session> -r`. */
   private async startInTmux(opts: {
-    bin: string; port: number; hostname: string; pure: boolean;
-    startupTimeoutMs?: number; env?: NodeJS.ProcessEnv;
+    bin: string;
+    port: number;
+    hostname: string;
+    pure: boolean;
+    startupTimeoutMs?: number;
+    env?: NodeJS.ProcessEnv;
     spawnFn?: SpawnFn;
-    tmuxSocket?: string; tmuxSessionName?: string; logPath?: string;
+    tmuxSocket?: string;
+    tmuxSessionName?: string;
+    logPath?: string;
     pollIntervalMs?: number;
   }): Promise<OpenCodeServerHandle> {
     const {
-      bin, port, hostname, pure,
+      bin,
+      port,
+      hostname,
+      pure,
       startupTimeoutMs = 30_000,
-      tmuxSocket, tmuxSessionName = 'opencode-server',
-      logPath: logPathOpt, pollIntervalMs = 100,
-      env, spawnFn,
+      tmuxSocket,
+      tmuxSessionName = 'opencode-server',
+      logPath: logPathOpt,
+      pollIntervalMs = 100,
+      env,
+      spawnFn,
     } = opts;
     if (!tmuxSocket) throw new OpenCodeServerError('startInTmux called without tmuxSocket');
     const fn = spawnFn ?? (defaultSpawn as SpawnFn);
@@ -254,22 +287,33 @@ export class OpenCodeServer {
     // 2>&1 routes stderr into the same stream; tee mirrors to logfile while
     // the tmux pane displays the live output for `tmux attach -r`.
     const innerCmd = [
-      shellQuote(bin), 'serve',
-      '--port', String(port),
-      '--hostname', shellQuote(hostname),
+      shellQuote(bin),
+      'serve',
+      '--port',
+      String(port),
+      '--hostname',
+      shellQuote(hostname),
       '--print-logs',
       ...(pure ? ['--pure'] : []),
-      '2>&1', '|', 'tee', shellQuote(logPath),
+      '2>&1',
+      '|',
+      'tee',
+      shellQuote(logPath),
     ].join(' ');
 
     // Create the detached session running our inner command. tmux's
     // new-session resolves immediately; the inner shell continues
     // independently inside the session.
     const tmuxArgs = [
-      '-S', tmuxSocket,
-      'new-session', '-d',
-      '-s', tmuxSessionName,
-      'sh', '-c', innerCmd,
+      '-S',
+      tmuxSocket,
+      'new-session',
+      '-d',
+      '-s',
+      tmuxSessionName,
+      'sh',
+      '-c',
+      innerCmd,
     ];
     await runProc(fn, 'tmux', tmuxArgs, env);
 
@@ -292,7 +336,7 @@ export class OpenCodeServer {
       if (!alive) {
         await this.killTmux();
         throw new OpenCodeServerError(
-          `opencode serve session ended before logging "listening". Tail: ${tailString(log)}`
+          `opencode serve session ended before logging "listening". Tail: ${tailString(log)}`,
         );
       }
       await sleep(pollIntervalMs);
@@ -300,7 +344,7 @@ export class OpenCodeServer {
     const log = existsSync(logPath) ? readFileSync(logPath, 'utf8') : '';
     await this.killTmux();
     throw new OpenCodeServerError(
-      `opencode serve did not log "listening" within ${startupTimeoutMs}ms. Tail: ${tailString(log)}`
+      `opencode serve did not log "listening" within ${startupTimeoutMs}ms. Tail: ${tailString(log)}`,
     );
   }
 
@@ -321,22 +365,42 @@ export class OpenCodeServer {
     }
     this.child = null;
     this.handle = null;
-    try { child.kill('SIGTERM'); } catch { /* may already be dead */ }
+    try {
+      child.kill('SIGTERM');
+    } catch {
+      /* may already be dead */
+    }
     await new Promise<void>((resolve) => {
       let settled = false;
-      const settle = () => { if (!settled) { settled = true; resolve(); } };
+      const settle = () => {
+        if (!settled) {
+          settled = true;
+          resolve();
+        }
+      };
       const timer = setTimeout(() => {
-        try { child.kill('SIGKILL'); } catch { /* best effort */ }
+        try {
+          child.kill('SIGKILL');
+        } catch {
+          /* best effort */
+        }
         settle();
       }, graceMs);
-      child.on('exit', () => { clearTimeout(timer); settle(); });
+      child.on('exit', () => {
+        clearTimeout(timer);
+        settle();
+      });
     });
     this.cleanupConfigDir();
   }
 
   private cleanupConfigDir(): void {
     if (!this.ownedConfigDir) return;
-    try { rmSync(this.ownedConfigDir, { recursive: true, force: true }); } catch { /* best effort */ }
+    try {
+      rmSync(this.ownedConfigDir, { recursive: true, force: true });
+    } catch {
+      /* best effort */
+    }
     this.ownedConfigDir = null;
   }
 
@@ -345,8 +409,16 @@ export class OpenCodeServer {
     if (!state) return;
     this.tmuxState = null;
     try {
-      await runProc(state.spawnFn, 'tmux', ['-S', state.socket, 'kill-session', '-t', state.session]);
-    } catch { /* session may be gone already */ }
+      await runProc(state.spawnFn, 'tmux', [
+        '-S',
+        state.socket,
+        'kill-session',
+        '-t',
+        state.session,
+      ]);
+    } catch {
+      /* session may be gone already */
+    }
   }
 }
 
@@ -361,7 +433,7 @@ function runProc(
   fn: SpawnFn,
   cmd: string,
   args: readonly string[],
-  env?: NodeJS.ProcessEnv
+  env?: NodeJS.ProcessEnv,
 ): Promise<void> {
   return new Promise((resolve, reject) => {
     const child = fn(cmd, args, {
@@ -373,7 +445,10 @@ function runProc(
     child.on('error', reject);
     child.on('exit', (code) => {
       if (code === 0) resolve();
-      else reject(new OpenCodeServerError(`${cmd} ${args.join(' ')} exited ${code}: ${stderr.trim()}`));
+      else
+        reject(
+          new OpenCodeServerError(`${cmd} ${args.join(' ')} exited ${code}: ${stderr.trim()}`),
+        );
     });
   });
 }
@@ -383,7 +458,7 @@ function tmuxHasSession(
   fn: SpawnFn,
   socket: string,
   session: string,
-  env?: NodeJS.ProcessEnv
+  env?: NodeJS.ProcessEnv,
 ): Promise<boolean> {
   return new Promise((resolve) => {
     const child = fn('tmux', ['-S', socket, 'has-session', '-t', session], {
@@ -400,7 +475,7 @@ function sleep(ms: number): Promise<void> {
 }
 
 function tailString(s: string, max = 600): string {
-  return s.length > max ? '…' + s.slice(-max) : s;
+  return s.length > max ? `…${s.slice(-max)}` : s;
 }
 
 /** Single-quote shell-escape — wrap in single quotes, escape any embedded
@@ -416,16 +491,14 @@ function shellQuote(s: string): string {
  *  --print-logs). Caller is responsible for deleting the returned dir
  *  on teardown — OpenCodeServer.kill() does this for instances that own
  *  the dir. */
-function writeServerConfigDir(
-  providers: Record<string, OpencodeProviderEntry>
-): string {
+function writeServerConfigDir(providers: Record<string, OpencodeProviderEntry>): string {
   const dir = mkdtempSync(join(tmpdir(), 'opencode-server-cfg-'));
   const opencodeDir = join(dir, 'opencode');
   mkdirSync(opencodeDir, { recursive: true, mode: 0o700 });
   writeFileSync(
     join(opencodeDir, 'opencode.json'),
     JSON.stringify({ mcp: {}, provider: providers }, null, 2),
-    { mode: 0o600 }
+    { mode: 0o600 },
   );
   return dir;
 }

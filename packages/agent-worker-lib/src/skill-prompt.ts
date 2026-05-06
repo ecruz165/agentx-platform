@@ -19,8 +19,8 @@
  * by operators). When both exist, workspace-local wins.
  */
 
-import { readFile, readdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
+import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 export interface LoadSkillsOptions {
@@ -39,9 +39,7 @@ export interface LoadedSkill {
 const RUNTIME_SUBPATH = ['.harness', 'skills'];
 const TEMPLATE_SUBPATH = ['workspace-template', '.harness', 'skills'];
 
-export async function loadWorkspaceSkills(
-  opts: LoadSkillsOptions
-): Promise<LoadedSkill[]> {
+export async function loadWorkspaceSkills(opts: LoadSkillsOptions): Promise<LoadedSkill[]> {
   const dirs = [
     join(opts.workspaceRoot, ...RUNTIME_SUBPATH),
     join(opts.workspaceRoot, ...TEMPLATE_SUBPATH),
@@ -101,9 +99,11 @@ export function buildSystemPrompt(args: {
   ].join('\n');
 
   const skillBlocks = args.skills.map((s) => {
-    return [`<<<SKILL: ${s.name} (${s.path})>>>`, s.content.trimEnd(), `<<<END SKILL: ${s.name}>>>`].join(
-      '\n'
-    );
+    return [
+      `<<<SKILL: ${s.name} (${s.path})>>>`,
+      s.content.trimEnd(),
+      `<<<END SKILL: ${s.name}>>>`,
+    ].join('\n');
   });
 
   const parts: string[] = [sandboxPreamble];

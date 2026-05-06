@@ -12,19 +12,19 @@
  * server (or v1.x: send a refresh signal that re-runs the loader).
  */
 
-import { readFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import YAML from 'yaml';
 import {
-  validateUnifiedCatalog,
-  type Catalog,
   type AdapterId,
   type AgentDef,
+  type Catalog,
+  CatalogError,
   type PipelineDef,
   type ProductDef,
-  CatalogError,
+  validateUnifiedCatalog,
 } from '@agentx/harness-core';
+import YAML from 'yaml';
 
 /**
  * Local-dev catalog loader: stitches together
@@ -38,9 +38,7 @@ import {
  *   - Anything thrown at startup will fail-fast harness-server before it
  *     accepts traffic (per the rule: never serve with a partial catalog)
  */
-export async function loadCatalogFromWorkspaceYaml(
-  workspaceRoot: string
-): Promise<Catalog> {
+export async function loadCatalogFromWorkspaceYaml(workspaceRoot: string): Promise<Catalog> {
   // Pipelines: workspace's pipelines.json uses a `phases` shape that's
   // user-friendlier than harness-core's canonical `agents` array.
   // readWorkspacePipelines accepts both shapes (phases or agents) and
@@ -76,9 +74,7 @@ export async function loadCatalogFromWorkspaceYaml(
  * Missing file → empty pipelines (matches harness-core's loadCatalog).
  * Malformed JSON or unknown adapter id → CatalogError with the file path.
  */
-async function readWorkspacePipelines(
-  workspaceRoot: string
-): Promise<PipelineDef[]> {
+async function readWorkspacePipelines(workspaceRoot: string): Promise<PipelineDef[]> {
   const path = join(workspaceRoot, '.harness', 'config', 'pipelines.json');
   if (!existsSync(path)) return [];
 
@@ -112,31 +108,25 @@ async function readWorkspacePipelines(
     if (typeof pipeline.id !== 'string' || !pipeline.id) {
       throw new CatalogError(`${path}: pipelines[${i}].id must be a non-empty string`);
     }
-    const description =
-      typeof pipeline.description === 'string' ? pipeline.description : undefined;
+    const description = typeof pipeline.description === 'string' ? pipeline.description : undefined;
 
     // Prefer canonical `agents` if present; otherwise translate `phases`.
-    const canonical = Array.isArray(pipeline.agents)
-      ? (pipeline.agents as unknown[])
-      : null;
-    const phases = !canonical && Array.isArray(pipeline.phases)
-      ? (pipeline.phases as unknown[])
-      : null;
+    const canonical = Array.isArray(pipeline.agents) ? (pipeline.agents as unknown[]) : null;
+    const phases =
+      !canonical && Array.isArray(pipeline.phases) ? (pipeline.phases as unknown[]) : null;
     if (!canonical && !phases) {
       throw new CatalogError(
-        `${path}: pipelines[${i}] needs either "agents" or "phases" (got neither)`
+        `${path}: pipelines[${i}] needs either "agents" or "phases" (got neither)`,
       );
     }
 
     const agents: AgentDef[] = canonical
       ? canonical.map((a, j) => coerceCanonicalAgent(a, `${path}: pipelines[${i}].agents[${j}]`))
-      : phases!.map((ph, j) =>
-          phaseToAgent(ph, `${path}: pipelines[${i}].phases[${j}]`)
-        );
+      : phases!.map((ph, j) => phaseToAgent(ph, `${path}: pipelines[${i}].phases[${j}]`));
 
     if (agents.length === 0) {
       throw new CatalogError(
-        `${path}: pipelines[${i}].${canonical ? 'agents' : 'phases'} must be non-empty`
+        `${path}: pipelines[${i}].${canonical ? 'agents' : 'phases'} must be non-empty`,
       );
     }
 
@@ -158,7 +148,7 @@ function phaseToAgent(value: unknown, path: string): AgentDef {
   const adapterRaw = phase.agent;
   if (adapterRaw !== 'claude-sdk' && adapterRaw !== 'opencode-cli') {
     throw new CatalogError(
-      `${path}.agent must be "claude-sdk" or "opencode-cli" (got ${JSON.stringify(adapterRaw)})`
+      `${path}.agent must be "claude-sdk" or "opencode-cli" (got ${JSON.stringify(adapterRaw)})`,
     );
   }
   const role =
@@ -194,9 +184,7 @@ function coerceCanonicalAgent(value: unknown, path: string): AgentDef {
     throw new CatalogError(`${path}.role must be a non-empty string`);
   }
   if (a.adapter !== 'claude-sdk' && a.adapter !== 'opencode-cli') {
-    throw new CatalogError(
-      `${path}.adapter must be "claude-sdk" or "opencode-cli"`
-    );
+    throw new CatalogError(`${path}.adapter must be "claude-sdk" or "opencode-cli"`);
   }
   const out: AgentDef = { id: a.id, role: a.role, adapter: a.adapter as AdapterId };
   if (typeof a.systemPrompt === 'string') out.systemPrompt = a.systemPrompt;
@@ -215,9 +203,7 @@ function coerceCanonicalAgent(value: unknown, path: string): AgentDef {
  * minus the workspace-only fields (servers, worker, worktree). Those
  * stay client-side and aren't part of the runtime catalog.
  */
-async function readWorkspaceYamlProducts(
-  workspaceRoot: string
-): Promise<ProductDef[]> {
+async function readWorkspaceYamlProducts(workspaceRoot: string): Promise<ProductDef[]> {
   const candidates = [
     join(workspaceRoot, 'harness-workspace.yml'),
     join(workspaceRoot, 'harness-workspace.yaml'),
@@ -258,23 +244,16 @@ async function readWorkspaceYamlProducts(
     .filter((p): p is Record<string, unknown> => !!p && typeof p === 'object')
     .map((p) => {
       const id = typeof p.id === 'string' ? p.id : '';
-      const description =
-        typeof p.description === 'string' ? p.description : undefined;
+      const description = typeof p.description === 'string' ? p.description : undefined;
       const sources = Array.isArray(p.contextSources)
         ? p.contextSources
-            .filter(
-              (s: unknown): s is Record<string, unknown> =>
-                !!s && typeof s === 'object'
-            )
+            .filter((s: unknown): s is Record<string, unknown> => !!s && typeof s === 'object')
             .map((s) => ({
               type: typeof s.type === 'string' ? s.type : '',
               target: typeof s.target === 'string' ? s.target : '',
-              embedderUrl:
-                typeof s.embedderUrl === 'string' ? s.embedderUrl : undefined,
-              embedderModel:
-                typeof s.embedderModel === 'string' ? s.embedderModel : undefined,
-              embedderDim:
-                typeof s.embedderDim === 'number' ? s.embedderDim : undefined,
+              embedderUrl: typeof s.embedderUrl === 'string' ? s.embedderUrl : undefined,
+              embedderModel: typeof s.embedderModel === 'string' ? s.embedderModel : undefined,
+              embedderDim: typeof s.embedderDim === 'number' ? s.embedderDim : undefined,
               backend: typeof s.backend === 'string' ? s.backend : undefined,
             }))
         : undefined;

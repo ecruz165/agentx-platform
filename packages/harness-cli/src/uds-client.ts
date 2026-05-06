@@ -1,5 +1,5 @@
-import { request } from 'node:http';
 import { stat } from 'node:fs/promises';
+import { request } from 'node:http';
 
 export interface UdsResponse {
   status: number;
@@ -15,7 +15,7 @@ export async function udsRequest(
   socketPath: string,
   method: 'GET' | 'POST',
   path: string,
-  body?: unknown
+  body?: unknown,
 ): Promise<UdsResponse> {
   await assertSecureSocket(socketPath);
 
@@ -43,7 +43,7 @@ export async function udsRequest(
             body: data ? safeJson(data) : null,
           });
         });
-      }
+      },
     );
     req.on('error', reject);
     if (payload) req.write(payload);
@@ -59,7 +59,7 @@ async function assertSecureSocket(path: string): Promise<void> {
   const mode = info.mode & 0o777;
   if (mode !== 0o600) {
     throw new Error(
-      `Socket ${path} has mode 0${mode.toString(8)}; required 0600 per v1 trust model.`
+      `Socket ${path} has mode 0${mode.toString(8)}; required 0600 per v1 trust model.`,
     );
   }
 }

@@ -274,10 +274,7 @@ export async function loadCatalog(workspaceRoot: string): Promise<PipelineCatalo
  * running harness can serve different sets concurrently — natural for
  * benchmarking and per-customer policy.
  */
-export function resolveAccepts(
-  agent: AgentDef,
-  setName: string
-): readonly string[] | undefined {
+export function resolveAccepts(agent: AgentDef, setName: string): readonly string[] | undefined {
   const a = agent.accepts;
   if (a === undefined) return undefined;
   if (Array.isArray(a)) return a;
@@ -286,7 +283,7 @@ export function resolveAccepts(
   if (!picked) {
     throw new CatalogError(
       `agent "${agent.id}" has no "${setName}" set and no "default" set ` +
-        `(declared sets: ${Object.keys(sets).join(', ')})`
+        `(declared sets: ${Object.keys(sets).join(', ')})`,
     );
   }
   return picked;
@@ -323,22 +320,28 @@ function validateCatalog(value: unknown, path: string): asserts value is Pipelin
       }
       const agent = a as Record<string, unknown>;
       if (typeof agent.id !== 'string' || !agent.id) {
-        throw new CatalogError(`${path}: pipelines[${i}].agents[${j}].id must be a non-empty string`);
+        throw new CatalogError(
+          `${path}: pipelines[${i}].agents[${j}].id must be a non-empty string`,
+        );
       }
       if (agentIds.has(agent.id)) {
         throw new CatalogError(`${path}: pipelines[${i}] has duplicate agent id "${agent.id}"`);
       }
       agentIds.add(agent.id);
       if (typeof agent.role !== 'string' || !agent.role) {
-        throw new CatalogError(`${path}: pipelines[${i}].agents[${j}].role must be a non-empty string`);
+        throw new CatalogError(
+          `${path}: pipelines[${i}].agents[${j}].role must be a non-empty string`,
+        );
       }
       if (agent.adapter !== 'claude-sdk' && agent.adapter !== 'opencode-cli') {
         throw new CatalogError(
-          `${path}: pipelines[${i}].agents[${j}].adapter must be "claude-sdk" or "opencode-cli"`
+          `${path}: pipelines[${i}].agents[${j}].adapter must be "claude-sdk" or "opencode-cli"`,
         );
       }
       if (agent.systemPrompt !== undefined && typeof agent.systemPrompt !== 'string') {
-        throw new CatalogError(`${path}: pipelines[${i}].agents[${j}].systemPrompt must be a string`);
+        throw new CatalogError(
+          `${path}: pipelines[${i}].agents[${j}].systemPrompt must be a string`,
+        );
       }
       if (agent.accepts !== undefined) {
         validateAcceptsField(agent.accepts, `${path}: pipelines[${i}].agents[${j}].accepts`);
@@ -346,14 +349,11 @@ function validateCatalog(value: unknown, path: string): asserts value is Pipelin
       if (agent.fallbackOn !== undefined) {
         validateFallbackOnField(
           agent.fallbackOn,
-          `${path}: pipelines[${i}].agents[${j}].fallbackOn`
+          `${path}: pipelines[${i}].agents[${j}].fallbackOn`,
         );
       }
       if (agent.skillz !== undefined) {
-        validateSkillzField(
-          agent.skillz,
-          `${path}: pipelines[${i}].agents[${j}].skillz`
-        );
+        validateSkillzField(agent.skillz, `${path}: pipelines[${i}].agents[${j}].skillz`);
       }
     }
   }
@@ -372,7 +372,7 @@ function validateSkillzField(value: unknown, where: string): void {
   for (const key of Object.keys(skillz)) {
     if (!validKeys.has(key)) {
       throw new CatalogError(
-        `${where} has unknown key "${key}"; allowed: ${[...validKeys].join(', ')}`
+        `${where} has unknown key "${key}"; allowed: ${[...validKeys].join(', ')}`,
       );
     }
     const list = skillz[key];
@@ -382,9 +382,7 @@ function validateSkillzField(value: unknown, where: string): void {
     }
     for (const [k, slug] of list.entries()) {
       if (typeof slug !== 'string' || slug.length === 0) {
-        throw new CatalogError(
-          `${where}.${key}[${k}] must be a non-empty string`
-        );
+        throw new CatalogError(`${where}.${key}[${k}] must be a non-empty string`);
       }
     }
   }
@@ -408,7 +406,7 @@ function validateFallbackOnField(value: unknown, where: string): void {
   if (!Array.isArray(value)) {
     throw new CatalogError(
       `${where} must be an array of AdapterError subclass names ` +
-        `(e.g., ["BillingError", "RateLimitError"]) — got ${typeof value}`
+        `(e.g., ["BillingError", "RateLimitError"]) — got ${typeof value}`,
     );
   }
   for (const [k, entry] of value.entries()) {
@@ -418,7 +416,7 @@ function validateFallbackOnField(value: unknown, where: string): void {
     if (!VALID_FALLBACK_ERROR_NAMES.has(entry)) {
       throw new CatalogError(
         `${where}[${k}] = "${entry}" is not a known AdapterError subclass. ` +
-          `Valid: ${[...VALID_FALLBACK_ERROR_NAMES].sort().join(', ')}`
+          `Valid: ${[...VALID_FALLBACK_ERROR_NAMES].sort().join(', ')}`,
       );
     }
   }
@@ -441,9 +439,7 @@ function validateAcceptsField(value: unknown, where: string): void {
     const sets = value as Record<string, unknown>;
     const setNames = Object.keys(sets);
     if (setNames.length === 0) {
-      throw new CatalogError(
-        `${where} must declare at least one set (got an empty object)`
-      );
+      throw new CatalogError(`${where} must declare at least one set (got an empty object)`);
     }
     for (const setName of setNames) {
       if (!setName) {
@@ -452,7 +448,7 @@ function validateAcceptsField(value: unknown, where: string): void {
       const list = sets[setName];
       if (!Array.isArray(list)) {
         throw new CatalogError(
-          `${where}["${setName}"] must be an array of "<provider>:<model>" strings`
+          `${where}["${setName}"] must be an array of "<provider>:<model>" strings`,
         );
       }
       validateAcceptsList(list, `${where}["${setName}"]`);
@@ -461,7 +457,7 @@ function validateAcceptsField(value: unknown, where: string): void {
   }
   throw new CatalogError(
     `${where} must be an array of "<provider>:<model>" strings ` +
-      `OR an object mapping set name → array of those strings`
+      `OR an object mapping set name → array of those strings`,
   );
 }
 
@@ -474,7 +470,7 @@ function validateAcceptsList(list: unknown[], where: string): void {
     if (colon <= 0 || colon === entry.length - 1) {
       throw new CatalogError(
         `${where}[${k}] must be of the form "<provider>:<model>" or ` +
-          `"<tool>:<provider>:<model>" (got "${entry}")`
+          `"<tool>:<provider>:<model>" (got "${entry}")`,
       );
     }
   }
@@ -529,66 +525,62 @@ export function validateUnifiedCatalog(value: unknown, path: string): asserts va
       if (product.contextSources !== undefined) {
         if (!Array.isArray(product.contextSources)) {
           throw new CatalogError(
-            `${path}: products[${i}].contextSources must be an array if present`
+            `${path}: products[${i}].contextSources must be an array if present`,
           );
         }
         for (const [j, s] of product.contextSources.entries()) {
           if (!s || typeof s !== 'object') {
             throw new CatalogError(
-              `${path}: products[${i}].contextSources[${j}] must be an object`
+              `${path}: products[${i}].contextSources[${j}] must be an object`,
             );
           }
           const src = s as Record<string, unknown>;
           if (typeof src.type !== 'string' || !src.type) {
             throw new CatalogError(
-              `${path}: products[${i}].contextSources[${j}].type must be a non-empty string`
+              `${path}: products[${i}].contextSources[${j}].type must be a non-empty string`,
             );
           }
           if (typeof src.target !== 'string' || !src.target) {
             throw new CatalogError(
-              `${path}: products[${i}].contextSources[${j}].target must be a non-empty string`
+              `${path}: products[${i}].contextSources[${j}].target must be a non-empty string`,
             );
           }
         }
       }
       if (product.repos !== undefined) {
         if (!Array.isArray(product.repos)) {
-          throw new CatalogError(
-            `${path}: products[${i}].repos must be an array if present`
-          );
+          throw new CatalogError(`${path}: products[${i}].repos must be an array if present`);
         }
         const repoNames = new Set<string>();
         for (const [j, r] of product.repos.entries()) {
           if (!r || typeof r !== 'object') {
-            throw new CatalogError(
-              `${path}: products[${i}].repos[${j}] must be an object`
-            );
+            throw new CatalogError(`${path}: products[${i}].repos[${j}] must be an object`);
           }
           const repo = r as Record<string, unknown>;
           if (typeof repo.name !== 'string' || !repo.name) {
             throw new CatalogError(
-              `${path}: products[${i}].repos[${j}].name must be a non-empty string`
+              `${path}: products[${i}].repos[${j}].name must be a non-empty string`,
             );
           }
           if (repoNames.has(repo.name)) {
             throw new CatalogError(
-              `${path}: products[${i}].repos has duplicate name "${repo.name}"`
+              `${path}: products[${i}].repos has duplicate name "${repo.name}"`,
             );
           }
           repoNames.add(repo.name);
           if (typeof repo.cloneUrl !== 'string' || !repo.cloneUrl) {
             throw new CatalogError(
-              `${path}: products[${i}].repos[${j}].cloneUrl must be a non-empty string`
+              `${path}: products[${i}].repos[${j}].cloneUrl must be a non-empty string`,
             );
           }
           if (repo.baseRef !== undefined && (typeof repo.baseRef !== 'string' || !repo.baseRef)) {
             throw new CatalogError(
-              `${path}: products[${i}].repos[${j}].baseRef must be a non-empty string when present`
+              `${path}: products[${i}].repos[${j}].baseRef must be a non-empty string when present`,
             );
           }
           if (repo.path !== undefined && (typeof repo.path !== 'string' || !repo.path)) {
             throw new CatalogError(
-              `${path}: products[${i}].repos[${j}].path must be a non-empty string when present`
+              `${path}: products[${i}].repos[${j}].path must be a non-empty string when present`,
             );
           }
         }

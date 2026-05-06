@@ -19,7 +19,7 @@
  *   - sends model param + system+user message ordering correctly
  */
 
-import { mkdtempSync, writeFileSync, chmodSync, mkdirSync, rmSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -77,7 +77,7 @@ describe('CopilotChatAdapter', () => {
     writeAuth({});
     const adapter = new CopilotChatAdapter({ authPath });
     await expect(adapter.invoke({ user: 'hi' })).rejects.toThrow(
-      /github-copilot not authenticated/
+      /github-copilot not authenticated/,
     );
   });
 
@@ -109,7 +109,7 @@ describe('CopilotChatAdapter', () => {
     // First call: token exchange against api.github.com
     expect(calls[0]!.url).toBe('https://api.github.com/copilot_internal/v2/token');
     expect((calls[0]!.init?.headers as Record<string, string>)?.Authorization).toBe(
-      'token gho_real-github-token'
+      'token gho_real-github-token',
     );
 
     // Second call: chat against api.githubcopilot.com with session token
@@ -123,8 +123,14 @@ describe('CopilotChatAdapter', () => {
     writeAuth({ 'github-copilot': { apiKey: 'gho_token' } });
     const expiresAt = Math.floor(Date.now() / 1000) + 3600;
     const { fn } = makeFetchStub({
-      'https://api.github.com': { status: 200, body: { token: 'cached-session', expires_at: expiresAt } },
-      'https://api.githubcopilot.com': { status: 200, body: { choices: [{ message: { content: 'ok' } }] } },
+      'https://api.github.com': {
+        status: 200,
+        body: { token: 'cached-session', expires_at: expiresAt },
+      },
+      'https://api.githubcopilot.com': {
+        status: 200,
+        body: { choices: [{ message: { content: 'ok' } }] },
+      },
     });
 
     const adapter = new CopilotChatAdapter({ authPath, fetchFn: fn });
@@ -148,7 +154,10 @@ describe('CopilotChatAdapter', () => {
     });
     const { fn, calls } = makeFetchStub({
       'https://api.github.com': { status: 599, body: 'should not be called' },
-      'https://api.githubcopilot.com': { status: 200, body: { choices: [{ message: { content: 'ok' } }] } },
+      'https://api.githubcopilot.com': {
+        status: 200,
+        body: { choices: [{ message: { content: 'ok' } }] },
+      },
     });
     const adapter = new CopilotChatAdapter({ authPath, fetchFn: fn });
     await adapter.invoke({ user: 'hi' });
@@ -170,8 +179,14 @@ describe('CopilotChatAdapter', () => {
     });
     const newExpiresAt = Math.floor(Date.now() / 1000) + 3600;
     const { fn, calls } = makeFetchStub({
-      'https://api.github.com': { status: 200, body: { token: 'fresh-session', expires_at: newExpiresAt } },
-      'https://api.githubcopilot.com': { status: 200, body: { choices: [{ message: { content: 'ok' } }] } },
+      'https://api.github.com': {
+        status: 200,
+        body: { token: 'fresh-session', expires_at: newExpiresAt },
+      },
+      'https://api.githubcopilot.com': {
+        status: 200,
+        body: { choices: [{ message: { content: 'ok' } }] },
+      },
     });
     const adapter = new CopilotChatAdapter({ authPath, fetchFn: fn });
     await adapter.invoke({ user: 'hi' });
@@ -194,7 +209,10 @@ describe('CopilotChatAdapter', () => {
     });
     let chatAttempts = 0;
     const { fn, calls } = makeFetchStub({
-      'https://api.github.com': { status: 200, body: { token: 'replacement-session', expires_at: Math.floor(Date.now() / 1000) + 3600 } },
+      'https://api.github.com': {
+        status: 200,
+        body: { token: 'replacement-session', expires_at: Math.floor(Date.now() / 1000) + 3600 },
+      },
       'https://api.githubcopilot.com': () => {
         chatAttempts += 1;
         return chatAttempts === 1
@@ -218,8 +236,14 @@ describe('CopilotChatAdapter', () => {
   it('emits request + response events with the right shape', async () => {
     writeAuth({ 'github-copilot': { apiKey: 'gho_token' } });
     const { fn } = makeFetchStub({
-      'https://api.github.com': { status: 200, body: { token: 'sess', expires_at: Math.floor(Date.now() / 1000) + 3600 } },
-      'https://api.githubcopilot.com': { status: 200, body: { choices: [{ message: { content: 'reply' } }] } },
+      'https://api.github.com': {
+        status: 200,
+        body: { token: 'sess', expires_at: Math.floor(Date.now() / 1000) + 3600 },
+      },
+      'https://api.githubcopilot.com': {
+        status: 200,
+        body: { choices: [{ message: { content: 'reply' } }] },
+      },
     });
     const events: AdapterEvent[] = [];
     const adapter = new CopilotChatAdapter({ authPath, fetchFn: fn, model: 'claude-3-5-sonnet' });
@@ -243,7 +267,10 @@ describe('CopilotChatAdapter', () => {
   it('emits error event and rethrows on chat failure that is not 401', async () => {
     writeAuth({ 'github-copilot': { apiKey: 'gho_token' } });
     const { fn } = makeFetchStub({
-      'https://api.github.com': { status: 200, body: { token: 'sess', expires_at: Math.floor(Date.now() / 1000) + 3600 } },
+      'https://api.github.com': {
+        status: 200,
+        body: { token: 'sess', expires_at: Math.floor(Date.now() / 1000) + 3600 },
+      },
       'https://api.githubcopilot.com': { status: 500, body: { error: 'upstream broke' } },
     });
     const events: AdapterEvent[] = [];
@@ -262,8 +289,14 @@ describe('CopilotChatAdapter', () => {
   it('sends system + user messages in the right order', async () => {
     writeAuth({ 'github-copilot': { apiKey: 'gho_token' } });
     const { fn, calls } = makeFetchStub({
-      'https://api.github.com': { status: 200, body: { token: 'sess', expires_at: Math.floor(Date.now() / 1000) + 3600 } },
-      'https://api.githubcopilot.com': { status: 200, body: { choices: [{ message: { content: 'ok' } }] } },
+      'https://api.github.com': {
+        status: 200,
+        body: { token: 'sess', expires_at: Math.floor(Date.now() / 1000) + 3600 },
+      },
+      'https://api.githubcopilot.com': {
+        status: 200,
+        body: { choices: [{ message: { content: 'ok' } }] },
+      },
     });
     const adapter = new CopilotChatAdapter({ authPath, fetchFn: fn });
     await adapter.invoke({ system: 'router rules', user: 'pick a pipeline' });
@@ -281,8 +314,14 @@ describe('CopilotChatAdapter', () => {
   it('omits system message when not provided', async () => {
     writeAuth({ 'github-copilot': { apiKey: 'gho_token' } });
     const { fn, calls } = makeFetchStub({
-      'https://api.github.com': { status: 200, body: { token: 'sess', expires_at: Math.floor(Date.now() / 1000) + 3600 } },
-      'https://api.githubcopilot.com': { status: 200, body: { choices: [{ message: { content: 'ok' } }] } },
+      'https://api.github.com': {
+        status: 200,
+        body: { token: 'sess', expires_at: Math.floor(Date.now() / 1000) + 3600 },
+      },
+      'https://api.githubcopilot.com': {
+        status: 200,
+        body: { choices: [{ message: { content: 'ok' } }] },
+      },
     });
     const adapter = new CopilotChatAdapter({ authPath, fetchFn: fn });
     await adapter.invoke({ user: 'just a user message' });
@@ -295,7 +334,10 @@ describe('CopilotChatAdapter', () => {
   it('returns empty string when response has no choices', async () => {
     writeAuth({ 'github-copilot': { apiKey: 'gho_token' } });
     const { fn } = makeFetchStub({
-      'https://api.github.com': { status: 200, body: { token: 'sess', expires_at: Math.floor(Date.now() / 1000) + 3600 } },
+      'https://api.github.com': {
+        status: 200,
+        body: { token: 'sess', expires_at: Math.floor(Date.now() / 1000) + 3600 },
+      },
       'https://api.githubcopilot.com': { status: 200, body: { choices: [] } },
     });
     const adapter = new CopilotChatAdapter({ authPath, fetchFn: fn });

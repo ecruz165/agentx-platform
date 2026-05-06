@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { readdir, readFile } from 'node:fs/promises';
 import { join, relative } from 'node:path';
-import YAML from 'yaml';
 import { spawnWorker } from '@agentx/harness-server';
+import YAML from 'yaml';
 
 /**
  * Per-job worker spawn demo: proves the F18/F24/F25 chain.
@@ -93,7 +93,12 @@ async function tree(dir: string, maxDepth: number, prefix = '', depth = 0): Prom
     const connector = isLast ? '└── ' : '├── ';
     out += `${prefix}${connector}${e.name}${e.isDirectory() ? '/' : ''}\n`;
     if (e.isDirectory()) {
-      const sub = await tree(join(dir, e.name), maxDepth, prefix + (isLast ? '    ' : '│   '), depth + 1);
+      const sub = await tree(
+        join(dir, e.name),
+        maxDepth,
+        prefix + (isLast ? '    ' : '│   '),
+        depth + 1,
+      );
       out += sub;
     }
   }

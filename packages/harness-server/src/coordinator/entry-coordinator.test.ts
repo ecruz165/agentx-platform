@@ -14,14 +14,11 @@
  *   - reasoning field captures raw response for observability
  */
 
-import { describe, expect, it } from 'vitest';
+import type { Catalog } from '@agentx/harness-core';
 import { SimpleChatModel } from '@langchain/core/language_models/chat_models';
 import type { BaseMessage } from '@langchain/core/messages';
-import type { Catalog } from '@agentx/harness-core';
-import {
-  buildEntryCoordinatorGraph,
-  runEntryCoordinator,
-} from './entry-coordinator.ts';
+import { describe, expect, it } from 'vitest';
+import { buildEntryCoordinatorGraph, runEntryCoordinator } from './entry-coordinator.ts';
 
 /** Stub chat model: returns canned response, captures the messages it
  *  saw. Extends SimpleChatModel so it satisfies BaseChatModel without
@@ -128,7 +125,9 @@ describe('runEntryCoordinator', () => {
     });
     const messages = model.seenMessages[0]!;
     const human = messages.find((m) => m.getType() === 'human')!;
-    expect(typeof human.content === 'string' ? human.content : '').toContain('A very specific intent string xyz123');
+    expect(typeof human.content === 'string' ? human.content : '').toContain(
+      'A very specific intent string xyz123',
+    );
   });
 
   it('prompt includes all pipeline ids and their descriptions', async () => {
@@ -149,9 +148,7 @@ describe('runEntryCoordinator', () => {
   it('prompt handles pipelines without descriptions cleanly (no trailing colon)', async () => {
     const model = new StubChatModel('p');
     const minimalCatalog: Catalog = {
-      pipelines: [
-        { id: 'p', agents: [{ id: 'a', role: 'A', adapter: 'claude-sdk' }] },
-      ],
+      pipelines: [{ id: 'p', agents: [{ id: 'a', role: 'A', adapter: 'claude-sdk' }] }],
     };
     await runEntryCoordinator({ intent: 'x', catalog: minimalCatalog, model });
     const human = model.seenMessages[0]!.find((m) => m.getType() === 'human')!;
@@ -208,11 +205,7 @@ describe('buildEntryCoordinatorGraph', () => {
 // landing on an answer; the scanner unwraps that.
 
 describe('pickPipelineFromResponse', () => {
-  const pipelines = [
-    { id: 'feature-add' },
-    { id: 'bugfix-triage' },
-    { id: 'docs-update' },
-  ];
+  const pipelines = [{ id: 'feature-add' }, { id: 'bugfix-triage' }, { id: 'docs-update' }];
 
   it('picks the bare id when model is obedient', async () => {
     const { pickPipelineFromResponse } = await import('./entry-coordinator.ts');
@@ -245,8 +238,9 @@ describe('pickPipelineFromResponse', () => {
     const shortIds = [{ id: 'docs' }];
     // No bare 'docs' in the response (it's inside docs-update); no NONE;
     // falls through to first-non-empty-line.
-    expect(pickPipelineFromResponse('we should docs-update next', shortIds))
-      .toBe('we should docs-update next');
+    expect(pickPipelineFromResponse('we should docs-update next', shortIds)).toBe(
+      'we should docs-update next',
+    );
   });
 
   it('falls back to NONE when no known id appears but the model said NONE', async () => {
@@ -258,7 +252,9 @@ describe('pickPipelineFromResponse', () => {
     const { pickPipelineFromResponse } = await import('./entry-coordinator.ts');
     // No known id, no NONE — surface the model's actual choice for
     // caller validation (likely a hallucinated pipeline name).
-    expect(pickPipelineFromResponse('hallucinated-pipeline', pipelines)).toBe('hallucinated-pipeline');
+    expect(pickPipelineFromResponse('hallucinated-pipeline', pipelines)).toBe(
+      'hallucinated-pipeline',
+    );
   });
 
   it('handles ids with regex-special characters via escaping', async () => {

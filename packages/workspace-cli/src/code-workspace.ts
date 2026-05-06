@@ -24,7 +24,7 @@ export interface CodeWorkspaceContent {
 
 export function generateCodeWorkspace(
   productName: string,
-  repos: readonly RepoSpec[]
+  repos: readonly RepoSpec[],
 ): CodeWorkspaceContent {
   return {
     folders: [

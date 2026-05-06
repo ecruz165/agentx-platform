@@ -1,5 +1,5 @@
-import { describe, it, expect, vi } from 'vitest';
-import { AdapterEventBus, type AdapterEvent } from './events.ts';
+import { describe, expect, it, vi } from 'vitest';
+import { type AdapterEvent, AdapterEventBus } from './events.ts';
 
 const requestEvent = (user = 'u'): AdapterEvent => ({
   kind: 'request',

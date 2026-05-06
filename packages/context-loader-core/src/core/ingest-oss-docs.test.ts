@@ -9,13 +9,13 @@
  *  - prose-markdown is unaffected (still emits plain Doc/Section)
  */
 
-import { describe, expect, it, beforeEach } from 'vitest';
-import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { InMemoryGraphBackend } from '../backends/in-memory.ts';
-import { ingest } from './ingest.ts';
 import type { EmbedderClient } from '../index.ts';
+import { ingest } from './ingest.ts';
 
 function mockEmbedder(dim = 8): EmbedderClient {
   let counter = 0;
@@ -42,16 +42,16 @@ describe('ingest() — oss-docs (path-based)', () => {
   it('emits OssDoc + OssSection labels with package provenance', async () => {
     writeFileSync(
       join(workdir, 'package.json'),
-      JSON.stringify({ name: 'fake-pkg', version: '2.0.0', license: 'Apache-2.0' })
+      JSON.stringify({ name: 'fake-pkg', version: '2.0.0', license: 'Apache-2.0' }),
     );
     mkdirSync(join(workdir, 'docs'));
     writeFileSync(
       join(workdir, 'docs', 'getting-started.md'),
-      '# Getting Started\n\nIntro text.\n\n## Install\n\nrun the install.\n\n## Usage\n\ncall the api.\n'
+      '# Getting Started\n\nIntro text.\n\n## Install\n\nrun the install.\n\n## Usage\n\ncall the api.\n',
     );
     writeFileSync(
       join(workdir, 'docs', 'api.md'),
-      '# API\n\n## fooFn\n\nDoes the foo.\n\n## barFn\n\nDoes the bar.\n'
+      '# API\n\n## fooFn\n\nDoes the foo.\n\n## barFn\n\nDoes the bar.\n',
     );
 
     const backend = new InMemoryGraphBackend();

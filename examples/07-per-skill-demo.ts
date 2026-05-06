@@ -41,7 +41,7 @@ await runHarness(['memory', 'put', 'auth-decision', 'FileBroker enforces 0600 on
 await runHarness(['memory', 'query', 'auth-decision']);
 
 console.log('\n  ✓ Memory skill triggered ONLY `harness memory` subcommands.');
-console.log("    No `harness context` call appeared — skill scoping enforced.");
+console.log('    No `harness context` call appeared — skill scoping enforced.');
 
 // --- Phase B: Context skill ---
 console.log('\n▼ Phase B — Context skill\n');
@@ -60,7 +60,7 @@ await runHarness(['context', 'query', 'where is FileBroker defined?']);
 await runHarness(['context', 'query', 'all places that call udsRequest']);
 
 console.log('\n  ✓ Context skill triggered ONLY `harness context` subcommands.');
-console.log("    No `harness memory` call appeared — skill scoping enforced.");
+console.log('    No `harness memory` call appeared — skill scoping enforced.');
 
 // --- Summary ---
 console.log('\n=== Skill scoping verified ===');
@@ -75,11 +75,9 @@ console.log('without per-call ACLs.');
 function runHarness(args: string[]): Promise<void> {
   console.log(`\n  agent$ harness ${args.join(' ')}`);
   return new Promise((resolve, reject) => {
-    const child = spawn(
-      'pnpm',
-      ['--silent', 'harness', ...args],
-      { stdio: ['ignore', 'pipe', 'inherit'] }
-    );
+    const child = spawn('pnpm', ['--silent', 'harness', ...args], {
+      stdio: ['ignore', 'pipe', 'inherit'],
+    });
     let out = '';
     child.stdout.on('data', (c) => (out += c.toString()));
     child.on('error', reject);

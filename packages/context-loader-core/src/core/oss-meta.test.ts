@@ -3,17 +3,14 @@
  * ingest() that emits Package + Version + BelongsTo edges.
  */
 
-import { describe, expect, it, beforeEach } from 'vitest';
-import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { InMemoryGraphBackend } from '../backends/in-memory.ts';
-import { ingest } from './ingest.ts';
-import {
-  readOssPackageMeta,
-  buildProvenanceGraph,
-} from './oss-meta.ts';
 import type { EmbedderClient } from '../index.ts';
+import { ingest } from './ingest.ts';
+import { buildProvenanceGraph, readOssPackageMeta } from './oss-meta.ts';
 
 function mockEmbedder(dim = 8): EmbedderClient {
   let counter = 0;
@@ -49,7 +46,7 @@ describe('readOssPackageMeta', () => {
         name: 'fake-pkg',
         version: '1.2.3',
         license: 'MIT',
-      })
+      }),
     );
     const meta = await readOssPackageMeta(workdir);
     expect(meta).toEqual({
@@ -67,7 +64,7 @@ describe('readOssPackageMeta', () => {
         name: 'p',
         version: '1.0.0',
         repository: 'https://github.com/x/p',
-      })
+      }),
     );
     const meta = await readOssPackageMeta(workdir);
     expect(meta!.repoUrl).toBe('https://github.com/x/p');
@@ -80,7 +77,7 @@ describe('readOssPackageMeta', () => {
         name: 'p',
         version: '1.0.0',
         repository: { type: 'git', url: 'git+https://github.com/x/p.git' },
-      })
+      }),
     );
     const meta = await readOssPackageMeta(workdir);
     expect(meta!.repoUrl).toBe('git+https://github.com/x/p.git');
@@ -95,7 +92,7 @@ describe('readOssPackageMeta', () => {
   it('returns null when name or version is missing', async () => {
     writeFileSync(
       join(workdir, 'package.json'),
-      JSON.stringify({ description: 'no name no version' })
+      JSON.stringify({ description: 'no name no version' }),
     );
     expect(await readOssPackageMeta(workdir)).toBeNull();
   });
@@ -106,7 +103,7 @@ describe('buildProvenanceGraph', () => {
     const out = buildProvenanceGraph(
       { name: 'react', version: '18.2.0', license: 'MIT', manifest: 'package.json' },
       'oss-code',
-      '/path/to/react'
+      '/path/to/react',
     );
     expect(out.nodes).toHaveLength(2);
     const pkg = out.nodes.find((n) => n.label === 'Package')!;
@@ -120,7 +117,7 @@ describe('buildProvenanceGraph', () => {
     const out = buildProvenanceGraph(
       { name: 'react', version: '18.2.0', manifest: 'package.json' },
       'oss-code',
-      '/'
+      '/',
     );
     expect(out.edges).toHaveLength(1);
     expect(out.edges[0]).toEqual({
@@ -141,7 +138,7 @@ describe('buildProvenanceGraph', () => {
         manifest: 'package.json',
       },
       'oss-code',
-      '/'
+      '/',
     );
     const pkg = out.nodes.find((n) => n.label === 'Package')!;
     const ver = out.nodes.find((n) => n.label === 'Version')!;
@@ -157,7 +154,7 @@ describe('ingest() — oss-code provenance integration', () => {
     // Synthesize a tiny "OSS package" with two TS files.
     writeFileSync(
       join(workdir, 'package.json'),
-      JSON.stringify({ name: 'tiny-pkg', version: '0.1.0', license: 'MIT' })
+      JSON.stringify({ name: 'tiny-pkg', version: '0.1.0', license: 'MIT' }),
     );
     mkdirSync(join(workdir, 'src'));
     writeFileSync(join(workdir, 'src', 'a.ts'), 'export function a() { return 1; }\n');
@@ -212,10 +209,7 @@ describe('ingest() — oss-code provenance integration', () => {
   it('does NOT emit Package/Version for code-full source type', async () => {
     // Even with a package.json present, code-full skips provenance —
     // first-party code doesn't have a "version we depend on" story.
-    writeFileSync(
-      join(workdir, 'package.json'),
-      JSON.stringify({ name: 'x', version: '1.0.0' })
-    );
+    writeFileSync(join(workdir, 'package.json'), JSON.stringify({ name: 'x', version: '1.0.0' }));
     mkdirSync(join(workdir, 'src'));
     writeFileSync(join(workdir, 'src', 'a.ts'), 'export function a() {}\n');
 

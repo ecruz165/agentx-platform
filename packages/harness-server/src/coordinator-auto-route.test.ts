@@ -18,15 +18,15 @@
  */
 
 import { randomUUID } from 'node:crypto';
-import { request } from 'node:http';
 import { rm } from 'node:fs/promises';
+import { request } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
+import type { PipelineCatalog } from '@agentx/harness-core';
 import { SimpleChatModel } from '@langchain/core/language_models/chat_models';
 import type { BaseMessage } from '@langchain/core/messages';
-import { startHarnessServer, type HarnessServerHandle } from './index.ts';
-import type { PipelineCatalog } from '@agentx/harness-core';
+import { afterEach, describe, expect, it } from 'vitest';
+import { type HarnessServerHandle, startHarnessServer } from './index.ts';
 
 const tmpSocket = () => join(tmpdir(), `ax-${randomUUID().slice(0, 8)}.sock`);
 
@@ -39,7 +39,7 @@ function udsRequest(
   socketPath: string,
   method: string,
   path: string,
-  body?: unknown
+  body?: unknown,
 ): Promise<UdsResponse> {
   return new Promise((resolve, reject) => {
     const req = request(
@@ -54,7 +54,7 @@ function udsRequest(
             reject(err);
           }
         });
-      }
+      },
     );
     req.on('error', reject);
     if (body !== undefined) req.write(JSON.stringify(body));

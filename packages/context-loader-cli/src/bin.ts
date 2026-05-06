@@ -19,13 +19,13 @@
 
 import {
   BUILTIN_SOURCE_TYPE_IDS,
-  InMemoryGraphBackend,
-  Neo4jBackend,
   createHttpEmbedderClient,
-  ingest,
   type EmbedderClient,
   type GraphIngestionBackend,
   type IngestionEvent,
+  InMemoryGraphBackend,
+  ingest,
+  Neo4jBackend,
 } from '@agentx/context-loader-core';
 import { connectUdsEmitter, type UdsEmitter } from './uds-event-emitter.ts';
 
@@ -85,7 +85,7 @@ Catalog:
 See:
   .plans/2026-05-05-prd-context-loader-core.md
   .plans/2026-05-05-prd-context-loader-cli.md
-`
+`,
   );
 }
 
@@ -95,7 +95,7 @@ function printTypes(): void {
     process.stdout.write(`  - ${id}\n`);
   }
   process.stdout.write(
-    `\nThe v1 catalog source-of-truth lives in:\n  packages/context-loader-core/src/catalog/index.ts\n`
+    `\nThe v1 catalog source-of-truth lives in:\n  packages/context-loader-core/src/catalog/index.ts\n`,
   );
 }
 
@@ -147,7 +147,10 @@ function parseArgv(argv: string[]): CliArgs {
     } else if (target === undefined) {
       target = a;
     } else {
-      throw new CliError(`unexpected positional argument '${a}' (already have target '${target}')`, 2);
+      throw new CliError(
+        `unexpected positional argument '${a}' (already have target '${target}')`,
+        2,
+      );
     }
   }
   if (target === undefined) {
@@ -172,8 +175,8 @@ function parseArgv(argv: string[]): CliArgs {
   const jobId = process.env.JOB_ID;
   if (outputEventsUds && !jobId) {
     throw new CliError(
-      '--output-events-uds requires the JOB_ID env var (set by harness-server\'s spawnWorker)',
-      2
+      "--output-events-uds requires the JOB_ID env var (set by harness-server's spawnWorker)",
+      2,
     );
   }
   return {
@@ -192,7 +195,10 @@ function parseArgv(argv: string[]): CliArgs {
 }
 
 class CliError extends Error {
-  constructor(message: string, readonly exitCode: number) {
+  constructor(
+    message: string,
+    readonly exitCode: number,
+  ) {
     super(message);
   }
 }
@@ -210,10 +216,7 @@ async function buildBackend(args: CliArgs): Promise<GraphIngestionBackend> {
     args.backend.startsWith('neo4j+ssc://')
   ) {
     if (!args.backendPassword) {
-      throw new CliError(
-        'bolt:// backend requires --backend-password (or NEO4J_PASSWORD env)',
-        2
-      );
+      throw new CliError('bolt:// backend requires --backend-password (or NEO4J_PASSWORD env)', 2);
     }
     return new Neo4jBackend({
       url: args.backend,
@@ -224,7 +227,7 @@ async function buildBackend(args: CliArgs): Promise<GraphIngestionBackend> {
   }
   throw new CliError(
     `unsupported backend URL scheme: '${args.backend}' (expected bolt://, neo4j://, neo4j+s://, neo4j+ssc://, or inmem://)`,
-    2
+    2,
   );
 }
 
@@ -291,7 +294,9 @@ function makeEventHandler(args: CliArgs): {
           break;
         case 'error':
           state.errors++;
-          process.stderr.write(`\nerror at ${e.phase}${e.item ? ` (${e.item})` : ''}: ${e.message}\n`);
+          process.stderr.write(
+            `\nerror at ${e.phase}${e.item ? ` (${e.item})` : ''}: ${e.message}\n`,
+          );
           break;
         case 'source-completed':
           // Final summary handled separately below; nothing to do here.
@@ -364,8 +369,7 @@ async function runIngest(args: CliArgs): Promise<number> {
   // jobs-tui dashboard while the pane shows the live progress bar.
   // Default behavior unchanged: --output silent (or no flag) under UDS
   // produces no stdout — same as before this change.
-  const useStandalone =
-    !udsEmitter || args.output === 'progress' || args.output === 'json';
+  const useStandalone = !udsEmitter || args.output === 'progress' || args.output === 'json';
   const standalone = useStandalone ? makeEventHandler(args) : null;
 
   // SIGTERM in job mode: write a `cancelled` event and exit within 5s.

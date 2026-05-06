@@ -12,7 +12,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { BUILT_IN_PROVIDERS, findProvider, findBinding } from './provider-registry.ts';
+import { BUILT_IN_PROVIDERS, findBinding, findProvider } from './provider-registry.ts';
 
 describe('BUILT_IN_PROVIDERS', () => {
   it('contains the expected six providers', () => {
@@ -90,12 +90,12 @@ describe('BUILT_IN_PROVIDERS', () => {
   });
 
   it('embedder dim matches across local-qwen + bedrock (1024) — collection-compat invariant', () => {
-    const qwen = BUILT_IN_PROVIDERS
-      .find((p) => p.id === 'local-qwen')!
-      .models.find((m) => m.id === 'qwen3-embedding')!;
-    const titan = BUILT_IN_PROVIDERS
-      .find((p) => p.id === 'bedrock')!
-      .models.find((m) => m.id === 'titan-v2')!;
+    const qwen = BUILT_IN_PROVIDERS.find((p) => p.id === 'local-qwen')!.models.find(
+      (m) => m.id === 'qwen3-embedding',
+    )!;
+    const titan = BUILT_IN_PROVIDERS.find((p) => p.id === 'bedrock')!.models.find(
+      (m) => m.id === 'titan-v2',
+    )!;
     expect(qwen.embeddingDim).toBe(1024);
     expect(titan.embeddingDim).toBe(1024);
   });

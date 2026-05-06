@@ -112,7 +112,7 @@ export class OpenCodeCliAdapter implements AgentAdapter {
       if (!envVar) {
         throw new Error(
           `OpenCode CLI adapter does not support provider "${provider}". ` +
-            `Use anthropic, openai, google, or set { endpoint } for a self-hosted server.`
+            `Use anthropic, openai, google, or set { endpoint } for a self-hosted server.`,
         );
       }
       const cred = await this.opts.broker.getCredential(provider);
@@ -195,10 +195,9 @@ export class OpenCodeCliAdapter implements AgentAdapter {
 
       child.on('error', (err) => {
         clearTimeout(timer);
-        const wrapped =
-          err.message.includes('ENOENT')
-            ? new Error(`opencode binary not found: \`${bin}\`. Install it or pass { bin: <path> }.`)
-            : err;
+        const wrapped = err.message.includes('ENOENT')
+          ? new Error(`opencode binary not found: \`${bin}\`. Install it or pass { bin: <path> }.`)
+          : err;
         this.events.emit({
           kind: 'error',
           ts: new Date().toISOString(),

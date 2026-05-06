@@ -20,23 +20,13 @@
 import { readFile } from 'node:fs/promises';
 import { basename, resolve } from 'node:path';
 import { BUILTIN_SOURCE_TYPES } from '../catalog/index.ts';
-import type {
-  IngestSpec,
-  IngestionSummary,
-  SourceType,
-} from '../types.ts';
-import {
-  chunkHeadingBased,
-  type ChunkOutput,
-} from './chunkers/heading-based.ts';
+import type { IngestionSummary, IngestSpec, SourceType } from '../types.ts';
+import { type ChunkOutput, chunkHeadingBased } from './chunkers/heading-based.ts';
 import { chunkCodeFull } from './chunkers/tree-sitter.ts';
 import { chunkWholeFile } from './chunkers/whole-file.ts';
-import { readOssPackageMeta, buildProvenanceGraph } from './oss-meta.ts';
-import {
-  createHttpEmbedderClient,
-  type EmbedderClient,
-} from './embedder-client.ts';
+import { createHttpEmbedderClient, type EmbedderClient } from './embedder-client.ts';
 import { compileMatcher } from './matcher.ts';
+import { buildProvenanceGraph, readOssPackageMeta } from './oss-meta.ts';
 import { walk } from './walk.ts';
 
 /**
@@ -64,7 +54,7 @@ export async function ingest(spec: IngestSpecExt): Promise<IngestionSummary> {
   // Phase B.0/B.2 only handles path-rooted source refs.
   if (spec.source.ref.kind !== 'path') {
     throw new Error(
-      `Phase B: only SourceRef { kind: 'path' } is implemented; got ${spec.source.ref.kind}`
+      `Phase B: only SourceRef { kind: 'path' } is implemented; got ${spec.source.ref.kind}`,
     );
   }
   // Chunker dispatch — what's wired today: heading-based (B.0),
@@ -78,7 +68,7 @@ export async function ingest(spec: IngestSpecExt): Promise<IngestionSummary> {
     chunkerType !== 'whole-file'
   ) {
     throw new Error(
-      `Phase B: source type '${sourceType.id}' uses chunker '${chunkerType}' which is not yet implemented`
+      `Phase B: source type '${sourceType.id}' uses chunker '${chunkerType}' which is not yet implemented`,
     );
   }
 
@@ -172,7 +162,7 @@ export async function ingest(spec: IngestSpecExt): Promise<IngestionSummary> {
       content,
       sourceType.id,
       root,
-      bodyExceptionsMatcher
+      bodyExceptionsMatcher,
     );
 
     spec.onEvent?.({
@@ -181,7 +171,7 @@ export async function ingest(spec: IngestSpecExt): Promise<IngestionSummary> {
       chunkCount: chunked.chunks.length,
       totalTokens: chunked.chunks.reduce(
         (acc: number, c: { text: string }) => acc + Math.ceil(c.text.length / 4),
-        0
+        0,
       ),
     });
 
@@ -222,22 +212,18 @@ export async function ingest(spec: IngestSpecExt): Promise<IngestionSummary> {
     // Embed each chunk + write vectors
     if (chunked.chunks.length > 0) {
       const t0 = Date.now();
-      const vectors = await embedder.embed(
-        chunked.chunks.map((c: { text: string }) => c.text)
-      );
+      const vectors = await embedder.embed(chunked.chunks.map((c: { text: string }) => c.text));
       if (vectors.length !== chunked.chunks.length) {
         throw new Error(
-          `embedder returned ${vectors.length} vectors for ${chunked.chunks.length} chunks (file: ${item.relativePath})`
+          `embedder returned ${vectors.length} vectors for ${chunked.chunks.length} chunks (file: ${item.relativePath})`,
         );
       }
       const elapsed = Date.now() - t0;
-      const items = chunked.chunks.map(
-        (c: { nodeId: string; text: string }, i: number) => ({
-          nodeId: c.nodeId,
-          vector: vectors[i]!,
-          meta: { sourceTypeId: sourceType.id, sourceId: root },
-        })
-      );
+      const items = chunked.chunks.map((c: { nodeId: string; text: string }, i: number) => ({
+        nodeId: c.nodeId,
+        vector: vectors[i]!,
+        meta: { sourceTypeId: sourceType.id, sourceId: root },
+      }));
       await spec.backend.upsertVectorsBulk(items);
       for (const it of items) {
         spec.onEvent?.({
@@ -320,7 +306,7 @@ function resolveSourceType(typeIdOrCustom: string): SourceType {
     return BUILTIN_SOURCE_TYPES[typeIdOrCustom as keyof typeof BUILTIN_SOURCE_TYPES];
   }
   throw new Error(
-    `Unknown source type '${typeIdOrCustom}'. v1 catalog: ${Object.keys(BUILTIN_SOURCE_TYPES).join(', ')}`
+    `Unknown source type '${typeIdOrCustom}'. v1 catalog: ${Object.keys(BUILTIN_SOURCE_TYPES).join(', ')}`,
   );
 }
 
@@ -328,7 +314,7 @@ async function resolveEmbedder(spec: IngestSpecExt): Promise<EmbedderClient> {
   if (spec.embedderClient) return spec.embedderClient;
   if (!spec.embedder) {
     throw new Error(
-      'ingest() requires either spec.embedder (config) or spec.embedderClient (pre-built; for tests)'
+      'ingest() requires either spec.embedder (config) or spec.embedderClient (pre-built; for tests)',
     );
   }
   return createHttpEmbedderClient({ config: spec.embedder });
@@ -344,7 +330,7 @@ async function dispatchChunker(
   content: string,
   sourceTypeId: string,
   sourceId: string,
-  bodyExceptionsMatcher: ((p: string) => boolean) | null
+  bodyExceptionsMatcher: ((p: string) => boolean) | null,
 ): Promise<ChunkOutput> {
   switch (chunker.type) {
     case 'heading-based':
@@ -373,7 +359,7 @@ async function dispatchChunker(
         //     examples/ + READMEs in oss-code)
         mode:
           chunker.bodyExtraction === false
-            ? bodyExceptionsMatcher && bodyExceptionsMatcher(relativePath)
+            ? bodyExceptionsMatcher?.(relativePath)
               ? 'full'
               : 'skeleton-only'
             : 'full',
@@ -396,7 +382,7 @@ async function dispatchChunker(
       // switch shape lets tsc enforce that future ChunkerRef variants
       // either get a case here or fail typecheck.
       throw new Error(
-        `internal: dispatchChunker fell through for chunker type '${(chunker as { type: string }).type}'`
+        `internal: dispatchChunker fell through for chunker type '${(chunker as { type: string }).type}'`,
       );
   }
 }

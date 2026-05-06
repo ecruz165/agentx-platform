@@ -14,9 +14,9 @@
  * the gated integration tests.
  */
 
-import { describe, expect, it } from 'vitest';
 import type { ResolvedBinding } from '@agentx/agent-auth-lib';
-import { runHarnessPipeline, specNeedsOpenCode, type JobSpec } from './index.ts';
+import { describe, expect, it } from 'vitest';
+import { type JobSpec, runHarnessPipeline, specNeedsOpenCode } from './index.ts';
 
 function anthropicBinding(): ResolvedBinding {
   return {
@@ -88,29 +88,39 @@ describe('specNeedsOpenCode', () => {
   });
 
   it('returns true for mixed spec with at least one opencode-needing binding (google/local)', () => {
-    expect(specNeedsOpenCode(specWithBindings({
-      a: anthropicBinding(),
-      b: localBinding(),
-    }))).toBe(true);
+    expect(
+      specNeedsOpenCode(
+        specWithBindings({
+          a: anthropicBinding(),
+          b: localBinding(),
+        }),
+      ),
+    ).toBe(true);
   });
 
   it('returns false for mixed anthropic + openai spec (neither needs opencode-cli)', () => {
-    expect(specNeedsOpenCode(specWithBindings({
-      a: anthropicBinding(),
-      b: openaiBinding(),
-    }))).toBe(false);
+    expect(
+      specNeedsOpenCode(
+        specWithBindings({
+          a: anthropicBinding(),
+          b: openaiBinding(),
+        }),
+      ),
+    ).toBe(false);
   });
 
   it('returns false for empty bindings (no-binding-only synthetic agents)', () => {
-    expect(specNeedsOpenCode({
-      version: 1,
-      jobId: 'synth',
-      pipeline: 'p',
-      set: 'default',
-      input: 'go',
-      agents: [{ id: 'coordinator', role: 'C', adapter: 'claude-sdk' }],
-      bindings: {},
-    })).toBe(false);
+    expect(
+      specNeedsOpenCode({
+        version: 1,
+        jobId: 'synth',
+        pipeline: 'p',
+        set: 'default',
+        input: 'go',
+        agents: [{ id: 'coordinator', role: 'C', adapter: 'claude-sdk' }],
+        bindings: {},
+      }),
+    ).toBe(false);
   });
 });
 

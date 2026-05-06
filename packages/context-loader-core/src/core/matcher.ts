@@ -50,16 +50,16 @@ export function compileMatcher(spec: MatcherSpec): MatcherFn {
 function globToRegex(pattern: string): RegExp {
   const expanded = expandBraces(pattern);
   const alternatives = expanded.map(globAlternativeToPattern);
-  return new RegExp('^(?:' + alternatives.join('|') + ')$');
+  return new RegExp(`^(?:${alternatives.join('|')})$`);
 }
 
 // Unique Private-Use-Area placeholders. Picked because they cannot appear in
 // real glob input and are not regex metacharacters, so they survive the
 // regex-meta escape pass below without being modified.
 const PH_DOUBLESTAR_SLASH = ''; // "**\/"  → "(?:.*/)?"  (matches zero leading segments)
-const PH_DOUBLESTAR = '';        // "**"   → ".*"
-const PH_STAR = '';              // "*"    → "[^/]*"
-const PH_QMARK = '';             // "?"    → "[^/]"
+const PH_DOUBLESTAR = ''; // "**"   → ".*"
+const PH_STAR = ''; // "*"    → "[^/]*"
+const PH_QMARK = ''; // "?"    → "[^/]"
 
 function globAlternativeToPattern(pattern: string): string {
   // Order matters: capture "**\/" before bare "**", and "**" before "*".
@@ -70,7 +70,7 @@ function globAlternativeToPattern(pattern: string): string {
     .replace(/\?/g, PH_QMARK);
 
   // Escape regex meta characters; placeholders are PUA and unaffected.
-  p = p.replace(/[.+^${}()|\[\]\\]/g, '\\$&');
+  p = p.replace(/[.+^${}()|[\]\\]/g, '\\$&');
 
   // Substitute placeholders for their regex equivalents.
   p = p

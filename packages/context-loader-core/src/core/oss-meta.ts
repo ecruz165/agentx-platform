@@ -12,8 +12,8 @@
  * dispatch case in `readOssPackageMeta`.
  */
 
-import { readFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { GraphEdge, GraphNode } from '../types.ts';
 
@@ -32,9 +32,7 @@ export interface OssPackageMeta {
  *  wins. Returns null when no manifest is found — callers decide whether
  *  to skip provenance emission or fail (loaders skip; admins can validate
  *  upstream). */
-export async function readOssPackageMeta(
-  rootPath: string
-): Promise<OssPackageMeta | null> {
+export async function readOssPackageMeta(rootPath: string): Promise<OssPackageMeta | null> {
   const candidates = [join(rootPath, 'package.json')];
   for (const path of candidates) {
     if (!existsSync(path)) continue;
@@ -93,7 +91,7 @@ async function readPackageJson(path: string): Promise<OssPackageMeta | null> {
 export function buildProvenanceGraph(
   meta: OssPackageMeta,
   sourceTypeId: string,
-  sourceId: string
+  sourceId: string,
 ): { nodes: GraphNode[]; edges: GraphEdge[]; versionNodeId: string } {
   const packageId = meta.name;
   const versionId = `${meta.name}@${meta.version}`;

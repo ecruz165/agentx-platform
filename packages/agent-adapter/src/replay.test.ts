@@ -3,14 +3,14 @@ import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { AdapterEventBus, type AdapterEvent } from './events.ts';
+import { type AdapterEvent, AdapterEventBus } from './events.ts';
 import { replayThenSubscribe } from './replay.ts';
 
 const tmpFile = () => join(tmpdir(), `agentx-replay-${randomUUID()}.jsonl`);
 
 const writeJsonl = async (path: string, events: AdapterEvent[]) => {
   await mkdir(dirname(path), { recursive: true });
-  await writeFile(path, events.map((e) => JSON.stringify(e)).join('\n') + '\n', 'utf8');
+  await writeFile(path, `${events.map((e) => JSON.stringify(e)).join('\n')}\n`, 'utf8');
 };
 
 describe('replayThenSubscribe', () => {
@@ -36,7 +36,9 @@ describe('replayThenSubscribe', () => {
     await replayThenSubscribe(path, bus, (e) => seen.push(e));
 
     expect(seen.map((e) => e.kind)).toEqual(['request', 'response', 'request']);
-    const userEvents = seen.filter((e): e is Extract<AdapterEvent, { kind: 'request' }> => e.kind === 'request');
+    const userEvents = seen.filter(
+      (e): e is Extract<AdapterEvent, { kind: 'request' }> => e.kind === 'request',
+    );
     expect(userEvents.map((e) => e.user)).toEqual(['u1', 'u2']);
   });
 
@@ -44,10 +46,8 @@ describe('replayThenSubscribe', () => {
     const bus = new AdapterEventBus();
     const seen: AdapterEvent[] = [];
 
-    const off = await replayThenSubscribe(
-      '/tmp/agentx-definitely-does-not-exist.jsonl',
-      bus,
-      (e) => seen.push(e)
+    const off = await replayThenSubscribe('/tmp/agentx-definitely-does-not-exist.jsonl', bus, (e) =>
+      seen.push(e),
     );
 
     expect(seen).toHaveLength(0);
@@ -75,7 +75,7 @@ describe('replayThenSubscribe', () => {
     const path = tmpFile();
     created.push(path);
     const valid = JSON.stringify({ kind: 'request', ts: 't1', user: 'u', model: 'm' });
-    await writeFile(path, valid + '\n{"kind":"response","ts":"t2","text":"only-half\n', 'utf8');
+    await writeFile(path, `${valid}\n{"kind":"response","ts":"t2","text":"only-half\n`, 'utf8');
 
     const bus = new AdapterEventBus();
     const seen: AdapterEvent[] = [];

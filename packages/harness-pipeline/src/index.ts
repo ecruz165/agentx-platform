@@ -18,30 +18,30 @@
  */
 
 import {
+  type AgentAdapter,
+  type BindingToAdapterOptions,
   bindingNeedsOpenCode,
   bindingToAdapter,
   defaultLocalEndpointResolver,
   OpenCodeServer,
-  type AgentAdapter,
-  type BindingToAdapterOptions,
   type OpenCodeServerOptions,
   type OpencodeProviderEntry,
 } from '@agentx/agent-adapter';
 import type { ResolvedBinding } from '@agentx/agent-auth-lib';
 import {
-  JobBus,
-  runJob,
   type Envelope,
+  JobBus,
   type JobRecord,
   type RegisteredAgent,
+  runJob,
 } from '@agentx/harness-core';
-import { SpecBroker } from './spec-broker.ts';
 import type { JobSpec, SpecAgent } from './spec.ts';
+import { SpecBroker } from './spec-broker.ts';
 
 export {
-  parseJobSpec,
-  JobSpecError,
   type JobSpec,
+  JobSpecError,
+  parseJobSpec,
   type SpecAgent,
 } from './spec.ts';
 export { SpecBroker } from './spec-broker.ts';
@@ -144,7 +144,7 @@ export function specNeedsOpenCode(spec: JobSpec): boolean {
  */
 export async function runHarnessPipeline(
   spec: JobSpec,
-  options: RunHarnessPipelineOptions = {}
+  options: RunHarnessPipelineOptions = {},
 ): Promise<RunHarnessPipelineResult> {
   // Step 1: build the broker from pre-resolved credentials.
   const broker = new SpecBroker(spec.bindings);
@@ -190,7 +190,7 @@ export async function runHarnessPipeline(
       if (!binding) {
         throw new Error(
           `runHarnessPipeline: agent "${agent.id}" has bindingId "${agent.bindingId}" ` +
-            `but no such binding in spec.bindings (the spec parser should have caught this)`
+            `but no such binding in spec.bindings (the spec parser should have caught this)`,
         );
       }
       const adapter = bindingToAdapter(binding, {
@@ -289,7 +289,7 @@ function toRegisteredAgent(agent: SpecAgent): RegisteredAgent {
  */
 export function deriveOpencodeProviders(
   bindings: Record<string, ResolvedBinding>,
-  localEndpoint: (providerId: string) => string | undefined
+  localEndpoint: (providerId: string) => string | undefined,
 ): Record<string, OpencodeProviderEntry> {
   const providers: Record<string, OpencodeProviderEntry> = {};
   for (const binding of Object.values(bindings)) {
@@ -300,7 +300,8 @@ export function deriveOpencodeProviders(
     const existing = providers[binding.provider.id];
     if (existing) {
       // Same provider, additional model — register it.
-      (existing.models ??= {})[modelId] = {};
+      existing.models ??= {};
+      existing.models[modelId] = {};
     } else {
       providers[binding.provider.id] = {
         options: { baseURL: endpoint, apiKey: 'no-auth-required' },

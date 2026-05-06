@@ -13,7 +13,12 @@
  * bindings.
  */
 
-import type { Credential, CredentialBroker, Provider, ResolvedBinding } from '@agentx/agent-auth-lib';
+import type {
+  Credential,
+  CredentialBroker,
+  Provider,
+  ResolvedBinding,
+} from '@agentx/agent-auth-lib';
 
 export class SpecBroker implements CredentialBroker {
   /**
@@ -43,7 +48,7 @@ export class SpecBroker implements CredentialBroker {
     if (!cred) {
       throw new Error(
         `SpecBroker: no credential for provider "${provider}" in this job's bindings. ` +
-          `(Provider must be present in JobSpec.bindings — harness-server did not embed one.)`
+          `(Provider must be present in JobSpec.bindings — harness-server did not embed one.)`,
       );
     }
     return cred;

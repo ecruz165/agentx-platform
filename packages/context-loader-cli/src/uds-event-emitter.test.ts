@@ -7,13 +7,13 @@
  * in prd-context-loader-cli.md §9.
  */
 
-import { describe, it, expect } from 'vitest';
 import { spawn } from 'node:child_process';
-import { createServer, type Server } from 'node:net';
 import { mkdtempSync, unlinkSync } from 'node:fs';
+import { createServer, type Server } from 'node:net';
 import { tmpdir } from 'node:os';
-import { fileURLToPath } from 'node:url';
 import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { describe, expect, it } from 'vitest';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const BIN = resolve(__dirname, 'bin.ts');
@@ -43,8 +43,9 @@ async function startUdsCollector(): Promise<UdsCollector> {
     let buf = '';
     sock.on('data', (chunk) => {
       buf += chunk.toString();
-      let idx: number;
-      while ((idx = buf.indexOf('\n')) !== -1) {
+      while (true) {
+        const idx = buf.indexOf('\n');
+        if (idx === -1) break;
         const line = buf.slice(0, idx);
         buf = buf.slice(idx + 1);
         if (line.trim().length > 0) {
@@ -84,7 +85,7 @@ async function startUdsCollector(): Promise<UdsCollector> {
 
 function spawnCli(
   args: string[],
-  env: Record<string, string>
+  env: Record<string, string>,
 ): { exit: Promise<number>; kill: () => void } {
   const child = spawn('bun', [BIN, ...args], {
     env: { ...process.env, ...env },
@@ -103,12 +104,16 @@ describe('UDS job-mode event stream', () => {
       const { exit } = spawnCli(
         [
           HARNESS_CORE,
-          '--type', 'code-full',
-          '--backend', 'inmem://',
-          '--embedder-url', 'mock://',
-          '--output-events-uds', collector.socketPath,
+          '--type',
+          'code-full',
+          '--backend',
+          'inmem://',
+          '--embedder-url',
+          'mock://',
+          '--output-events-uds',
+          collector.socketPath,
         ],
-        { JOB_ID: 'test-job-001' }
+        { JOB_ID: 'test-job-001' },
       );
       const code = await exit;
       await collector.whenDone;
@@ -137,19 +142,27 @@ describe('UDS job-mode event stream', () => {
   it('refuses --output-events-uds without JOB_ID env', async () => {
     const collector = await startUdsCollector();
     try {
-      const child = spawn('bun', [
-        BIN,
-        HARNESS_CORE,
-        '--type', 'code-full',
-        '--backend', 'inmem://',
-        '--embedder-url', 'mock://',
-        '--output-events-uds', collector.socketPath,
-      ], {
-        // Strip JOB_ID so we hit the validation path. Don't inherit it
-        // from this test process either.
-        env: { ...process.env, JOB_ID: '' },
-        stdio: ['ignore', 'pipe', 'pipe'],
-      });
+      const child = spawn(
+        'bun',
+        [
+          BIN,
+          HARNESS_CORE,
+          '--type',
+          'code-full',
+          '--backend',
+          'inmem://',
+          '--embedder-url',
+          'mock://',
+          '--output-events-uds',
+          collector.socketPath,
+        ],
+        {
+          // Strip JOB_ID so we hit the validation path. Don't inherit it
+          // from this test process either.
+          env: { ...process.env, JOB_ID: '' },
+          stdio: ['ignore', 'pipe', 'pipe'],
+        },
+      );
       let stderr = '';
       child.stderr?.on('data', (c) => (stderr += c.toString()));
       const code = await new Promise<number>((res) => child.on('exit', (c) => res(c ?? -1)));
@@ -173,12 +186,16 @@ describe('UDS job-mode event stream', () => {
       const proc = spawnCli(
         [
           '/',
-          '--type', 'code-full',
-          '--backend', 'inmem://',
-          '--embedder-url', 'mock://',
-          '--output-events-uds', collector.socketPath,
+          '--type',
+          'code-full',
+          '--backend',
+          'inmem://',
+          '--embedder-url',
+          'mock://',
+          '--output-events-uds',
+          collector.socketPath,
         ],
-        { JOB_ID: 'test-job-cancel' }
+        { JOB_ID: 'test-job-cancel' },
       );
       // Wait until at least one event has arrived — that proves the worker
       // is up and writing to the UDS — then send SIGTERM.

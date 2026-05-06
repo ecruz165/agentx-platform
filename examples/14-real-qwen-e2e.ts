@@ -35,15 +35,11 @@
  *   bun examples/14-real-qwen-e2e.ts
  */
 
-import { mkdtempSync, writeFileSync, chmodSync, mkdirSync, rmSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import {
-  AuthStore,
-  DefaultBindingResolver,
-  FileBroker,
-} from '@agentx/agent-auth-lib';
 import { bindingToAdapter } from '@agentx/agent-adapter';
+import { AuthStore, DefaultBindingResolver, FileBroker } from '@agentx/agent-auth-lib';
 
 const DMR_CHAT_URL = 'http://localhost:12434/engines/llama.cpp/v1';
 
@@ -58,11 +54,7 @@ async function makeFixture(): Promise<{
   const authDir = join(workspace, '.agentx');
   mkdirSync(authDir, { recursive: true, mode: 0o700 });
   const authPath = join(authDir, 'auth.json');
-  writeFileSync(
-    authPath,
-    JSON.stringify({ version: 1, providers: {} }, null, 2),
-    { mode: 0o600 }
-  );
+  writeFileSync(authPath, JSON.stringify({ version: 1, providers: {} }, null, 2), { mode: 0o600 });
   chmodSync(authPath, 0o600);
 
   const store = new AuthStore(authPath);
@@ -78,11 +70,13 @@ async function makeFixture(): Promise<{
 async function preflight(): Promise<void> {
   console.log('preflight…');
   // 1. DMR up?
-  const modelsRes = await fetch(`${DMR_CHAT_URL.replace(/\/engines\/llama\.cpp\/v1$/, '')}/v1/models`).catch(() => null);
-  if (!modelsRes || !modelsRes.ok) {
+  const modelsRes = await fetch(
+    `${DMR_CHAT_URL.replace(/\/engines\/llama\.cpp\/v1$/, '')}/v1/models`,
+  ).catch(() => null);
+  if (!modelsRes?.ok) {
     throw new Error(
       `Docker Model Runner not reachable at localhost:12434. ` +
-        `Make sure Docker Desktop is running and the model runner is enabled.`
+        `Make sure Docker Desktop is running and the model runner is enabled.`,
     );
   }
   const json = await modelsRes.json();
@@ -91,7 +85,7 @@ async function preflight(): Promise<void> {
   if (!models.some((m) => m === want || m.endsWith('ai/qwen3:0.6B-Q4_K_M'))) {
     throw new Error(
       `DMR has no qwen3 chat model loaded. Available: ${models.join(', ')}\n` +
-        `Pull with: docker model pull ai/qwen3:0.6B-Q4_K_M`
+        `Pull with: docker model pull ai/qwen3:0.6B-Q4_K_M`,
     );
   }
   console.log('  ✓ DMR up, qwen3:0.6B-Q4_K_M available');
@@ -102,9 +96,7 @@ async function preflight(): Promise<void> {
     if (proc.exitCode !== 0) throw new Error('opencode --version exited non-zero');
     console.log(`  ✓ opencode CLI found (${proc.stdout.toString().trim()})`);
   } catch {
-    throw new Error(
-      'opencode CLI not found on PATH. Install via: brew install opencode'
-    );
+    throw new Error('opencode CLI not found on PATH. Install via: brew install opencode');
   }
   console.log();
 }
@@ -127,7 +119,9 @@ async function main(): Promise<void> {
     const accepts = ['anthropic:claude-haiku-4-5', 'local-qwen:qwen3'];
     console.log(`▶ accept-list: ${JSON.stringify(accepts)}`);
     const binding = await fix.resolver.resolveBinding(accepts);
-    console.log(`  → resolved kind=${binding.kind} provider=${binding.provider.id} model=${binding.model.id}`);
+    console.log(
+      `  → resolved kind=${binding.kind} provider=${binding.provider.id} model=${binding.model.id}`,
+    );
     if (binding.kind === 'local') {
       console.log(`  → vendorModelId=${binding.model.vendorModelId} (passed to opencode → DMR)`);
     }
@@ -174,7 +168,7 @@ async function main(): Promise<void> {
     const ms = Date.now() - t0;
     console.log();
     console.log(`▶ Qwen response (${ms}ms):`);
-    console.log('  ' + reply.split('\n').join('\n  '));
+    console.log(`  ${reply.split('\n').join('\n  ')}`);
     console.log();
     console.log('══════ ✓ REAL e2e proof complete ══════');
     console.log('  The full chain — accept-list resolution, binding, adapter,');
@@ -188,6 +182,6 @@ async function main(): Promise<void> {
 main().catch((err: Error) => {
   console.error();
   console.error('e2e proof FAILED:');
-  console.error('  ' + err.message);
+  console.error(`  ${err.message}`);
   process.exit(1);
 });

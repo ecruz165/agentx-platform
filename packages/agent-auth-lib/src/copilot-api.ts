@@ -50,7 +50,7 @@ interface CopilotTokenResponse {
  */
 export async function getCopilotSessionToken(
   store: AuthStore,
-  githubToken: string
+  githubToken: string,
 ): Promise<string> {
   const file = await store.read();
   const existing = file.providers['github-copilot'];
@@ -64,7 +64,7 @@ export async function getCopilotSessionToken(
   });
   if (!res.ok) {
     throw new Error(
-      `Copilot session-token exchange failed (${res.status}): ${await res.text().catch(() => '')}`
+      `Copilot session-token exchange failed (${res.status}): ${await res.text().catch(() => '')}`,
     );
   }
   const data = (await res.json()) as CopilotTokenResponse;
@@ -86,13 +86,13 @@ export async function getCopilotSessionToken(
 export async function callCopilot(
   store: AuthStore,
   messages: ChatMessage[],
-  model: string = 'gpt-4o'
+  model: string = 'gpt-4o',
 ): Promise<ChatCompletionResponse> {
   const file = await store.read();
   const cred = file.providers['github-copilot'];
   if (!cred?.apiKey || cred.apiKey.includes('REPLACE_ME')) {
     throw new Error(
-      'github-copilot not authenticated. Run: pnpm harness auth login github-copilot'
+      'github-copilot not authenticated. Run: pnpm harness auth login github-copilot',
     );
   }
 
