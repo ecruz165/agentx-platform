@@ -71,6 +71,22 @@ importers:
         specifier: ^5.6.0
         version: 5.9.3
 
+  packages/agentic-worker-lib:
+    dependencies:
+      '@agentx/agent-adapter':
+        specifier: workspace:*
+        version: link:../agent-adapter
+      '@agentx/agent-auth-lib':
+        specifier: workspace:*
+        version: link:../agent-auth-lib
+    devDependencies:
+      '@types/node':
+        specifier: ^22.7.0
+        version: 22.19.17
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+
   packages/context-loader-cli:
     dependencies:
       '@agentx/context-loader-core':

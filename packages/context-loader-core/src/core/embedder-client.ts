@@ -54,8 +54,37 @@ export function createHttpEmbedderClient(
   // in the manual end-to-end smoke). Robust embedders (TEI, Bedrock,
   // OpenAI) should set batchSize to 16-256 for throughput.
   const batchSize = Math.max(1, config.batchSize ?? 1);
+  // Retry transient 5xx + slot-scheduler crashes. Docker MR auto-restarts
+  // llama.cpp after a crash; the retry catches the next call after
+  // recovery. 3 attempts with linear backoff is plenty for the crash
+  // pattern we've observed.
+  const MAX_ATTEMPTS = 3;
+  const BACKOFF_MS = (attempt: number): number => 1000 * attempt;
 
   async function callOnce(input: string[]): Promise<Float32Array[]> {
+    let lastErr: Error | null = null;
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+      try {
+        return await callOnceNoRetry(input);
+      } catch (err) {
+        lastErr = err as Error;
+        // Retry only on EmbedderError (HTTP-level); rethrow programming
+        // bugs immediately. The error message includes the body text;
+        // retry on 5xx + the specific llama.cpp crash.
+        const msg = lastErr.message;
+        const retryable =
+          msg.includes('HTTP 5') ||
+          msg.includes('llama.cpp terminated unexpectedly') ||
+          msg.includes('ECONNRESET') ||
+          msg.includes('socket hang up');
+        if (!retryable || attempt === MAX_ATTEMPTS) break;
+        await new Promise((r) => setTimeout(r, BACKOFF_MS(attempt)));
+      }
+    }
+    throw lastErr;
+  }
+
+  async function callOnceNoRetry(input: string[]): Promise<Float32Array[]> {
     const resp = await fetchFn(url, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },

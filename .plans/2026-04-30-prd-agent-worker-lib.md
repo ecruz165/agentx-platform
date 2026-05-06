@@ -1,4 +1,4 @@
-# Agentic Worker Lib — PRD
+# Agent Worker Lib — PRD
 
 **Status:** Draft
 **Date:** 2026-05-01
@@ -9,7 +9,10 @@
 
 ## 1. Purpose
 
-The Agentic Worker Lib is a lightweight TypeScript library (`agentic-worker-lib`) that provides the logic and terminal orchestration for a worker process spawned by the `harness-server`.
+The Agent Worker Lib is a lightweight TypeScript library — folder
+`packages/agentic-worker-lib/`, package name `@agentx/agent-worker` —
+that provides the logic and terminal orchestration for a worker
+process spawned by the `harness-server`.
 
 ## 2. Environment & Sandboxing
 
