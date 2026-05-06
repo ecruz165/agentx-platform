@@ -5,7 +5,7 @@ set -euo pipefail
 CLIENT_ID="Iv1.b507a08c87ecfe98"
 SCOPE="read:user"
 TOKEN_FILE="$HOME/.config/copilot-cli/oauth_token"
-EMBED_MODEL="text-embedding-3-small"
+EMBED_MODEL="text-embedding-3-large"
 
 COPILOT_HEADERS=(
   -H "Editor-Version: vscode/1.95.0"

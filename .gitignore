@@ -1,6 +1,6 @@
 # Dependencies
 node_modules/
-
+.screenshots/
 # OS
 .DS_Store
 Thumbs.db
