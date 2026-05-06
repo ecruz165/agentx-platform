@@ -294,7 +294,8 @@ function validateAcceptsList(list: unknown[], where: string): void {
     const colon = entry.indexOf(':');
     if (colon <= 0 || colon === entry.length - 1) {
       throw new CatalogError(
-        `${where}[${k}] must be of the form "<provider>:<model>" (got "${entry}")`
+        `${where}[${k}] must be of the form "<provider>:<model>" or ` +
+          `"<tool>:<provider>:<model>" (got "${entry}")`
       );
     }
   }

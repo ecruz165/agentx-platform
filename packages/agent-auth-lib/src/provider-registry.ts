@@ -18,7 +18,21 @@
  * style ids are the canonical example).
  */
 
-import type { LLMProvider, ResolvedRegistryEntry } from './llm-provider.ts';
+import type { LLMProvider, ResolvedRegistryEntry, ToolId } from './llm-provider.ts';
+
+/**
+ * The closed set of known tool ids (mirrors the `ToolId` union). The
+ * binding parser uses this to disambiguate 3-part `<tool>:<provider>:<model>`
+ * specs from 2-part `<provider>:<model>` shorthands without needing a
+ * delimiter change. If the first segment matches a known tool, treat as
+ * 3-part; otherwise treat as 2-part (the segment is the provider id).
+ */
+const KNOWN_TOOLS: ReadonlySet<string> = new Set<ToolId>([
+  'claude-sdk',
+  'openai-api',
+  'opencode-cli',
+  'copilot-api',
+]);
 
 const ANTHROPIC: LLMProvider = {
   id: 'anthropic',
@@ -140,21 +154,50 @@ export function findProvider(id: string): LLMProvider | undefined {
 }
 
 /**
- * Look up a `<provider>:<model>` binding pair against the registry.
- * Returns the provider record + the model descriptor if both exist, or
- * undefined. Uses the *first* colon as the separator so model ids that
- * contain colons (rare; today only `vendorModelId` does) still parse
- * correctly on the right side.
+ * Look up a binding spec against the registry. Supports two shapes:
+ *
+ *   3-part:  `<tool>:<provider>:<model>`   e.g. `openai-api:openai:gpt-4o`
+ *   2-part:  `<provider>:<model>`          e.g. `openai:gpt-4o` (default tool)
+ *
+ * The first segment determines the shape: if it matches a known tool id
+ * (see KNOWN_TOOLS), the spec is parsed as 3-part; otherwise as 2-part.
+ * This keeps backwards compat — 2-part bindings continue to work
+ * unchanged — while letting catalogs explicitly pin a tool when the
+ * choice matters (e.g., `opencode-cli:openai:gpt-4o` to route OpenAI
+ * through opencode instead of the direct API).
+ *
+ * Per memory `project_three_axis_binding`. Returns the registry entry
+ * with the parsed tool field (undefined for 2-part), or undefined when
+ * the provider/model don't exist.
  */
 export function findBinding(spec: string): ResolvedRegistryEntry | undefined {
-  const colon = spec.indexOf(':');
-  if (colon === -1) return undefined;
-  const providerId = spec.slice(0, colon);
-  const modelId = spec.slice(colon + 1);
-  if (!providerId || !modelId) return undefined;
+  const firstColon = spec.indexOf(':');
+  if (firstColon === -1) return undefined;
+  const firstSegment = spec.slice(0, firstColon);
+  const rest = spec.slice(firstColon + 1);
+  if (!firstSegment || !rest) return undefined;
+
+  let tool: ToolId | undefined;
+  let providerId: string;
+  let modelId: string;
+
+  if (KNOWN_TOOLS.has(firstSegment)) {
+    // 3-part form: <tool>:<provider>:<model>
+    const secondColon = rest.indexOf(':');
+    if (secondColon === -1) return undefined;
+    providerId = rest.slice(0, secondColon);
+    modelId = rest.slice(secondColon + 1);
+    if (!providerId || !modelId) return undefined;
+    tool = firstSegment as ToolId;
+  } else {
+    // 2-part form: <provider>:<model> — first segment is the provider.
+    providerId = firstSegment;
+    modelId = rest;
+  }
+
   const provider = findProvider(providerId);
   if (!provider) return undefined;
   const model = provider.models.find((m) => m.id === modelId);
   if (!model) return undefined;
-  return { provider, model };
+  return tool !== undefined ? { tool, provider, model } : { provider, model };
 }

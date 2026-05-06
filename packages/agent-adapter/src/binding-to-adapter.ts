@@ -22,7 +22,7 @@
  * override without a code change.
  */
 
-import type { CredentialBroker, ResolvedBinding } from '@agentx/agent-auth-lib';
+import type { CredentialBroker, ResolvedBinding, ToolId } from '@agentx/agent-auth-lib';
 import { ClaudeSdkAdapter } from './claude-sdk-adapter.ts';
 import { OpenCodeCliAdapter } from './opencode-cli-adapter.ts';
 import { CopilotChatAdapter } from './copilot-chat-adapter.ts';
@@ -79,11 +79,15 @@ export interface BindingToAdapterOptions {
  * if a new adapter type is added.
  */
 export function bindingNeedsOpenCode(binding: ResolvedBinding): boolean {
+  // Explicit tool wins: only opencode-cli needs the server.
+  if (binding.tool !== undefined) {
+    return binding.tool === 'opencode-cli';
+  }
+  // 2-part shorthand → infer from provider's default tool.
   if (binding.kind === 'local') return true;
-  // Cloud bindings — anthropic uses ClaudeSdkAdapter, openai uses the
-  // direct OpenAiChatAdapter, github-copilot uses CopilotChatAdapter,
-  // bedrock isn't wired yet. Only google still routes through opencode
-  // pending its own direct adapter.
+  // Cloud defaults: anthropic→claude-sdk, openai→openai-api,
+  // github-copilot→copilot-api, google→opencode-cli, bedrock→(none).
+  // Only google's default is opencode-cli among cloud providers.
   return binding.provider.id === 'google';
 }
 
@@ -108,9 +112,128 @@ export function bindingToAdapter(
   binding: ResolvedBinding,
   options: BindingToAdapterOptions
 ): AgentAdapter {
+  // Explicit-tool dispatch wins when the binding spec was 3-part. Per
+  // memory `project_three_axis_binding`: tool is the axis distinct from
+  // provider+model; this branch lets catalogs say "use openai via
+  // opencode-cli" rather than getting the provider-default route.
+  if (binding.tool !== undefined) {
+    return dispatchByTool(binding.tool, binding, options);
+  }
+  // 2-part shorthand → fall back to provider-default dispatch (today's
+  // behavior). This is what most catalogs use and continues to work
+  // unchanged.
+  return dispatchByProviderDefault(binding, options);
+}
+
+/**
+ * Dispatch when the binding spec named a tool explicitly. Validates the
+ * (tool, provider) combination — not every tool can adapt every provider.
+ * For example, claude-sdk only works with anthropic; copilot-api only
+ * with github-copilot; opencode-cli works with anthropic/openai/google
+ * /local but NOT github-copilot or bedrock.
+ */
+function dispatchByTool(
+  tool: ToolId,
+  binding: ResolvedBinding,
+  options: BindingToAdapterOptions
+): AgentAdapter {
+  const providerId = binding.provider.id;
+  const modelId = binding.model.vendorModelId ?? binding.model.id;
+  const { broker, localEndpoint = defaultLocalEndpointResolver, opencodeServerUrl } = options;
+
+  switch (tool) {
+    case 'claude-sdk':
+      if (providerId !== 'anthropic') {
+        throw new Error(
+          `bindingToAdapter: tool=claude-sdk requires provider=anthropic, got ${providerId}`
+        );
+      }
+      return new ClaudeSdkAdapter({ broker, model: modelId });
+
+    case 'openai-api':
+      // OpenAI's chat-completions API is OpenAI-compatible — works for
+      // direct OpenAI today. Future: extend to other OpenAI-compatible
+      // endpoints (Azure-OpenAI, OpenRouter, etc.) by relaxing this check.
+      if (providerId !== 'openai') {
+        throw new Error(
+          `bindingToAdapter: tool=openai-api requires provider=openai, got ${providerId}`
+        );
+      }
+      return new OpenAiChatAdapter({ broker, model: modelId });
+
+    case 'copilot-api': {
+      if (providerId !== 'github-copilot') {
+        throw new Error(
+          `bindingToAdapter: tool=copilot-api requires provider=github-copilot, got ${providerId}`
+        );
+      }
+      const authPath = options.copilotAuthPath;
+      if (!authPath) {
+        throw new Error(
+          `bindingToAdapter: copilot-api binding requires options.copilotAuthPath`
+        );
+      }
+      return new CopilotChatAdapter({ authPath, model: modelId });
+    }
+
+    case 'opencode-cli':
+      // opencode-cli is the multi-provider tool: anthropic, openai,
+      // google natively (cloud-mode); local-* via the endpoint mode.
+      // github-copilot and bedrock are not natively routable — flag.
+      if (providerId === 'github-copilot' || providerId === 'bedrock') {
+        throw new Error(
+          `bindingToAdapter: tool=opencode-cli does not support provider=${providerId} ` +
+            `(opencode 1.4 has no native ${providerId} routing). ` +
+            `Use the provider's dedicated tool instead.`
+        );
+      }
+      if (binding.kind === 'local') {
+        const endpoint = localEndpoint(providerId);
+        if (!endpoint) {
+          throw new Error(
+            `bindingToAdapter: no endpoint configured for local provider "${providerId}". ` +
+              `Set AGENTX_LOCAL_QWEN_ENDPOINT or pass options.localEndpoint.`
+          );
+        }
+        const localModelId = binding.model.vendorModelId ?? binding.model.id;
+        return new OpenCodeCliAdapter({
+          broker,
+          endpoint,
+          endpointProviderId: providerId,
+          model: `${providerId}/${localModelId}`,
+          ...(opencodeServerUrl ? { serverUrl: opencodeServerUrl } : {}),
+        });
+      }
+      return new OpenCodeCliAdapter({
+        broker,
+        provider: providerId,
+        model: `${providerId}/${modelId}`,
+        ...(opencodeServerUrl ? { serverUrl: opencodeServerUrl } : {}),
+      });
+
+    default: {
+      // TS exhaustiveness check — adding a new ToolId without updating
+      // this switch produces a compile error.
+      const _exhaustive: never = tool;
+      throw new Error(`bindingToAdapter: unhandled tool "${String(_exhaustive)}"`);
+    }
+  }
+}
+
+/**
+ * Dispatch when the binding spec didn't name a tool (2-part shorthand).
+ * Picks the default tool for each provider — same routing the
+ * pre-three-axis-refactor code did. New code paths should prefer
+ * explicit 3-part bindings; this is the back-compat surface.
+ */
+function dispatchByProviderDefault(
+  binding: ResolvedBinding,
+  options: BindingToAdapterOptions
+): AgentAdapter {
   const { broker, localEndpoint = defaultLocalEndpointResolver, opencodeServerUrl } = options;
 
   if (binding.kind === 'local') {
+    // Default for any local-* provider: opencode-cli with endpoint mode.
     const endpoint = localEndpoint(binding.provider.id);
     if (!endpoint) {
       throw new Error(
@@ -118,16 +241,6 @@ export function bindingToAdapter(
           `Set AGENTX_LOCAL_QWEN_ENDPOINT or pass options.localEndpoint.`
       );
     }
-    // OpenCodeCliAdapter local-mode: writes a custom provider into
-    // opencode.json pointing at this endpoint. The model spec passed to
-    // OpenCode becomes `<providerId>/<vendorModelId|id>` — mirroring the
-    // cloud branch's behavior. For local-qwen via DMR, vendorModelId is
-    // the actual DMR-known id like `ai/qwen3:0.6B-Q4_K_M`; the registry's
-    // `id` field is the stable handle catalog authors use.
-    //
-    // serverUrl when set means the adapter will use `--attach <url>`
-    // against the harness-pipeline's shared opencode-server instead of
-    // spawning standalone.
     const localModelId = binding.model.vendorModelId ?? binding.model.id;
     return new OpenCodeCliAdapter({
       broker,
@@ -138,49 +251,22 @@ export function bindingToAdapter(
     });
   }
 
-  // Cloud binding from here on.
   const providerId = binding.provider.id;
-  // For Bedrock the registry handle (e.g. claude-haiku-4-5-bedrock) is NOT
-  // what the SDK takes — vendorModelId is. For everything else they're the
-  // same and vendorModelId is undefined, so fall through to id.
   const modelId = binding.model.vendorModelId ?? binding.model.id;
 
+  // Default tools per provider:
+  //   anthropic       → claude-sdk
+  //   openai          → openai-api  (direct API; opencode-cli also valid via 3-part)
+  //   github-copilot  → copilot-api
+  //   google          → opencode-cli (no direct Gemini adapter yet)
+  //   bedrock         → (no adapter yet — throws)
   if (providerId === 'anthropic') {
-    // ClaudeSdkAdapter doesn't go through opencode — direct SDK calls. The
-    // opencodeServerUrl option is irrelevant here.
     return new ClaudeSdkAdapter({ broker, model: modelId });
   }
-
   if (providerId === 'openai') {
-    // Direct OpenAI API call via OpenAiChatAdapter is the default for
-    // openai bindings — simpler, lower-overhead, full control of the
-    // model id. opencode-cli is also a valid path for openai (now that
-    // OpenCodeCliAdapter properly registers the model in opencode.json
-    // for cloud-mode); use it via the legacy `adapter: 'opencode-cli'`
-    // catalog field when you want opencode's tool/agent surface around
-    // an openai-backed model.
     return new OpenAiChatAdapter({ broker, model: modelId });
   }
-
-  if (providerId === 'google') {
-    // Google still routes through opencode-cli — no direct GeminiAdapter
-    // yet (slice TBD when there's user demand). opencode's google
-    // catalog has the common gemini-1.5-pro / -flash entries, plus the
-    // cloud-mode model registration now ensures arbitrary ids work too.
-    return new OpenCodeCliAdapter({
-      broker,
-      provider: providerId,
-      model: `${providerId}/${modelId}`,
-      ...(opencodeServerUrl ? { serverUrl: opencodeServerUrl } : {}),
-    });
-  }
-
   if (providerId === 'github-copilot') {
-    // Copilot has its own adapter — uses the AuthStore for session-token
-    // caching + refresh, posts to api.githubcopilot.com/chat/completions
-    // with the right Editor-Plugin-Version headers. Caller must supply
-    // `copilotAuthPath` so the adapter knows where to read the GitHub
-    // OAuth token from. Per memory `project_per_worker_model_subscription`.
     const authPath = options.copilotAuthPath;
     if (!authPath) {
       throw new Error(
@@ -188,22 +274,21 @@ export function bindingToAdapter(
           `Pass the path to your auth.json (typically ~/.agentx/auth.json).`
       );
     }
-    return new CopilotChatAdapter({
-      authPath,
-      model: modelId,
+    return new CopilotChatAdapter({ authPath, model: modelId });
+  }
+  if (providerId === 'google') {
+    return new OpenCodeCliAdapter({
+      broker,
+      provider: providerId,
+      model: `${providerId}/${modelId}`,
+      ...(opencodeServerUrl ? { serverUrl: opencodeServerUrl } : {}),
     });
   }
-
   if (providerId === 'bedrock') {
-    // Bedrock adapter (AWS SDK + IAM task role) is the next adapter to land
-    // for AWS-deployed harness. Until then, bedrock:* entries skip during
-    // resolution unless API-key auth is fully wired through OpenCodeCliAdapter
-    // — which it isn't, since opencode doesn't natively know about Bedrock.
     throw new Error(
       `bindingToAdapter: no adapter for bedrock yet — BedrockAdapter is the gap. ` +
         `Remove bedrock:* entries from this agent's accepts list, or implement the adapter.`
     );
   }
-
   throw new Error(`bindingToAdapter: unhandled provider id "${providerId}"`);
 }

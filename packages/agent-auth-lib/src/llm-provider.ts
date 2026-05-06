@@ -86,11 +86,41 @@ export interface LLMProvider {
 }
 
 /**
- * Result of looking up a `<provider>:<model>` binding pair against the
- * registry. Used by the broker's `resolveBinding` pipeline (follow-up
- * commit) to translate accept-list entries into concrete adapter targets.
+ * Result of looking up a binding spec against the registry. Used by the
+ * broker's `resolveBinding` pipeline to translate accept-list entries
+ * into concrete adapter targets.
+ *
+ * `tool` is set when the binding spec used the explicit 3-part
+ * `<tool>:<provider>:<model>` form (per memory `project_three_axis_binding`).
+ * For 2-part `<provider>:<model>` bindings, `tool` is undefined and the
+ * adapter dispatcher falls back to the default tool for the provider.
  */
 export interface ResolvedRegistryEntry {
+  tool?: ToolId;
   provider: LLMProvider;
   model: ModelDescriptor;
 }
+
+/**
+ * Closed set of adapter tooling identifiers, distinct from provider id.
+ *
+ * Each tool maps to exactly one adapter implementation:
+ *   - claude-sdk    → ClaudeSdkAdapter (Anthropic SDK direct)
+ *   - openai-api    → OpenAiChatAdapter (OpenAI-compatible chat completions)
+ *   - copilot-api   → CopilotChatAdapter (GitHub Copilot's chat endpoint)
+ *   - opencode-cli  → OpenCodeCliAdapter (the `opencode` binary)
+ *
+ * Per memory `project_three_axis_binding`: tools are about HOW we adapt;
+ * providers are about WHO authenticates; models are about WHICH capability.
+ * One provider can be reachable through multiple tools (e.g., openai via
+ * direct API or via opencode); the binding spec carries the tool when
+ * the choice matters.
+ *
+ * Future tools (Bedrock SDK, Gemini direct API, LangChain) get added here
+ * as they're implemented; the binding parser sees them via this same union.
+ */
+export type ToolId =
+  | 'claude-sdk'
+  | 'openai-api'
+  | 'opencode-cli'
+  | 'copilot-api';

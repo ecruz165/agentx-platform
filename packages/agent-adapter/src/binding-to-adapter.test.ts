@@ -180,3 +180,153 @@ describe('defaultLocalEndpointResolver', () => {
     expect(defaultLocalEndpointResolver('unknown-local')).toBeUndefined();
   });
 });
+
+// 3-axis binding refactor: explicit-tool dispatch supersedes provider-default.
+describe('bindingToAdapter — explicit tool dispatch (3-part bindings)', () => {
+  it('tool=claude-sdk + provider=anthropic → ClaudeSdkAdapter', () => {
+    const binding: ResolvedBinding = {
+      ...cloudBinding('anthropic', 'claude-haiku-4-5'),
+      tool: 'claude-sdk',
+    };
+    expect(bindingToAdapter(binding, { broker: stubBroker })).toBeInstanceOf(ClaudeSdkAdapter);
+  });
+
+  it('tool=openai-api + provider=openai → OpenAiChatAdapter', () => {
+    const binding: ResolvedBinding = {
+      ...cloudBinding('openai', 'gpt-4o'),
+      tool: 'openai-api',
+    };
+    expect(bindingToAdapter(binding, { broker: stubBroker })).toBeInstanceOf(OpenAiChatAdapter);
+  });
+
+  it('tool=opencode-cli + provider=openai → OpenCodeCliAdapter (the override that motivated this refactor)', () => {
+    const binding: ResolvedBinding = {
+      ...cloudBinding('openai', 'gpt-4o'),
+      tool: 'opencode-cli',
+    };
+    // Same provider as the previous test, different tool, different adapter.
+    // This is the architectural payoff: catalogs can pin the tool axis
+    // independently from the provider axis.
+    expect(bindingToAdapter(binding, { broker: stubBroker })).toBeInstanceOf(OpenCodeCliAdapter);
+  });
+
+  it('tool=copilot-api + provider=github-copilot + copilotAuthPath → CopilotChatAdapter', () => {
+    const binding: ResolvedBinding = {
+      ...cloudBinding('github-copilot', 'gpt-4o'),
+      tool: 'copilot-api',
+    };
+    const adapter = bindingToAdapter(binding, {
+      broker: stubBroker,
+      copilotAuthPath: '/tmp/test-auth.json',
+    });
+    expect(adapter).toBeInstanceOf(CopilotChatAdapter);
+  });
+
+  it('tool=opencode-cli + local binding → OpenCodeCliAdapter (with endpoint)', () => {
+    const binding: ResolvedBinding = {
+      ...localBinding('local-qwen', 'qwen3'),
+      tool: 'opencode-cli',
+    };
+    const adapter = bindingToAdapter(binding, {
+      broker: stubBroker,
+      localEndpoint: () => 'http://localhost:8080/v1',
+    });
+    expect(adapter).toBeInstanceOf(OpenCodeCliAdapter);
+  });
+
+  it('throws when (tool, provider) is incompatible: claude-sdk + openai', () => {
+    const binding: ResolvedBinding = {
+      ...cloudBinding('openai', 'gpt-4o'),
+      tool: 'claude-sdk',
+    };
+    expect(() => bindingToAdapter(binding, { broker: stubBroker })).toThrow(
+      /tool=claude-sdk requires provider=anthropic/
+    );
+  });
+
+  it('throws when (tool, provider) is incompatible: openai-api + anthropic', () => {
+    const binding: ResolvedBinding = {
+      ...cloudBinding('anthropic', 'claude-haiku-4-5'),
+      tool: 'openai-api',
+    };
+    expect(() => bindingToAdapter(binding, { broker: stubBroker })).toThrow(
+      /tool=openai-api requires provider=openai/
+    );
+  });
+
+  it('throws when (tool, provider) is incompatible: copilot-api + openai', () => {
+    const binding: ResolvedBinding = {
+      ...cloudBinding('openai', 'gpt-4o'),
+      tool: 'copilot-api',
+    };
+    expect(() => bindingToAdapter(binding, {
+      broker: stubBroker,
+      copilotAuthPath: '/tmp/x',
+    })).toThrow(/tool=copilot-api requires provider=github-copilot/);
+  });
+
+  it('throws when tool=opencode-cli is paired with github-copilot (opencode does not adapt copilot)', () => {
+    const binding: ResolvedBinding = {
+      ...cloudBinding('github-copilot', 'gpt-4o'),
+      tool: 'opencode-cli',
+    };
+    expect(() => bindingToAdapter(binding, { broker: stubBroker })).toThrow(
+      /tool=opencode-cli does not support provider=github-copilot/
+    );
+  });
+
+  it('throws when tool=opencode-cli is paired with bedrock', () => {
+    const binding: ResolvedBinding = {
+      ...cloudBinding('bedrock', 'claude-opus-4-7-bedrock'),
+      tool: 'opencode-cli',
+    };
+    expect(() => bindingToAdapter(binding, { broker: stubBroker })).toThrow(
+      /tool=opencode-cli does not support provider=bedrock/
+    );
+  });
+
+  it('throws when tool=copilot-api is missing copilotAuthPath option', () => {
+    const binding: ResolvedBinding = {
+      ...cloudBinding('github-copilot', 'gpt-4o'),
+      tool: 'copilot-api',
+    };
+    expect(() => bindingToAdapter(binding, { broker: stubBroker })).toThrow(
+      /copilot-api binding requires options.copilotAuthPath/
+    );
+  });
+});
+
+// bindingNeedsOpenCode behavior under the 3-axis refactor.
+describe('bindingNeedsOpenCode — tool-aware', () => {
+  it('returns true when tool=opencode-cli explicitly set, even for openai (which would default to openai-api)', async () => {
+    const { bindingNeedsOpenCode } = await import('./binding-to-adapter.ts');
+    const binding: ResolvedBinding = {
+      ...cloudBinding('openai', 'gpt-4o'),
+      tool: 'opencode-cli',
+    };
+    expect(bindingNeedsOpenCode(binding)).toBe(true);
+  });
+
+  it('returns false when tool=openai-api explicitly set on a local-qwen binding (override)', async () => {
+    // (Hypothetical case — openai-api with local binding doesn't make
+    // semantic sense; bindingToAdapter would throw at dispatch. But
+    // bindingNeedsOpenCode should still respect the explicit tool field
+    // since this predicate is about resource needs, not validation.)
+    const { bindingNeedsOpenCode } = await import('./binding-to-adapter.ts');
+    const binding: ResolvedBinding = {
+      ...localBinding('local-qwen', 'qwen3'),
+      tool: 'openai-api',
+    };
+    expect(bindingNeedsOpenCode(binding)).toBe(false);
+  });
+
+  it('falls back to provider-default inference when tool is unset (back-compat)', async () => {
+    const { bindingNeedsOpenCode } = await import('./binding-to-adapter.ts');
+    // 2-part: openai → defaults to openai-api → no opencode needed
+    expect(bindingNeedsOpenCode(cloudBinding('openai', 'gpt-4o'))).toBe(false);
+    // 2-part: google → defaults to opencode-cli → opencode needed
+    expect(bindingNeedsOpenCode(cloudBinding('google', 'gemini-1.5-pro'))).toBe(true);
+    // 2-part: local → opencode-cli → opencode needed
+    expect(bindingNeedsOpenCode(localBinding('local-qwen', 'qwen3'))).toBe(true);
+  });
+});

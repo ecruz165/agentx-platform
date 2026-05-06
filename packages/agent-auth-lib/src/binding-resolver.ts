@@ -22,7 +22,7 @@
  */
 
 import type { Credential, CredentialBroker, Provider } from './types.ts';
-import type { LLMProvider, ModelDescriptor } from './llm-provider.ts';
+import type { LLMProvider, ModelDescriptor, ToolId } from './llm-provider.ts';
 import { findBinding } from './provider-registry.ts';
 
 /**
@@ -30,16 +30,23 @@ import { findBinding } from './provider-registry.ts';
  * discriminator: `cloud` carries a Credential the adapter will pass to its
  * SDK; `local` has no credential because the provider's authMethods is
  * empty.
+ *
+ * `tool` is set when the original binding spec used the explicit 3-part
+ * `<tool>:<provider>:<model>` form (per memory `project_three_axis_binding`).
+ * For 2-part shorthands, tool is undefined — the adapter dispatcher falls
+ * back to the default tool for the provider.
  */
 export type ResolvedBinding =
   | {
       readonly kind: 'cloud';
+      readonly tool?: ToolId;
       readonly provider: LLMProvider;
       readonly model: ModelDescriptor;
       readonly credential: Credential;
     }
   | {
       readonly kind: 'local';
+      readonly tool?: ToolId;
       readonly provider: LLMProvider;
       readonly model: ModelDescriptor;
     };
@@ -93,14 +100,19 @@ export async function resolveBindingFor(
       failures.push(`${entry}: not in registry`);
       continue;
     }
-    const { provider, model } = binding;
+    const { tool, provider, model } = binding;
     if (provider.authMethods.length === 0) {
-      // No auth required — local provider satisfied immediately.
-      return { kind: 'local', provider, model };
+      // No auth required — local provider satisfied immediately. The
+      // tool field carries through if the spec was 3-part.
+      return tool !== undefined
+        ? { kind: 'local', tool, provider, model }
+        : { kind: 'local', provider, model };
     }
     try {
       const credential = await getCredentialOrThrow(provider.id);
-      return { kind: 'cloud', provider, model, credential };
+      return tool !== undefined
+        ? { kind: 'cloud', tool, provider, model, credential }
+        : { kind: 'cloud', provider, model, credential };
     } catch (err) {
       failures.push(`${entry}: ${(err as Error).message}`);
     }

@@ -15,6 +15,7 @@ export type {
   ModelDescriptor,
   LLMProvider,
   ResolvedRegistryEntry,
+  ToolId,
 } from './llm-provider.ts';
 export {
   BUILT_IN_PROVIDERS,
