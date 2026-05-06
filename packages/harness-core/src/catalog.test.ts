@@ -121,6 +121,133 @@ describe('loadCatalog', () => {
 
     await expect(loadCatalog(ws)).rejects.toThrow(/non-empty array/);
   });
+
+  it('parses an agent with an accepts list (provider:model pairs)', async () => {
+    const ws = tmpWorkspace();
+    created.push(ws);
+    await writeCatalog(ws, {
+      pipelines: [
+        {
+          id: 'p',
+          agents: [
+            {
+              id: 'planner',
+              role: 'Plan',
+              adapter: 'claude-sdk',
+              accepts: ['anthropic:claude-haiku-4-5', 'local-qwen:qwen3'],
+            },
+          ],
+        },
+      ],
+    });
+
+    const catalog = await loadCatalog(ws);
+    expect(catalog.pipelines[0]?.agents[0]?.accepts).toEqual([
+      'anthropic:claude-haiku-4-5',
+      'local-qwen:qwen3',
+    ]);
+  });
+
+  it('parses an agent without an accepts list (backwards-compatible)', async () => {
+    const ws = tmpWorkspace();
+    created.push(ws);
+    await writeCatalog(ws, {
+      pipelines: [
+        {
+          id: 'p',
+          agents: [{ id: 'a', role: 'A', adapter: 'claude-sdk' }],
+        },
+      ],
+    });
+
+    const catalog = await loadCatalog(ws);
+    expect(catalog.pipelines[0]?.agents[0]?.accepts).toBeUndefined();
+  });
+
+  it('throws when accepts is not an array', async () => {
+    const ws = tmpWorkspace();
+    created.push(ws);
+    await writeCatalog(ws, {
+      pipelines: [
+        {
+          id: 'p',
+          agents: [
+            { id: 'a', role: 'A', adapter: 'claude-sdk', accepts: 'anthropic:claude-haiku-4-5' },
+          ],
+        },
+      ],
+    });
+
+    await expect(loadCatalog(ws)).rejects.toThrow(/accepts must be an array/);
+  });
+
+  it('throws when an accepts entry is not a string', async () => {
+    const ws = tmpWorkspace();
+    created.push(ws);
+    await writeCatalog(ws, {
+      pipelines: [
+        {
+          id: 'p',
+          agents: [
+            { id: 'a', role: 'A', adapter: 'claude-sdk', accepts: [42] },
+          ],
+        },
+      ],
+    });
+
+    await expect(loadCatalog(ws)).rejects.toThrow(/must be a non-empty string/);
+  });
+
+  it('throws when an accepts entry has no colon', async () => {
+    const ws = tmpWorkspace();
+    created.push(ws);
+    await writeCatalog(ws, {
+      pipelines: [
+        {
+          id: 'p',
+          agents: [
+            { id: 'a', role: 'A', adapter: 'claude-sdk', accepts: ['anthropic'] },
+          ],
+        },
+      ],
+    });
+
+    await expect(loadCatalog(ws)).rejects.toThrow(/must be of the form "<provider>:<model>"/);
+  });
+
+  it('throws when an accepts entry has empty model id ("anthropic:")', async () => {
+    const ws = tmpWorkspace();
+    created.push(ws);
+    await writeCatalog(ws, {
+      pipelines: [
+        {
+          id: 'p',
+          agents: [
+            { id: 'a', role: 'A', adapter: 'claude-sdk', accepts: ['anthropic:'] },
+          ],
+        },
+      ],
+    });
+
+    await expect(loadCatalog(ws)).rejects.toThrow(/must be of the form "<provider>:<model>"/);
+  });
+
+  it('throws when an accepts entry has empty provider id (":model")', async () => {
+    const ws = tmpWorkspace();
+    created.push(ws);
+    await writeCatalog(ws, {
+      pipelines: [
+        {
+          id: 'p',
+          agents: [
+            { id: 'a', role: 'A', adapter: 'claude-sdk', accepts: [':claude-haiku-4-5'] },
+          ],
+        },
+      ],
+    });
+
+    await expect(loadCatalog(ws)).rejects.toThrow(/must be of the form "<provider>:<model>"/);
+  });
 });
 
 describe('findPipeline', () => {

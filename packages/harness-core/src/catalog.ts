@@ -39,6 +39,24 @@ export interface AgentDef {
    * with a self-hosted backend), reasoning effort, timeout, etc.
    */
   config?: Record<string, unknown>;
+  /**
+   * Priority-ordered list of `<provider>:<model>` bindings this agent will
+   * accept. Per project memory `project_per_worker_model_subscription`, the
+   * harness-server resolves this list against the configured AuthStore /
+   * Secrets Manager + the LLMProvider registry at spawn time and binds the
+   * agent to the first satisfiable entry. Mixed cloud+local pipelines are
+   * the natural payoff: a summarizer can lead with `local-qwen:qwen3` while
+   * a code-reviewer holds out for `anthropic:claude-haiku-4-5`.
+   *
+   * Validation here is structural only (must be an array of non-empty
+   * `<provider>:<model>` strings). Whether each entry actually exists in
+   * the registry is checked at resolve time — keeps the catalog validator
+   * decoupled from provider knowledge.
+   *
+   * Optional for backwards compatibility — agents without `accepts` go
+   * through today's spawn path (adapter picks its own model).
+   */
+  accepts?: readonly string[];
 }
 
 export interface PipelineDef {
@@ -173,6 +191,26 @@ function validateCatalog(value: unknown, path: string): asserts value is Pipelin
       }
       if (agent.systemPrompt !== undefined && typeof agent.systemPrompt !== 'string') {
         throw new CatalogError(`${path}: pipelines[${i}].agents[${j}].systemPrompt must be a string`);
+      }
+      if (agent.accepts !== undefined) {
+        if (!Array.isArray(agent.accepts)) {
+          throw new CatalogError(
+            `${path}: pipelines[${i}].agents[${j}].accepts must be an array of "<provider>:<model>" strings`
+          );
+        }
+        for (const [k, entry] of (agent.accepts as unknown[]).entries()) {
+          if (typeof entry !== 'string' || !entry) {
+            throw new CatalogError(
+              `${path}: pipelines[${i}].agents[${j}].accepts[${k}] must be a non-empty string`
+            );
+          }
+          const colon = entry.indexOf(':');
+          if (colon <= 0 || colon === entry.length - 1) {
+            throw new CatalogError(
+              `${path}: pipelines[${i}].agents[${j}].accepts[${k}] must be of the form "<provider>:<model>" (got "${entry}")`
+            );
+          }
+        }
       }
     }
   }
