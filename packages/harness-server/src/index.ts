@@ -46,6 +46,12 @@ export {
 } from './run-pipeline-subprocess.ts';
 
 export {
+  runPipelineInContainer,
+  type RunPipelineInContainerOptions,
+  type RunPipelineInContainerResult,
+} from './run-pipeline-in-container.ts';
+
+export {
   consumeJsonlStream,
   type JobCompleteSentinel,
   type ConsumeStreamResult,
