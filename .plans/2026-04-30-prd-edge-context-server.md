@@ -1,4 +1,4 @@
-# Edge Context Server (KuzuDB-backed GraphRAG, + Skill, + CLI client) — PRD
+# Edge Context Server (Neo4j-backed GraphRAG, + Skill, + CLI client) — PRD
 
 **Status:** Draft
 **Date:** 2026-04-30
@@ -14,7 +14,7 @@
 
 ## 1. Goal
 
-A self-hostable knowledge-graph server that ingests workspace artifacts (codebase, PRDs, Confluence pages, GitHub issues, OpenAPI specs) into a KuzuDB property graph and exposes a Cypher-based query API (REST + WebSocket) for agent interrogation. Hosts other `ContextProvider` plugins beyond GraphRAG (OpenAPI lookup, etc.).
+A self-hostable knowledge-graph server that ingests workspace artifacts (codebase, PRDs, Confluence pages, GitHub issues, OpenAPI specs) into a Neo4j property graph and exposes a Cypher-based query API (REST + WebSocket) for agent interrogation. Hosts other `ContextProvider` plugins beyond GraphRAG (OpenAPI lookup, etc.).
 
 > **MCP is not supported** at this layer — banned by corporate policy (`feedback_no_mcp`). The server does not expose MCP; the package does not link `@modelcontextprotocol/sdk`. Agents reach the server via the same CLI humans use (`harness context graphrag ...`), invoking it through their adapter's Bash-tool capability. A workspace `SKILL.md` (`graphrag.md`) teaches the agent the procedure. See § 4.4.
 
@@ -52,7 +52,7 @@ This split keeps queries **fast and offline-capable at the edge** while letting 
 
 | ID | Requirement |
 |---|---|
-| F1 | **Per-product KuzuDB graphs.** Each product declared in `harness-workspace.yml` (workspace-template F11) gets its own Kuzu instance at `.harness/graphrag/<productId>/`. Strong isolation between products: a query against `mobile-app` cannot return nodes from `platform-migration`. The server holds N graphs (one per product); idle products are throttled per F11 (memory dropped after 10min). v1.x adds federated cross-product queries via the Central Context Server priming protocol — see § 1 / § 9. |
+| F1 | **Per-product Neo4j databases.** Each product declared in `harness-workspace.yml` (workspace-template F11) gets its own Neo4j database (multi-database feature) on a single Neo4j sidecar instance. Strong isolation between products: a query against `mobile-app` cannot return nodes from `platform-migration`. The server holds N database connections (one per product); idle products are throttled per F11 (connections released, embedding model unloaded after 10min). v1.x adds federated cross-product queries via the Central Context Server priming protocol — see § 1 / § 9. |
 | F2 | Ingestion pipelines per intake mode (§ 4.1.5): repo (tree-sitter for TS/JS, Java/Kotlin, Python — F21, F25), file upload (F22), external sources (Jira, Confluence, GitHub Issues — F24), URL crawl (F26). Each ingestion targets exactly one product's graph. |
 | F3 | Schema — nodes: `File`, `Function`, `Class`, `Module`, `Issue`, `Doc`, `Concept`, `Endpoint`, `Asset`. Edges: `CALLS`, `IMPORTS`, `DEFINES`, `MENTIONS`, `IMPLEMENTS`, `REFERENCES`, `EXPOSES`. Schema is shared across all per-product graphs (so the agent's mental model is consistent regardless of which product it's querying); each product's graph is an instance of this schema. |
 | F4 | Vector embeddings on every node for hybrid graph + similarity queries. Embeddings are per-product (same model, different graph) — no cross-product similarity in v1. |
@@ -67,7 +67,7 @@ This split keeps queries **fast and offline-capable at the edge** while letting 
 | F8 | HTTP/JSON over Unix domain socket; v1 is **UDS-only** on the local Docker network. TCP listener + TLS deferred to v1.x — see § 4.3. |
 | F9 | The CLI is the only agent-accessible interface. **MCP is intentionally banned** (per `feedback_no_mcp` corporate policy — see § 1, § 4.4, and the agent-adapter PRD § 11/§ 16). The server must not link `@modelcontextprotocol/sdk` or any MCP transport library. |
 | F10 | **Trust model:** UDS local-mode with `0600` permissions; file-system ownership is the auth. No in-process TLS, no application-level auth, no multi-tenant identity in v1 — all deferred to v1.x. See § 4.3. |
-| F11 | Idle throttling: drop embedding model + KuzuDB working set after 10min idle. |
+| F11 | Idle throttling: drop embedding model + release Neo4j driver sessions after 10min idle. |
 | F12 | `/health` endpoint with `{ ok, state, backend, lastIngestedAt, nodeCount, edgeCount }`. |
 | F13 | WebSocket event stream of ingestion progress: `/v1/ingest/events`. |
 
@@ -101,9 +101,9 @@ The server accepts knowledge from **four** intake paths, each with its own inges
 
 | ID | Requirement |
 |---|---|
-| F21 | **Repo import (code structure via tree-sitter):** `POST /v1/ingest/repo` accepts `{ name, source: { type: 'local'; path } \| { type: 'git'; cloneUrl; branch } }`. Server clones (remote) or reads (local), invokes tree-sitter for supported languages (TS/JS, Java/Kotlin, Python; more via grammar plugins per F25), maps parsed AST → graph schema (`File`, `Function`, `Class`, `Module` per F3), generates embeddings on every node, writes to Kuzu. Re-import is incremental — content-hash dedup (F5) skips unchanged files. Exposed to agents and humans via `harness context graphrag import-repo`. |
+| F21 | **Repo import (code structure via tree-sitter):** `POST /v1/ingest/repo` accepts `{ name, source: { type: 'local'; path } \| { type: 'git'; cloneUrl; branch } }`. Server clones (remote) or reads (local), invokes tree-sitter for supported languages (TS/JS, Java/Kotlin, Python; more via grammar plugins per F25), maps parsed AST → graph schema (`File`, `Function`, `Class`, `Module` per F3), generates embeddings on every node, writes to Neo4j. Re-import is incremental — content-hash dedup (F5) skips unchanged files. Exposed to agents and humans via `harness context graphrag import-repo`. |
 | F22 | **File upload (arbitrary docs, PDFs, images, datasets):** `POST /v1/ingest/upload` (multipart) accepts file + metadata. Server stores the binary on local filesystem (per F23), generates content-type-appropriate embeddings (text → chunk+embed; PDF → text extraction → chunk+embed; image → multimodal embedding or OCR/caption → embed; binary → metadata-only node), creates a `Doc` or `Asset` node in the graph with `localPath` pointing to the stored file, returns `{ docId, embeddingDims, chunkCount }`. Exposed via `harness context graphrag upload <file> [--description "..."]`. |
-| F23 | **Local filesystem storage for uploads:** `.harness/context-uploads/<docId>/<original-name>`. Directory mode `0700`; file mode `0600`. The Kuzu node stores `localPath`; the binary stays on disk (Kuzu is not a blob store). Listing via `harness context graphrag uploads list`; deletion via `harness context graphrag uploads delete <docId>` removes both the file and its graph node + embeddings. Lifecycle: uploads persist for the workspace's lifetime by default; `pruneAfter` policy in `graphrag.config.yml` optional. |
+| F23 | **Local filesystem storage for uploads:** `.harness/context-uploads/<docId>/<original-name>`. Directory mode `0700`; file mode `0600`. The Neo4j node stores `localPath`; the binary stays on disk (Neo4j is not a blob store). Listing via `harness context graphrag uploads list`; deletion via `harness context graphrag uploads delete <docId>` removes both the file and its graph node + embeddings. Lifecycle: uploads persist for the workspace's lifetime by default; `pruneAfter` policy in `graphrag.config.yml` optional. |
 | F24 | **External-source ingestion via SKILL+CLI (Jira / Confluence / GitHub Issues):** agents trigger external-source ingestion through the CLI rather than via scheduled cron. Examples: `harness context graphrag ingest jira --jql "project = MOBILE AND updated > -7d"`, `harness context graphrag ingest confluence --space ENG`, `harness context graphrag ingest github-issues --repo org/name --labels bug`. Authentication via `CredentialBroker.getCredential('jira' \| 'confluence' \| 'github')` from agent-auth-lib. Cron-based scheduled ingestion remains supported per F7 for batch refresh, but **agent-triggered is the preferred v1 UX**. The `SKILL.md` ships with reference invocations. |
 | F25 | **Tree-sitter for code structure (mandatory v1 dependency):** the server links `tree-sitter` + per-language grammars (`tree-sitter-typescript`, `tree-sitter-python`, `tree-sitter-java`, `tree-sitter-kotlin`) for the supported languages. New languages added by registering a tree-sitter grammar in `graphrag.config.yml` (no server code change). Languages without a grammar fall back to "structureless" Markdown-style chunking — better than nothing, but tree-sitter parsing is the v1 default for code repos. |
 | F26 | **External URL crawling (tech-stack docs, changelogs, third-party API references):** `POST /v1/ingest/crawl` accepts `{ name, urls[], scope: 'page' \| 'site' \| 'subtree', maxDepth?, refreshInterval?, allowedDomains?, rateLimitPerHost? }`. Server fetches the URL(s), respects `robots.txt`, rate-limits per host (default 1 req/sec; configurable), extracts main content via readability heuristics (Mozilla Readability or similar), chunks + embeds, creates `Doc` nodes with `sourceUrl` + `crawledAt` + content-hash + canonical URL. `scope: 'page'` fetches just the URL; `scope: 'subtree'` crawls only paths matching the URL's prefix; `scope: 'site'` discovers via `sitemap.xml` or recursive crawl with `maxDepth` limit (default 3). Refresh is incremental — content-hash dedup skips unchanged pages; per-page `Last-Modified`/`ETag` headers honored when present. Common use cases: tech-stack docs (`harness context graphrag crawl https://react.dev --scope site --max-depth 3`), changelogs (`harness context graphrag crawl https://github.com/org/repo/releases.atom`), third-party API references (`harness context graphrag crawl https://api.example.com/docs --scope subtree`). Domain allowlist enforced by `graphrag.config.yml`'s `crawl.allowedDomains` (defense in depth — prevents agents from accidentally exfiltrating internal-only URLs). Authenticated crawls (paid docs) use `CredentialBroker.getCredential('crawl:<host>')` when configured. |
@@ -193,8 +193,8 @@ The CLI talks to edge-context-server over UDS. No keys, no headers, no MCP — j
 
 ## 6. Technical approach
 
-- **Runtime:** TypeScript on Bun with native KuzuDB bindings.
-- **Graph DB:** KuzuDB (embedded; columnar; Cypher; vector index extension).
+- **Runtime:** TypeScript on Bun with `neo4j-driver` (Bolt protocol; no native bindings).
+- **Graph DB:** Neo4j 5+ (client-server via Bolt; native Cypher; built-in vector index; multi-database for per-product isolation). Runs as a sidecar container alongside the edge-context-server process.
 - **Code parsing:** tree-sitter (multi-language; per-language grammar).
 - **Doc parsing:** LangChain text-splitter for semantic chunking.
 - **Source mappers:** custom per source type, mapping parsed artifacts → graph schema.
@@ -293,7 +293,7 @@ POST /v1/query                                                        (admin-sco
 { "cypher": "MATCH (f:Function)-[:CALLS]->(g:Function {name: 'auth'}) RETURN f" }
 
 GET /health
-→ 200 { "ok": true, "state": "warm", "backend": "kuzu", "uptimeMs": ..., "lastIngestedAt": "..." }
+→ 200 { "ok": true, "state": "warm", "backend": "neo4j", "uptimeMs": ..., "lastIngestedAt": "..." }
 
 WS /v1/ingest/events
 < { "type": "ingest-started", "ingestId": "...", "source": "..." }
@@ -319,8 +319,9 @@ Per-product graph isolation (F1) means the config is **product-scoped**: each pr
 
 ```yaml
 graphrag:
-  databaseRoot: ./.harness/graphrag/      # one Kuzu instance per product under here:
-                                          #   ./.harness/graphrag/<productId>/
+  neo4jUri: bolt://neo4j:7687             # Neo4j sidecar (compose-managed); one DB per product
+  neo4jAuth: { user: neo4j, password: ${NEO4J_PASSWORD} }
+                                          # Per-product DB names: <productId> (multi-database feature)
   port: 7720
   unixSocket: ~/.harness/run/edge-context.sock
   embeddings:
@@ -340,8 +341,8 @@ graphrag:
     maxFileSize: 50MB
     pruneAfter: null                      # null = workspace-lifetime; e.g., '30d' for time-based pruning
 
-  # Per-product ingestion configuration. Each product gets its own Kuzu graph
-  # at ./.harness/graphrag/<productId>/.
+  # Per-product ingestion configuration. Each product gets its own Neo4j database
+  # named after `<productId>` on the shared Neo4j sidecar.
   products:
 
     - id: mobile-app
@@ -449,7 +450,7 @@ plugins:
 | `robots-parser` | `robots.txt` compliance for crawler (F26). |
 | `node-fetch` (or built-in `fetch`) | HTTP client for crawler + external-source ingestion (Jira / Confluence / GitHub Issues APIs). |
 | `agent-auth-lib` (`CredentialBroker`) | External-source credentials (Jira / Confluence / GitHub) + authenticated crawls (F24, F26). |
-| KuzuDB v0.6+ | Graph database. |
+| Neo4j 5+ + `neo4j-driver` ^6 | Graph database (sidecar) + Bolt client. |
 | Tree-sitter grammars | Per-language code parsing (`tree-sitter-typescript`, etc.). |
 | Embeddings provider | Anthropic voyage or `@xenova/transformers` for local fallback. |
 | LangChain text-splitter | Doc chunking. |
@@ -461,7 +462,7 @@ plugins:
 
 | # | Decision |
 |---|----------|
-| CS-R1 | **Edge-context-server uses Kuzu; edge-memory-server uses SQLite + sqlite-vec. Separate engines, separate files, independent lifecycles — never a shared instance.** Resolves former CS1. Per the edge-memory-server PRD's MS1 decision (2026-05-01). |
+| CS-R1 | **Edge-context-server uses Neo4j; edge-memory-server uses SQLite + sqlite-vec. Separate engines, separate processes, independent lifecycles — never a shared instance.** Resolves former CS1. Per the edge-memory-server PRD's MS1 decision (2026-05-01). |
 | CS-R2 | **Same v1 trust model as harness-server and edge-memory-server: UDS local, no in-process TLS, no app-level auth, no multi-tenant identity. All deferred to v1.x.** Resolves the prior bearer-tokens-from-OS-keychain plan. See § 4.2. |
 | CS-R3 | **No MCP server interface in v1 or ever. Agent integration via SKILL.md + CLI per § 4.3.** Aligns with `feedback_no_mcp` corporate policy and the harness-ecosystem-wide ban. |
 
@@ -486,7 +487,7 @@ plugins:
 
 Aligns with the implementation plan's Layer 4 + ecosystem track:
 
-- **CS-1** — Server skeleton + KuzuDB initialization + `/health` (1 day)
+- **CS-1** — Server skeleton + Neo4j driver initialization (Bolt connect, per-product DB ensure) + `/health` (1 day)
 - **CS-2** — Schema definition + Cypher query endpoint (1 day)
 - **CS-3** — Tree-sitter ingestion for TypeScript (foundation for F21 / F25); add Java + Python in CS-3a, CS-3b (3 days total)
 - **CS-4** — Embeddings integration + similarity search (2 days)

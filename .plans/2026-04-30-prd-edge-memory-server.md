@@ -56,7 +56,7 @@ This is one of three peer servers (edge-memory-server, edge-context-server, harn
 | F7 | Concurrent-safe — transactional writes for session-scoped, configurable conflict resolution for cross-scope (last-write-wins or vector-clock merge). |
 | F8 | `/health` endpoint returning `{ ok, state: 'warming' \| 'warm' \| 'idle', uptimeMs, backend, version }`. |
 | F9 | Idle throttling: after 10min no traffic, drop embeddings model from RAM and close idle DB connections; first-call-after-idle pays warmup cost; subsequent calls warm-fast. |
-| F10 | Backends shipped: `InMemoryMemoryStore` (tests/dev only), `SqliteVecMemoryStore` (default, production). Edge-memory-server runs its own SQLite file using `sqlite-vec` — it does **not** share storage with edge-context-server (which uses Kuzu for its code/docs/tickets graph). Other backends (Kuzu, pgvector, Chroma) are out of scope for v1. |
+| F10 | Backends shipped: `InMemoryMemoryStore` (tests/dev only), `SqliteVecMemoryStore` (default, production). Edge-memory-server runs its own SQLite file using `sqlite-vec` — it does **not** share storage with edge-context-server (which uses Neo4j for its code/docs/tickets graph). Other backends (Neo4j, pgvector, Chroma) are out of scope for v1. |
 | F11 | OpenAPI 3.1 spec auto-generated from Zod schemas. |
 | F12 | Audit log: append-only record of every write + forget operation with `{ timestamp, scope, operation, actor }` where `actor` is the connection source (`uds:<uid>`); v1.x upgrades the field to authenticated identity additively. |
 | F13 | Prometheus metrics exported at `/metrics` (request rate, latency histograms, backend state). |
@@ -330,7 +330,7 @@ REST is reachable only over UDS in v1; TCP listener is not exposed (admin gating
 
 | #   | Decision |
 |-----|----------|
-| MS1 | **Edge-memory-server uses SQLite + `sqlite-vec`; edge-context-server uses Kuzu. Separate engines, separate files, independent lifecycles — never a shared instance.** Decided 2026-05-01. |
+| MS1 | **Edge-memory-server uses SQLite + `sqlite-vec`; edge-context-server uses Neo4j. Separate engines, separate processes, independent lifecycles — never a shared instance.** Decided 2026-05-01. |
 | MS6 | **No MCP server interface in v1 or ever. Agent integration via SKILL.md + CLI.** Decided 2026-05-01. Aligns with `feedback_no_mcp` corporate policy and the harness-ecosystem-wide ban. |
 | MS7 | **Same v1 trust model as harness-server and edge-context-server: UDS local, no in-process TLS, no app-level auth, no multi-tenant identity. All deferred to v1.x.** Decided 2026-05-01. |
 
@@ -360,7 +360,7 @@ Aligns with the implementation plan's Layer 2.5 (memory) + early ecosystem track
 - **MS-9** — Prometheus metrics (~0.5 day)
 - **MS-10** — Documentation + reference consumer; covers six-dimensional scope model + consolidation policies (1 day)
 
-Total: **~13.5 working days** for one engineer. (KuzuMemoryStore milestone removed per MS1; MCP-tools milestone removed per MS6; auth milestone reduced per MS7. New: MS-3a precedence chain (+0.5d), MS-5a consolidation (+2d) — covering F3a/F3b/F14-F17.)
+Total: **~13.5 working days** for one engineer. (Neo4jMemoryStore milestone removed per MS1; MCP-tools milestone removed per MS6; auth milestone reduced per MS7. New: MS-3a precedence chain (+0.5d), MS-5a consolidation (+2d) — covering F3a/F3b/F14-F17.)
 
 ---
 

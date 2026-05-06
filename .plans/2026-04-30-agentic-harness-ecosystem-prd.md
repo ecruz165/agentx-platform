@@ -13,7 +13,7 @@ This document is the **index and cross-cutting concerns** for the agentic harnes
 
 **Companion documents (per-deliverable PRDs):**
 - `.plans/2026-04-30-prd-edge-memory-server.md` — Memory Server (+ Skill, + CLI client)
-- `.plans/2026-04-30-prd-edge-context-server.md` — Edge Context Server (KuzuDB GraphRAG, + Skill, + CLI client)
+- `.plans/2026-04-30-prd-edge-context-server.md` — Edge Context Server (Neo4j GraphRAG, + Skill, + CLI client)
 - `.plans/2026-04-30-prd-harness-server.md` — Harness-Server
 - `.plans/2026-04-30-prd-harness-cli.md` — Harness CLI (TUI + Commands)
 - `.plans/2026-04-30-prd-vscode-extension.md` — VS Code Extension
@@ -33,7 +33,7 @@ This document is the **index and cross-cutting concerns** for the agentic harnes
 The ecosystem comprises seven product-surface deliverables built on the harness library:
 
 1. **Memory Server** — internal stateful `MemoryStore` exposed as HTTP/MCP server + thin CLI client.
-2. **Edge Context Server** — KuzuDB-backed GraphRAG + plugin host for other `ContextProvider` impls; HTTP server (REST + WS only, no MCP) + thin CLI client.
+2. **Edge Context Server** — Neo4j-backed GraphRAG + plugin host for other `ContextProvider` impls; HTTP server (REST + WS only, no MCP) + thin CLI client.
 3. **Harness-Server** — orchestration brain; receives jobs, queues, distributes to parallel workers.
 4. **Harness CLI** — unified terminal interface and command-line tool for human and agent interaction.
 5. **VS Code Extension** — editor-side integration; sidebar + webview + native diff per phase.

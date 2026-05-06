@@ -1,5 +1,6 @@
 # MVP-1 image for @agentx/edge-context-server.
-# v1+: adds KuzuDB native bindings + tree-sitter parsers (per prd-edge-context-server.md).
+# v1+: adds neo4j-driver + tree-sitter parsers (per prd-edge-context-server.md).
+# Neo4j itself runs as a sidecar service, not inside this image.
 FROM node:22-bookworm-slim
 
 RUN corepack enable && corepack prepare pnpm@9.12.0 --activate

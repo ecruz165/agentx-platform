@@ -85,7 +85,7 @@ Every interface from the design doc lands in `src/types/` in Layer 1. The implem
 | `SessionStore`, `CaptureSink` | L1 | L1 (in-memory + filesystem) | Production impls are companion packages |
 | `ConfigStore`, `ConfigChangeEvent` | L1 | L1 (in-memory); L3 (FsConfigStore) | |
 | `HarnessTool`, `ToolContext`, `ToolResult` | L1 | L1 (registry interface); L2.4 (full registration + dispatch) | |
-| `MemoryStore`, `MemoryScope`, `MemoryQuery`, `MemoryEntry` | L1 | L1 (in-memory); L3 (sqlite); ecosystem PRD ships KuzuDB | |
+| `MemoryStore`, `MemoryScope`, `MemoryQuery`, `MemoryEntry` | L1 | L1 (in-memory); L3 (sqlite); ecosystem PRD ships Neo4j | |
 | `ContextProvider`, `ContextQuery`, `ContextResult` | L1 | L4.1 | L1 has no concrete impls; provider list defaults to `[]` |
 | `Plugin`, `PluginContext`, `PluginResult`, `PluginFactory`, `RuntimeStateProxy` | L1 | L2 (orchestrator runs them); L1 phases simply skip plugins | |
 | `HarnessError` discriminated union (13 kinds) | L1 | L1 (a subset is produced); other kinds appear as their layers ship | |

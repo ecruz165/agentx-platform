@@ -16,7 +16,7 @@ workspace:
       image: agentx/edge-context-server:0.0.0
       port: 7720
       unixSocket: .harness/run/context.sock
-      backend: echo  # MVP-0; MVP-2+ uses kuzu
+      backend: echo  # MVP-0; MVP-2+ uses neo4j
 
   # Default worker DevContainer template (instantiated per job — MVP-1+)
   worker:

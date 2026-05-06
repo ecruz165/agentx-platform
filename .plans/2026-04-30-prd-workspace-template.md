@@ -60,7 +60,7 @@ This is the "physical home" of an agentic workflow on a developer's machine or i
 | F1 | Repo template at `github.com/your-org/agentic-workspace-template` (template-repo flagged for `gh repo create --template`). |
 | F2 | `.devcontainer/harness-server/devcontainer.json` — DevContainer definition for harness-server (Node + Bun + SQLite + harness-server binary + `@devcontainers/cli` for spawning workers). |
 | F3 | `.devcontainer/edge-memory-server/devcontainer.json` — DevContainer for edge-memory-server (Node + Bun + `better-sqlite3` + `sqlite-vec` + edge-memory-server binary). |
-| F4 | `.devcontainer/edge-context-server/devcontainer.json` — DevContainer for edge-context-server (Node + Bun + KuzuDB + tree-sitter + edge-context-server binary). |
+| F4 | `.devcontainer/edge-context-server/devcontainer.json` — DevContainer for edge-context-server (Node + Bun + `neo4j-driver` + tree-sitter + edge-context-server binary). Neo4j itself runs as a sidecar service in `docker-compose.yml`. |
 | F5 | `.devcontainer/worker/devcontainer.json` — **worker DevContainer template instantiated per job** by harness-server via `@devcontainers/cli up --workspace-folder .devcontainer/worker --override-config <per-job-overrides.json>`. Includes Node + Bun + git + tmux + claude-code CLI + opencode CLI + copilot CLI + harness CLI + agentic-worker-lib runtime. **Not part of docker-compose** — ephemeral, one container per active work effort, lifecycle owned by harness-server. |
 | F6 | `.devcontainer/docker-compose.yml` orchestrates **only the three always-on peer servers**. Workers are spawned via `@devcontainers/cli` per job — not via `docker compose --scale`. This split is deliberate: always-on shares lifecycle (compose semantics fit); per-job workers need independent lifecycles, isolated networks, and per-spawn override configs (devcontainer CLI fits). |
 | F7 | Each container has a `Dockerfile.<name>` with reproducible image build; published to Docker Hub as prebuilt for fast first-run. The worker image is the most performance-sensitive (cold-start measured in `harness submit` UX) and is prebuilt aggressively. |
@@ -165,7 +165,7 @@ The worktree path schema reserves a `<subagentId>` segment so coordinators *can*
 |---|---|
 | N11 | Idempotent: running `docker-compose up` repeatedly is safe. |
 | N12 | Graceful shutdown: SIGTERM drains in-flight jobs before container stop. |
-| N13 | Server crash recovery: restarted server re-attaches to its persistent state (Postgres + Kuzu) without data loss. |
+| N13 | Server crash recovery: restarted server re-attaches to its persistent state (Postgres + Neo4j) without data loss. |
 
 ## 6. Technical approach
 
@@ -228,7 +228,7 @@ agentic-workspace-template/
 │   ├── captures/                               # capture sink (gitignored)
 │   ├── harness.sqlite                          # harness-server SQLite (jobs, lifecycle, audit)
 │   ├── memory.sqlite                           # edge-memory-server SQLite + sqlite-vec
-│   ├── graphrag.kuzu/                          # edge-context-server Kuzu graph
+│   ├── neo4j-data/                             # edge-context-server Neo4j sidecar volume (per-product DBs inside)
 │   ├── tmux.conf                               # workspace-wide tmux config
 │   └── scripts/
 │       ├── spawn-worker.sh                     # invokes `devcontainer up` per job
@@ -399,7 +399,7 @@ The five from the design doc:
 | WT5 | Should `docker-compose.yml` allow CPU/RAM overrides via env vars? Lean: yes, via `${HARNESS_WORKER_CPU}` etc. |
 | WT6 | Helm chart: prepackaged Postgres (Bitnami chart dependency) or assume external Postgres? Lean: prepackaged with `enabled: true`. |
 | WT7 | Should the workspace template include a CI workflow (GitHub Actions) that runs the reference pipelines on PRs? Lean: yes, post-v1. |
-| WT8 | edge-memory-server and edge-context-server share a Kuzu instance via volume mount — what's the lock contention story? Test rigorously. |
+| WT8 | edge-memory-server (SQLite + sqlite-vec) and edge-context-server (Neo4j sidecar) run independent storage engines per MS1 — no shared instance. Resolved 2026-05-06: question is moot under current architecture. |
 
 ## 12. Implementation milestones
 

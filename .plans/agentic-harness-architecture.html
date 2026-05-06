@@ -201,7 +201,7 @@ graph TB
     subgraph "The Triad (Always-On DevContainers)"
         HS["Harness Server<br/>(Orchestrator)"]
         EMS["Edge Memory Server<br/>(SQLite-Vec)"]
-        ECS["Edge Context Server<br/>(KuzuDB GraphRAG)"]
+        ECS["Edge Context Server<br/>(Neo4j GraphRAG)"]
     end
 
     subgraph "Execution Plane (Ephemeral per Job)"
@@ -275,7 +275,7 @@ graph TB
             <table class="spec-table">
                 <tr><th>Component</th><th>Engine</th></tr>
                 <tr><td>Memory</td><td>SQLite-Vec</td></tr>
-                <tr><td>Context</td><td>KuzuDB (Graph)</td></tr>
+                <tr><td>Context</td><td>Neo4j (Graph)</td></tr>
                 <tr><td>Jobs</td><td>SQLite (WAL)</td></tr>
                 <tr><td>Workers</td><td>Git Worktrees</td></tr>
             </table>
