@@ -32,6 +32,7 @@ export {
   spawnWorker,
   runWorker,
   parseDevcontainerUpStdout,
+  resolveSshAgentMount,
   type SpawnRepoSpec,
   type WorkerSpawnSpec,
   type SpawnResult,
@@ -162,6 +163,22 @@ export interface HarnessServerOptions {
    * spawnWorker needs a real workspace dir.
    */
   workspaceRoot?: string;
+  /**
+   * Default SSH agent forwarding for the container path (slice 9d-6).
+   * When set, every container the server spawns gets the SSH agent
+   * socket mounted in + SSH_AUTH_SOCK in its env. Per-job submissions
+   * can override via body.forwardSshAgent.
+   *
+   *   - `true`  → auto-detect from process.env.SSH_AUTH_SOCK
+   *   - string  → explicit host path
+   *   - unset/false → no forwarding (default — pre-9d-6 behavior)
+   *
+   * Without forwarding, workers can READ the mounted worktrees but
+   * can't push branches or open PRs (no GitHub auth).
+   */
+  forwardSshAgent?: boolean | string;
+  /** In-container SSH agent socket path. Default `/ssh-agent.sock`. */
+  sshAgentContainerPath?: string;
 }
 
 export interface HarnessServerHandle {
@@ -268,6 +285,8 @@ export async function startHarnessServer(opts: HarnessServerOptions): Promise<Ha
     jobs,
     tokens,
     workspaceRoot: opts.workspaceRoot ?? process.cwd(),
+    ...(opts.forwardSshAgent !== undefined ? { forwardSshAgent: opts.forwardSshAgent } : {}),
+    ...(opts.sshAgentContainerPath ? { sshAgentContainerPath: opts.sshAgentContainerPath } : {}),
     broker: opts.broker,
     adapterFactory: opts.adapterFactory,
     resolver: opts.resolver,
@@ -307,6 +326,10 @@ interface ServerCtx {
   /** Workspace root for the container path (slice 9d-4). Defaults to
    *  process.cwd() at server start. */
   workspaceRoot: string;
+  /** Server-wide default SSH agent forwarding (slice 9d-6). Per-job
+   *  submissions can override via body.forwardSshAgent. */
+  forwardSshAgent?: boolean | string;
+  sshAgentContainerPath?: string;
   broker?: CredentialBroker;
   adapterFactory?: AdapterFactory;
   resolver?: BindingResolver;
@@ -605,6 +628,14 @@ async function handleSubmitJob(
     if (useContainer && containerRepos !== null && containerRepos.length > 0) {
       const containerProductId = job.productId ?? 'unknown';
       const containerPipeline = pipelineId ?? 'noop';
+      // Slice 9d-6: per-job body override wins; server-wide default
+      // applies otherwise. `body.forwardSshAgent === false` explicitly
+      // turns off forwarding even when the server has it enabled.
+      const bodyForward = body.forwardSshAgent;
+      const forwardSshAgent =
+        bodyForward === true || bodyForward === false || typeof bodyForward === 'string'
+          ? bodyForward
+          : ctx.forwardSshAgent;
       queueMicrotask(() => {
         void runJobInContainer({
           jobId,
@@ -617,6 +648,10 @@ async function handleSubmitJob(
           productId: containerProductId,
           pipeline: containerPipeline,
           setName,
+          ...(forwardSshAgent !== undefined ? { forwardSshAgent } : {}),
+          ...(ctx.sshAgentContainerPath
+            ? { sshAgentContainerPath: ctx.sshAgentContainerPath }
+            : {}),
           onStatusChange: (_jid, agentId, status) => onJobTerminal(agentId, status),
         });
       });

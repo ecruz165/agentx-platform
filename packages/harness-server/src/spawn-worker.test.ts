@@ -21,6 +21,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import {
   spawnWorker,
   parseDevcontainerUpStdout,
+  resolveSshAgentMount,
   type SpawnedWorktree,
 } from './spawn-worker.ts';
 import { _clearBaseRefCache } from './spawn-worker.ts';
@@ -351,5 +352,122 @@ describe('parseDevcontainerUpStdout', () => {
   it('ignores empty containerId field (defensive)', () => {
     const stdout = '{"outcome":"success","containerId":""}\n';
     expect(parseDevcontainerUpStdout(stdout)).toBeUndefined();
+  });
+});
+
+describe('resolveSshAgentMount (slice 9d-6)', () => {
+  it('returns undefined when forwardSshAgent is unset', () => {
+    expect(resolveSshAgentMount({}, { SSH_AUTH_SOCK: '/tmp/agent' })).toBeUndefined();
+  });
+
+  it('returns undefined when forwardSshAgent is false', () => {
+    expect(
+      resolveSshAgentMount({ forwardSshAgent: false }, { SSH_AUTH_SOCK: '/tmp/agent' })
+    ).toBeUndefined();
+  });
+
+  it('auto-detects from SSH_AUTH_SOCK when forwardSshAgent is true', () => {
+    const result = resolveSshAgentMount(
+      { forwardSshAgent: true },
+      { SSH_AUTH_SOCK: '/private/tmp/com.apple.launchd.abc/Listeners' }
+    );
+    expect(result).toEqual({
+      hostPath: '/private/tmp/com.apple.launchd.abc/Listeners',
+      containerPath: '/ssh-agent.sock',
+    });
+  });
+
+  it('throws when forwardSshAgent: true but SSH_AUTH_SOCK is unset', () => {
+    expect(() => resolveSshAgentMount({ forwardSshAgent: true }, {})).toThrow(
+      /SSH_AUTH_SOCK/
+    );
+  });
+
+  it('uses an explicit string path verbatim', () => {
+    const result = resolveSshAgentMount(
+      { forwardSshAgent: '/explicit/host/path/agent.sock' },
+      {}
+    );
+    expect(result).toEqual({
+      hostPath: '/explicit/host/path/agent.sock',
+      containerPath: '/ssh-agent.sock',
+    });
+  });
+
+  it('respects sshAgentContainerPath override (Docker Desktop convention)', () => {
+    const result = resolveSshAgentMount(
+      {
+        forwardSshAgent: true,
+        sshAgentContainerPath: '/run/host-services/ssh-auth.sock',
+      },
+      { SSH_AUTH_SOCK: '/tmp/agent' }
+    );
+    expect(result).toEqual({
+      hostPath: '/tmp/agent',
+      containerPath: '/run/host-services/ssh-auth.sock',
+    });
+  });
+});
+
+describe('spawnWorker — SSH agent forwarding in override-config (slice 9d-6)', () => {
+  it('omits the SSH mount + SSH_AUTH_SOCK when forwarding is unset', async () => {
+    const { bare } = await localRemote();
+    const workspaceRoot = await tmpDir('ws');
+
+    const r = await spawnWorker({
+      jobId: 'j-no-ssh',
+      productId: 'p',
+      pipeline: 'pl',
+      workspaceRoot,
+      repos: [{ name: 'demo', cloneUrl: bare }],
+    });
+
+    const cfg = JSON.parse(await readFile(r.overrideConfigPath, 'utf8'));
+    // Just the .harness/run mount + the worktree mount.
+    expect(cfg.mounts).toHaveLength(2);
+    expect(cfg.mounts.some((m: string) => m.includes('ssh-agent'))).toBe(false);
+    expect(cfg.containerEnv.SSH_AUTH_SOCK).toBeUndefined();
+  });
+
+  it('adds the SSH mount + SSH_AUTH_SOCK when forwarding via explicit path', async () => {
+    const { bare } = await localRemote();
+    const workspaceRoot = await tmpDir('ws');
+
+    const r = await spawnWorker({
+      jobId: 'j-ssh-explicit',
+      productId: 'p',
+      pipeline: 'pl',
+      workspaceRoot,
+      repos: [{ name: 'demo', cloneUrl: bare }],
+      forwardSshAgent: '/host/socket/path.sock',
+    });
+
+    const cfg = JSON.parse(await readFile(r.overrideConfigPath, 'utf8'));
+    expect(cfg.mounts).toHaveLength(3);
+    expect(cfg.mounts[2]).toBe(
+      'source=/host/socket/path.sock,target=/ssh-agent.sock,type=bind'
+    );
+    expect(cfg.containerEnv.SSH_AUTH_SOCK).toBe('/ssh-agent.sock');
+  });
+
+  it('uses a custom container path when sshAgentContainerPath is set', async () => {
+    const { bare } = await localRemote();
+    const workspaceRoot = await tmpDir('ws');
+
+    const r = await spawnWorker({
+      jobId: 'j-ssh-dd',
+      productId: 'p',
+      pipeline: 'pl',
+      workspaceRoot,
+      repos: [{ name: 'demo', cloneUrl: bare }],
+      forwardSshAgent: '/host/sock',
+      sshAgentContainerPath: '/run/host-services/ssh-auth.sock',
+    });
+
+    const cfg = JSON.parse(await readFile(r.overrideConfigPath, 'utf8'));
+    expect(cfg.mounts[2]).toBe(
+      'source=/host/sock,target=/run/host-services/ssh-auth.sock,type=bind'
+    );
+    expect(cfg.containerEnv.SSH_AUTH_SOCK).toBe('/run/host-services/ssh-auth.sock');
   });
 });

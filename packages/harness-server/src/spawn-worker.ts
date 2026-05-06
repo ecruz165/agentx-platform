@@ -69,6 +69,42 @@ export interface WorkerSpawnSpec {
    * runArgs/containerEnv, NOT this field.
    */
   cloneEnv?: NodeJS.ProcessEnv;
+  /**
+   * Forward an SSH agent socket INTO the worker container so the
+   * worker's git push / `gh pr create` / equivalent operations can
+   * authenticate against GitHub. Slice 9d-6.
+   *
+   * Values:
+   *   - `true`  → auto-detect via `process.env.SSH_AUTH_SOCK`. Throws
+   *               if SSH_AUTH_SOCK is unset.
+   *   - string  → explicit host-path of the SSH agent socket.
+   *   - `false` / unset → no forwarding (default — worker has read-
+   *               only access to the mounted worktrees but can't
+   *               push). Preserves pre-9d-6 behavior.
+   *
+   * Effect on the override-config:
+   *   - mount: `source=<hostPath>,target=/ssh-agent.sock,type=bind`
+   *   - containerEnv: `SSH_AUTH_SOCK=/ssh-agent.sock`
+   *
+   * Use the mount target `/ssh-agent.sock` (vanilla-docker convention)
+   * by default; override via `sshAgentContainerPath` for Docker Desktop
+   * setups that prefer `/run/host-services/ssh-auth.sock`.
+   *
+   * Production (ECS / Fargate) doesn't use this — that path is
+   * Secrets Manager + a credential helper file, configured by the
+   * Fargate task definition rather than devcontainer override-config.
+   */
+  forwardSshAgent?: boolean | string;
+  /**
+   * Override the in-container path that the SSH agent socket gets
+   * mounted at. Default: `/ssh-agent.sock`. The same value is set
+   * as `SSH_AUTH_SOCK` in containerEnv so git automatically uses it.
+   *
+   * Some setups (Docker Desktop on macOS) prefer
+   * `/run/host-services/ssh-auth.sock` because Docker Desktop has
+   * built-in handling for that path.
+   */
+  sshAgentContainerPath?: string;
 }
 
 export interface SpawnedWorktree {
@@ -216,6 +252,27 @@ export async function spawnWorker(spec: WorkerSpawnSpec): Promise<SpawnResult> {
     subagentId === 'main'
       ? `agentx-job-${spec.jobId}`
       : `agentx-job-${spec.jobId}-${subagentId}`;
+
+  // Slice 9d-6: optional SSH agent socket mount for in-container git
+  // auth. Resolves to undefined when forwardSshAgent is false/unset,
+  // a {hostPath, containerPath} pair otherwise. Throws on
+  // forwardSshAgent: true with no SSH_AUTH_SOCK in the env (loud
+  // failure beats silent "your push didn't authenticate").
+  const sshMount = resolveSshAgentMount(spec, process.env);
+
+  const baseMounts = [
+    `source=${join(spec.workspaceRoot, '.harness/run')},target=/root/.harness/run,type=bind`,
+    ...worktrees.map((wt) => `source=${wt.path},target=${wt.containerPath},type=bind`),
+  ];
+  const baseContainerEnv: Record<string, string> = {
+    JOB_ID: spec.jobId,
+    SUBAGENT_ID: subagentId,
+    PRODUCT_ID: spec.productId,
+    PIPELINE: spec.pipeline,
+    HARNESS_WORKSPACE: '/workspace',
+    ...(spec.name ? { JOB_NAME: spec.name } : {}),
+  };
+
   const overrideConfig = {
     name: containerName,
     image: 'agentx/worker:0.0.0',
@@ -226,20 +283,15 @@ export async function spawnWorker(spec: WorkerSpawnSpec): Promise<SpawnResult> {
       '--label', `harness-pipeline=${spec.pipeline}`,
       '--name', containerName,
     ],
-    mounts: [
-      `source=${join(spec.workspaceRoot, '.harness/run')},target=/root/.harness/run,type=bind`,
-      ...worktrees.map(
-        (wt) => `source=${wt.path},target=${wt.containerPath},type=bind`
-      ),
-    ],
-    containerEnv: {
-      JOB_ID: spec.jobId,
-      SUBAGENT_ID: subagentId,
-      PRODUCT_ID: spec.productId,
-      PIPELINE: spec.pipeline,
-      HARNESS_WORKSPACE: '/workspace',
-      ...(spec.name ? { JOB_NAME: spec.name } : {}),
-    },
+    mounts: sshMount
+      ? [
+          ...baseMounts,
+          `source=${sshMount.hostPath},target=${sshMount.containerPath},type=bind`,
+        ]
+      : baseMounts,
+    containerEnv: sshMount
+      ? { ...baseContainerEnv, SSH_AUTH_SOCK: sshMount.containerPath }
+      : baseContainerEnv,
     workspaceFolder: '/workspace',
   };
 
@@ -274,6 +326,42 @@ export async function spawnWorker(spec: WorkerSpawnSpec): Promise<SpawnResult> {
  */
 export function _clearBaseRefCache(): void {
   baseRefCache.clear();
+}
+
+/**
+ * Resolve the slice-9d-6 SSH agent mount config from a WorkerSpawnSpec.
+ *
+ * Returns `{ hostPath, containerPath }` when forwarding is requested,
+ * `undefined` when it isn't (default — preserves pre-9d-6 behavior).
+ * Throws when `forwardSshAgent: true` is set but no `SSH_AUTH_SOCK`
+ * is present in the env — silent failure here would produce a
+ * container that "looks fine" but can't auth git pushes, which is
+ * a pernicious failure mode.
+ *
+ * Exported for tests.
+ */
+export function resolveSshAgentMount(
+  spec: Pick<WorkerSpawnSpec, 'forwardSshAgent' | 'sshAgentContainerPath'>,
+  env: NodeJS.ProcessEnv = process.env
+): { hostPath: string; containerPath: string } | undefined {
+  const containerPath = spec.sshAgentContainerPath ?? '/ssh-agent.sock';
+  if (spec.forwardSshAgent === undefined || spec.forwardSshAgent === false) {
+    return undefined;
+  }
+  if (typeof spec.forwardSshAgent === 'string') {
+    return { hostPath: spec.forwardSshAgent, containerPath };
+  }
+  // forwardSshAgent === true → auto-detect.
+  const fromEnv = env.SSH_AUTH_SOCK;
+  if (!fromEnv) {
+    throw new Error(
+      'forwardSshAgent: true requires SSH_AUTH_SOCK in the environment. ' +
+        'Either start an ssh-agent (`eval $(ssh-agent)`) and add your key ' +
+        '(`ssh-add ~/.ssh/id_ed25519`), or pass an explicit host path: ' +
+        '`forwardSshAgent: "/path/to/ssh-agent.sock"`.'
+    );
+  }
+  return { hostPath: fromEnv, containerPath };
 }
 
 // ─── runWorker ────────────────────────────────────────────────────────────

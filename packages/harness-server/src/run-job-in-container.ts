@@ -75,6 +75,16 @@ export interface RunJobInContainerOptions {
   /** Forwarded to spawnWorker. See its doc — useful for injecting
    *  GITHUB_TOKEN or an alternate SSH key for non-default credentials. */
   cloneEnv?: NodeJS.ProcessEnv;
+  /** Forwarded to spawnWorker (slice 9d-6). Mounts an SSH agent
+   *  socket into the worker container so the worker's git pushes /
+   *  PR creation can authenticate. `true` auto-detects from
+   *  process.env.SSH_AUTH_SOCK; a string is the explicit host path;
+   *  unset/false disables forwarding. */
+  forwardSshAgent?: boolean | string;
+  /** Forwarded to spawnWorker. Override the in-container path of the
+   *  SSH agent socket. Default `/ssh-agent.sock`. Docker Desktop
+   *  setups may prefer `/run/host-services/ssh-auth.sock`. */
+  sshAgentContainerPath?: string;
   /** Forwarded to runWorker + runPipelineInContainer. Default
    *  `devcontainer` resolved on PATH. Tests pass an absolute path to
    *  a fixture script. */
@@ -143,6 +153,12 @@ export async function runJobInContainer(
         repos: opts.repos,
         workspaceRoot: opts.workspaceRoot,
         ...(opts.cloneEnv ? { cloneEnv: opts.cloneEnv } : {}),
+        ...(opts.forwardSshAgent !== undefined
+          ? { forwardSshAgent: opts.forwardSshAgent }
+          : {}),
+        ...(opts.sshAgentContainerPath
+          ? { sshAgentContainerPath: opts.sshAgentContainerPath }
+          : {}),
       },
       ...(opts.devcontainerBin ? { devcontainerBin: opts.devcontainerBin } : {}),
     });
