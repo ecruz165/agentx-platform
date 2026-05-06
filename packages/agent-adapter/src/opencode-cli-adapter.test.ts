@@ -223,3 +223,99 @@ describe('OpenCodeCliAdapter — hosted-provider path (regression)', () => {
     expect(cfg.provider).toBeUndefined();
   });
 });
+
+describe('OpenCodeCliAdapter — serverUrl (HTTP server attach)', () => {
+  beforeEach(() => {
+    mockSpawn.mockReset();
+  });
+
+  it('passes --attach <serverUrl> to opencode run when serverUrl is set', async () => {
+    mockSpawn.mockImplementation(() => fakeChild('hello'));
+    const { OpenCodeCliAdapter } = await import('./opencode-cli-adapter.ts');
+    const broker = {
+      getCredential: vi.fn().mockResolvedValue({
+        provider: 'anthropic',
+        apiKey: 'sk-ant-fake',
+        source: 'test',
+      }),
+    };
+
+    const adapter = new OpenCodeCliAdapter({
+      broker: broker as never,
+      serverUrl: 'http://127.0.0.1:31337',
+    });
+    await adapter.invoke({ user: 'hi' });
+
+    const { args } = lastSpawnCall();
+    // Argv shape: ['run', '--attach', '<url>', '--no-mcp', '--model', '<model>', '<prompt>']
+    expect(args[0]).toBe('run');
+    expect(args[1]).toBe('--attach');
+    expect(args[2]).toBe('http://127.0.0.1:31337');
+    expect(args).toContain('--model');
+  });
+
+  it('does NOT include --attach when serverUrl is unset (back compat)', async () => {
+    mockSpawn.mockImplementation(() => fakeChild('hello'));
+    const { OpenCodeCliAdapter } = await import('./opencode-cli-adapter.ts');
+    const broker = {
+      getCredential: vi.fn().mockResolvedValue({
+        provider: 'anthropic',
+        apiKey: 'sk-ant-fake',
+        source: 'test',
+      }),
+    };
+
+    const adapter = new OpenCodeCliAdapter({ broker: broker as never });
+    await adapter.invoke({ user: 'hi' });
+
+    const { args } = lastSpawnCall();
+    expect(args).not.toContain('--attach');
+    expect(args[0]).toBe('run');
+    expect(args[1]).toBe('--no-mcp');
+  });
+
+  it('serverUrl coexists with endpoint (custom upstream model server)', async () => {
+    mockSpawn.mockImplementation(() => fakeChild('hello'));
+    const { OpenCodeCliAdapter } = await import('./opencode-cli-adapter.ts');
+    const broker = { getCredential: vi.fn() };
+
+    const adapter = new OpenCodeCliAdapter({
+      broker: broker as never,
+      endpoint: 'http://agent-llm:8080/v1',
+      endpointProviderId: 'local-qwen',
+      serverUrl: 'http://127.0.0.1:31337',
+    });
+    await adapter.invoke({ user: 'hi' });
+
+    const { args } = lastSpawnCall();
+    // Both --attach and the endpoint config (broker not consulted, opencode.json
+    // written) should be present together.
+    expect(args).toContain('--attach');
+    expect(args).toContain('http://127.0.0.1:31337');
+    expect(broker.getCredential).not.toHaveBeenCalled();
+  });
+
+  it('serverUrl threads through model resolution unchanged', async () => {
+    mockSpawn.mockImplementation(() => fakeChild('hello'));
+    const { OpenCodeCliAdapter } = await import('./opencode-cli-adapter.ts');
+    const broker = {
+      getCredential: vi.fn().mockResolvedValue({
+        provider: 'anthropic',
+        apiKey: 'sk-ant-fake',
+        source: 'test',
+      }),
+    };
+
+    const adapter = new OpenCodeCliAdapter({
+      broker: broker as never,
+      serverUrl: 'http://127.0.0.1:31337',
+      model: 'anthropic/claude-haiku-4-5',
+    });
+    await adapter.invoke({ user: 'hi' });
+
+    const { args } = lastSpawnCall();
+    const modelIdx = args.indexOf('--model');
+    expect(modelIdx).toBeGreaterThan(-1);
+    expect(args[modelIdx + 1]).toBe('anthropic/claude-haiku-4-5');
+  });
+});

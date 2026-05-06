@@ -37,6 +37,25 @@ export interface OpenCodeCliAdapterOptions {
    * the field to be present. Defaults to a placeholder string.
    */
   staticApiKey?: string;
+
+  /**
+   * URL of a long-running `opencode serve` instance — when set, the adapter
+   * spawns `opencode run --attach <serverUrl> ...` instead of the
+   * standalone form. Per memory `feedback_opencode_http_mode`, this is the
+   * shape that lets a per-job harness-pipeline container share a single
+   * warm opencode-server across N adapter invocations: the heavy lifts
+   * (model load, plugin discovery, config parse) happen once at server
+   * boot, and each invoke's client subprocess is a thin wrapper.
+   *
+   * Caller (typically harness-pipeline) is responsible for the server's
+   * lifecycle — see `OpenCodeServer` for a helper. Adapter does not start
+   * or stop the server; it only attaches.
+   *
+   * Compatible with `endpoint` (custom upstream model server): the
+   * opencode-server has its own opencode.json that points at the upstream;
+   * the adapter via --attach just routes through that server.
+   */
+  serverUrl?: string;
 }
 
 const PROVIDER_ENV_VAR: Partial<Record<Provider, string>> = {
@@ -115,8 +134,19 @@ export class OpenCodeCliAdapter implements AgentAdapter {
       provider: providerLabel,
     });
 
+    // Construct argv. When `serverUrl` is set, the client subprocess
+    // attaches to a long-running `opencode serve` instance — the heavy
+    // setup (model load, plugin discovery, config parse) already happened
+    // server-side, so the client's job is just to forward the request.
+    // See OpenCodeServer for the lifecycle helper that owns the server.
+    const cliArgs: string[] = ['run'];
+    if (this.opts.serverUrl) {
+      cliArgs.push('--attach', this.opts.serverUrl);
+    }
+    cliArgs.push('--no-mcp', '--model', model, wirePrompt);
+
     return await new Promise<string>((resolve, reject) => {
-      const child = spawn(bin, ['run', '--no-mcp', '--model', model, wirePrompt], {
+      const child = spawn(bin, cliArgs, {
         env,
         stdio: ['ignore', 'pipe', 'pipe'],
       });
