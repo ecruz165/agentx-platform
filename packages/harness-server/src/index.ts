@@ -142,6 +142,12 @@ export {
   type RunEntryCoordinatorResult,
   type CoordinatorPipelineSummary,
 } from './coordinator/entry-coordinator.ts';
+export {
+  buildCheckoutCoordinatorGraph,
+  runCheckoutCoordinator,
+  type RunCheckoutCoordinatorArgs,
+  type RunCheckoutCoordinatorResult,
+} from './coordinator/checkout-coordinator.ts';
 
 /**
  * Synthetic agents harness-server inserts around every pipelined job's
