@@ -81,14 +81,65 @@ export function buildEntryCoordinatorGraph(model: BaseChatModel) {
         new HumanMessage(prompt),
       ]);
       const raw = typeof response.content === 'string' ? response.content : JSON.stringify(response.content);
-      // Take only the first non-empty line, trimmed. LLMs sometimes
-      // disobey "no surrounding text" — first line is usually the id.
-      const decision = raw.split('\n').map((l) => l.trim()).find((l) => l.length > 0) ?? '';
+      const decision = pickPipelineFromResponse(raw, state.availablePipelines);
       return { decision, reasoning: raw };
     })
     .addEdge(START, 'pickPipeline')
     .addEdge('pickPipeline', END);
   return builder.compile();
+}
+
+/**
+ * Extract the pipeline id from the model's free-form response.
+ *
+ * Strategy (most→least specific):
+ *   1. Scan the response for the LAST occurrence of any known pipeline
+ *      id from the available list. Reasoning models like Qwen3-thinking
+ *      often state intermediate options before landing on the final
+ *      answer, so the *last* mention is most likely to be the conclusion.
+ *   2. Look for the literal "NONE" token as a final fallback (the
+ *      system prompt instructs the model to say NONE when no pipeline
+ *      fits).
+ *   3. Fall back to first-non-empty-line — handles obedient models that
+ *      reply with just the bare id and nothing else.
+ *
+ * Exported only for testing — the graph node calls this internally.
+ */
+export function pickPipelineFromResponse(
+  raw: string,
+  availablePipelines: CoordinatorPipelineSummary[]
+): string {
+  // (1) Scan for the LAST known pipeline id mention. Custom-boundary
+  //     matching: not preceded or followed by a word-char OR a hyphen.
+  //     This treats hyphens as part of the id token (so 'docs' won't
+  //     match inside 'docs-update') — necessary because regex `\b`
+  //     considers `-` a word boundary.
+  let bestId = '';
+  let bestPos = -1;
+  for (const p of availablePipelines) {
+    const re = new RegExp(`(?<![\\w-])${escapeRegExp(p.id)}(?![\\w-])`, 'g');
+    for (const match of raw.matchAll(re)) {
+      const pos = match.index ?? -1;
+      if (pos > bestPos) {
+        bestPos = pos;
+        bestId = p.id;
+      }
+    }
+  }
+  if (bestId) return bestId;
+
+  // (2) Look for "NONE" as the model's explicit no-fit signal.
+  if (/\bNONE\b/.test(raw)) return 'NONE';
+
+  // (3) First non-empty line as last-ditch fallback. Won't help with
+  //     thinking-style responses but covers the bare-answer case where
+  //     the model picked something not in the catalog (typo, hallucination)
+  //     — still surfaces the model's choice for caller validation.
+  return raw.split('\n').map((l) => l.trim()).find((l) => l.length > 0) ?? '';
+}
+
+function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 /**

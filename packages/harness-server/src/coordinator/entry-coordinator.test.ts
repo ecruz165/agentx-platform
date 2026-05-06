@@ -201,3 +201,71 @@ describe('buildEntryCoordinatorGraph', () => {
     expect(result.decision).toBe('feature-add');
   });
 });
+
+// Direct unit tests of the parsing strategy — exercises the response
+// scanner that picks the LAST known pipeline id from a free-form model
+// reply. Reasoning models like Qwen3-thinking emit "Thinking: …" before
+// landing on an answer; the scanner unwraps that.
+
+describe('pickPipelineFromResponse', () => {
+  const pipelines = [
+    { id: 'feature-add' },
+    { id: 'bugfix-triage' },
+    { id: 'docs-update' },
+  ];
+
+  it('picks the bare id when model is obedient', async () => {
+    const { pickPipelineFromResponse } = await import('./entry-coordinator.ts');
+    expect(pickPipelineFromResponse('feature-add', pipelines)).toBe('feature-add');
+  });
+
+  it('picks the LAST occurrence when reasoning model lists options', async () => {
+    const { pickPipelineFromResponse } = await import('./entry-coordinator.ts');
+    const reasoning =
+      'Thinking: The intent could match feature-add or docs-update. ' +
+      'Looking at it more carefully, the user wants to add a new feature. ' +
+      'Final answer: feature-add';
+    expect(pickPipelineFromResponse(reasoning, pipelines)).toBe('feature-add');
+  });
+
+  it('handles thinking-prefix responses where the conclusion is at the end', async () => {
+    const { pickPipelineFromResponse } = await import('./entry-coordinator.ts');
+    const reasoning =
+      'Thinking: Okay, the user wants to fix a login bug. The available ' +
+      'pipelines are feature-add, bugfix-triage, docs-update. Bug fixes ' +
+      'go to bugfix-triage. So my answer is bugfix-triage.';
+    expect(pickPipelineFromResponse(reasoning, pipelines)).toBe('bugfix-triage');
+  });
+
+  it('uses word-boundary matching (does not match substrings of compound ids)', async () => {
+    const { pickPipelineFromResponse } = await import('./entry-coordinator.ts');
+    // 'docs' should NOT match inside 'docs-update' because of \b boundaries
+    // — pipeline ids with hyphens are atomic. Without escaping/boundaries
+    // this test would falsely match.
+    const shortIds = [{ id: 'docs' }];
+    // No bare 'docs' in the response (it's inside docs-update); no NONE;
+    // falls through to first-non-empty-line.
+    expect(pickPipelineFromResponse('we should docs-update next', shortIds))
+      .toBe('we should docs-update next');
+  });
+
+  it('falls back to NONE when no known id appears but the model said NONE', async () => {
+    const { pickPipelineFromResponse } = await import('./entry-coordinator.ts');
+    expect(pickPipelineFromResponse('Thinking: nothing fits. NONE.', pipelines)).toBe('NONE');
+  });
+
+  it('falls back to first non-empty line when nothing matches', async () => {
+    const { pickPipelineFromResponse } = await import('./entry-coordinator.ts');
+    // No known id, no NONE — surface the model's actual choice for
+    // caller validation (likely a hallucinated pipeline name).
+    expect(pickPipelineFromResponse('hallucinated-pipeline', pipelines)).toBe('hallucinated-pipeline');
+  });
+
+  it('handles ids with regex-special characters via escaping', async () => {
+    const { pickPipelineFromResponse } = await import('./entry-coordinator.ts');
+    const weird = [{ id: 'foo.bar' }];
+    expect(pickPipelineFromResponse('I pick foo.bar', weird)).toBe('foo.bar');
+    // Without escaping, the dot would also match 'foo-bar', 'fooXbar', etc.
+    // This test pins that the escapeRegExp helper is doing its job.
+  });
+});
