@@ -20,11 +20,14 @@
 import {
   bindingNeedsOpenCode,
   bindingToAdapter,
+  defaultLocalEndpointResolver,
   OpenCodeServer,
   type AgentAdapter,
   type BindingToAdapterOptions,
   type OpenCodeServerOptions,
+  type OpencodeProviderEntry,
 } from '@agentx/agent-adapter';
+import type { ResolvedBinding } from '@agentx/agent-auth-lib';
 import {
   JobBus,
   runJob,
@@ -155,9 +158,19 @@ export async function runHarnessPipeline(
   let ownedServer: OpenCodeServer | null = null;
   let opencodeServerUrl = options.opencodeServerUrl;
   if (!opencodeServerUrl && specNeedsOpenCode(spec)) {
+    // Derive the provider config the server needs to know about — for
+    // every local binding in the spec, register the provider id +
+    // endpoint + the model id with opencode. Without this the server
+    // boots with only built-in providers (anthropic, openai, github-
+    // copilot, opencode), so `--attach` calls for `local-qwen/...` get
+    // ProviderModelNotFoundError. (Cloud bindings to openai/google use
+    // opencode's built-in providers — no derivation needed for those.)
+    const localEndpoint = options.localEndpoint ?? defaultLocalEndpointResolver;
+    const derivedProviders = deriveOpencodeProviders(spec.bindings, localEndpoint);
     ownedServer = new OpenCodeServer();
     const serverOpts: OpenCodeServerOptions = {
       ...(options.opencodeServer ?? {}),
+      ...(Object.keys(derivedProviders).length > 0 ? { providers: derivedProviders } : {}),
       ...(options.tmuxSocket ? { tmuxSocket: options.tmuxSocket } : {}),
     };
     const handle = await ownedServer.start(serverOpts);
@@ -258,4 +271,42 @@ function toRegisteredAgent(agent: SpecAgent): RegisteredAgent {
     config: agent.config,
     status: 'pending',
   };
+}
+
+/**
+ * Walk spec.bindings and produce the provider config the opencode-server
+ * needs to know about. For each LOCAL binding, register the provider id
+ * with its baseURL + the model id under `models`. Cloud bindings (openai
+ * / google) use opencode's built-in providers and need no entry here.
+ *
+ * Multiple agents using the same local provider with different models
+ * are merged: one provider entry, all model ids registered under
+ * `models`. (Same auth applies to any local-qwen model — there's no
+ * model-scoped auth on a custom OpenAI-compatible endpoint.)
+ *
+ * Exported for tests + external callers (the harness-server's
+ * coordinator-scoped opencode-server uses the same shape).
+ */
+export function deriveOpencodeProviders(
+  bindings: Record<string, ResolvedBinding>,
+  localEndpoint: (providerId: string) => string | undefined
+): Record<string, OpencodeProviderEntry> {
+  const providers: Record<string, OpencodeProviderEntry> = {};
+  for (const binding of Object.values(bindings)) {
+    if (binding.kind !== 'local') continue;
+    const endpoint = localEndpoint(binding.provider.id);
+    if (!endpoint) continue;
+    const modelId = binding.model.vendorModelId ?? binding.model.id;
+    const existing = providers[binding.provider.id];
+    if (existing) {
+      // Same provider, additional model — register it.
+      (existing.models ??= {})[modelId] = {};
+    } else {
+      providers[binding.provider.id] = {
+        options: { baseURL: endpoint, apiKey: 'no-auth-required' },
+        models: { [modelId]: {} },
+      };
+    }
+  }
+  return providers;
 }

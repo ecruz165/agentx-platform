@@ -24,8 +24,9 @@
  */
 
 import { spawn as defaultSpawn, type ChildProcess } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync } from 'node:fs';
-import { dirname } from 'node:path';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join } from 'node:path';
 
 /** Spawn function signature, compatible with node:child_process spawn(). */
 export type SpawnFn = (
@@ -66,6 +67,38 @@ export interface OpenCodeServerOptions {
   logPath?: string;
   /** Polling interval for the logfile in tmux mode. Default: 100ms. */
   pollIntervalMs?: number;
+
+  /**
+   * Provider configurations to write into the server's opencode.json
+   * before spawning. Keyed by provider id. The server loads these at
+   * boot and resolves `--attach` clients' model specs against this
+   * registry. Per memory `project_lazy_resource_acquisition`:
+   * harness-pipeline derives this map from `spec.bindings` so the server
+   * knows about the same custom OpenAI-compatible endpoints (DMR, etc.)
+   * the agents will need.
+   *
+   * When unset, the server boots with only its built-in providers
+   * (anthropic, openai, github-copilot, opencode). Custom providers like
+   * `local-qwen` won't resolve and `--attach` clients will get
+   * ProviderModelNotFoundError.
+   */
+  providers?: Record<string, OpencodeProviderEntry>;
+}
+
+/**
+ * Shape of one provider's entry in opencode.json. Mirrors what
+ * OpenCodeCliAdapter's makeOpencodeConfigDir already writes for the
+ * client side — same shape on both sides means no surprise.
+ */
+export interface OpencodeProviderEntry {
+  options: {
+    baseURL: string;
+    apiKey?: string;
+  };
+  /** Models to register on this provider. opencode 1.4 throws
+   *  ProviderModelNotFoundError if the requested model isn't in here,
+   *  even for OpenAI-compatible custom providers. */
+  models?: Record<string, Record<string, unknown>>;
 }
 
 export interface OpenCodeServerHandle {
@@ -86,6 +119,9 @@ export class OpenCodeServer {
   private child: ChildProcess | null = null;
   private handle: OpenCodeServerHandle | null = null;
   private tmuxState: { socket: string; session: string; logPath: string; spawnFn: SpawnFn } | null = null;
+  /** When the server is started with `providers`, we create a temp
+   *  XDG_CONFIG_HOME with opencode.json. Track it for cleanup on kill(). */
+  private ownedConfigDir: string | null = null;
 
   get url(): string | null {
     return this.handle?.url ?? null;
@@ -101,10 +137,20 @@ export class OpenCodeServer {
     const bin = opts.bin ?? 'opencode';
     const pure = opts.pure !== false;
 
-    if (opts.tmuxSocket) {
-      return await this.startInTmux({ ...opts, port, hostname, bin, pure });
+    // If providers are supplied, write a server-side opencode.json under
+    // a temp XDG_CONFIG_HOME so the server boots with custom-provider
+    // knowledge. Cleaned up in kill().
+    let env = opts.env;
+    if (opts.providers && Object.keys(opts.providers).length > 0) {
+      this.ownedConfigDir = writeServerConfigDir(opts.providers);
+      env = { ...env, XDG_CONFIG_HOME: this.ownedConfigDir };
     }
-    return await this.startDirect({ ...opts, port, hostname, bin, pure });
+    const optsForStart = { ...opts, env, port, hostname, bin, pure };
+
+    if (opts.tmuxSocket) {
+      return await this.startInTmux(optsForStart);
+    }
+    return await this.startDirect(optsForStart);
   }
 
   /** Direct-spawn mode: original behavior, reads stderr for detection. */
@@ -259,15 +305,20 @@ export class OpenCodeServer {
   }
 
   /** SIGTERM the server, then SIGKILL after grace. Idempotent. In tmux
-   *  mode, runs `tmux kill-session` instead. */
+   *  mode, runs `tmux kill-session` instead. Cleans up any owned
+   *  XDG_CONFIG_HOME directory created by the providers option. */
   async kill(graceMs = 5000): Promise<void> {
     if (this.tmuxState) {
       await this.killTmux();
       this.handle = null;
+      this.cleanupConfigDir();
       return;
     }
     const child = this.child;
-    if (!child) return;
+    if (!child) {
+      this.cleanupConfigDir();
+      return;
+    }
     this.child = null;
     this.handle = null;
     try { child.kill('SIGTERM'); } catch { /* may already be dead */ }
@@ -280,6 +331,13 @@ export class OpenCodeServer {
       }, graceMs);
       child.on('exit', () => { clearTimeout(timer); settle(); });
     });
+    this.cleanupConfigDir();
+  }
+
+  private cleanupConfigDir(): void {
+    if (!this.ownedConfigDir) return;
+    try { rmSync(this.ownedConfigDir, { recursive: true, force: true }); } catch { /* best effort */ }
+    this.ownedConfigDir = null;
   }
 
   private async killTmux(): Promise<void> {
@@ -350,4 +408,24 @@ function tailString(s: string, max = 600): string {
  *  port string, log path) but explicit escaping is cheap insurance. */
 function shellQuote(s: string): string {
   return `'${s.replace(/'/g, `'\\''`)}'`;
+}
+
+/** Create a temp XDG_CONFIG_HOME with `opencode/opencode.json` containing
+ *  the given providers map. Path convention follows what opencode 1.4
+ *  expects: `<XDG_CONFIG_HOME>/opencode/opencode.json` (verified via
+ *  --print-logs). Caller is responsible for deleting the returned dir
+ *  on teardown — OpenCodeServer.kill() does this for instances that own
+ *  the dir. */
+function writeServerConfigDir(
+  providers: Record<string, OpencodeProviderEntry>
+): string {
+  const dir = mkdtempSync(join(tmpdir(), 'opencode-server-cfg-'));
+  const opencodeDir = join(dir, 'opencode');
+  mkdirSync(opencodeDir, { recursive: true, mode: 0o700 });
+  writeFileSync(
+    join(opencodeDir, 'opencode.json'),
+    JSON.stringify({ mcp: {}, provider: providers }, null, 2),
+    { mode: 0o600 }
+  );
+  return dir;
 }

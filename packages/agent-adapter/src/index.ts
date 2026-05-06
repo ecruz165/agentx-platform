@@ -10,6 +10,7 @@ export {
   OpenCodeServerError,
   type OpenCodeServerOptions,
   type OpenCodeServerHandle,
+  type OpencodeProviderEntry,
 } from './opencode-server.ts';
 export {
   bindingToAdapter,

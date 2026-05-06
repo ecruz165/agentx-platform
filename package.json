@@ -35,6 +35,7 @@
     "@agentx/edge-memory-server": "workspace:*",
     "@agentx/harness-cli": "workspace:*",
     "@agentx/harness-core": "workspace:*",
+    "@agentx/harness-pipeline": "workspace:*",
     "@agentx/harness-server": "workspace:*"
   },
   "devDependencies": {
