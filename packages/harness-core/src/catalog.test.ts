@@ -250,6 +250,150 @@ describe('loadCatalog', () => {
   });
 });
 
+describe('loadCatalog — fallbackOn (slice 13c per-agent policy)', () => {
+  const created: string[] = [];
+  afterEach(async () => {
+    for (const path of created.splice(0)) {
+      await rm(path, { force: true, recursive: true });
+    }
+  });
+
+  const writeCatalog = async (workspaceRoot: string, body: object) => {
+    const dir = join(workspaceRoot, '.harness', 'config');
+    await mkdir(dir, { recursive: true });
+    await writeFile(join(dir, 'pipelines.json'), JSON.stringify(body, null, 2), 'utf8');
+  };
+
+  it('parses a valid fallbackOn list', async () => {
+    const ws = tmpWorkspace();
+    created.push(ws);
+    await writeCatalog(ws, {
+      pipelines: [
+        {
+          id: 'p',
+          agents: [
+            {
+              id: 'a',
+              role: 'A',
+              adapter: 'claude-sdk',
+              fallbackOn: ['BillingError', 'RateLimitError'],
+            },
+          ],
+        },
+      ],
+    });
+
+    const catalog = await loadCatalog(ws);
+    expect(catalog.pipelines[0]?.agents[0]?.fallbackOn).toEqual([
+      'BillingError',
+      'RateLimitError',
+    ]);
+  });
+
+  it('parses an empty fallbackOn list (explicit opt-out)', async () => {
+    const ws = tmpWorkspace();
+    created.push(ws);
+    await writeCatalog(ws, {
+      pipelines: [
+        {
+          id: 'p',
+          agents: [
+            { id: 'a', role: 'A', adapter: 'claude-sdk', fallbackOn: [] },
+          ],
+        },
+      ],
+    });
+
+    const catalog = await loadCatalog(ws);
+    expect(catalog.pipelines[0]?.agents[0]?.fallbackOn).toEqual([]);
+  });
+
+  it('parses agent without fallbackOn (uses default)', async () => {
+    const ws = tmpWorkspace();
+    created.push(ws);
+    await writeCatalog(ws, {
+      pipelines: [
+        {
+          id: 'p',
+          agents: [{ id: 'a', role: 'A', adapter: 'claude-sdk' }],
+        },
+      ],
+    });
+
+    const catalog = await loadCatalog(ws);
+    expect(catalog.pipelines[0]?.agents[0]?.fallbackOn).toBeUndefined();
+  });
+
+  it('throws when fallbackOn is not an array', async () => {
+    const ws = tmpWorkspace();
+    created.push(ws);
+    await writeCatalog(ws, {
+      pipelines: [
+        {
+          id: 'p',
+          agents: [
+            { id: 'a', role: 'A', adapter: 'claude-sdk', fallbackOn: 'BillingError' },
+          ],
+        },
+      ],
+    });
+
+    await expect(loadCatalog(ws)).rejects.toThrow(/must be an array of AdapterError subclass names/);
+  });
+
+  it('throws on unknown error class name (closed validation set)', async () => {
+    const ws = tmpWorkspace();
+    created.push(ws);
+    await writeCatalog(ws, {
+      pipelines: [
+        {
+          id: 'p',
+          agents: [
+            { id: 'a', role: 'A', adapter: 'claude-sdk', fallbackOn: ['MysteryError'] },
+          ],
+        },
+      ],
+    });
+
+    await expect(loadCatalog(ws)).rejects.toThrow(/not a known AdapterError subclass/);
+  });
+
+  it('accepts AdapterError as wildcard', async () => {
+    const ws = tmpWorkspace();
+    created.push(ws);
+    await writeCatalog(ws, {
+      pipelines: [
+        {
+          id: 'p',
+          agents: [
+            { id: 'a', role: 'A', adapter: 'claude-sdk', fallbackOn: ['AdapterError'] },
+          ],
+        },
+      ],
+    });
+
+    const catalog = await loadCatalog(ws);
+    expect(catalog.pipelines[0]?.agents[0]?.fallbackOn).toEqual(['AdapterError']);
+  });
+
+  it('throws on empty string entry', async () => {
+    const ws = tmpWorkspace();
+    created.push(ws);
+    await writeCatalog(ws, {
+      pipelines: [
+        {
+          id: 'p',
+          agents: [
+            { id: 'a', role: 'A', adapter: 'claude-sdk', fallbackOn: [''] },
+          ],
+        },
+      ],
+    });
+
+    await expect(loadCatalog(ws)).rejects.toThrow(/must be a non-empty string/);
+  });
+});
+
 describe('findPipeline', () => {
   const catalog: PipelineCatalog = {
     pipelines: [

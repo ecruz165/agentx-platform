@@ -3,6 +3,7 @@ import { chmod, mkdir, unlink } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import {
   JobBus,
+  TokenAccumulator,
   findPipeline,
   findProduct,
   resolveAccepts,
@@ -217,10 +218,15 @@ export async function startHarnessServer(opts: HarnessServerOptions): Promise<Ha
     );
   }
   const jobs = new Map<string, JobRecord>();
+  // TokenAccumulator subscribes to the JobBus per-job and mutates the
+  // JobRecord with per-call usage history + running totals (slice 13d).
+  // One instance per server, attached lazily as jobs are created.
+  const tokens = new TokenAccumulator(jobs);
   const ctx: ServerCtx = {
     bus,
     catalog,
     jobs,
+    tokens,
     broker: opts.broker,
     adapterFactory: opts.adapterFactory,
     resolver: opts.resolver,
@@ -253,6 +259,10 @@ interface ServerCtx {
   bus: JobBus;
   catalog: Catalog;
   jobs: Map<string, JobRecord>;
+  /** Per-server token accumulator (slice 13d). Attached at job-create
+   *  before the orchestrator fires; mutates JobRecord with per-call
+   *  history + running totals. Detached when the job ends. */
+  tokens: TokenAccumulator;
   broker?: CredentialBroker;
   adapterFactory?: AdapterFactory;
   resolver?: BindingResolver;
@@ -484,6 +494,13 @@ async function handleSubmitJob(
   };
   ctx.jobs.set(jobId, job);
 
+  // Slice 13d: attach the token accumulator BEFORE runJob fires.
+  // JobBus drops events when nobody's subscribed for a jobId
+  // (job-bus.ts:25-27), so any later attach would miss the first
+  // adapter response. Detach happens via runJob's onStatusChange when
+  // the job reaches a terminal state.
+  ctx.tokens.attach(ctx.bus, jobId);
+
   ok(res, {
     service: 'harness',
     method: 'POST',
@@ -500,6 +517,7 @@ async function handleSubmitJob(
     const broker = ctx.broker;
     const adapterFactory = ctx.adapterFactory;
     const resolver = ctx.resolver;
+    const tokens = ctx.tokens;
     queueMicrotask(() => {
       void runJob(jobId, {
         jobs: ctx.jobs,
@@ -507,6 +525,15 @@ async function handleSubmitJob(
         broker,
         adapterFactory,
         resolver,
+        onStatusChange: (_jid, agentId, status) => {
+          // Detach the accumulator when the job reaches a terminal
+          // state at the JOB level (agentId is null for job-level
+          // transitions). Agents flipping to completed/failed don't
+          // detach — only the whole-job transition does.
+          if (agentId === null && (status === 'completed' || status === 'failed')) {
+            tokens.detach(jobId);
+          }
+        },
       });
     });
   }
@@ -941,6 +968,7 @@ function registeredFromDef(def: AgentDef, setName: string): RegisteredAgent {
     status: 'pending',
     config: def.config,
     accepts: resolveAccepts(def, setName),
+    fallbackOn: def.fallbackOn,
   };
 }
 

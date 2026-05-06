@@ -28,7 +28,7 @@ class TestAdapter implements AgentAdapter {
 
   constructor(
     private readonly behavior:
-      | { kind: 'ok'; reply: string }
+      | { kind: 'ok'; reply: string; usage?: { promptTokens?: number; completionTokens?: number } }
       | { kind: 'throw'; message: string }
   ) {}
 
@@ -53,6 +53,7 @@ class TestAdapter implements AgentAdapter {
       kind: 'response',
       ts: new Date().toISOString(),
       text: this.behavior.reply,
+      ...(this.behavior.usage ? { usage: this.behavior.usage } : {}),
     });
     return this.behavior.reply;
   }
@@ -126,6 +127,107 @@ describe('orchestrator wired into POST /v1/jobs', () => {
 
     // Each pipeline agent triggered the factory.
     expect(factoryCalls).toHaveLength(3);
+  });
+
+  it('aggregates per-agent + per-job tokens onto the JobRecord (slice 13d)', async () => {
+    const socketPath = tmpSocket();
+    let factoryIndex = 0;
+    // Each agent reports distinct usage so we can verify the per-agent
+    // numbers stay separate AND the job total sums correctly.
+    const usagesByOrder = [
+      { promptTokens: 100, completionTokens: 30 }, // planner
+      { promptTokens: 200, completionTokens: 40 }, // implementer
+      { promptTokens: 300, completionTokens: 50 }, // reviewer
+    ];
+    const handle = await startHarnessServer({
+      socketPath,
+      catalog: sampleCatalog,
+      broker: dummyBroker,
+      adapterFactory: () => {
+        const usage = usagesByOrder[factoryIndex++];
+        return new TestAdapter({
+          kind: 'ok',
+          reply: `out-${factoryIndex}`,
+          ...(usage ? { usage } : {}),
+        });
+      },
+    });
+    cleanups.push(async () => {
+      await handle.stop();
+      await rm(socketPath, { force: true });
+    });
+
+    await udsJson(socketPath, 'POST', '/v1/jobs', {
+      jobId: 'j-tokens',
+      pipeline: 'feature-add',
+      input: 'measure me',
+    });
+
+    await waitFor(async () => {
+      const detail = await udsJson(socketPath, 'GET', '/v1/jobs/j-tokens');
+      return detail.body.job.status === 'completed';
+    });
+
+    const detail = await udsJson(socketPath, 'GET', '/v1/jobs/j-tokens');
+    const job = detail.body.job as {
+      tokens?: { in: number; out: number };
+      agents: Array<{ id: string; tokens?: { in: number; out: number }; tokenHistory?: Array<{ in: number; out: number }> }>;
+    };
+
+    // Per-job total = sum of per-agent totals.
+    expect(job.tokens).toEqual({ in: 600, out: 120 });
+
+    // Per-agent breakdown.
+    const planner = job.agents.find((a) => a.id === 'planner');
+    const implementer = job.agents.find((a) => a.id === 'implementer');
+    const reviewer = job.agents.find((a) => a.id === 'reviewer');
+    expect(planner?.tokens).toEqual({ in: 100, out: 30 });
+    expect(implementer?.tokens).toEqual({ in: 200, out: 40 });
+    expect(reviewer?.tokens).toEqual({ in: 300, out: 50 });
+
+    // Per-call history (one entry per response event with usage).
+    expect(planner?.tokenHistory).toEqual([{ in: 100, out: 30 }]);
+    expect(implementer?.tokenHistory).toEqual([{ in: 200, out: 40 }]);
+    expect(reviewer?.tokenHistory).toEqual([{ in: 300, out: 50 }]);
+
+    // Synthetic coordinators are skipped — they never emitted, so their
+    // token fields stay undefined.
+    const coord = job.agents.find((a) => a.id === 'coordinator');
+    expect(coord?.tokens).toBeUndefined();
+    expect(coord?.tokenHistory).toBeUndefined();
+  });
+
+  it('leaves token fields undefined when adapters never report usage', async () => {
+    const socketPath = tmpSocket();
+    const handle = await startHarnessServer({
+      socketPath,
+      catalog: sampleCatalog,
+      broker: dummyBroker,
+      adapterFactory: () => new TestAdapter({ kind: 'ok', reply: 'silent' }),
+    });
+    cleanups.push(async () => {
+      await handle.stop();
+      await rm(socketPath, { force: true });
+    });
+
+    await udsJson(socketPath, 'POST', '/v1/jobs', {
+      jobId: 'j-no-usage',
+      pipeline: 'feature-add',
+      input: 'silent',
+    });
+
+    await waitFor(async () => {
+      const detail = await udsJson(socketPath, 'GET', '/v1/jobs/j-no-usage');
+      return detail.body.job.status === 'completed';
+    });
+
+    const detail = await udsJson(socketPath, 'GET', '/v1/jobs/j-no-usage');
+    const job = detail.body.job;
+    expect(job.tokens).toBeUndefined();
+    for (const a of job.agents) {
+      expect(a.tokens).toBeUndefined();
+      expect(a.tokenHistory).toBeUndefined();
+    }
   });
 
   it('without a broker, registration succeeds but agents never leave pending', async () => {

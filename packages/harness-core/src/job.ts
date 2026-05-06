@@ -2,6 +2,26 @@ import type { AdapterId } from './catalog.ts';
 
 export type AgentStatus = 'pending' | 'running' | 'completed' | 'failed';
 
+/**
+ * Per-call token usage: input ("provided", what was sent to the LLM)
+ * + output ("emitted", what the LLM returned). One pair per LLM
+ * round-trip. Adapters report these via `TokenUsage` on their
+ * `response` events; `TokenAccumulator` is the consumer that turns
+ * the event stream into per-agent + per-job totals on the JobRecord.
+ *
+ * Sum semantics: `out` adds cleanly across calls. `in` does NOT —
+ * provider APIs report `prompt_tokens` as the FULL context sent THIS
+ * call (which on multi-turn agents includes prior turns
+ * reaccumulated). Adding `in` across a multi-turn agent overcounts
+ * the actual context size; it accurately represents BILLED input
+ * tokens. Renderers should label this honestly ("billed" not
+ * "context").
+ */
+export interface AgentTokens {
+  readonly in: number;
+  readonly out: number;
+}
+
 export interface RegisteredAgent {
   id: string;
   role: string;
@@ -22,6 +42,48 @@ export interface RegisteredAgent {
    * through to the existing `adapter`-id-based factory.
    */
   accepts?: readonly string[];
+  /**
+   * Per-call token usage history. One entry per `response` event with
+   * `usage` that the agent emitted. Empty/undefined for not-yet-
+   * invoked agents and for agents whose adapters never reported usage
+   * (e.g., loaders, future synthetic agents).
+   *
+   * Mutated in place by `TokenAccumulator` as `response` events flow
+   * across the JobBus. Persistence layers (sqlite/postgres) should
+   * treat this as an in-flight mutable field, not append-only after
+   * job completion.
+   */
+  tokenHistory?: AgentTokens[];
+  /**
+   * Running per-agent total — `tokenHistory.reduce(sum)`. Maintained
+   * eagerly by `TokenAccumulator` so reads (API serialization, TUI
+   * render) don't have to recompute. See `AgentTokens` doc for sum
+   * semantics caveat.
+   */
+  tokens?: AgentTokens;
+  /**
+   * Per-agent runtime-fallback policy. Names of `AdapterError`
+   * subclasses (matched against `error.name`) that should trigger
+   * fall-through to the next satisfiable binding when the current
+   * binding throws.
+   *
+   * Unset → defaults to {@link DEFAULT_FALLBACK_ERRORS}: the recoverable
+   * subset (BillingError, RateLimitError, NetworkError, ProviderError).
+   * AuthError and ConfigError are intentionally excluded from the
+   * default — both signal a structurally broken binding that needs
+   * human action (re-auth, fix catalog) rather than silent retry.
+   *
+   * Override examples:
+   *   - `['BillingError']` — only fall through on credit/quota issues
+   *   - `['BillingError', 'RateLimitError', 'AuthError']` — also retry
+   *     across providers when one's auth fails
+   *   - `[]` — never fall back; the first binding's failure is terminal
+   *
+   * Per slice 13c (`project_per_worker_model_subscription`-aware
+   * runtime fallback). Copied from AgentDef.fallbackOn at job
+   * registration.
+   */
+  fallbackOn?: readonly string[];
 }
 
 export interface JobRecord {
@@ -34,5 +96,12 @@ export interface JobRecord {
   submittedAt: string;
   status: string;
   agents: RegisteredAgent[];
+  /**
+   * Job-level cumulative tokens — sum of every agent's running total.
+   * Maintained eagerly by `TokenAccumulator` so the API and TUI can
+   * read without recomputation. See `AgentTokens` doc for sum
+   * semantics: input numbers are billed-tokens not context-size.
+   */
+  tokens?: AgentTokens;
   [key: string]: unknown;
 }

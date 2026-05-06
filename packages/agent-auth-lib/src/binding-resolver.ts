@@ -55,9 +55,17 @@ export type ResolvedBinding =
  * Public interface for binding resolution. Kept separate from
  * `CredentialBroker` so future brokers can be wrapped uniformly without
  * each broker implementation having to ship its own resolver.
+ *
+ * `resolveAllBindings` is optional so the orchestrator can keep working
+ * with stub resolvers that only implement single-binding resolution
+ * (the slice 8 contract). When present, the orchestrator uses it to
+ * power slice 13c runtime fallback — invoking each binding in priority
+ * order and walking to the next one if the current one throws an
+ * `AdapterError`.
  */
 export interface BindingResolver {
   resolveBinding(accepts: readonly string[]): Promise<ResolvedBinding>;
+  resolveAllBindings?(accepts: readonly string[]): Promise<ResolvedBinding[]>;
 }
 
 /**
@@ -121,6 +129,56 @@ export async function resolveBindingFor(
 }
 
 /**
+ * Pure-function variant of `resolveAllBindings` — returns every accept-list
+ * entry that is currently satisfiable, preserving priority order.
+ *
+ * Contract differs from `resolveBindingFor` in two ways:
+ *   1. Never throws when the list is empty / nothing is satisfiable. Returns
+ *      `[]`. "Give me everything that works" is a value query; an empty
+ *      answer is a valid answer. Callers that need failure-on-empty (e.g.,
+ *      the orchestrator at agent-launch time) check `.length === 0`
+ *      themselves.
+ *   2. Per-entry credential failures are silent, not collected into a
+ *      diagnostic list. The fallback consumer doesn't need to know "why"
+ *      anthropic was unauthenticated — just that it wasn't, and openai
+ *      was. (For pre-flight diagnostics, callers should still use
+ *      `resolveBindingFor` which collects failures.)
+ *
+ * Used by slice 13c runtime fallback: enumerate satisfiable candidates
+ * once, walk them in order if upstream errors classify as recoverable.
+ */
+export async function resolveAllBindingsFor(
+  accepts: readonly string[],
+  getCredentialOrThrow: (id: Provider) => Promise<Credential>
+): Promise<ResolvedBinding[]> {
+  const out: ResolvedBinding[] = [];
+  for (const entry of accepts) {
+    const binding = findBinding(entry);
+    if (!binding) continue;
+    const { tool, provider, model } = binding;
+    if (provider.authMethods.length === 0) {
+      out.push(
+        tool !== undefined
+          ? { kind: 'local', tool, provider, model }
+          : { kind: 'local', provider, model }
+      );
+      continue;
+    }
+    try {
+      const credential = await getCredentialOrThrow(provider.id);
+      out.push(
+        tool !== undefined
+          ? { kind: 'cloud', tool, provider, model, credential }
+          : { kind: 'cloud', provider, model, credential }
+      );
+    } catch {
+      // skip unsatisfiable entry — no diagnostic, see contract above
+    }
+  }
+  return out;
+}
+
+/**
  * Default `BindingResolver` implementation that composes any
  * `CredentialBroker`. Use this rather than re-implementing the resolver
  * algorithm per broker — `FileBroker` (local), `SecretsManagerBroker`
@@ -132,5 +190,9 @@ export class DefaultBindingResolver implements BindingResolver {
 
   resolveBinding(accepts: readonly string[]): Promise<ResolvedBinding> {
     return resolveBindingFor(accepts, (id) => this.broker.getCredential(id));
+  }
+
+  resolveAllBindings(accepts: readonly string[]): Promise<ResolvedBinding[]> {
+    return resolveAllBindingsFor(accepts, (id) => this.broker.getCredential(id));
   }
 }

@@ -27,8 +27,10 @@ export { JobBus, bridgeAdapter, type Envelope } from './job-bus.ts';
 export {
   runJob,
   defaultAdapterFactory,
+  DEFAULT_FALLBACK_ERRORS,
   type AdapterFactory,
   type RunJobDeps,
 } from './orchestrator.ts';
 
-export type { AgentStatus, RegisteredAgent, JobRecord } from './job.ts';
+export type { AgentStatus, RegisteredAgent, JobRecord, AgentTokens } from './job.ts';
+export { TokenAccumulator } from './token-accumulator.ts';

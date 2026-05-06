@@ -69,6 +69,27 @@ export interface AgentDef {
    * orchestrator does this when registering agents for a job.
    */
   accepts?: readonly string[] | Readonly<Record<string, readonly string[]>>;
+  /**
+   * Per-agent runtime-fallback policy. Names of `AdapterError` subclasses
+   * (matched against `error.name`) that should trigger fall-through to
+   * the next satisfiable binding when the current binding throws.
+   *
+   * Unset → uses the default recoverable set (BillingError,
+   * RateLimitError, NetworkError, ProviderError). AuthError + ConfigError
+   * are excluded by default because they signal structural problems
+   * (revoked key, missing model) — silent retry across providers is
+   * usually the wrong action; surface to the operator instead.
+   *
+   * Set to `[]` to disable fallback entirely for this agent (any error
+   * is terminal, even if other accept-list entries are satisfiable).
+   *
+   * Per slice 13c per-agent customization: catalog authors who want
+   * "never silently switch providers when an auth error occurs"
+   * default behavior get it for free; pipelines that explicitly want
+   * cross-provider auth retry opt in via `fallbackOn: [...,
+   * 'AuthError']`.
+   */
+  fallbackOn?: readonly string[];
 }
 
 export interface PipelineDef {
@@ -241,6 +262,46 @@ function validateCatalog(value: unknown, path: string): asserts value is Pipelin
       if (agent.accepts !== undefined) {
         validateAcceptsField(agent.accepts, `${path}: pipelines[${i}].agents[${j}].accepts`);
       }
+      if (agent.fallbackOn !== undefined) {
+        validateFallbackOnField(
+          agent.fallbackOn,
+          `${path}: pipelines[${i}].agents[${j}].fallbackOn`
+        );
+      }
+    }
+  }
+}
+
+/** Closed set of valid AdapterError names accepted in `fallbackOn`. Kept
+ *  in sync with the class hierarchy in `agent-adapter/src/errors.ts`.
+ *  We don't import from agent-adapter to avoid the package-graph cycle
+ *  (harness-core ← agent-adapter); validation is done by string match. */
+const VALID_FALLBACK_ERROR_NAMES = new Set<string>([
+  'AdapterError', // wildcard — falls back on any classified error
+  'AuthError',
+  'BillingError',
+  'RateLimitError',
+  'ConfigError',
+  'NetworkError',
+  'ProviderError',
+]);
+
+function validateFallbackOnField(value: unknown, where: string): void {
+  if (!Array.isArray(value)) {
+    throw new CatalogError(
+      `${where} must be an array of AdapterError subclass names ` +
+        `(e.g., ["BillingError", "RateLimitError"]) — got ${typeof value}`
+    );
+  }
+  for (const [k, entry] of value.entries()) {
+    if (typeof entry !== 'string' || !entry) {
+      throw new CatalogError(`${where}[${k}] must be a non-empty string`);
+    }
+    if (!VALID_FALLBACK_ERROR_NAMES.has(entry)) {
+      throw new CatalogError(
+        `${where}[${k}] = "${entry}" is not a known AdapterError subclass. ` +
+          `Valid: ${[...VALID_FALLBACK_ERROR_NAMES].sort().join(', ')}`
+      );
     }
   }
 }

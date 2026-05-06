@@ -26,6 +26,7 @@ export {
   BindingResolutionError,
   DefaultBindingResolver,
   resolveBindingFor,
+  resolveAllBindingsFor,
   type BindingResolver,
   type ResolvedBinding,
 } from './binding-resolver.ts';

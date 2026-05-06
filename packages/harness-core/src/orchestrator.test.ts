@@ -1,11 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import {
   AdapterEventBus,
+  AuthError,
+  BillingError,
+  RateLimitError,
   type AdapterEvent,
   type AgentAdapter,
   type InvocationSpec,
 } from '@agentx/agent-adapter';
-import type { CredentialBroker } from '@agentx/agent-auth-lib';
+import type { CredentialBroker, ResolvedBinding } from '@agentx/agent-auth-lib';
 import type { PipelineCatalog } from './catalog.ts';
 import { JobBus } from './job-bus.ts';
 import type { JobRecord } from './job.ts';
@@ -428,6 +431,46 @@ describe('runJob — accepts-aware adapter selection', () => {
     expect(job.status).toBe('completed');
   });
 
+  it('marks job failed when resolveAllBindings returns empty (no satisfiable binding)', async () => {
+    const jobs = new Map<string, JobRecord>();
+    const bus = new JobBus();
+    const job: JobRecord = {
+      jobId: 'j-empty-bindings',
+      pipeline: 'feature-add',
+      status: 'received',
+      submittedAt: 'now',
+      input: 'do it',
+      agents: [
+        {
+          id: 'planner',
+          role: 'Plan',
+          adapter: 'claude-sdk',
+          status: 'pending',
+          accepts: ['anthropic:claude-haiku-4-5', 'openai:gpt-4o'],
+        },
+      ],
+    };
+    jobs.set('j-empty-bindings', job);
+
+    await runJob('j-empty-bindings', {
+      jobs,
+      bus,
+      broker: dummyBroker,
+      resolver: {
+        async resolveBinding(): Promise<ResolvedBinding> {
+          throw new Error('not used in this test');
+        },
+        async resolveAllBindings() {
+          // Nothing satisfiable — empty list.
+          return [];
+        },
+      },
+    });
+
+    expect(job.status).toBe('failed');
+    expect(job.agents[0]?.status).toBe('failed');
+  });
+
   it('marks job failed when resolver throws BindingResolutionError-style', async () => {
     const jobs = new Map<string, JobRecord>();
     const bus = new JobBus();
@@ -463,5 +506,698 @@ describe('runJob — accepts-aware adapter selection', () => {
 
     expect(job.status).toBe('failed');
     expect(job.agents[0]?.status).toBe('failed');
+  });
+});
+
+describe('runJob — slice 13c runtime fallback', () => {
+  // Helpers ────────────────────────────────────────────────────────────────
+
+  /** Build a fake `cloud` ResolvedBinding for a given provider/model.
+   *  The orchestrator passes this to `bindingToAdapterFn`; tests use the
+   *  provider id as a routing key inside their factory. */
+  function fakeBinding(providerId: string, modelId: string): ResolvedBinding {
+    return {
+      kind: 'cloud',
+      provider: {
+        id: providerId as never,
+        name: providerId,
+        authMethods: ['api-key'],
+        models: [],
+      },
+      model: { id: modelId, type: 'text' },
+      credential: { provider: providerId as never, apiKey: 'stub', source: 'host-file' },
+    };
+  }
+
+  /** Adapter that fails at invoke time with the given error, for fallback
+   *  tests. Distinct from TestAdapter because it doesn't emit its own
+   *  error event (we want to verify the orchestrator's fallback message
+   *  ends up on the bus, not double-counting the adapter's own error). */
+  class FailingAdapter implements AgentAdapter {
+    readonly events = new AdapterEventBus();
+    constructor(private readonly err: Error) {}
+    async invoke(_spec: InvocationSpec): Promise<string> {
+      this.events.emit({
+        kind: 'request',
+        ts: new Date().toISOString(),
+        user: _spec.user,
+        model: 'fail-model',
+      });
+      throw this.err;
+    }
+  }
+
+  it('falls through on BillingError to the next satisfiable binding', async () => {
+    const jobs = new Map<string, JobRecord>();
+    const bus = new JobBus();
+    const job: JobRecord = {
+      jobId: 'j-fallback-billing',
+      pipeline: 'feature-add',
+      status: 'received',
+      submittedAt: 'now',
+      input: 'go',
+      agents: [
+        {
+          id: 'planner',
+          role: 'Plan',
+          adapter: 'claude-sdk',
+          systemPrompt: 'plan it',
+          status: 'pending',
+          accepts: ['anthropic:claude-haiku-4-5', 'openai:gpt-4o'],
+        },
+      ],
+    };
+    jobs.set('j-fallback-billing', job);
+
+    await runJob('j-fallback-billing', {
+      jobs,
+      bus,
+      broker: dummyBroker,
+      resolver: {
+        async resolveBinding(): Promise<ResolvedBinding> {
+          throw new Error('should not be reached when resolveAllBindings is present');
+        },
+        async resolveAllBindings() {
+          return [
+            fakeBinding('anthropic', 'claude-haiku-4-5'),
+            fakeBinding('openai', 'gpt-4o'),
+          ];
+        },
+      },
+      bindingToAdapterFn: (binding) => {
+        if (binding.provider.id === 'anthropic') {
+          return new FailingAdapter(new BillingError('credit balance too low'));
+        }
+        return new TestAdapter({ kind: 'ok', reply: 'served-by-openai' });
+      },
+    });
+
+    expect(job.status).toBe('completed');
+    expect(job.agents[0]?.status).toBe('completed');
+  });
+
+  it('falls through on RateLimitError to the next satisfiable binding', async () => {
+    const jobs = new Map<string, JobRecord>();
+    const bus = new JobBus();
+    const job: JobRecord = {
+      jobId: 'j-fallback-rate',
+      status: 'received',
+      submittedAt: 'now',
+      input: 'go',
+      agents: [
+        {
+          id: 'planner',
+          role: 'Plan',
+          adapter: 'claude-sdk',
+          systemPrompt: 'plan it',
+          status: 'pending',
+          accepts: ['anthropic:claude-haiku-4-5', 'openai:gpt-4o'],
+        },
+      ],
+    };
+    jobs.set('j-fallback-rate', job);
+
+    await runJob('j-fallback-rate', {
+      jobs,
+      bus,
+      broker: dummyBroker,
+      resolver: {
+        async resolveBinding(): Promise<ResolvedBinding> {
+          throw new Error('not used');
+        },
+        async resolveAllBindings() {
+          return [
+            fakeBinding('anthropic', 'claude-haiku-4-5'),
+            fakeBinding('openai', 'gpt-4o'),
+          ];
+        },
+      },
+      bindingToAdapterFn: (binding) => {
+        if (binding.provider.id === 'anthropic') {
+          return new FailingAdapter(
+            new RateLimitError('rate-limited', { retryAfterSeconds: 60 })
+          );
+        }
+        return new TestAdapter({ kind: 'ok', reply: 'served-by-openai' });
+      },
+    });
+
+    expect(job.status).toBe('completed');
+    expect(job.agents[0]?.status).toBe('completed');
+  });
+
+  it('does NOT fall back on AuthError by default (excluded from DEFAULT_FALLBACK_ERRORS)', async () => {
+    // Default policy: AuthError is structural ("your key is revoked /
+    // expired / wrong"), not transient. Silent cross-provider switch
+    // would mask the real problem; the operator should re-auth or fix
+    // the binding instead. Test pins this decision so it can't drift
+    // unintentionally.
+    const jobs = new Map<string, JobRecord>();
+    const bus = new JobBus();
+    const job: JobRecord = {
+      jobId: 'j-default-auth-terminal',
+      status: 'received',
+      submittedAt: 'now',
+      input: 'go',
+      agents: [
+        {
+          id: 'planner',
+          role: 'Plan',
+          adapter: 'claude-sdk',
+          status: 'pending',
+          accepts: ['anthropic:claude-haiku-4-5', 'openai:gpt-4o'],
+          // fallbackOn intentionally unset — uses DEFAULT_FALLBACK_ERRORS
+        },
+      ],
+    };
+    jobs.set('j-default-auth-terminal', job);
+
+    let openaiBuilt = false;
+    await runJob('j-default-auth-terminal', {
+      jobs,
+      bus,
+      broker: dummyBroker,
+      resolver: {
+        async resolveBinding(): Promise<ResolvedBinding> {
+          throw new Error('not used');
+        },
+        async resolveAllBindings() {
+          return [
+            fakeBinding('anthropic', 'claude-haiku-4-5'),
+            fakeBinding('openai', 'gpt-4o'),
+          ];
+        },
+      },
+      bindingToAdapterFn: (binding) => {
+        if (binding.provider.id === 'anthropic') {
+          return new FailingAdapter(new AuthError('auth failed (401)'));
+        }
+        openaiBuilt = true;
+        return new TestAdapter({ kind: 'ok', reply: 'served-by-openai' });
+      },
+    });
+
+    expect(job.status).toBe('failed');
+    expect(openaiBuilt).toBe(false); // never tried second binding
+  });
+
+  it('falls through on AuthError when fallbackOn explicitly includes it', async () => {
+    // Catalog opt-in: pipeline author has decided "yes, if anthropic auth
+    // fails, just try openai" — fine, the orchestrator honors that.
+    const jobs = new Map<string, JobRecord>();
+    const bus = new JobBus();
+    const job: JobRecord = {
+      jobId: 'j-optin-auth',
+      status: 'received',
+      submittedAt: 'now',
+      input: 'go',
+      agents: [
+        {
+          id: 'planner',
+          role: 'Plan',
+          adapter: 'claude-sdk',
+          status: 'pending',
+          accepts: ['anthropic:claude-haiku-4-5', 'openai:gpt-4o'],
+          fallbackOn: ['BillingError', 'RateLimitError', 'AuthError'],
+        },
+      ],
+    };
+    jobs.set('j-optin-auth', job);
+
+    await runJob('j-optin-auth', {
+      jobs,
+      bus,
+      broker: dummyBroker,
+      resolver: {
+        async resolveBinding(): Promise<ResolvedBinding> {
+          throw new Error('not used');
+        },
+        async resolveAllBindings() {
+          return [
+            fakeBinding('anthropic', 'claude-haiku-4-5'),
+            fakeBinding('openai', 'gpt-4o'),
+          ];
+        },
+      },
+      bindingToAdapterFn: (binding) => {
+        if (binding.provider.id === 'anthropic') {
+          return new FailingAdapter(new AuthError('auth failed (401)'));
+        }
+        return new TestAdapter({ kind: 'ok', reply: 'served-by-openai' });
+      },
+    });
+
+    expect(job.status).toBe('completed');
+    expect(job.agents[0]?.status).toBe('completed');
+  });
+
+  it('does NOT fall back when fallbackOn is empty array (explicit opt-out)', async () => {
+    const jobs = new Map<string, JobRecord>();
+    const bus = new JobBus();
+    const job: JobRecord = {
+      jobId: 'j-optout',
+      status: 'received',
+      submittedAt: 'now',
+      input: 'go',
+      agents: [
+        {
+          id: 'planner',
+          role: 'Plan',
+          adapter: 'claude-sdk',
+          status: 'pending',
+          accepts: ['anthropic:claude-haiku-4-5', 'openai:gpt-4o'],
+          fallbackOn: [],
+        },
+      ],
+    };
+    jobs.set('j-optout', job);
+
+    let openaiBuilt = false;
+    await runJob('j-optout', {
+      jobs,
+      bus,
+      broker: dummyBroker,
+      resolver: {
+        async resolveBinding(): Promise<ResolvedBinding> {
+          throw new Error('not used');
+        },
+        async resolveAllBindings() {
+          return [
+            fakeBinding('anthropic', 'claude-haiku-4-5'),
+            fakeBinding('openai', 'gpt-4o'),
+          ];
+        },
+      },
+      bindingToAdapterFn: (binding) => {
+        if (binding.provider.id === 'anthropic') {
+          return new FailingAdapter(new BillingError('credits gone'));
+        }
+        openaiBuilt = true;
+        return new TestAdapter({ kind: 'ok', reply: 'should not reach' });
+      },
+    });
+
+    expect(job.status).toBe('failed');
+    expect(openaiBuilt).toBe(false);
+  });
+
+  it('AdapterError-as-wildcard: fallbackOn=["AdapterError"] catches every subclass', async () => {
+    // Convenience syntax: catalog authors who want "fall back on
+    // anything classified" don't have to enumerate every subclass.
+    const jobs = new Map<string, JobRecord>();
+    const bus = new JobBus();
+    const job: JobRecord = {
+      jobId: 'j-wildcard',
+      status: 'received',
+      submittedAt: 'now',
+      input: 'go',
+      agents: [
+        {
+          id: 'planner',
+          role: 'Plan',
+          adapter: 'claude-sdk',
+          status: 'pending',
+          accepts: ['anthropic:claude-haiku-4-5', 'openai:gpt-4o'],
+          fallbackOn: ['AdapterError'],
+        },
+      ],
+    };
+    jobs.set('j-wildcard', job);
+
+    await runJob('j-wildcard', {
+      jobs,
+      bus,
+      broker: dummyBroker,
+      resolver: {
+        async resolveBinding(): Promise<ResolvedBinding> {
+          throw new Error('not used');
+        },
+        async resolveAllBindings() {
+          return [
+            fakeBinding('anthropic', 'claude-haiku-4-5'),
+            fakeBinding('openai', 'gpt-4o'),
+          ];
+        },
+      },
+      bindingToAdapterFn: (binding) => {
+        if (binding.provider.id === 'anthropic') {
+          // AuthError isn't in DEFAULT_FALLBACK_ERRORS, but the wildcard
+          // 'AdapterError' covers it.
+          return new FailingAdapter(new AuthError('expired token'));
+        }
+        return new TestAdapter({ kind: 'ok', reply: 'served-by-openai' });
+      },
+    });
+
+    expect(job.status).toBe('completed');
+  });
+
+  it('publishes a fallback diagnostic event onto the bus when fallback fires', async () => {
+    const jobs = new Map<string, JobRecord>();
+    const bus = new JobBus();
+    const seen: AdapterEvent[] = [];
+    bus.subscribe('j-fallback-diag', (env) => seen.push(env.event));
+
+    const job: JobRecord = {
+      jobId: 'j-fallback-diag',
+      status: 'received',
+      submittedAt: 'now',
+      input: 'go',
+      agents: [
+        {
+          id: 'planner',
+          role: 'Plan',
+          adapter: 'claude-sdk',
+          status: 'pending',
+          accepts: ['anthropic:claude-haiku-4-5', 'openai:gpt-4o'],
+        },
+      ],
+    };
+    jobs.set('j-fallback-diag', job);
+
+    await runJob('j-fallback-diag', {
+      jobs,
+      bus,
+      broker: dummyBroker,
+      resolver: {
+        async resolveBinding(): Promise<ResolvedBinding> {
+          throw new Error('not used');
+        },
+        async resolveAllBindings() {
+          return [
+            fakeBinding('anthropic', 'claude-haiku-4-5'),
+            fakeBinding('openai', 'gpt-4o'),
+          ];
+        },
+      },
+      bindingToAdapterFn: (binding) => {
+        if (binding.provider.id === 'anthropic') {
+          return new FailingAdapter(new BillingError('credits exhausted'));
+        }
+        return new TestAdapter({ kind: 'ok', reply: 'ok' });
+      },
+    });
+
+    // Should have: anthropic request → orchestrator fallback diagnostic →
+    // openai request → openai response. The exact request/response counts
+    // depend on adapter event emission, but the orchestrator's fallback
+    // message should be present somewhere.
+    const errorEvents = seen.filter((e) => e.kind === 'error');
+    expect(errorEvents).toHaveLength(1);
+    expect((errorEvents[0] as Extract<AdapterEvent, { kind: 'error' }>).message).toContain('BillingError');
+    expect((errorEvents[0] as Extract<AdapterEvent, { kind: 'error' }>).message).toContain('falling back');
+  });
+
+  it('fails the job when ALL candidates throw AdapterError (exhausted)', async () => {
+    const jobs = new Map<string, JobRecord>();
+    const bus = new JobBus();
+    const job: JobRecord = {
+      jobId: 'j-exhausted',
+      status: 'received',
+      submittedAt: 'now',
+      input: 'go',
+      agents: [
+        {
+          id: 'planner',
+          role: 'Plan',
+          adapter: 'claude-sdk',
+          status: 'pending',
+          accepts: ['anthropic:claude-haiku-4-5', 'openai:gpt-4o'],
+        },
+      ],
+    };
+    jobs.set('j-exhausted', job);
+
+    await runJob('j-exhausted', {
+      jobs,
+      bus,
+      broker: dummyBroker,
+      resolver: {
+        async resolveBinding(): Promise<ResolvedBinding> {
+          throw new Error('not used');
+        },
+        async resolveAllBindings() {
+          return [
+            fakeBinding('anthropic', 'claude-haiku-4-5'),
+            fakeBinding('openai', 'gpt-4o'),
+          ];
+        },
+      },
+      bindingToAdapterFn: (binding) => {
+        if (binding.provider.id === 'anthropic') {
+          return new FailingAdapter(new BillingError('anthropic out of credits'));
+        }
+        return new FailingAdapter(new BillingError('openai quota exceeded'));
+      },
+    });
+
+    expect(job.status).toBe('failed');
+    expect(job.agents[0]?.status).toBe('failed');
+  });
+
+  it('does NOT fall back on plain Error (only AdapterError triggers fallback)', async () => {
+    // Plain Error from invoke is NOT an AdapterError — preserves the
+    // pre-13c semantic that unclassified failures are terminal. (If this
+    // ever changes, remove this test and update slice 13c docs.)
+    const jobs = new Map<string, JobRecord>();
+    const bus = new JobBus();
+    const job: JobRecord = {
+      jobId: 'j-no-fallback-plain',
+      status: 'received',
+      submittedAt: 'now',
+      input: 'go',
+      agents: [
+        {
+          id: 'planner',
+          role: 'Plan',
+          adapter: 'claude-sdk',
+          status: 'pending',
+          accepts: ['anthropic:claude-haiku-4-5', 'openai:gpt-4o'],
+        },
+      ],
+    };
+    jobs.set('j-no-fallback-plain', job);
+
+    let openaiInvoked = false;
+    await runJob('j-no-fallback-plain', {
+      jobs,
+      bus,
+      broker: dummyBroker,
+      resolver: {
+        async resolveBinding(): Promise<ResolvedBinding> {
+          throw new Error('not used');
+        },
+        async resolveAllBindings() {
+          return [
+            fakeBinding('anthropic', 'claude-haiku-4-5'),
+            fakeBinding('openai', 'gpt-4o'),
+          ];
+        },
+      },
+      bindingToAdapterFn: (binding) => {
+        if (binding.provider.id === 'anthropic') {
+          return new FailingAdapter(new Error('plain Error, not classified'));
+        }
+        openaiInvoked = true;
+        return new TestAdapter({ kind: 'ok', reply: 'should not be reached' });
+      },
+    });
+
+    expect(job.status).toBe('failed');
+    expect(openaiInvoked).toBe(false); // fallback never triggered
+  });
+
+  it('does NOT fall back when accept-list yields only one candidate (single-shot)', async () => {
+    // Single binding → fallbackEligible=false → AdapterError still terminal.
+    // This protects the "list a single hard-required model" use case.
+    const jobs = new Map<string, JobRecord>();
+    const bus = new JobBus();
+    const job: JobRecord = {
+      jobId: 'j-single',
+      status: 'received',
+      submittedAt: 'now',
+      input: 'go',
+      agents: [
+        {
+          id: 'planner',
+          role: 'Plan',
+          adapter: 'claude-sdk',
+          status: 'pending',
+          accepts: ['anthropic:claude-haiku-4-5'],
+        },
+      ],
+    };
+    jobs.set('j-single', job);
+
+    await runJob('j-single', {
+      jobs,
+      bus,
+      broker: dummyBroker,
+      resolver: {
+        async resolveBinding(): Promise<ResolvedBinding> {
+          throw new Error('not used');
+        },
+        async resolveAllBindings() {
+          return [fakeBinding('anthropic', 'claude-haiku-4-5')];
+        },
+      },
+      bindingToAdapterFn: () =>
+        new FailingAdapter(new BillingError('credits exhausted')),
+    });
+
+    expect(job.status).toBe('failed');
+    expect(job.agents[0]?.status).toBe('failed');
+  });
+
+  it('does NOT fall back when the agent uses a pre-built adapter (deps.adapters)', async () => {
+    // Pre-built path bypasses the resolver entirely — no accept-list, no
+    // fallback. AdapterError is terminal even if `accepts` is set on the
+    // agent (executor pre-resolved at boot; orchestrator doesn't re-pick).
+    const jobs = new Map<string, JobRecord>();
+    const bus = new JobBus();
+    const job: JobRecord = {
+      jobId: 'j-prebuilt-no-fallback',
+      status: 'received',
+      submittedAt: 'now',
+      input: 'go',
+      agents: [
+        {
+          id: 'planner',
+          role: 'Plan',
+          adapter: 'claude-sdk',
+          status: 'pending',
+          accepts: ['anthropic:claude-haiku-4-5', 'openai:gpt-4o'],
+        },
+      ],
+    };
+    jobs.set('j-prebuilt-no-fallback', job);
+
+    const adapters = new Map<string, AgentAdapter>();
+    adapters.set('planner', new FailingAdapter(new BillingError('credit gone')));
+
+    await runJob('j-prebuilt-no-fallback', {
+      jobs,
+      bus,
+      broker: dummyBroker,
+      adapters,
+      // Provide a resolver too — should NOT be consulted because the
+      // pre-built map takes priority.
+      resolver: {
+        async resolveBinding(): Promise<ResolvedBinding> {
+          throw new Error('resolver should not be called');
+        },
+        async resolveAllBindings(): Promise<ResolvedBinding[]> {
+          throw new Error('resolveAllBindings should not be called');
+        },
+      },
+    });
+
+    expect(job.status).toBe('failed');
+    expect(job.agents[0]?.status).toBe('failed');
+  });
+
+  it('uses the first satisfiable binding when it succeeds (no fallback needed)', async () => {
+    // Happy path: anthropic works on the first try; openai never invoked.
+    const jobs = new Map<string, JobRecord>();
+    const bus = new JobBus();
+    const job: JobRecord = {
+      jobId: 'j-first-wins',
+      status: 'received',
+      submittedAt: 'now',
+      input: 'go',
+      agents: [
+        {
+          id: 'planner',
+          role: 'Plan',
+          adapter: 'claude-sdk',
+          status: 'pending',
+          accepts: ['anthropic:claude-haiku-4-5', 'openai:gpt-4o'],
+        },
+      ],
+    };
+    jobs.set('j-first-wins', job);
+
+    let openaiBuilt = false;
+    await runJob('j-first-wins', {
+      jobs,
+      bus,
+      broker: dummyBroker,
+      resolver: {
+        async resolveBinding(): Promise<ResolvedBinding> {
+          throw new Error('not used');
+        },
+        async resolveAllBindings() {
+          return [
+            fakeBinding('anthropic', 'claude-haiku-4-5'),
+            fakeBinding('openai', 'gpt-4o'),
+          ];
+        },
+      },
+      bindingToAdapterFn: (binding) => {
+        if (binding.provider.id === 'openai') openaiBuilt = true;
+        return new TestAdapter({
+          kind: 'ok',
+          reply: `served-by-${binding.provider.id}`,
+        });
+      },
+    });
+
+    expect(job.status).toBe('completed');
+    expect(openaiBuilt).toBe(false); // never reached the second candidate
+  });
+
+  it('falls through THREE candidates: anthropic billing → openai rate-limit → copilot succeeds', async () => {
+    const jobs = new Map<string, JobRecord>();
+    const bus = new JobBus();
+    const job: JobRecord = {
+      jobId: 'j-three-deep',
+      status: 'received',
+      submittedAt: 'now',
+      input: 'go',
+      agents: [
+        {
+          id: 'planner',
+          role: 'Plan',
+          adapter: 'claude-sdk',
+          status: 'pending',
+          accepts: [
+            'anthropic:claude-haiku-4-5',
+            'openai:gpt-4o',
+            'github-copilot:gpt-4o',
+          ],
+        },
+      ],
+    };
+    jobs.set('j-three-deep', job);
+
+    await runJob('j-three-deep', {
+      jobs,
+      bus,
+      broker: dummyBroker,
+      resolver: {
+        async resolveBinding(): Promise<ResolvedBinding> {
+          throw new Error('not used');
+        },
+        async resolveAllBindings() {
+          return [
+            fakeBinding('anthropic', 'claude-haiku-4-5'),
+            fakeBinding('openai', 'gpt-4o'),
+            fakeBinding('github-copilot', 'gpt-4o'),
+          ];
+        },
+      },
+      bindingToAdapterFn: (binding) => {
+        if (binding.provider.id === 'anthropic') {
+          return new FailingAdapter(new BillingError('credits exhausted'));
+        }
+        if (binding.provider.id === 'openai') {
+          return new FailingAdapter(new RateLimitError('429'));
+        }
+        return new TestAdapter({ kind: 'ok', reply: 'served-by-copilot' });
+      },
+    });
+
+    expect(job.status).toBe('completed');
+    expect(job.agents[0]?.status).toBe('completed');
   });
 });

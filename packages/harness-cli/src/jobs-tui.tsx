@@ -5,7 +5,8 @@ import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { createCliRenderer } from '@opentui/core';
 import { createRoot, useKeyboard, useOnResize, useRenderer } from '@opentui/react';
-import type { Envelope, RegisteredAgent } from '@agentx/harness-core';
+import type { AgentTokens, Envelope, RegisteredAgent } from '@agentx/harness-core';
+import { formatTokens, formatTokenHistory } from './token-format.ts';
 import { connectSseStream } from './sse-client.ts';
 import { udsRequest } from './uds-client.ts';
 
@@ -52,6 +53,7 @@ interface JobSummary {
   submittedAt?: string;
   input?: string;
   agents?: RegisteredAgent[];
+  tokens?: AgentTokens;
 }
 
 // ─── UDS helpers ──────────────────────────────────────────────────────────
@@ -374,6 +376,11 @@ function AgentsColumn({ width, job }: { width: number; job: JobSummary | null })
   }
 
   const agents = job.agents ?? [];
+  // Inner width available for the per-interaction sub-row (subtract
+  // the 2 chars of indent we render before token entries, plus
+  // border + padding from the box itself). Border (2) + padding (2) =
+  // 4 chars consumed by chrome. Sub-row indent is 2.
+  const tokenRowWidth = Math.max(8, width - 4 - 2);
 
   return (
     <box
@@ -392,15 +399,21 @@ function AgentsColumn({ width, job }: { width: number; job: JobSummary | null })
         <span fg="#9ca3af">product:  </span>
         <span fg="#f3f4f6">{trunc(job.productId ?? '?', 40)}</span>
       </text>
+      {job.tokens ? (
+        <text>
+          <span fg="#9ca3af">tokens:   </span>
+          <span fg="#fbbf24">{formatTokens(job.tokens)}</span>
+        </text>
+      ) : null}
       <text> </text>
       {agents.length === 0 ? (
         <text fg="#6b7280">(no agents registered)</text>
       ) : (
         <>
           <text fg="#f3f4f6">agent             role        status</text>
-          {agents.map((a) => {
+          {agents.flatMap((a) => {
             const ad = agentDot(a.status);
-            return (
+            const rows = [
               <text key={a.id}>
                 <span fg={ad.fg}>{ad.dot}</span>
                 <span> </span>
@@ -409,8 +422,23 @@ function AgentsColumn({ width, job }: { width: number; job: JobSummary | null })
                 <span fg="#9ca3af">{trunc(a.role, 10).padEnd(10)}</span>
                 <span> </span>
                 <span fg={ad.fg}>{a.status}</span>
-              </text>
-            );
+              </text>,
+            ];
+            // Slice 13d: per-interaction array on a sub-row when the
+            // agent has emitted any usage. Rendered indented under the
+            // agent so the eye groups them. Multi-call agents (slice
+            // 13c fallback retries, future LangGraph multi-turn) show
+            // one entry per call: ↑1.2k ↓340 ↑1.5k ↓220 +N
+            const history = a.tokenHistory;
+            if (history && history.length > 0) {
+              rows.push(
+                <text key={`${a.id}-tokens`}>
+                  <span>  </span>
+                  <span fg="#fbbf24">{formatTokenHistory(history, tokenRowWidth)}</span>
+                </text>
+              );
+            }
+            return rows;
           })}
         </>
       )}
