@@ -225,7 +225,15 @@ describe('OpenCodeCliAdapter — hosted-provider path (regression)', () => {
       readFileSync(join(opts.env.XDG_CONFIG_HOME!, 'opencode', 'opencode.json'), 'utf8')
     );
     expect(cfg.mcp).toEqual({});
-    expect(cfg.provider).toBeUndefined();
+    // Cloud-mode now registers the model under the built-in provider
+    // (so opencode 1.4 finds gpt-4o-style ids that aren't in its
+    // baseline catalog). Default model is 'anthropic/claude-opus-4-7'
+    // so we expect provider.anthropic.models.{claude-opus-4-7}.
+    expect(cfg.provider).toEqual({
+      anthropic: {
+        models: { 'claude-opus-4-7': {} },
+      },
+    });
   });
 });
 

@@ -18,6 +18,7 @@ import type {
 import { ClaudeSdkAdapter } from './claude-sdk-adapter.ts';
 import { OpenCodeCliAdapter } from './opencode-cli-adapter.ts';
 import { CopilotChatAdapter } from './copilot-chat-adapter.ts';
+import { OpenAiChatAdapter } from './openai-chat-adapter.ts';
 import {
   bindingToAdapter,
   defaultLocalEndpointResolver,
@@ -72,11 +73,11 @@ describe('bindingToAdapter — cloud bindings', () => {
     expect(adapter).toBeInstanceOf(ClaudeSdkAdapter);
   });
 
-  it('returns OpenCodeCliAdapter for openai', () => {
+  it('returns OpenAiChatAdapter for openai (direct API path)', () => {
     const adapter = bindingToAdapter(cloudBinding('openai', 'gpt-4o'), {
       broker: stubBroker,
     });
-    expect(adapter).toBeInstanceOf(OpenCodeCliAdapter);
+    expect(adapter).toBeInstanceOf(OpenAiChatAdapter);
   });
 
   it('returns OpenCodeCliAdapter for google', () => {
@@ -111,16 +112,12 @@ describe('bindingToAdapter — cloud bindings', () => {
   });
 
   it('uses vendorModelId when present (Bedrock-style mapping)', () => {
-    // Even though bedrock currently throws, verify the modelId selection
-    // would use vendorModelId by hitting an openai-shaped binding with a
-    // vendorModelId override. Construct this carefully — using openai
-    // as the provider just to exercise the modelId resolution path.
+    // Verify the modelId selection would use vendorModelId by hitting
+    // an openai-shaped binding with a vendorModelId override. Construct
+    // succeeds; the resolved model id flows through to OpenAiChatAdapter.
     const binding = cloudBinding('openai', 'gpt-4o', 'gpt-4o-2024-11-20');
-    // We can't easily inspect the OpenCodeCliAdapter's stored model field
-    // without exposing internals, so verify only that construction
-    // succeeds with the override.
     const adapter = bindingToAdapter(binding, { broker: stubBroker });
-    expect(adapter).toBeInstanceOf(OpenCodeCliAdapter);
+    expect(adapter).toBeInstanceOf(OpenAiChatAdapter);
   });
 });
 

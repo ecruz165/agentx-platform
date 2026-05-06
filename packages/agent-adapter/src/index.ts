@@ -10,6 +10,10 @@ export {
   type CopilotChatAdapterOptions,
 } from './copilot-chat-adapter.ts';
 export {
+  OpenAiChatAdapter,
+  type OpenAiChatAdapterOptions,
+} from './openai-chat-adapter.ts';
+export {
   OpenCodeServer,
   OpenCodeServerError,
   type OpenCodeServerOptions,

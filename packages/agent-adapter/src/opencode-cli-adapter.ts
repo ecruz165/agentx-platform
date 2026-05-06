@@ -118,7 +118,19 @@ export class OpenCodeCliAdapter implements AgentAdapter {
       const cred = await this.opts.broker.getCredential(provider);
       providerLabel = provider;
       model = this.opts.model ?? 'anthropic/claude-opus-4-7';
-      configDir = makeOpencodeConfigDir({});
+      // Extract the model id (after the slash) and register it under the
+      // built-in provider's `models` map. opencode 1.4's built-in
+      // catalogs are curated (e.g. openai's only has gpt-5.x); models
+      // outside the catalog throw ProviderModelNotFoundError unless
+      // explicitly registered in opencode.json — same pattern as the
+      // local-endpoint branch above. This makes OpenCodeCliAdapter
+      // work with arbitrary gpt-4o-style models given a valid API key.
+      const slashIdx = model.indexOf('/');
+      const registerModelId = slashIdx > 0 ? model.slice(slashIdx + 1) : model;
+      configDir = makeOpencodeConfigDir({
+        cloudProviderId: provider,
+        registerModelId,
+      });
       env = {
         [envVar]: cred.apiKey,
         OPENCODE_DISABLE_MCP: '1',
@@ -235,11 +247,18 @@ interface OpencodeConfigDirOpts {
   /** API key string OpenCode passes to the provider; required when `endpoint` is set. */
   apiKey?: string;
   /** Model id (without the `<provider>/` prefix) to register on the
-   *  endpoint provider. OpenCode 1.4.x rejects `--model <provider>/<id>`
-   *  with `ProviderModelNotFoundError` unless the id appears in the
-   *  provider's `models` map — even for OpenAI-compatible custom
-   *  providers. Required when `endpoint` is set; ignored otherwise. */
+   *  endpoint provider OR on a built-in cloud provider. OpenCode 1.4.x
+   *  rejects `--model <provider>/<id>` with `ProviderModelNotFoundError`
+   *  unless the id appears in the provider's `models` map — for both
+   *  custom OpenAI-compatible providers AND for built-in cloud
+   *  providers (e.g., openai's catalog only has gpt-5.x; gpt-4o needs
+   *  explicit registration). */
   registerModelId?: string;
+  /** Built-in cloud provider id (`openai`, `anthropic`, `google`) to
+   *  extend with the registerModelId. Mutually exclusive with
+   *  `endpoint` (which writes a NEW provider entry); this option ADDS
+   *  a model to an EXISTING built-in catalog. */
+  cloudProviderId?: string;
 }
 
 /**
@@ -259,6 +278,7 @@ function makeOpencodeConfigDir(opts: OpencodeConfigDirOpts): string {
   const dir = mkdtempSync(join(tmpdir(), 'opencode-cfg-'));
   const config: Record<string, unknown> = { mcp: {} };
   if (opts.endpoint) {
+    // Custom provider with baseURL — local endpoints (DMR, vLLM, etc.).
     const id = opts.endpointProviderId ?? 'local';
     const providerEntry: Record<string, unknown> = {
       options: {
@@ -267,18 +287,23 @@ function makeOpencodeConfigDir(opts: OpencodeConfigDirOpts): string {
       },
     };
     if (opts.registerModelId) {
-      // Register the specific model id — opencode 1.4 requires it under
-      // `models.<id>` even for OpenAI-compatible custom providers, or the
-      // CLI throws ProviderModelNotFoundError before the request goes out.
       providerEntry.models = { [opts.registerModelId]: {} };
     }
     config.provider = { [id]: providerEntry };
+  } else if (opts.cloudProviderId && opts.registerModelId) {
+    // Extend a built-in cloud provider's models catalog. opencode 1.4's
+    // openai catalog has only gpt-5.x; gpt-4o-style models need explicit
+    // registration here. No `options` block — uses opencode's built-in
+    // baseURL + auth (env-var-based: OPENAI_API_KEY etc.).
+    config.provider = {
+      [opts.cloudProviderId]: {
+        models: { [opts.registerModelId]: {} },
+      },
+    };
   }
   // XDG convention: `<XDG_CONFIG_HOME>/<app>/<file>`. opencode 1.4 looks
   // in `<XDG_CONFIG_HOME>/opencode/opencode.json` (verified via
   // --print-logs `service=config path=…/opencode/opencode.json loading`).
-  // The earlier flat-write path silently failed — opencode loaded its
-  // built-in providers and ignored ours.
   const opencodeConfigDir = join(dir, 'opencode');
   mkdirSync(opencodeConfigDir, { recursive: true, mode: 0o700 });
   writeFileSync(join(opencodeConfigDir, 'opencode.json'), JSON.stringify(config, null, 2), {

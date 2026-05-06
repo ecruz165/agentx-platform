@@ -75,11 +75,11 @@ describe('specNeedsOpenCode', () => {
     expect(specNeedsOpenCode(specWithBindings({ a: anthropicBinding() }))).toBe(false);
   });
 
-  it('returns true for openai binding', () => {
-    expect(specNeedsOpenCode(specWithBindings({ a: openaiBinding() }))).toBe(true);
+  it('returns FALSE for openai binding (now uses direct OpenAiChatAdapter, no opencode-cli needed)', () => {
+    expect(specNeedsOpenCode(specWithBindings({ a: openaiBinding() }))).toBe(false);
   });
 
-  it('returns true for google binding', () => {
+  it('returns true for google binding (still routes through opencode-cli)', () => {
     expect(specNeedsOpenCode(specWithBindings({ a: googleBinding() }))).toBe(true);
   });
 
@@ -87,11 +87,18 @@ describe('specNeedsOpenCode', () => {
     expect(specNeedsOpenCode(specWithBindings({ a: localBinding() }))).toBe(true);
   });
 
-  it('returns true for mixed spec with at least one opencode-needing binding', () => {
+  it('returns true for mixed spec with at least one opencode-needing binding (google/local)', () => {
+    expect(specNeedsOpenCode(specWithBindings({
+      a: anthropicBinding(),
+      b: localBinding(),
+    }))).toBe(true);
+  });
+
+  it('returns false for mixed anthropic + openai spec (neither needs opencode-cli)', () => {
     expect(specNeedsOpenCode(specWithBindings({
       a: anthropicBinding(),
       b: openaiBinding(),
-    }))).toBe(true);
+    }))).toBe(false);
   });
 
   it('returns false for empty bindings (no-binding-only synthetic agents)', () => {

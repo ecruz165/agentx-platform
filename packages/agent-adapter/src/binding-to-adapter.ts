@@ -26,6 +26,7 @@ import type { CredentialBroker, ResolvedBinding } from '@agentx/agent-auth-lib';
 import { ClaudeSdkAdapter } from './claude-sdk-adapter.ts';
 import { OpenCodeCliAdapter } from './opencode-cli-adapter.ts';
 import { CopilotChatAdapter } from './copilot-chat-adapter.ts';
+import { OpenAiChatAdapter } from './openai-chat-adapter.ts';
 import type { AgentAdapter } from './types.ts';
 
 export interface BindingToAdapterOptions {
@@ -79,11 +80,11 @@ export interface BindingToAdapterOptions {
  */
 export function bindingNeedsOpenCode(binding: ResolvedBinding): boolean {
   if (binding.kind === 'local') return true;
-  // Cloud bindings — anthropic uses ClaudeSdkAdapter (no opencode);
-  // openai/google use OpenCodeCliAdapter. github-copilot and bedrock
-  // currently throw in bindingToAdapter, so they don't reach an adapter
-  // at all — return false so they don't trigger an unnecessary spawn.
-  return binding.provider.id === 'openai' || binding.provider.id === 'google';
+  // Cloud bindings — anthropic uses ClaudeSdkAdapter, openai uses the
+  // direct OpenAiChatAdapter, github-copilot uses CopilotChatAdapter,
+  // bedrock isn't wired yet. Only google still routes through opencode
+  // pending its own direct adapter.
+  return binding.provider.id === 'google';
 }
 
 /**
@@ -150,11 +151,26 @@ export function bindingToAdapter(
     return new ClaudeSdkAdapter({ broker, model: modelId });
   }
 
-  if (providerId === 'openai' || providerId === 'google') {
+  if (providerId === 'openai') {
+    // Direct OpenAI API call via OpenAiChatAdapter is the default for
+    // openai bindings — simpler, lower-overhead, full control of the
+    // model id. opencode-cli is also a valid path for openai (now that
+    // OpenCodeCliAdapter properly registers the model in opencode.json
+    // for cloud-mode); use it via the legacy `adapter: 'opencode-cli'`
+    // catalog field when you want opencode's tool/agent surface around
+    // an openai-backed model.
+    return new OpenAiChatAdapter({ broker, model: modelId });
+  }
+
+  if (providerId === 'google') {
+    // Google still routes through opencode-cli — no direct GeminiAdapter
+    // yet (slice TBD when there's user demand). opencode's google
+    // catalog has the common gemini-1.5-pro / -flash entries, plus the
+    // cloud-mode model registration now ensures arbitrary ids work too.
     return new OpenCodeCliAdapter({
       broker,
       provider: providerId,
-      model: modelId,
+      model: `${providerId}/${modelId}`,
       ...(opencodeServerUrl ? { serverUrl: opencodeServerUrl } : {}),
     });
   }
