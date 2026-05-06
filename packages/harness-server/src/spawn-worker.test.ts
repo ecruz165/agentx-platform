@@ -89,7 +89,11 @@ async function head(workingDir: string): Promise<string> {
 }
 
 describe('spawnWorker — bare-clone refresh (slice 9d-2 staleness fix)', () => {
-  it('first call clones bare; second call against cached bare runs git fetch', async () => {
+  // Heavy test — does multiple real `git` invocations + worktree creation
+  // back-to-back. Under parallel test execution the default 5s isn't
+  // enough on busy disks; bump to 15s. (Same applies to `multi-repo
+  // product` below.)
+  it('first call clones bare; second call against cached bare runs git fetch', { timeout: 15_000 }, async () => {
     const { bare, working } = await localRemote();
     const workspaceRoot = await tmpDir('ws');
 
@@ -174,7 +178,7 @@ describe('spawnWorker — bare-clone refresh (slice 9d-2 staleness fix)', () => 
     expect(r.worktrees[0]?.baseRef).toBeUndefined();
   });
 
-  it('multi-repo product: each repo refreshed independently', async () => {
+  it('multi-repo product: each repo refreshed independently', { timeout: 15_000 }, async () => {
     const repoA = await localRemote();
     const repoB = await localRemote();
     const workspaceRoot = await tmpDir('ws');

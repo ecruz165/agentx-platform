@@ -25,6 +25,8 @@ import { runEntryCoordinator } from './coordinator/entry-coordinator.ts';
 import { randomUUID } from 'node:crypto';
 import { spawnLoaderJob, type LoaderEvent } from './loader-spawn.ts';
 import { inlineCatalogLoader } from './load-catalog.ts';
+import { runJobInContainer } from './run-job-in-container.ts';
+import type { SpawnRepoSpec } from './spawn-worker.ts';
 
 export {
   spawnWorker,
@@ -50,6 +52,14 @@ export {
   type RunPipelineInContainerOptions,
   type RunPipelineInContainerResult,
 } from './run-pipeline-in-container.ts';
+
+export {
+  runJobInContainer,
+  buildJobSpec,
+  removeContainer,
+  type RunJobInContainerOptions,
+  type RunJobInContainerResult,
+} from './run-job-in-container.ts';
 
 export {
   consumeJsonlStream,
@@ -145,6 +155,13 @@ export interface HarnessServerOptions {
    * dispatch (current pre-10c behavior).
    */
   coordinatorModel?: BaseChatModel;
+  /**
+   * Workspace root on disk — used by the container path (slice 9d) to
+   * compute worktree + spec.json mount paths. Defaults to
+   * `process.cwd()`. Required for `AGENTX_USE_CONTAINER=1` since
+   * spawnWorker needs a real workspace dir.
+   */
+  workspaceRoot?: string;
 }
 
 export interface HarnessServerHandle {
@@ -250,6 +267,7 @@ export async function startHarnessServer(opts: HarnessServerOptions): Promise<Ha
     catalog,
     jobs,
     tokens,
+    workspaceRoot: opts.workspaceRoot ?? process.cwd(),
     broker: opts.broker,
     adapterFactory: opts.adapterFactory,
     resolver: opts.resolver,
@@ -286,6 +304,9 @@ interface ServerCtx {
    *  before the orchestrator fires; mutates JobRecord with per-call
    *  history + running totals. Detached when the job ends. */
   tokens: TokenAccumulator;
+  /** Workspace root for the container path (slice 9d-4). Defaults to
+   *  process.cwd() at server start. */
+  workspaceRoot: string;
   broker?: CredentialBroker;
   adapterFactory?: AdapterFactory;
   resolver?: BindingResolver;
@@ -536,11 +557,48 @@ async function handleSubmitJob(
   // Kick off the orchestrator in the background — only if a broker is wired.
   // Without a broker we have no way to authenticate adapter calls, so we leave
   // jobs in `received` state with all agents `pending` (registration-only mode).
+  //
+  // Slice 9d-4 — when AGENTX_USE_CONTAINER=1 AND a resolver + repos are
+  // available, route through the container path (spawnWorker → runWorker →
+  // runPipelineInContainer). Otherwise stay on the in-process runJob path
+  // that's been the default since slice 6.
   if (ctx.broker) {
     const broker = ctx.broker;
     const adapterFactory = ctx.adapterFactory;
     const resolver = ctx.resolver;
     const tokens = ctx.tokens;
+    const onJobTerminal = (agentId: string | null, status: string) => {
+      // Token accumulator detaches on job-level terminal transitions
+      // (agentId === null). Same hook works for both paths.
+      if (agentId === null && (status === 'completed' || status === 'failed')) {
+        tokens.detach(jobId);
+      }
+    };
+    const useContainer =
+      process.env.AGENTX_USE_CONTAINER === '1' && resolver !== undefined;
+    const submissionRepos = parseRepos(body.repos);
+
+    if (useContainer && submissionRepos !== null && submissionRepos.length > 0) {
+      const containerProductId = job.productId ?? 'unknown';
+      const containerPipeline = pipelineId ?? 'noop';
+      queueMicrotask(() => {
+        void runJobInContainer({
+          jobId,
+          jobs: ctx.jobs,
+          bus: ctx.bus,
+          broker,
+          resolver: resolver!,
+          workspaceRoot: ctx.workspaceRoot,
+          repos: submissionRepos,
+          productId: containerProductId,
+          pipeline: containerPipeline,
+          setName,
+          onStatusChange: (_jid, agentId, status) => onJobTerminal(agentId, status),
+        });
+      });
+      return;
+    }
+
     queueMicrotask(() => {
       void runJob(jobId, {
         jobs: ctx.jobs,
@@ -549,13 +607,7 @@ async function handleSubmitJob(
         adapterFactory,
         resolver,
         onStatusChange: (_jid, agentId, status) => {
-          // Detach the accumulator when the job reaches a terminal
-          // state at the JOB level (agentId is null for job-level
-          // transitions). Agents flipping to completed/failed don't
-          // detach — only the whole-job transition does.
-          if (agentId === null && (status === 'completed' || status === 'failed')) {
-            tokens.detach(jobId);
-          }
+          onJobTerminal(agentId, status);
         },
       });
     });
@@ -980,6 +1032,35 @@ async function handleSubmitLoaderJob(
       message: `loader job ended: ${(err as Error).message}`,
     });
   }
+}
+
+/**
+ * Parse the optional `body.repos` field from a job-submission JSON
+ * body into an array of `SpawnRepoSpec`. Returns null when the field
+ * is missing/not-an-array, an empty array when it's present but
+ * empty, and a validated SpawnRepoSpec[] otherwise.
+ *
+ * Used by the slice 9d-4 container path. The submission body has
+ * priority over catalog-derived repo lookups (which don't exist
+ * yet — ProductDef in the catalog doesn't carry git repos as of
+ * slice 9d-4; that's a future workspace-yaml refactor).
+ */
+function parseRepos(value: unknown): SpawnRepoSpec[] | null {
+  if (!Array.isArray(value)) return null;
+  const out: SpawnRepoSpec[] = [];
+  for (const entry of value) {
+    if (!entry || typeof entry !== 'object') return null;
+    const r = entry as Record<string, unknown>;
+    if (typeof r.name !== 'string' || !r.name) return null;
+    if (typeof r.cloneUrl !== 'string' || !r.cloneUrl) return null;
+    out.push({
+      name: r.name,
+      cloneUrl: r.cloneUrl,
+      ...(typeof r.baseRef === 'string' && r.baseRef ? { baseRef: r.baseRef } : {}),
+      ...(typeof r.path === 'string' && r.path ? { path: r.path } : {}),
+    });
+  }
+  return out;
 }
 
 function registeredFromDef(def: AgentDef, setName: string): RegisteredAgent {
