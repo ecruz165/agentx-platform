@@ -7,6 +7,7 @@ import { createCliRenderer } from '@opentui/core';
 import { createRoot, useKeyboard, useOnResize, useRenderer } from '@opentui/react';
 import type { AgentTokens, Envelope, RegisteredAgent } from '@agentx/harness-core';
 import { formatTokens, formatTokenHistory } from './token-format.ts';
+import { eventPreview } from './event-preview.ts';
 import { connectSseStream } from './sse-client.ts';
 import { udsRequest } from './uds-client.ts';
 
@@ -94,21 +95,6 @@ function agentDot(status: string): { dot: string; fg: string } {
 function formatTs(ts: string): string {
   const m = ts.match(/T(\d\d:\d\d:\d\d)/);
   return m ? m[1]! : ts.slice(0, 8);
-}
-
-function eventPreview(env: Envelope): string {
-  const e = env.event;
-  switch (e.kind) {
-    case 'request': return e.user.replace(/\s+/g, ' ');
-    case 'response': return e.text.replace(/\s+/g, ' ');
-    case 'error': return e.message;
-    case 'loader-event': {
-      const c = e.counts;
-      const head = `[${e.innerKind}] files=${c.files} chunks=${c.chunks} nodes=${c.nodes} edges=${c.edges} vectors=${c.vectors}` +
-        (c.errors > 0 ? ` errors=${c.errors}` : '');
-      return e.lastItem ? `${head}  ${e.lastItem}` : head;
-    }
-  }
 }
 
 function eventKindFg(kind: Envelope['event']['kind']): string {
