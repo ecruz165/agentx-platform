@@ -13,6 +13,15 @@ export interface RegisteredAgent {
    * registered. Passed through to the adapter factory at invoke time.
    */
   config?: Record<string, unknown>;
+  /**
+   * Priority-ordered `<provider>:<model>` accept-list copied from
+   * AgentDef.accepts when the job is registered. When present, the
+   * orchestrator routes through BindingResolver + bindingToAdapter
+   * instead of the legacy `adapter` factory dispatch. Optional for
+   * backwards compatibility — agents declared without `accepts` fall
+   * through to the existing `adapter`-id-based factory.
+   */
+  accepts?: readonly string[];
 }
 
 export interface JobRecord {

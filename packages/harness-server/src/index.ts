@@ -17,7 +17,7 @@ import {
   type ProductDef,
   type RegisteredAgent,
 } from '@agentx/harness-core';
-import type { CredentialBroker } from '@agentx/agent-auth-lib';
+import type { BindingResolver, CredentialBroker } from '@agentx/agent-auth-lib';
 import { randomUUID } from 'node:crypto';
 import { spawnLoaderJob, type LoaderEvent } from './loader-spawn.ts';
 import { inlineCatalogLoader } from './load-catalog.ts';
@@ -95,6 +95,15 @@ export interface HarnessServerOptions {
   broker?: CredentialBroker;
   /** Override adapter construction (testing / custom adapter pools). */
   adapterFactory?: AdapterFactory;
+  /**
+   * Optional binding resolver. When provided AND an agent declares a
+   * non-empty `accepts` list, the orchestrator routes through
+   * resolver → bindingToAdapter instead of the legacy adapter-id factory.
+   * Per memory `project_per_worker_model_subscription`. When absent,
+   * agents fall back to the legacy `adapter` field even if `accepts` is
+   * declared — backwards compat for catalogs ahead of the resolver.
+   */
+  resolver?: BindingResolver;
 }
 
 export interface HarnessServerHandle {
@@ -179,6 +188,7 @@ export async function startHarnessServer(opts: HarnessServerOptions): Promise<Ha
     jobs,
     broker: opts.broker,
     adapterFactory: opts.adapterFactory,
+    resolver: opts.resolver,
   };
 
   await mkdir(dirname(opts.socketPath), { recursive: true, mode: 0o700 });
@@ -209,6 +219,7 @@ interface ServerCtx {
   jobs: Map<string, JobRecord>;
   broker?: CredentialBroker;
   adapterFactory?: AdapterFactory;
+  resolver?: BindingResolver;
 }
 
 function route(req: IncomingMessage, res: ServerResponse, ctx: ServerCtx) {
@@ -386,12 +397,14 @@ function handleSubmitJob(res: ServerResponse, body: Record<string, unknown>, ctx
   if (ctx.broker) {
     const broker = ctx.broker;
     const adapterFactory = ctx.adapterFactory;
+    const resolver = ctx.resolver;
     queueMicrotask(() => {
       void runJob(jobId, {
         jobs: ctx.jobs,
         bus: ctx.bus,
         broker,
         adapterFactory,
+        resolver,
       });
     });
   }
@@ -825,6 +838,7 @@ function registeredFromDef(def: AgentDef): RegisteredAgent {
     systemPrompt: def.systemPrompt,
     status: 'pending',
     config: def.config,
+    accepts: def.accepts,
   };
 }
 

@@ -1,13 +1,18 @@
 import {
   ClaudeSdkAdapter,
   OpenCodeCliAdapter,
+  bindingToAdapter,
   type AgentAdapter,
+  type BindingToAdapterOptions,
   type OpenCodeCliAdapterOptions,
 } from '@agentx/agent-adapter';
-import type { CredentialBroker } from '@agentx/agent-auth-lib';
+import type {
+  BindingResolver,
+  CredentialBroker,
+} from '@agentx/agent-auth-lib';
 import type { AdapterId } from './catalog.ts';
 import { bridgeAdapter, type JobBus } from './job-bus.ts';
-import type { JobRecord } from './job.ts';
+import type { JobRecord, RegisteredAgent } from './job.ts';
 
 /**
  * Constructs the concrete adapter for an agent's `adapter` id, with the
@@ -40,6 +45,26 @@ export interface RunJobDeps {
   bus: JobBus;
   broker: CredentialBroker;
   adapterFactory?: AdapterFactory;
+  /**
+   * Optional binding resolver. When supplied AND the agent declares a
+   * non-empty `accepts` list, the orchestrator resolves the accept-list
+   * against this resolver and constructs the adapter via
+   * `bindingToAdapter` instead of the legacy `adapterFactory`. When the
+   * agent has no `accepts`, the resolver is unused — preserves backwards
+   * compatibility for catalogs that haven't migrated.
+   *
+   * Per memory `project_per_worker_model_subscription`: this is the path
+   * that lets a summarizer prefer `local-qwen:qwen3` while a code-reviewer
+   * holds out for `anthropic:claude-haiku-4-5` in the same pipeline.
+   */
+  resolver?: BindingResolver;
+  /**
+   * Optional override for how local-provider endpoints are resolved when
+   * `bindingToAdapter` returns a local binding. Forwarded to
+   * `bindingToAdapter` as `options.localEndpoint`. Defaults to env-var
+   * lookup (`AGENTX_LOCAL_QWEN_ENDPOINT` etc.).
+   */
+  localEndpoint?: BindingToAdapterOptions['localEndpoint'];
   /** Hook for tests / future telemetry. Fires on every status transition. */
   onStatusChange?: (jobId: string, agentId: string | null, status: string) => void;
 }
@@ -94,7 +119,7 @@ export async function runJob(jobId: string, deps: RunJobDeps): Promise<void> {
 
     let adapter: AgentAdapter;
     try {
-      adapter = factory(agent.adapter, deps.broker, agent.config);
+      adapter = await constructAgentAdapter(agent, deps, factory);
     } catch (err) {
       agent.status = 'failed';
       job.status = 'failed';
@@ -130,4 +155,29 @@ export async function runJob(jobId: string, deps: RunJobDeps): Promise<void> {
 
   job.status = 'completed';
   deps.onStatusChange?.(jobId, null, 'completed');
+}
+
+/**
+ * Picks the adapter for a single agent. When the agent declares a non-empty
+ * `accepts` list AND the deps include a resolver, route through the new
+ * binding-resolution path: resolver → ResolvedBinding → bindingToAdapter.
+ * Otherwise fall through to the legacy adapter-id factory.
+ *
+ * Failures are intentionally NOT caught here — they propagate to the caller
+ * (runJob), which already has the agent/job state-transition + error-event
+ * publishing logic centralized.
+ */
+async function constructAgentAdapter(
+  agent: RegisteredAgent,
+  deps: RunJobDeps,
+  factory: AdapterFactory
+): Promise<AgentAdapter> {
+  if (deps.resolver && agent.accepts && agent.accepts.length > 0) {
+    const binding = await deps.resolver.resolveBinding(agent.accepts);
+    return bindingToAdapter(binding, {
+      broker: deps.broker,
+      localEndpoint: deps.localEndpoint,
+    });
+  }
+  return factory(agent.adapter, deps.broker, agent.config);
 }
