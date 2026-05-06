@@ -28,10 +28,14 @@ import { inlineCatalogLoader } from './load-catalog.ts';
 
 export {
   spawnWorker,
+  runWorker,
+  parseDevcontainerUpStdout,
   type SpawnRepoSpec,
   type WorkerSpawnSpec,
   type SpawnResult,
   type SpawnedWorktree,
+  type RunWorkerOptions,
+  type RunWorkerResult,
 } from './spawn-worker.ts';
 
 export {
