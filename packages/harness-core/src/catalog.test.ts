@@ -394,6 +394,160 @@ describe('loadCatalog — fallbackOn (slice 13c per-agent policy)', () => {
   });
 });
 
+describe('loadCatalog — skillz (skillzkit catalog references)', () => {
+  const created: string[] = [];
+  afterEach(async () => {
+    for (const path of created.splice(0)) {
+      await rm(path, { force: true, recursive: true });
+    }
+  });
+
+  const writeCatalog = async (workspaceRoot: string, body: object) => {
+    const dir = join(workspaceRoot, '.harness', 'config');
+    await mkdir(dir, { recursive: true });
+    await writeFile(
+      join(dir, 'pipelines.json'),
+      JSON.stringify(body, null, 2),
+      'utf8'
+    );
+  };
+
+  const baseAgent = (extra: Record<string, unknown>) => ({
+    pipelines: [
+      {
+        id: 'p',
+        agents: [{ id: 'a', role: 'A', adapter: 'claude-sdk', ...extra }],
+      },
+    ],
+  });
+
+  it('parses an agent with a full skillz declaration (all five categories)', async () => {
+    const ws = tmpWorkspace();
+    created.push(ws);
+    await writeCatalog(
+      ws,
+      baseAgent({
+        skillz: {
+          routers: ['skillzkit-product-router'],
+          tools: ['core:tools:npm', 'core:tools:gh'],
+          integrations: ['core:integrations:figma'],
+          tasks: ['task:write-tests'],
+          workflows: ['engineer:feature-build'],
+        },
+      })
+    );
+
+    const catalog = await loadCatalog(ws);
+    expect(catalog.pipelines[0]?.agents[0]?.skillz).toEqual({
+      routers: ['skillzkit-product-router'],
+      tools: ['core:tools:npm', 'core:tools:gh'],
+      integrations: ['core:integrations:figma'],
+      tasks: ['task:write-tests'],
+      workflows: ['engineer:feature-build'],
+    });
+  });
+
+  it('parses an agent with only routers (router-only SKILL bundle)', async () => {
+    const ws = tmpWorkspace();
+    created.push(ws);
+    await writeCatalog(
+      ws,
+      baseAgent({ skillz: { routers: ['skillzkit-product-router', 'skillzkit-eng-router'] } })
+    );
+
+    const catalog = await loadCatalog(ws);
+    expect(catalog.pipelines[0]?.agents[0]?.skillz?.routers).toEqual([
+      'skillzkit-product-router',
+      'skillzkit-eng-router',
+    ]);
+  });
+
+  it('parses an agent with only some skillz categories present', async () => {
+    const ws = tmpWorkspace();
+    created.push(ws);
+    await writeCatalog(ws, baseAgent({ skillz: { tools: ['core:tools:gh'] } }));
+
+    const catalog = await loadCatalog(ws);
+    const skillz: NonNullable<AgentDef['skillz']> | undefined =
+      catalog.pipelines[0]?.agents[0]?.skillz;
+    expect(skillz?.tools).toEqual(['core:tools:gh']);
+    expect(skillz?.integrations).toBeUndefined();
+    expect(skillz?.tasks).toBeUndefined();
+    expect(skillz?.workflows).toBeUndefined();
+  });
+
+  it('parses an agent without a skillz field (backwards-compatible)', async () => {
+    const ws = tmpWorkspace();
+    created.push(ws);
+    await writeCatalog(ws, baseAgent({}));
+
+    const catalog = await loadCatalog(ws);
+    expect(catalog.pipelines[0]?.agents[0]?.skillz).toBeUndefined();
+  });
+
+  it('throws when skillz is not an object', async () => {
+    const ws = tmpWorkspace();
+    created.push(ws);
+    await writeCatalog(ws, baseAgent({ skillz: 'core:tools:npm' }));
+
+    await expect(loadCatalog(ws)).rejects.toThrow(/skillz must be an object/);
+  });
+
+  it('throws when skillz is an array (not an object)', async () => {
+    const ws = tmpWorkspace();
+    created.push(ws);
+    await writeCatalog(ws, baseAgent({ skillz: ['core:tools:npm'] }));
+
+    await expect(loadCatalog(ws)).rejects.toThrow(/skillz must be an object/);
+  });
+
+  it('throws on unknown skillz keys', async () => {
+    const ws = tmpWorkspace();
+    created.push(ws);
+    await writeCatalog(
+      ws,
+      baseAgent({ skillz: { tools: [], surprises: ['x'] } })
+    );
+
+    await expect(loadCatalog(ws)).rejects.toThrow(
+      /skillz has unknown key "surprises"/
+    );
+  });
+
+  it('throws when a skillz category is not an array', async () => {
+    const ws = tmpWorkspace();
+    created.push(ws);
+    await writeCatalog(ws, baseAgent({ skillz: { tools: 'npm' } }));
+
+    await expect(loadCatalog(ws)).rejects.toThrow(
+      /skillz\.tools must be an array of strings/
+    );
+  });
+
+  it('throws when a skillz entry is not a string', async () => {
+    const ws = tmpWorkspace();
+    created.push(ws);
+    await writeCatalog(
+      ws,
+      baseAgent({ skillz: { tools: ['core:tools:npm', 42] } })
+    );
+
+    await expect(loadCatalog(ws)).rejects.toThrow(
+      /skillz\.tools\[1\] must be a non-empty string/
+    );
+  });
+
+  it('throws when a skillz entry is an empty string', async () => {
+    const ws = tmpWorkspace();
+    created.push(ws);
+    await writeCatalog(ws, baseAgent({ skillz: { tools: [''] } }));
+
+    await expect(loadCatalog(ws)).rejects.toThrow(
+      /skillz\.tools\[0\] must be a non-empty string/
+    );
+  });
+});
+
 describe('findPipeline', () => {
   const catalog: PipelineCatalog = {
     pipelines: [

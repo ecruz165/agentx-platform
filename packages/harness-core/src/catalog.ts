@@ -90,6 +90,46 @@ export interface AgentDef {
    * 'AuthError']`.
    */
   fallbackOn?: readonly string[];
+  /**
+   * Skills this agent depends on. References items from the
+   * `@ecruz165/skillzkit` catalog — the procurement flow (workspace-cli)
+   * resolves each entry to markdown files + transitive dependencies and
+   * copies them into `<workspace>/.claude/{commands,skills}/` so the
+   * agent can invoke them at runtime.
+   *
+   * skillzkit's catalog has two top-level types: SKILLs (router agents
+   * that classify natural-language requests + dispatch to commands) and
+   * Commands (everything else — slash commands, workflows, tools,
+   * integrations, atomic tasks). The categories below mirror that split
+   * plus skillzkit's sub-classification under `.claude/commands/`:
+   *
+   *   - `routers`      — SKILL names (router agents). Lookup by name
+   *                       (e.g. `skillzkit-product-router`)
+   *   - `tools`        — local CLIs / utilities (e.g. `core:tools:npm`,
+   *                       `core:tools:gh`, `core:tools:jq`)
+   *   - `integrations` — remote services the agent connects to (e.g.
+   *                       `core:integrations:figma`, `core:integrations:linear`)
+   *   - `tasks`        — atomic action commands (smaller unit than workflow)
+   *   - `workflows`    — multi-step procedures from skillzkit's Workflow
+   *                       catalog (e.g. `engineer:feature-build`,
+   *                       `product:greenfield`)
+   *
+   * Validation here is structural only — string non-emptiness + a closed
+   * key set. Whether each slug or skill name actually exists in the
+   * installed skillzkit catalog is checked at procure time by the
+   * workspace-cli, not at catalog parse time (so a catalog can reference
+   * skills that aren't yet installed).
+   *
+   * Skipping this field is fine — agents without skill dependencies don't
+   * need any `.claude/` content beyond what the workspace-template ships.
+   */
+  skillz?: {
+    routers?: readonly string[];
+    tools?: readonly string[];
+    integrations?: readonly string[];
+    tasks?: readonly string[];
+    workflows?: readonly string[];
+  };
 }
 
 export interface PipelineDef {
@@ -307,6 +347,43 @@ function validateCatalog(value: unknown, path: string): asserts value is Pipelin
         validateFallbackOnField(
           agent.fallbackOn,
           `${path}: pipelines[${i}].agents[${j}].fallbackOn`
+        );
+      }
+      if (agent.skillz !== undefined) {
+        validateSkillzField(
+          agent.skillz,
+          `${path}: pipelines[${i}].agents[${j}].skillz`
+        );
+      }
+    }
+  }
+}
+
+/** Validate the optional `skillz` field on an AgentDef. Each category
+ *  (tools, integrations, tasks, workflows) is optional; when present it
+ *  must be an array of non-empty strings. Slug syntax is not validated
+ *  here — that's a runtime concern of the procurement flow. */
+function validateSkillzField(value: unknown, where: string): void {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    throw new CatalogError(`${where} must be an object`);
+  }
+  const skillz = value as Record<string, unknown>;
+  const validKeys = new Set(['routers', 'tools', 'integrations', 'tasks', 'workflows']);
+  for (const key of Object.keys(skillz)) {
+    if (!validKeys.has(key)) {
+      throw new CatalogError(
+        `${where} has unknown key "${key}"; allowed: ${[...validKeys].join(', ')}`
+      );
+    }
+    const list = skillz[key];
+    if (list === undefined) continue;
+    if (!Array.isArray(list)) {
+      throw new CatalogError(`${where}.${key} must be an array of strings`);
+    }
+    for (const [k, slug] of list.entries()) {
+      if (typeof slug !== 'string' || slug.length === 0) {
+        throw new CatalogError(
+          `${where}.${key}[${k}] must be a non-empty string`
         );
       }
     }
