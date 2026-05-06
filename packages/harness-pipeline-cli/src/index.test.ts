@@ -16,7 +16,7 @@
  *   - events are captured in result.events
  */
 
-import type { ResolvedBinding } from '@agentx/agent-auth-lib';
+import type { ResolvedBinding } from '@agentx/agent-auth';
 import { describe, expect, it } from 'vitest';
 import { type JobSpec, runHarnessPipeline } from './index.ts';
 

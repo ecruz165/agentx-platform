@@ -1,5 +1,5 @@
 {
-  "name": "@agentx/harness-cli",
+  "name": "@agentx/harness",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -14,7 +14,7 @@
   },
   "dependencies": {
     "@agentx/agent-adapter": "workspace:*",
-    "@agentx/agent-auth-lib": "workspace:*",
+    "@agentx/agent-auth": "workspace:*",
     "@agentx/harness-core": "workspace:*",
     "@agentx/harness-server": "workspace:*",
     "@opentui/core": "^0.2.2",

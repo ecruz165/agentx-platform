@@ -1,5 +1,5 @@
 {
-  "name": "@agentx/context-loader-cli",
+  "name": "@agentx/context-loader",
   "version": "0.0.0",
   "private": true,
   "type": "module",

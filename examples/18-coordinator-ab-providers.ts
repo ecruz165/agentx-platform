@@ -31,7 +31,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { type CopilotChatAdapterOptions, createHarnessChatModel } from '@agentx/agent-adapter';
-import { type CredentialBroker, FileBroker, type ResolvedBinding } from '@agentx/agent-auth-lib';
+import { type CredentialBroker, FileBroker, type ResolvedBinding } from '@agentx/agent-auth';
 import type { Catalog } from '@agentx/harness-core';
 import { runEntryCoordinator } from '@agentx/harness-server';
 

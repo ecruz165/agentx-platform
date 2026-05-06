@@ -17,7 +17,7 @@
  * envelope contract is unchanged across them. Only the spawn primitive
  * differs:
  *   - in-process: direct function call
- *   - subprocess: `tsx packages/harness-pipeline/src/bin.ts <spec>`
+ *   - subprocess: `tsx packages/harness-pipeline-cli/src/bin.ts <spec>`
  *   - container:  `devcontainer exec --container-id <id> bun harness-pipeline <spec-in-container>`
  *
  * Lifecycle: this function does NOT manage the container's lifetime.
@@ -82,7 +82,7 @@ export interface RunPipelineInContainerOptions {
    * In-container command name for the harness-pipeline binary.
    * Default: `harness-pipeline` (resolved on the container's PATH).
    * Override for fixture containers that don't have it installed —
-   * e.g., `bun /workspace/packages/harness-pipeline/src/bin.ts`.
+   * e.g., `bun /workspace/packages/harness-pipeline-cli/src/bin.ts`.
    */
   pipelineCommand?: string;
   /** Hook for tests / observers. Mirrors runPipelineSubprocess. */

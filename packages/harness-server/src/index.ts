@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { chmod, mkdir, unlink } from 'node:fs/promises';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { dirname } from 'node:path';
-import type { BindingResolver, CredentialBroker } from '@agentx/agent-auth-lib';
+import type { BindingResolver, CredentialBroker } from '@agentx/agent-auth';
 import {
   type AdapterFactory,
   type AdapterId,

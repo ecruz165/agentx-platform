@@ -21,7 +21,7 @@ import { spawn } from 'node:child_process';
 import { chmod, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type { BindingResolver, CredentialBroker, ResolvedBinding } from '@agentx/agent-auth-lib';
+import type { BindingResolver, CredentialBroker, ResolvedBinding } from '@agentx/agent-auth';
 import { type Envelope, JobBus, type JobRecord } from '@agentx/harness-core';
 import { afterEach, describe, expect, it } from 'vitest';
 import { buildJobSpec, runJobInContainer } from './run-job-in-container.ts';

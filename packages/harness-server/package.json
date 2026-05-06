@@ -14,7 +14,7 @@
   },
   "dependencies": {
     "@agentx/agent-adapter": "workspace:*",
-    "@agentx/agent-auth-lib": "workspace:*",
+    "@agentx/agent-auth": "workspace:*",
     "@agentx/harness-core": "workspace:*",
     "@agentx/harness-pipeline": "workspace:*",
     "@langchain/core": "^1.1.44",

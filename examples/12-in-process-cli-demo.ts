@@ -1,5 +1,5 @@
 import { AdapterEventBus, type AgentAdapter, type InvocationSpec } from '@agentx/agent-adapter';
-import type { CredentialBroker } from '@agentx/agent-auth-lib';
+import type { CredentialBroker } from '@agentx/agent-auth';
 import {
   type AdapterFactory,
   type Envelope,

@@ -9,7 +9,7 @@ import {
   fetchGitHubUsername,
   loginGitHubCopilot,
   type Provider,
-} from '@agentx/agent-auth-lib';
+} from '@agentx/agent-auth';
 import { type LoaderEvent, spawnLoaderJob } from '@agentx/harness-server';
 import { udsRequest } from './uds-client.ts';
 import {

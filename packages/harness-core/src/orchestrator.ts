@@ -7,7 +7,7 @@ import {
   OpenCodeCliAdapter,
   type OpenCodeCliAdapterOptions,
 } from '@agentx/agent-adapter';
-import type { BindingResolver, CredentialBroker, ResolvedBinding } from '@agentx/agent-auth-lib';
+import type { BindingResolver, CredentialBroker, ResolvedBinding } from '@agentx/agent-auth';
 import type { AdapterId } from './catalog.ts';
 import type { JobRecord, RegisteredAgent } from './job.ts';
 import { bridgeAdapter, type JobBus } from './job-bus.ts';

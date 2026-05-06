@@ -37,7 +37,7 @@ import {
   DefaultBindingResolver,
   FileBroker,
   type Provider,
-} from '@agentx/agent-auth-lib';
+} from '@agentx/agent-auth';
 
 // ─── helpers ──────────────────────────────────────────────────────────────
 

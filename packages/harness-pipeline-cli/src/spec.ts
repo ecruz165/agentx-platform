@@ -18,7 +18,7 @@
  * with an actionable error rather than silently ignoring fields.
  */
 
-import type { ResolvedBinding } from '@agentx/agent-auth-lib';
+import type { ResolvedBinding } from '@agentx/agent-auth';
 import type { AdapterId } from '@agentx/harness-core';
 
 /**

@@ -3,7 +3,7 @@
  *
  * The shapes here are the contract between:
  *   - Consumers calling ingest() programmatically
- *   - The CLI (@agentx/context-loader-cli) wrapping them
+ *   - The CLI (@agentx/context-loader) wrapping them
  *   - Backend adapters (Neo4j) implementing GraphIngestionBackend
  *   - Source-type chunkers producing nodes/edges/vectors
  *

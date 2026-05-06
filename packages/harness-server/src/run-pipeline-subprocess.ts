@@ -108,7 +108,7 @@ export interface RunPipelineSubprocessResult {
  *  regardless of cwd. */
 const DEFAULT_BIN_PATH = resolve(
   fileURLToPath(import.meta.url),
-  '../../../harness-pipeline/src/bin.ts',
+  '../../../harness-pipeline-cli/src/bin.ts',
 );
 
 /** Default tsx binary path in the workspace's pnpm-managed

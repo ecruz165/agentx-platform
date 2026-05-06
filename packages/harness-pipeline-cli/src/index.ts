@@ -27,7 +27,7 @@ import {
   type OpenCodeServerOptions,
   type OpencodeProviderEntry,
 } from '@agentx/agent-adapter';
-import type { ResolvedBinding } from '@agentx/agent-auth-lib';
+import type { ResolvedBinding } from '@agentx/agent-auth';
 import {
   type Envelope,
   JobBus,

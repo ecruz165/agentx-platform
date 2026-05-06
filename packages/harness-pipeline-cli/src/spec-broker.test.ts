@@ -4,7 +4,7 @@
  * (multiple bindings to the same provider share one credential).
  */
 
-import type { ResolvedBinding } from '@agentx/agent-auth-lib';
+import type { ResolvedBinding } from '@agentx/agent-auth';
 import { describe, expect, it } from 'vitest';
 import { SpecBroker } from './spec-broker.ts';
 

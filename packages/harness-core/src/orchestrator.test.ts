@@ -7,7 +7,7 @@ import {
   type InvocationSpec,
   RateLimitError,
 } from '@agentx/agent-adapter';
-import type { CredentialBroker, ResolvedBinding } from '@agentx/agent-auth-lib';
+import type { CredentialBroker, ResolvedBinding } from '@agentx/agent-auth';
 import { describe, expect, it } from 'vitest';
 import type { PipelineCatalog } from './catalog.ts';
 import type { JobRecord } from './job.ts';

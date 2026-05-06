@@ -18,8 +18,8 @@ workspace-template uses local file refs into `packages/`.
 | # | Decision | Where it's enforced |
 |---|---|---|
 | 1 | DevContainer-per-job, named container `agentx-job-<jobId>`, N agents inside, M worktrees per agent | `workspace-template/` (MVP-1+) |
-| 2 | MCP banned ecosystem-wide | `packages/agent-adapter` enforces at adapter spawn (3-layer suppression) |
-| 3 | v1 adapters: Claude SDK + OpenCode CLI only | `packages/agent-adapter` |
+| 2 | MCP banned ecosystem-wide | `packages/agent-adapter-lib` enforces at adapter spawn (3-layer suppression) |
+| 3 | v1 adapters: Claude SDK + OpenCode CLI only | `packages/agent-adapter-lib` |
 | 4 | `productId` required in submit; CLI session-state | `packages/harness-cli` enforces |
 | 5 | UDS file-perm trust only in v1 | `packages/agent-auth-lib` (auth file) + `packages/harness-cli` (sockets) both gate `0600` |
 
@@ -27,12 +27,12 @@ workspace-template uses local file refs into `packages/`.
 
 | Package | Maps to PRD | What it does today |
 |---|---|---|
-| `@agentx/agent-auth-lib` | `prd-agent-auth-lib.md` | Credential types, `FileBroker` with `0600` gate, `AuthStore`, GitHub Device Flow + Copilot session-token exchange + `callCopilot()` |
+| `@agentx/agent-auth` | `prd-agent-auth-lib.md` | Credential types, `FileBroker` with `0600` gate, `AuthStore`, GitHub Device Flow + Copilot session-token exchange + `callCopilot()` |
 | `@agentx/agent-adapter` | `prd-agent-adapter-lib.md` | `ClaudeSdkAdapter`, `OpenCodeCliAdapter`, capture pipeline |
 | `@agentx/harness-server` | `prd-harness-server.md` | HTTP-over-UDS echo server (real orchestration in MVP-3+) |
 | `@agentx/edge-memory-server` | `prd-edge-memory-server.md` | HTTP-over-UDS echo server (real impl in MVP-2+) |
 | `@agentx/edge-context-server` | `prd-edge-context-server.md` | HTTP-over-UDS echo server (real impl in MVP-2+) |
-| `@agentx/harness-cli` | `prd-harness-cli.md` | `harness auth/server/session/memory/context …` CLI |
+| `@agentx/harness` | `prd-harness-cli.md` | `harness auth/server/session/memory/context …` CLI |
 
 ## Path conventions (load-bearing for MVP-1 readiness)
 
@@ -144,6 +144,6 @@ as system context, then their Bash tool spawns these exact commands.
 
 ## Open spikes
 
-- **Spike A:** verify `opencode run --no-mcp --model … <prompt>` argv shape on your installed opencode. Update `packages/agent-adapter/src/opencode-cli-adapter.ts` if different.
+- **Spike A:** verify `opencode run --no-mcp --model … <prompt>` argv shape on your installed opencode. Update `packages/agent-adapter-lib/src/opencode-cli-adapter.ts` if different.
 - **Spike B:** verify MCP is actually suppressed (not just claimed). Send opencode a tool-using prompt; model should refuse.
-- **Open user-write:** `redactCapture()` in `packages/agent-adapter/src/capture.ts` — gates the leak detector for both adapters.
+- **Open user-write:** `redactCapture()` in `packages/agent-adapter-lib/src/capture.ts` — gates the leak detector for both adapters.

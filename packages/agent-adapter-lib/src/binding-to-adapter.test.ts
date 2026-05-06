@@ -13,7 +13,7 @@ import type {
   ModelDescriptor,
   Provider,
   ResolvedBinding,
-} from '@agentx/agent-auth-lib';
+} from '@agentx/agent-auth';
 import { describe, expect, it } from 'vitest';
 import { bindingToAdapter, defaultLocalEndpointResolver } from './binding-to-adapter.ts';
 import { ClaudeSdkAdapter } from './claude-sdk-adapter.ts';

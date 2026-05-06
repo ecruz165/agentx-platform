@@ -1,5 +1,5 @@
 /**
- * @agentx/context-loader-cli — public barrel (mostly empty).
+ * @agentx/context-loader — public barrel (mostly empty).
  *
  * The CLI package's primary surface is the `agentx-load` binary (see ./bin.ts).
  * This index file exists for consumers (e.g., harness-cli's workspace shim)

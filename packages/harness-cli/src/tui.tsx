@@ -5,7 +5,7 @@ import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { AuthStore } from '@agentx/agent-auth-lib';
+import { AuthStore } from '@agentx/agent-auth';
 import { createCliRenderer } from '@opentui/core';
 import { createRoot, useKeyboard, useOnResize, useRenderer } from '@opentui/react';
 import { useCallback, useEffect, useState } from 'react';

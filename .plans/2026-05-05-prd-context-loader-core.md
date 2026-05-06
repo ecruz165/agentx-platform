@@ -26,8 +26,8 @@ The library is consumed by three layers, each in a different role:
 
 | Consumer | Role | When used |
 |---|---|---|
-| `@agentx/harness-cli` | **Primary user surface.** Launches loaders as harness-server jobs (`harness context load <source>`), shows live progress in `jobs-tui`, exposes catalog management (`harness context source list/describe/extend`), and offers a first-run wizard (`harness context load configure`). | Daily developer workflow inside a workspace with a running triad. |
-| `@agentx/context-loader-cli` | **Headless executable** — the binary `agentx-load`. Ingests directly when no harness is around (CI runs, scripts, ECS task entrypoints) and runs as the spawn-worker process when harness-cli launches a load. | Scripted/automated runs; spawn-worker mode under harness-server. |
+| `@agentx/harness` | **Primary user surface.** Launches loaders as harness-server jobs (`harness context load <source>`), shows live progress in `jobs-tui`, exposes catalog management (`harness context source list/describe/extend`), and offers a first-run wizard (`harness context load configure`). | Daily developer workflow inside a workspace with a running triad. |
+| `@agentx/context-loader` | **Headless executable** — the binary `agentx-load`. Ingests directly when no harness is around (CI runs, scripts, ECS task entrypoints) and runs as the spawn-worker process when harness-cli launches a load. | Scripted/automated runs; spawn-worker mode under harness-server. |
 | `@agentx/edge-context-server` | **HTTP-triggered ingestion routes** — `POST /v1/sources/...` endpoints that internally call `ingest()`. | Browser/IDE integration paths that talk to edge-context over the network. |
 
 The relationship between the top two rows is the same "thin headless emitter, thick consumer" pattern used elsewhere in the codebase (see `project_observability_via_emitter` memory): `agentx-load` emits structured `IngestionEvent`s; harness-cli is the rich subscriber that aggregates them across concurrent loads and renders them through `jobs-tui`. Because both speak the same wire format (JSON events over stdout standalone, over UDS in worker mode), the same loader binary serves all three consumers without branching.
@@ -53,7 +53,7 @@ The library introduces the concept of **context sources** — typed inputs from 
 - **Not a long-running daemon.** Each loader invocation is one ingestion run. State persists in the graph backend, not in the loader process.
 - **Not a generic file-walker / corpus indexer.** Source types are explicitly enumerated; matching files that don't fit any registered type are logged-and-skipped, not silently embedded as fallback.
 - **Not a license-policy gate.** License is *tracked* on each ingested OSS node; whether to ingest GPL code is a downstream policy decision.
-- **Not a CLI.** All CLI concerns (binary names, flag parsing, help text, install/distribution, job-mode UDS protocol) belong to `@agentx/context-loader-cli`. See its PRD.
+- **Not a CLI.** All CLI concerns (binary names, flag parsing, help text, install/distribution, job-mode UDS protocol) belong to `@agentx/context-loader`. See its PRD.
 
 ## 4. Reference & Provenance
 
@@ -388,7 +388,7 @@ CLI integration (binary `agentx-load`, harness-cli shim, job-mode UDS protocol) 
 
 | Dependency | Why | Hard / Soft |
 |---|---|---|
-| `@agentx/agent-auth-lib` | `CredentialBroker` for GitHub/Jira/Confluence ingestion | **Hard** |
+| `@agentx/agent-auth` | `CredentialBroker` for GitHub/Jira/Confluence ingestion | **Hard** |
 | `@agentx/agent-adapter` | When a source-type step needs an LLM (vision for `image-described`, optional summarization for `oss-issues`) | **Hard** |
 | `tree-sitter` (Node binding) + per-language grammars | AST chunking | **Hard** |
 | `neo4j-driver` | `Neo4jBackend` (the only production adapter) | **Hard** |

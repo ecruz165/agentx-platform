@@ -35,7 +35,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { createHarnessChatModel } from '@agentx/agent-adapter';
-import type { CredentialBroker, ResolvedBinding } from '@agentx/agent-auth-lib';
+import type { CredentialBroker, ResolvedBinding } from '@agentx/agent-auth';
 import type { Catalog } from '@agentx/harness-core';
 import { runEntryCoordinator } from '@agentx/harness-server';
 

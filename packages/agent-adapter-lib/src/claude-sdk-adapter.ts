@@ -1,4 +1,4 @@
-import type { CredentialBroker } from '@agentx/agent-auth-lib';
+import type { CredentialBroker } from '@agentx/agent-auth';
 import Anthropic, { APIError as AnthropicAPIError } from '@anthropic-ai/sdk';
 import { type AdapterError, classifyHttpError, classifyNetworkError } from './errors.ts';
 import { AdapterEventBus, type TokenUsage } from './events.ts';

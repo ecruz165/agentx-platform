@@ -12,7 +12,7 @@
 
 ## 1. Purpose
 
-A standalone CLI binary `agentx-load` (shipped via `@agentx/context-loader-cli`) that wraps `@agentx/context-loader-core` to make context-source ingestion runnable as a one-shot CLI process. The CLI:
+A standalone CLI binary `agentx-load` (shipped via `@agentx/context-loader`) that wraps `@agentx/context-loader-core` to make context-source ingestion runnable as a one-shot CLI process. The CLI:
 
 - Accepts subcommands aligned with the `context source` namespace (`add`, `list`, `describe`, `refresh`, `remove`, `crawl`, `upload`, `oss`, `types`, `stats`, `dry-run`).
 - Runs in two modes:
@@ -71,7 +71,7 @@ User stories:
 
 | ID | Requirement |
 |---|---|
-| F17 | `@agentx/context-loader-cli` ships a single binary `agentx-load`. Built with Bun for fast cold-start (<100ms p95). Distributed as an npm-installable package. |
+| F17 | `@agentx/context-loader` ships a single binary `agentx-load`. Built with Bun for fast cold-start (<100ms p95). Distributed as an npm-installable package. |
 | F18 | The binary parses argv via `commander` (or equivalent) and dispatches to subcommands. Help text is exhaustive (`--help` on every subcommand) and includes example invocations. |
 | F22 | Help text for every subcommand explains the source type the verb operates on. `agentx-load --help` and `harness context source --help` produce equivalent output. |
 
@@ -121,7 +121,7 @@ See §10 for the full surface design. Capsule requirements:
 
 | ID | Requirement |
 |---|---|
-| F21 | `@agentx/harness-cli` exposes the loader command surface (`harness context load`, `harness context load configure`, `harness context source list/describe/extend`). The launch path is **always** via harness-server's spawn-worker mechanism — harness-cli never executes `ingest()` in-process. The spawned worker runs the `agentx-load` binary with `--output-events-uds=...` so its event stream flows back through the JobBus. |
+| F21 | `@agentx/harness` exposes the loader command surface (`harness context load`, `harness context load configure`, `harness context source list/describe/extend`). The launch path is **always** via harness-server's spawn-worker mechanism — harness-cli never executes `ingest()` in-process. The spawned worker runs the `agentx-load` binary with `--output-events-uds=...` so its event stream flows back through the JobBus. |
 | F44 | harness-cli auto-discovers config from `<workspace>/.harness/config/context-sources.yml` via `findWorkspaceRoot()`. The standalone binary requires `--config <path>` or falls back to `~/.agentx/context-sources.yml`. Both paths read the same schema. |
 | F45 | The two invocation paths (harness-cli launch vs standalone binary) produce identical events and identical graph state. Tests verify parity. |
 | F46 | `harness context load configure` is a first-run interactive wizard (Bun + OpenTUI form) that writes the workspace YAML. It is the only loader command with an interactive UI; all other loader commands are flags-driven and pipeable. |
@@ -230,7 +230,7 @@ The UDS reader (harness-server) parses events line-by-line, routes them onto the
 
 ## 10. Relationship to harness-cli
 
-`@agentx/harness-cli` is the **primary user surface** for context loading inside a workspace with a running triad. The standalone `agentx-load` binary remains first-class for CI runs, scripts, and ECS task entrypoints — but inside a developer's daily workflow, harness-cli is the front door.
+`@agentx/harness` is the **primary user surface** for context loading inside a workspace with a running triad. The standalone `agentx-load` binary remains first-class for CI runs, scripts, and ECS task entrypoints — but inside a developer's daily workflow, harness-cli is the front door.
 
 ### 10.1 harness-cli command surface for loaders
 
@@ -272,7 +272,7 @@ v1 implementation in harness-cli imports `@agentx/context-loader-core` only for 
 
 ## 11. Distribution
 
-- **npm package**: `@agentx/context-loader-cli`. `bin: agentx-load` registered in `package.json`. Users install via `bun install -g @agentx/context-loader-cli` (or pnpm/npm).
+- **npm package**: `@agentx/context-loader`. `bin: agentx-load` registered in `package.json`. Users install via `bun install -g @agentx/context-loader` (or pnpm/npm).
 - **Single-binary builds (v1.x)**: `bun build --compile` produces standalone executables for macOS arm64/x64 and Linux x64. Distributed via GitHub Releases. Useful for users who don't have Node/Bun installed.
 - **Cross-platform**: Bun runtime supported on macOS arm64 + macOS x64 + Linux x64 + Windows x64 (in that order of priority).
 - **Versioning**: Follows `@agentx/context-loader-core`'s major version. CLI bug fixes can ship as patch versions independently.
@@ -283,7 +283,7 @@ v1 implementation in harness-cli imports `@agentx/context-loader-core` only for 
 
 | # | Question | Decision | Why |
 |---|---|---|---|
-| D2 | Standalone CLI name | `@agentx/context-loader-cli`, binary `agentx-load` | Verb describes action; pairs with the lib name |
+| D2 | Standalone CLI name | `@agentx/context-loader`, binary `agentx-load` | Verb describes action; pairs with the lib name |
 | D3 | Concept naming | "context source" / "source type" | Aligns with existing `context` vocabulary; replaces `graphrag` |
 | D7 | Standalone vs job mode | Both supported; same binary | Standalone for solo use; job mode for engineering workflows. Feature-flagged via `--output-events-uds` presence |
 | D8 | One CLI per job (in job mode) | Yes | Reuses spawn-worker pattern; no daemon; cancellation works via container kill |
@@ -336,7 +336,7 @@ v1 implementation in harness-cli imports `@agentx/context-loader-core` only for 
 | Dependency | Why | Hard / Soft |
 |---|---|---|
 | `@agentx/context-loader-core` | The lib this CLI wraps | **Hard** |
-| `@agentx/agent-auth-lib` | Re-exported types if user inspects credentials | Soft (transitively from core) |
+| `@agentx/agent-auth` | Re-exported types if user inspects credentials | Soft (transitively from core) |
 | `commander` | Argument parsing | **Hard** |
 | `kleur` (or chalk) | Terminal color output for human-readable progress | **Soft** (tty-detected) |
 | Bun runtime | Build + run | **Hard** |

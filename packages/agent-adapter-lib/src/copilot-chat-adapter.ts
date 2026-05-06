@@ -3,7 +3,7 @@
  *
  * Per memory `project_per_worker_model_subscription`: github-copilot is
  * a meta-vendor (proxies to GPT-4o, Claude, Gemini under one auth/billing
- * boundary). Auth is fully wired in `@agentx/agent-auth-lib` — device-
+ * boundary). Auth is fully wired in `@agentx/agent-auth` — device-
  * code login + session-token exchange + lazy refresh — what's been
  * missing is the chat-call adapter. This is it.
  *
@@ -32,7 +32,7 @@
  *      error), which agent-auth-lib's callCopilot doesn't do.
  */
 
-import { AuthStore } from '@agentx/agent-auth-lib';
+import { AuthStore } from '@agentx/agent-auth';
 import { classifyHttpError, classifyNetworkError } from './errors.ts';
 import { AdapterEventBus, type TokenUsage } from './events.ts';
 import type { AgentAdapter, InvocationSpec } from './types.ts';

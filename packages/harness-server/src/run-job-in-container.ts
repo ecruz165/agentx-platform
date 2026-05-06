@@ -41,7 +41,7 @@
  */
 
 import { spawn } from 'node:child_process';
-import type { BindingResolver, CredentialBroker, ResolvedBinding } from '@agentx/agent-auth-lib';
+import type { BindingResolver, CredentialBroker, ResolvedBinding } from '@agentx/agent-auth';
 import type { JobBus, JobRecord, RegisteredAgent } from '@agentx/harness-core';
 import type { JobSpec, SpecAgent } from '@agentx/harness-pipeline';
 import { runPipelineInContainer } from './run-pipeline-in-container.ts';

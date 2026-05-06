@@ -12,7 +12,7 @@
   },
   "dependencies": {
     "@agentx/agent-adapter": "workspace:*",
-    "@agentx/agent-auth-lib": "workspace:*"
+    "@agentx/agent-auth": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^22.7.0",
