@@ -16,6 +16,8 @@
     "@agentx/agent-adapter": "workspace:*",
     "@agentx/agent-auth-lib": "workspace:*",
     "@agentx/harness-core": "workspace:*",
+    "@langchain/core": "^1.1.44",
+    "@langchain/langgraph": "^1.3.0",
     "yaml": "^2.6.0"
   },
   "devDependencies": {

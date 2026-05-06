@@ -152,31 +152,28 @@ describe('runHarnessPipeline', () => {
     expect(result.events.length).toBeGreaterThanOrEqual(1);
   });
 
-  it('threads outputs through a multi-agent pipeline using local bindings', async () => {
+  it('walks a multi-agent spec when all agents are synthetic (orchestrator skips by id)', async () => {
+    // We use the synthetic agent ids that the orchestrator skips
+    // ('coordinator' and 'checkout-coordinator'). With no bindings to
+    // resolve and synthetic ids, no adapters are constructed and no
+    // server spawns. Slice 9c-3 made local bindings actually try the
+    // network — testing real multi-agent flows now requires the
+    // examples/15 demo against live DMR.
     const spec: JobSpec = {
       version: 1,
-      jobId: 'multi',
+      jobId: 'multi-synthetic',
       pipeline: 'p',
       set: 'default',
       input: 'start',
       agents: [
-        { id: 'a1', role: 'A1', adapter: 'opencode-cli', bindingId: 'a1' },
-        { id: 'a2', role: 'A2', adapter: 'opencode-cli', bindingId: 'a2' },
+        { id: 'coordinator', role: 'Coord', adapter: 'claude-sdk' },
+        { id: 'checkout-coordinator', role: 'Checkout', adapter: 'claude-sdk' },
       ],
-      bindings: { a1: localBinding(), a2: localBinding() },
+      bindings: {},
     };
-
-    // Local bindings construct OpenCodeCliAdapter with endpoint set —
-    // invoking it would spawn opencode, which would time out without a
-    // real backend. We fire-and-observe: the run will fail at first
-    // invoke, which is the orchestrator's signal that the chain wired up
-    // correctly.
-    const result = await runHarnessPipeline(spec, {
-      localEndpoint: () => 'http://localhost:99999/v1', // unreachable
-    });
-    // Either status is acceptable here — we're verifying NO synchronous
-    // throw and the orchestrator processed the agents.
-    expect(['completed', 'failed']).toContain(result.status);
+    const result = await runHarnessPipeline(spec);
+    expect(result.status).toBe('completed');
+    expect(result.opencodeServerStarted).toBe(false);
   });
 
   it('exposes events captured during the run', async () => {

@@ -116,6 +116,18 @@ export interface HarnessServerHandle {
 
 export type { AgentStatus, RegisteredAgent, JobRecord } from '@agentx/harness-core';
 
+// Coordinator workflows (admin-owned, run inside harness-server). Per
+// memory project_langgraph_two_scopes — these graphs replace the
+// hardcoded placeholder COORDINATOR_AGENT records when slice 10c wires
+// them into handleSubmitJob.
+export {
+  buildEntryCoordinatorGraph,
+  runEntryCoordinator,
+  type RunEntryCoordinatorArgs,
+  type RunEntryCoordinatorResult,
+  type CoordinatorPipelineSummary,
+} from './coordinator/entry-coordinator.ts';
+
 /**
  * Synthetic agents harness-server inserts around every pipelined job's
  * user-defined agents. Both are placeholders today — their adapter
