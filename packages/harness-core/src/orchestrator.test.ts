@@ -276,14 +276,15 @@ describe('runJob — accepts-aware adapter selection', () => {
       async resolveBinding(accepts: readonly string[]) {
         resolverCalls += 1;
         expect(accepts).toEqual(['anthropic:claude-haiku-4-5']);
-        // Return a "local" binding — that lets us verify the
-        // bindingToAdapter path runs without needing real Anthropic creds.
-        // The factory below provides the test adapter so we don't
-        // actually invoke OpenCodeCliAdapter / ClaudeSdkAdapter.
+        // Return a cloud-anthropic binding. bindingToAdapter routes this
+        // to ClaudeSdkAdapter, which makes a fast HTTP call to Anthropic
+        // with the stub key and fails fast. (Local bindings would spawn
+        // opencode-cli which can hang waiting for a non-existent server.)
         return {
-          kind: 'local' as const,
-          provider: { id: 'local-qwen' as const, name: 'fake', authMethods: [], models: [] },
-          model: { id: 'qwen3', type: 'text' as const },
+          kind: 'cloud' as const,
+          provider: { id: 'anthropic' as const, name: 'Anthropic', authMethods: ['api-key' as const], models: [] },
+          model: { id: 'claude-haiku-4-5', type: 'text' as const },
+          credential: { provider: 'anthropic' as const, apiKey: 'sk-ant-stub', source: 'host-file' as const },
         };
       },
     };

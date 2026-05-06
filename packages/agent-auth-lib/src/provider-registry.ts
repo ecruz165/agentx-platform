@@ -106,9 +106,15 @@ const LOCAL_QWEN: LLMProvider = {
   name: 'Local Qwen (Docker Model Runner)',
   authMethods: [],
   models: [
-    { id: 'qwen3',           type: 'text',           contextWindow: 32_000, capabilities: ['tools'], costTier: 'small' },
-    { id: 'qwen3-coder',     type: 'text',           contextWindow: 32_000, capabilities: ['tools'], costTier: 'small' },
-    { id: 'qwen3-embedding', type: 'text-embedding', embeddingDim: 1024 },
+    // vendorModelId fields name the actual Docker Model Runner tag the
+    // local model server expects in chat-completion requests. The `id`
+    // field is the stable handle catalog authors use; vendorModelId is
+    // what flows through OpenCode → DMR as the `model:` field. Choice of
+    // tag/quant is a deployment detail (project_embedder_choice memory):
+    // 0.6B-Q4_K_M is the smallest viable chat tag (~456 MiB pull).
+    { id: 'qwen3',           type: 'text',           vendorModelId: 'ai/qwen3:0.6B-Q4_K_M',       contextWindow: 32_000, capabilities: ['tools'], costTier: 'small' },
+    { id: 'qwen3-coder',     type: 'text',           vendorModelId: 'ai/qwen3-coder:8B-Q4_K_M',   contextWindow: 32_000, capabilities: ['tools'], costTier: 'small' },
+    { id: 'qwen3-embedding', type: 'text-embedding', vendorModelId: 'ai/qwen3-embedding:0.6B-F16', embeddingDim: 1024 },
   ],
 };
 

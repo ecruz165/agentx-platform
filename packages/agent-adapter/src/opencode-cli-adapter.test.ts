@@ -86,8 +86,10 @@ describe('OpenCodeCliAdapter — local endpoint path', () => {
     const configDir = opts.env.XDG_CONFIG_HOME;
     expect(configDir).toBeDefined();
     const cfg = JSON.parse(
-      readFileSync(join(configDir!, 'opencode.json'), 'utf8')
+      readFileSync(join(configDir!, 'opencode', 'opencode.json'), 'utf8')
     );
+    // The default model is `<providerId>/qwen3-coder` so the registered
+    // model id is `qwen3-coder`. opencode 1.4 requires this models map.
     expect(cfg).toEqual({
       mcp: {},
       provider: {
@@ -95,6 +97,9 @@ describe('OpenCodeCliAdapter — local endpoint path', () => {
           options: {
             baseURL: 'http://agent-llm:8080/v1',
             apiKey: 'test-key-ignored-by-server',
+          },
+          models: {
+            'qwen3-coder': {},
           },
         },
       },
@@ -217,7 +222,7 @@ describe('OpenCodeCliAdapter — hosted-provider path (regression)', () => {
 
     const { opts } = lastSpawnCall();
     const cfg = JSON.parse(
-      readFileSync(join(opts.env.XDG_CONFIG_HOME!, 'opencode.json'), 'utf8')
+      readFileSync(join(opts.env.XDG_CONFIG_HOME!, 'opencode', 'opencode.json'), 'utf8')
     );
     expect(cfg.mcp).toEqual({});
     expect(cfg.provider).toBeUndefined();
@@ -247,7 +252,7 @@ describe('OpenCodeCliAdapter — serverUrl (HTTP server attach)', () => {
     await adapter.invoke({ user: 'hi' });
 
     const { args } = lastSpawnCall();
-    // Argv shape: ['run', '--attach', '<url>', '--no-mcp', '--model', '<model>', '<prompt>']
+    // Argv shape: ['run', '--attach', '<url>', '--pure', '--model', '<model>', '<prompt>']
     expect(args[0]).toBe('run');
     expect(args[1]).toBe('--attach');
     expect(args[2]).toBe('http://127.0.0.1:31337');
@@ -271,7 +276,7 @@ describe('OpenCodeCliAdapter — serverUrl (HTTP server attach)', () => {
     const { args } = lastSpawnCall();
     expect(args).not.toContain('--attach');
     expect(args[0]).toBe('run');
-    expect(args[1]).toBe('--no-mcp');
+    expect(args[1]).toBe('--pure');
   });
 
   it('serverUrl coexists with endpoint (custom upstream model server)', async () => {

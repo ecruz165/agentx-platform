@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process';
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { CredentialBroker, Provider } from '@agentx/agent-auth-lib';
@@ -88,10 +88,17 @@ export class OpenCodeCliAdapter implements AgentAdapter {
       // For local endpoints, model defaults to `<providerId>/qwen3-coder`.
       // Caller can override fully by passing an explicit `model` option.
       model = this.opts.model ?? `${providerId}/qwen3-coder`;
+      // Extract the model-id portion (after the first `/`) to register
+      // it in the opencode provider config. opencode 1.4 throws
+      // ProviderModelNotFoundError without this entry even for
+      // OpenAI-compatible custom providers.
+      const slashIdx = model.indexOf('/');
+      const registerModelId = slashIdx > 0 ? model.slice(slashIdx + 1) : model;
       configDir = makeOpencodeConfigDir({
         endpoint: this.opts.endpoint!,
         endpointProviderId: providerId,
         apiKey: this.opts.staticApiKey ?? 'no-auth-required',
+        registerModelId,
       });
       env = {
         OPENCODE_DISABLE_MCP: '1',
@@ -139,11 +146,21 @@ export class OpenCodeCliAdapter implements AgentAdapter {
     // setup (model load, plugin discovery, config parse) already happened
     // server-side, so the client's job is just to forward the request.
     // See OpenCodeServer for the lifecycle helper that owns the server.
+    //
+    // `--pure` disables external plugins (opencode 1.4.x naming —
+    // earlier versions called this `--no-mcp`). Combined with the
+    // OPENCODE_DISABLE_MCP=1 env var below for belt-and-suspenders.
+    //
+    // `--thinking` surfaces reasoning blocks. Reasoning models like
+    // Qwen3-thinking put their answer in `reasoning_content` rather
+    // than `content`; without this flag opencode hides reasoning and
+    // we see an empty response. Cost: a bit of extra output for non-
+    // reasoning models. Worth it for correctness.
     const cliArgs: string[] = ['run'];
     if (this.opts.serverUrl) {
       cliArgs.push('--attach', this.opts.serverUrl);
     }
-    cliArgs.push('--no-mcp', '--model', model, wirePrompt);
+    cliArgs.push('--pure', '--thinking', '--model', model, wirePrompt);
 
     return await new Promise<string>((resolve, reject) => {
       const child = spawn(bin, cliArgs, {
@@ -217,15 +234,23 @@ interface OpencodeConfigDirOpts {
   endpointProviderId?: string;
   /** API key string OpenCode passes to the provider; required when `endpoint` is set. */
   apiKey?: string;
+  /** Model id (without the `<provider>/` prefix) to register on the
+   *  endpoint provider. OpenCode 1.4.x rejects `--model <provider>/<id>`
+   *  with `ProviderModelNotFoundError` unless the id appears in the
+   *  provider's `models` map — even for OpenAI-compatible custom
+   *  providers. Required when `endpoint` is set; ignored otherwise. */
+  registerModelId?: string;
 }
 
 /**
  * Writes a tmp opencode.json that:
  *   - Always suppresses MCP (defense-in-depth alongside OPENCODE_DISABLE_MCP env
- *     and the --no-mcp CLI flag).
+ *     and the --pure CLI flag).
  *   - Optionally registers a custom OpenAI-compatible provider when `endpoint`
  *     is set, so OpenCode routes inference there instead of the default Anthropic
- *     / OpenAI / Google paths.
+ *     / OpenAI / Google paths. The provider entry includes a `models` map with
+ *     the specific model id registered — opencode 1.4.x throws
+ *     ProviderModelNotFoundError without this even though baseURL is set.
  *
  * Returns the directory that should be passed as XDG_CONFIG_HOME to the
  * opencode subprocess.
@@ -235,18 +260,28 @@ function makeOpencodeConfigDir(opts: OpencodeConfigDirOpts): string {
   const config: Record<string, unknown> = { mcp: {} };
   if (opts.endpoint) {
     const id = opts.endpointProviderId ?? 'local';
-    // OpenCode's provider config shape — points at any OpenAI-compatible
-    // baseURL. The apiKey is required even when the local server ignores it.
-    config.provider = {
-      [id]: {
-        options: {
-          baseURL: opts.endpoint,
-          apiKey: opts.apiKey ?? 'no-auth-required',
-        },
+    const providerEntry: Record<string, unknown> = {
+      options: {
+        baseURL: opts.endpoint,
+        apiKey: opts.apiKey ?? 'no-auth-required',
       },
     };
+    if (opts.registerModelId) {
+      // Register the specific model id — opencode 1.4 requires it under
+      // `models.<id>` even for OpenAI-compatible custom providers, or the
+      // CLI throws ProviderModelNotFoundError before the request goes out.
+      providerEntry.models = { [opts.registerModelId]: {} };
+    }
+    config.provider = { [id]: providerEntry };
   }
-  writeFileSync(join(dir, 'opencode.json'), JSON.stringify(config, null, 2), {
+  // XDG convention: `<XDG_CONFIG_HOME>/<app>/<file>`. opencode 1.4 looks
+  // in `<XDG_CONFIG_HOME>/opencode/opencode.json` (verified via
+  // --print-logs `service=config path=…/opencode/opencode.json loading`).
+  // The earlier flat-write path silently failed — opencode loaded its
+  // built-in providers and ignored ours.
+  const opencodeConfigDir = join(dir, 'opencode');
+  mkdirSync(opencodeConfigDir, { recursive: true, mode: 0o700 });
+  writeFileSync(join(opencodeConfigDir, 'opencode.json'), JSON.stringify(config, null, 2), {
     mode: 0o600,
   });
   return dir;

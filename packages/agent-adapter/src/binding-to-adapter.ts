@@ -104,16 +104,21 @@ export function bindingToAdapter(
       );
     }
     // OpenCodeCliAdapter local-mode: writes a custom provider into
-    // opencode.json pointing at this endpoint, model spec becomes
-    // `<providerId>/<modelId>` per the adapter's documented contract.
+    // opencode.json pointing at this endpoint. The model spec passed to
+    // OpenCode becomes `<providerId>/<vendorModelId|id>` — mirroring the
+    // cloud branch's behavior. For local-qwen via DMR, vendorModelId is
+    // the actual DMR-known id like `ai/qwen3:0.6B-Q4_K_M`; the registry's
+    // `id` field is the stable handle catalog authors use.
+    //
     // serverUrl when set means the adapter will use `--attach <url>`
     // against the harness-pipeline's shared opencode-server instead of
     // spawning standalone.
+    const localModelId = binding.model.vendorModelId ?? binding.model.id;
     return new OpenCodeCliAdapter({
       broker,
       endpoint,
       endpointProviderId: binding.provider.id,
-      model: `${binding.provider.id}/${binding.model.id}`,
+      model: `${binding.provider.id}/${localModelId}`,
       ...(opencodeServerUrl ? { serverUrl: opencodeServerUrl } : {}),
     });
   }
