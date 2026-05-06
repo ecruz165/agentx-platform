@@ -23,3 +23,9 @@ export {
   type LangGraphAdapterOptions,
   type CompiledGraph,
 } from './langgraph-adapter.ts';
+export {
+  HarnessChatModel,
+  createHarnessChatModel,
+  type HarnessChatModelOptions,
+  type CreateHarnessChatModelOptions,
+} from './harness-chat-model.ts';
