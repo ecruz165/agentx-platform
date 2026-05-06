@@ -22,7 +22,8 @@
  */
 
 import type { CredentialBroker } from '@agentx/agent-auth-lib';
-import { AdapterEventBus } from './events.ts';
+import { AdapterEventBus, type TokenUsage } from './events.ts';
+import { classifyHttpError, classifyNetworkError } from './errors.ts';
 import type { AgentAdapter, InvocationSpec } from './types.ts';
 
 const OPENAI_CHAT_URL = 'https://api.openai.com/v1/chat/completions';
@@ -34,6 +35,11 @@ interface ChatMessage {
 
 interface ChatCompletionResponse {
   choices?: Array<{ message?: { content?: string } }>;
+  usage?: {
+    prompt_tokens?: number;
+    completion_tokens?: number;
+    total_tokens?: number;
+  };
 }
 
 export interface OpenAiChatAdapterOptions {
@@ -89,36 +95,56 @@ export class OpenAiChatAdapter implements AgentAdapter {
         body: JSON.stringify({ model, messages, stream: false }),
       });
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
+      // Pre-response failure (DNS, TCP, TLS, abort) → NetworkError.
+      const classified = classifyNetworkError(err, 'openai');
       this.events.emit({
         kind: 'error',
         ts: new Date().toISOString(),
-        message,
-        cause: err instanceof Error ? err : undefined,
+        message: classified.message,
+        cause: classified,
       });
-      throw err;
+      throw classified;
     }
 
     if (!res.ok) {
       const body = await res.text().catch(() => '');
-      const err = new Error(`OpenAI chat failed (${res.status}): ${body.slice(0, 300)}`);
+      // HTTP-level failure → classify by status + body fingerprint.
+      const classified = classifyHttpError({
+        status: res.status,
+        body,
+        retryAfter: res.headers.get('retry-after'),
+        context: 'openai',
+      });
       this.events.emit({
         kind: 'error',
         ts: new Date().toISOString(),
-        message: err.message,
+        message: classified.message,
+        cause: classified,
       });
-      throw err;
+      throw classified;
     }
 
     const raw = (await res.json()) as ChatCompletionResponse;
     const text = raw.choices?.[0]?.message?.content ?? '';
+    const usage = extractOpenAiUsage(raw);
 
     this.events.emit({
       kind: 'response',
       ts: new Date().toISOString(),
       text,
       raw,
+      ...(usage ? { usage } : {}),
     });
     return text;
   }
+}
+
+function extractOpenAiUsage(raw: ChatCompletionResponse): TokenUsage | undefined {
+  const u = raw.usage;
+  if (!u) return undefined;
+  const out: TokenUsage = {};
+  if (u.prompt_tokens !== undefined) out.promptTokens = u.prompt_tokens;
+  if (u.completion_tokens !== undefined) out.completionTokens = u.completion_tokens;
+  if (u.total_tokens !== undefined) out.totalTokens = u.total_tokens;
+  return Object.keys(out).length > 0 ? out : undefined;
 }

@@ -1,6 +1,24 @@
 import { redactEvent } from './capture.ts';
 
 /**
+ * Per-invocation token usage. Field shapes mirror the OpenAI-style
+ * `usage` object that most providers' responses carry. Anthropic's
+ * SDK reports input/output names; we normalize to prompt/completion.
+ *
+ * All fields are optional — different providers report different
+ * subsets, and some (e.g. OpenCode CLI) report nothing. Consumers
+ * should treat absent fields as "unknown", not zero.
+ */
+export interface TokenUsage {
+  /** Tokens in the prompt sent to the model. */
+  promptTokens?: number;
+  /** Tokens generated in the completion. */
+  completionTokens?: number;
+  /** promptTokens + completionTokens. Some providers only report this. */
+  totalTokens?: number;
+}
+
+/**
  * The structured event types every adapter emits during invoke().
  *
  * Producers (adapters) emit; consumers (file writer, console renderer, server-side
@@ -22,6 +40,14 @@ export type AdapterEvent =
       ts: string;
       text: string;
       raw?: unknown;
+      /** Token usage for this single invoke, when the upstream provider
+       *  reports it. Optional because not every adapter has access to
+       *  structured usage (e.g., OpenCode CLI returns plain text via
+       *  stdout, no token counts). Per memory `project_three_axis_binding`-
+       *  era token-visibility work — surfaces "what did this call cost"
+       *  to consumers (TUI, billing dashboards) without each one needing
+       *  to re-parse the raw response. */
+      usage?: TokenUsage;
     }
   | {
       kind: 'error';

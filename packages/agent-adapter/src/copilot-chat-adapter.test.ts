@@ -249,7 +249,11 @@ describe('CopilotChatAdapter', () => {
     const events: AdapterEvent[] = [];
     const adapter = new CopilotChatAdapter({ authPath, fetchFn: fn });
     adapter.events.subscribe((e) => events.push(e));
-    await expect(adapter.invoke({ user: 'hi' })).rejects.toThrow(/Copilot chat failed \(500\)/);
+    // Error message format changed in slice 13b — HTTP errors now flow
+    // through classifyHttpError which produces typed AdapterError
+    // subclasses with structured messages. 500 → ProviderError with
+    // context "github-copilot: upstream error (500): …"
+    await expect(adapter.invoke({ user: 'hi' })).rejects.toThrow(/upstream error \(500\)/);
 
     const errorEvent = events.find((e) => e.kind === 'error');
     expect(errorEvent).toBeDefined();

@@ -33,7 +33,8 @@
  */
 
 import { AuthStore } from '@agentx/agent-auth-lib';
-import { AdapterEventBus } from './events.ts';
+import { AdapterEventBus, type TokenUsage } from './events.ts';
+import { classifyHttpError, classifyNetworkError } from './errors.ts';
 import type { AgentAdapter, InvocationSpec } from './types.ts';
 
 interface ChatMessage {
@@ -43,6 +44,11 @@ interface ChatMessage {
 
 interface ChatCompletionResponse {
   choices?: Array<{ message?: { content?: string } }>;
+  usage?: {
+    prompt_tokens?: number;
+    completion_tokens?: number;
+    total_tokens?: number;
+  };
 }
 
 interface CopilotTokenResponse {
@@ -112,22 +118,32 @@ export class CopilotChatAdapter implements AgentAdapter {
 
     try {
       const reply = await this.callWithRetry(fetchFn, store, cred.apiKey, messages, model);
+      const usage = extractCopilotUsage(reply.raw);
       this.events.emit({
         kind: 'response',
         ts: new Date().toISOString(),
         text: reply.text,
         raw: reply.raw,
+        ...(usage ? { usage } : {}),
       });
       return reply.text;
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
+      // callWithRetry already throws classified errors (AdapterError
+      // subclasses); pass-through here. Pre-network/auth-store errors
+      // (the classifier doesn't see those) get classified as
+      // NetworkError as the safe default — they're rarely seen in
+      // practice but covered for completeness.
+      const classified = err instanceof Error && err.name.endsWith('Error') &&
+        ['AuthError', 'BillingError', 'RateLimitError', 'ConfigError', 'NetworkError', 'ProviderError', 'AdapterError'].includes(err.name)
+        ? err
+        : classifyNetworkError(err, 'github-copilot');
       this.events.emit({
         kind: 'error',
         ts: new Date().toISOString(),
-        message,
-        cause: err instanceof Error ? err : undefined,
+        message: classified.message,
+        cause: classified,
       });
-      throw err;
+      throw classified;
     }
   }
 
@@ -153,7 +169,12 @@ export class CopilotChatAdapter implements AgentAdapter {
 
     if (!res.ok) {
       const body = await res.text().catch(() => '');
-      throw new Error(`Copilot chat failed (${res.status}): ${body.slice(0, 300)}`);
+      throw classifyHttpError({
+        status: res.status,
+        body,
+        retryAfter: res.headers.get('retry-after'),
+        context: 'github-copilot',
+      });
     }
 
     const raw = (await res.json()) as ChatCompletionResponse;
@@ -219,4 +240,14 @@ export class CopilotChatAdapter implements AgentAdapter {
       body: JSON.stringify({ model, messages, stream: false }),
     });
   }
+}
+
+function extractCopilotUsage(raw: ChatCompletionResponse): TokenUsage | undefined {
+  const u = raw.usage;
+  if (!u) return undefined;
+  const out: TokenUsage = {};
+  if (u.prompt_tokens !== undefined) out.promptTokens = u.prompt_tokens;
+  if (u.completion_tokens !== undefined) out.completionTokens = u.completion_tokens;
+  if (u.total_tokens !== undefined) out.totalTokens = u.total_tokens;
+  return Object.keys(out).length > 0 ? out : undefined;
 }

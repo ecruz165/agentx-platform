@@ -1,6 +1,17 @@
 export type { AgentAdapter, InvocationSpec } from './types.ts';
-export type { AdapterEvent, AdapterEventSource } from './events.ts';
+export type { AdapterEvent, AdapterEventSource, TokenUsage } from './events.ts';
 export { AdapterEventBus } from './events.ts';
+export {
+  AdapterError,
+  AuthError,
+  BillingError,
+  RateLimitError,
+  ConfigError,
+  NetworkError,
+  ProviderError,
+  classifyHttpError,
+  classifyNetworkError,
+} from './errors.ts';
 export { redactEvent, FileEventSubscriber } from './capture.ts';
 export { replayThenSubscribe } from './replay.ts';
 export { ClaudeSdkAdapter, type ClaudeSdkAdapterOptions } from './claude-sdk-adapter.ts';
