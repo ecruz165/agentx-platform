@@ -35,6 +35,19 @@ export {
 } from './spawn-worker.ts';
 
 export {
+  runPipelineSubprocess,
+  type RunPipelineSubprocessOptions,
+  type RunPipelineSubprocessResult,
+  type SubprocessLifecycleEvent,
+} from './run-pipeline-subprocess.ts';
+
+export {
+  consumeJsonlStream,
+  type JobCompleteSentinel,
+  type ConsumeStreamResult,
+} from './pipeline-jsonl-stream.ts';
+
+export {
   spawnLoaderJob,
   type LoaderSpawnSpec,
   type LoaderJobHandle,

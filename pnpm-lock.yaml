@@ -254,6 +254,9 @@ importers:
       '@agentx/harness-core':
         specifier: workspace:*
         version: link:../harness-core
+      '@agentx/harness-pipeline':
+        specifier: workspace:*
+        version: link:../harness-pipeline
       '@langchain/core':
         specifier: ^1.1.44
         version: 1.1.44(ws@8.20.0)

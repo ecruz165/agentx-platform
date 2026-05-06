@@ -7,8 +7,13 @@
   "exports": {
     ".": "./src/index.ts"
   },
+  "bin": {
+    "harness-pipeline": "src/bin.ts"
+  },
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@agentx/agent-adapter": "workspace:*",
