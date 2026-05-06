@@ -21,3 +21,10 @@ export {
   findProvider,
   findBinding,
 } from './provider-registry.ts';
+export {
+  BindingResolutionError,
+  DefaultBindingResolver,
+  resolveBindingFor,
+  type BindingResolver,
+  type ResolvedBinding,
+} from './binding-resolver.ts';
