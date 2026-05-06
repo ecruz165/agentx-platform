@@ -13,6 +13,7 @@ export {
 } from './opencode-server.ts';
 export {
   bindingToAdapter,
+  bindingNeedsOpenCode,
   defaultLocalEndpointResolver,
   type BindingToAdapterOptions,
 } from './binding-to-adapter.ts';

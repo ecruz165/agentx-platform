@@ -42,6 +42,34 @@ export interface BindingToAdapterOptions {
    * `defaultLocalEndpointResolver`, which reads from env vars.
    */
   localEndpoint?: (providerId: string) => string | undefined;
+  /**
+   * URL of a long-running `opencode serve` instance to attach to. When set,
+   * any binding that resolves to OpenCodeCliAdapter (cloud openai/google,
+   * any local-kind) will pass `serverUrl` to the adapter — invocations use
+   * `opencode run --attach <url>` instead of standalone form. Per memory
+   * `feedback_opencode_http_mode`. Caller (typically harness-pipeline)
+   * owns the server lifecycle.
+   */
+  opencodeServerUrl?: string;
+}
+
+/**
+ * True iff this binding will resolve to an `OpenCodeCliAdapter` when passed
+ * to `bindingToAdapter` — i.e., the binding requires a running
+ * `opencode serve` to share. Used by harness-pipeline at boot time for
+ * lazy resource acquisition (`project_lazy_resource_acquisition` memory):
+ * pure-anthropic pipelines skip the opencode-server spawn entirely.
+ *
+ * The mapping mirrors bindingToAdapter's own dispatch — keep them in sync
+ * if a new adapter type is added.
+ */
+export function bindingNeedsOpenCode(binding: ResolvedBinding): boolean {
+  if (binding.kind === 'local') return true;
+  // Cloud bindings — anthropic uses ClaudeSdkAdapter (no opencode);
+  // openai/google use OpenCodeCliAdapter. github-copilot and bedrock
+  // currently throw in bindingToAdapter, so they don't reach an adapter
+  // at all — return false so they don't trigger an unnecessary spawn.
+  return binding.provider.id === 'openai' || binding.provider.id === 'google';
 }
 
 /**
@@ -65,7 +93,7 @@ export function bindingToAdapter(
   binding: ResolvedBinding,
   options: BindingToAdapterOptions
 ): AgentAdapter {
-  const { broker, localEndpoint = defaultLocalEndpointResolver } = options;
+  const { broker, localEndpoint = defaultLocalEndpointResolver, opencodeServerUrl } = options;
 
   if (binding.kind === 'local') {
     const endpoint = localEndpoint(binding.provider.id);
@@ -78,11 +106,15 @@ export function bindingToAdapter(
     // OpenCodeCliAdapter local-mode: writes a custom provider into
     // opencode.json pointing at this endpoint, model spec becomes
     // `<providerId>/<modelId>` per the adapter's documented contract.
+    // serverUrl when set means the adapter will use `--attach <url>`
+    // against the harness-pipeline's shared opencode-server instead of
+    // spawning standalone.
     return new OpenCodeCliAdapter({
       broker,
       endpoint,
       endpointProviderId: binding.provider.id,
       model: `${binding.provider.id}/${binding.model.id}`,
+      ...(opencodeServerUrl ? { serverUrl: opencodeServerUrl } : {}),
     });
   }
 
@@ -94,6 +126,8 @@ export function bindingToAdapter(
   const modelId = binding.model.vendorModelId ?? binding.model.id;
 
   if (providerId === 'anthropic') {
+    // ClaudeSdkAdapter doesn't go through opencode — direct SDK calls. The
+    // opencodeServerUrl option is irrelevant here.
     return new ClaudeSdkAdapter({ broker, model: modelId });
   }
 
@@ -102,6 +136,7 @@ export function bindingToAdapter(
       broker,
       provider: providerId,
       model: modelId,
+      ...(opencodeServerUrl ? { serverUrl: opencodeServerUrl } : {}),
     });
   }
 

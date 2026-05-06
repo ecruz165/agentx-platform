@@ -18,9 +18,12 @@
  */
 
 import {
+  bindingNeedsOpenCode,
   bindingToAdapter,
+  OpenCodeServer,
   type AgentAdapter,
   type BindingToAdapterOptions,
+  type OpenCodeServerOptions,
 } from '@agentx/agent-adapter';
 import {
   JobBus,
@@ -49,6 +52,25 @@ export interface RunHarnessPipelineOptions {
    */
   localEndpoint?: BindingToAdapterOptions['localEndpoint'];
   /**
+   * URL of an externally-managed `opencode serve` instance. When provided,
+   * runHarnessPipeline does NOT spawn its own opencode-server even if the
+   * spec needs one — the caller owns the lifecycle. Useful for tests, for
+   * pre-warmed pools, and for cases where multiple jobs share a server.
+   *
+   * When omitted, runHarnessPipeline scans the spec via
+   * `bindingNeedsOpenCode` and spawns its own server if (and only if)
+   * any agent needs it — per memory `project_lazy_resource_acquisition`.
+   * Pure-anthropic pipelines pay no opencode cost.
+   */
+  opencodeServerUrl?: string;
+  /**
+   * Forwarded to the internally-spawned OpenCodeServer when
+   * runHarnessPipeline owns the lifecycle (i.e., opencodeServerUrl is
+   * unset). Used to inject a tmux-wrapping spawnFn (slice 9c-2) and to
+   * tune startup timeout / port for tests.
+   */
+  opencodeServer?: OpenCodeServerOptions;
+  /**
    * Optional bus override for tests / external observers. When omitted, a
    * fresh JobBus is created and exposed on the result.
    */
@@ -75,6 +97,25 @@ export interface RunHarnessPipelineResult {
    *  the bus via subscription before runJob starts. Tests can inspect this
    *  without setting up their own subscriber. */
   events: Envelope[];
+  /** True when runHarnessPipeline started its own opencode-server for this
+   *  job (i.e., the spec needed one and the caller did not provide a URL).
+   *  Useful for tests to assert lazy-acquisition decisions. */
+  opencodeServerStarted: boolean;
+}
+
+/**
+ * Returns true if any binding in the spec resolves to OpenCodeCliAdapter —
+ * meaning a running `opencode serve` is needed. Pure-anthropic pipelines
+ * return false; mixed or fully-local pipelines return true.
+ *
+ * Exported for tests + for harness-server (which uses the same predicate
+ * to decide whether to start its own coordinator-scoped opencode-server).
+ */
+export function specNeedsOpenCode(spec: JobSpec): boolean {
+  for (const binding of Object.values(spec.bindings)) {
+    if (bindingNeedsOpenCode(binding)) return true;
+  }
+  return false;
 }
 
 /**
@@ -94,70 +135,95 @@ export async function runHarnessPipeline(
   // Step 1: build the broker from pre-resolved credentials.
   const broker = new SpecBroker(spec.bindings);
 
-  // Step 2: pre-construct adapters for every agent that has a binding.
-  // Agents without a binding (e.g., placeholder coordinators) don't get
-  // an adapter — the orchestrator skips them by id today, and any future
-  // synthetic-agent execution path will route through a different
-  // mechanism.
-  const adapters = new Map<string, AgentAdapter>();
-  for (const agent of spec.agents) {
-    if (!agent.bindingId) continue;
-    const binding = spec.bindings[agent.bindingId];
-    if (!binding) {
-      throw new Error(
-        `runHarnessPipeline: agent "${agent.id}" has bindingId "${agent.bindingId}" ` +
-          `but no such binding in spec.bindings (the spec parser should have caught this)`
-      );
-    }
-    const adapter = bindingToAdapter(binding, {
-      broker,
-      localEndpoint: options.localEndpoint,
-    });
-    adapters.set(agent.id, adapter);
+  // Step 2: lazy-acquire opencode-server. Per memory
+  // `project_lazy_resource_acquisition`: spawn ONLY if at least one
+  // binding actually routes to OpenCodeCliAdapter. Caller can also
+  // provide a URL to bypass this (pre-warmed pool, test fixture, etc.).
+  let ownedServer: OpenCodeServer | null = null;
+  let opencodeServerUrl = options.opencodeServerUrl;
+  if (!opencodeServerUrl && specNeedsOpenCode(spec)) {
+    ownedServer = new OpenCodeServer();
+    const handle = await ownedServer.start(options.opencodeServer ?? {});
+    opencodeServerUrl = handle.url;
   }
 
-  // Step 3: build the JobRecord the orchestrator will mutate.
-  const registeredAgents: RegisteredAgent[] = spec.agents.map(toRegisteredAgent);
-  const job: JobRecord = {
-    jobId: spec.jobId,
-    pipeline: spec.pipeline,
-    productId: spec.productId,
-    productRepos: spec.productRepos,
-    name: spec.name,
-    input: spec.input,
-    submittedAt: new Date().toISOString(),
-    status: 'received',
-    agents: registeredAgents,
-  };
-  const jobs = new Map<string, JobRecord>([[spec.jobId, job]]);
-
-  // Step 4: bus + event capture. Subscribing before runJob means we don't
-  // miss the initial 'running' transition.
-  const bus = options.bus ?? new JobBus();
-  const events: Envelope[] = [];
-  const unsubscribe = bus.subscribe(spec.jobId, (env) => events.push(env));
-
-  // Step 5: run the orchestrator. Pre-built adapters take the highest
-  // priority path in the orchestrator's `constructAgentAdapter`, so the
-  // resolver/factory paths are never reached for these agents.
   try {
-    await runJob(spec.jobId, {
-      jobs,
-      bus,
-      broker,
-      adapters,
-      onStatusChange: options.onStatusChange,
-    });
-  } finally {
-    unsubscribe();
-  }
+    // Step 3: pre-construct adapters for every agent that has a binding.
+    // Agents without a binding (e.g., placeholder coordinators) don't get
+    // an adapter — the orchestrator skips them by id today, and any future
+    // synthetic-agent execution path will route through a different
+    // mechanism.
+    const adapters = new Map<string, AgentAdapter>();
+    for (const agent of spec.agents) {
+      if (!agent.bindingId) continue;
+      const binding = spec.bindings[agent.bindingId];
+      if (!binding) {
+        throw new Error(
+          `runHarnessPipeline: agent "${agent.id}" has bindingId "${agent.bindingId}" ` +
+            `but no such binding in spec.bindings (the spec parser should have caught this)`
+        );
+      }
+      const adapter = bindingToAdapter(binding, {
+        broker,
+        localEndpoint: options.localEndpoint,
+        ...(opencodeServerUrl ? { opencodeServerUrl } : {}),
+      });
+      adapters.set(agent.id, adapter);
+    }
 
-  return {
-    status: job.status,
-    job,
-    bus,
-    events,
-  };
+    // Step 4: build the JobRecord the orchestrator will mutate.
+    const registeredAgents: RegisteredAgent[] = spec.agents.map(toRegisteredAgent);
+    const job: JobRecord = {
+      jobId: spec.jobId,
+      pipeline: spec.pipeline,
+      productId: spec.productId,
+      productRepos: spec.productRepos,
+      name: spec.name,
+      input: spec.input,
+      submittedAt: new Date().toISOString(),
+      status: 'received',
+      agents: registeredAgents,
+    };
+    const jobs = new Map<string, JobRecord>([[spec.jobId, job]]);
+
+    // Step 5: bus + event capture. Subscribing before runJob means we
+    // don't miss the initial 'running' transition.
+    const bus = options.bus ?? new JobBus();
+    const events: Envelope[] = [];
+    const unsubscribe = bus.subscribe(spec.jobId, (env) => events.push(env));
+
+    // Step 6: run the orchestrator. Pre-built adapters take the highest
+    // priority path in the orchestrator's `constructAgentAdapter`, so
+    // the resolver/factory paths are never reached for these agents.
+    try {
+      await runJob(spec.jobId, {
+        jobs,
+        bus,
+        broker,
+        adapters,
+        onStatusChange: options.onStatusChange,
+      });
+    } finally {
+      unsubscribe();
+    }
+
+    return {
+      status: job.status,
+      job,
+      bus,
+      events,
+      opencodeServerStarted: ownedServer !== null,
+    };
+  } finally {
+    // Step 7: teardown owned resources (caller-provided server stays
+    // alive; we only kill what we started). Per memory
+    // `project_lazy_resource_acquisition`, this is symmetric reverse-
+    // order — once tmux composition lands (slice 9c-2), tmux sessions
+    // will be killed before the server.
+    if (ownedServer) {
+      await ownedServer.kill();
+    }
+  }
 }
 
 /** Project a SpecAgent (from spec.json) to a RegisteredAgent (in-memory
