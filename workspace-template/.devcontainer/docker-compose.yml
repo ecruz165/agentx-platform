@@ -1,20 +1,24 @@
-# Always-on triad orchestration.
+# Off-the-shelf sidecars the host triad depends on.
+#
+# Architecture: harness-server, edge-memory-server, and edge-context-server
+# run as Node processes on the host (`pnpm dev:servers`). This compose file
+# brings up the things that CAN'T be Node modules — databases and AI model
+# runtimes — alongside that host triad.
 #
 # Composition:
-#   - 3 your-code services (harness-server, edge-memory-server, edge-context-server)
-#     built from local Dockerfiles. Communicate via UDS in the shared
-#     `../.harness/run` bind-mount.
-#   - 2 off-the-shelf model sidecars (embedder, agent-llm) from Docker's `ai/`
-#     catalog. Communicate over HTTP on the shared `harness-net` bridge —
-#     siblings reach them via service-name DNS (http://embedder:8080,
-#     http://agent-llm:8080).
-#   - 1 optional model sidecar (agent-vl) profile-gated to `vision`. Only
-#     started with `--profile vision`. Saves ~6 GB RAM when not indexing
-#     images.
+#   - `neo4j-edge`        — Neo4j 5 Community sidecar, the graph store
+#                           edge-context-server dials via Bolt.
+#   - `embedder`, `agent-llm`  — Docker Model Runner sidecars (llama.cpp).
+#   - `agent-vl`          — vision LLM, profile-gated to `vision`.
+#   - bench profile       — qwen-small / qwen-large / bedrock embedders for
+#                           side-by-side quality measurement.
 #
 # Workers are spawned per-job via @devcontainers/cli — NOT in this compose
-# file. Worker containers attach to `agentx-harness-net` by name so they can
-# reach the model sidecars + UDS-mount the shared run dir.
+# file. Worker containers should attach to `agentx-harness-net` by name so
+# they can reach the model sidecars + UDS-mount the shared run dir.
+# (Note: spawn-worker.ts does not currently add `--network agentx-harness-net`
+# to its runArgs; workers reach Neo4j transitively through the host triad's
+# UDS bind-mount, and reach the model sidecars via host-port mappings.)
 #
 # Local vs deployed
 # ─────────────────
@@ -28,61 +32,24 @@
 #
 # Run from this directory:
 #   cd workspace-template/.devcontainer
-#   docker compose up --build                          # 5 long-running services
-#   docker compose --profile vision up --build         # + agent-vl
-#   docker compose --profile bench up --build          # + qwen-vs-bedrock embedders
+#   docker compose up                          # neo4j + 2 model sidecars
+#   docker compose --profile vision up         # + agent-vl
+#   docker compose --profile bench up          # + qwen-vs-bedrock embedders
 #
-# Then from a sibling terminal:
-#   cd workspace-template
-#   pnpm harness server status     # ✓ for all 3 your-code services
+# Then from another terminal at the monorepo root:
+#   pnpm dev:servers               # starts the host triad (Node processes)
+#   pnpm harness server status     # ✓ harness, memory, context all running
 #
 # Smoke-test the model sidecars from the host:
 #   curl -s http://localhost:12434/engines/llama.cpp/v1/models
-# From inside any sibling container (DNS resolves via Docker Model Runner):
-#   docker exec -it agentx-harness-server \
-#     curl -s http://model-runner.docker.internal/engines/llama.cpp/v1/models
 #
 # Sibling services that need the model URL inside the network should
 # `depends_on` the model service to receive the injected
 # `<NAME>_URL` env var (e.g., depend on `embedder` → `EMBEDDER_URL`).
 
-name: agentx-triad
+name: agentx-sidecars
 
 services:
-  # ─── your code (Node, your Dockerfiles) ──────────────────────
-  harness-server:
-    build:
-      context: ../..
-      dockerfile: workspace-template/.devcontainer/harness-server/Dockerfile
-    container_name: agentx-harness-server
-    volumes:
-      - ../.harness/run:/root/.harness/run
-    networks:
-      - harness-net
-    restart: unless-stopped
-
-  edge-memory-server:
-    build:
-      context: ../..
-      dockerfile: workspace-template/.devcontainer/edge-memory-server/Dockerfile
-    container_name: agentx-edge-memory-server
-    volumes:
-      - ../.harness/run:/root/.harness/run
-    networks:
-      - harness-net
-    restart: unless-stopped
-
-  edge-context-server:
-    build:
-      context: ../..
-      dockerfile: workspace-template/.devcontainer/edge-context-server/Dockerfile
-    container_name: agentx-edge-context-server
-    volumes:
-      - ../.harness/run:/root/.harness/run
-    networks:
-      - harness-net
-    restart: unless-stopped
-
   # ─── off-the-shelf model sidecars (Docker Model Runner) ──────
   # AI models from Docker's `ai/` catalog don't run as plain containers
   # — Docker Engine refuses `image: ai/...` with "AI models are not yet

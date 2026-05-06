@@ -1,7 +1,0 @@
-{
-  "name": "agentx-harness-server",
-  "dockerComposeFile": "../docker-compose.yml",
-  "service": "harness-server",
-  "workspaceFolder": "/app",
-  "shutdownAction": "none"
-}
