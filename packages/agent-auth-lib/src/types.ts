@@ -5,7 +5,13 @@
  *
  * Resolves review-G drift across agent-auth-lib / agent-adapter / harness-core PRDs.
  */
-export type Provider = 'anthropic' | 'openai' | 'google' | 'github-copilot';
+export type Provider =
+  | 'anthropic'
+  | 'openai'
+  | 'google'
+  | 'github-copilot'
+  | 'bedrock'
+  | 'local-qwen';
 
 export interface Credential {
   provider: Provider;

@@ -9,3 +9,15 @@ export {
   type ChatMessage,
   type ChatCompletionResponse,
 } from './copilot-api.ts';
+export type {
+  AuthMethod,
+  ModelType,
+  ModelDescriptor,
+  LLMProvider,
+  ResolvedRegistryEntry,
+} from './llm-provider.ts';
+export {
+  BUILT_IN_PROVIDERS,
+  findProvider,
+  findBinding,
+} from './provider-registry.ts';
