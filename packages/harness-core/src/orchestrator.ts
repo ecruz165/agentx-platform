@@ -65,6 +65,25 @@ export interface RunJobDeps {
    * lookup (`AGENTX_LOCAL_QWEN_ENDPOINT` etc.).
    */
   localEndpoint?: BindingToAdapterOptions['localEndpoint'];
+  /**
+   * Optional pre-built adapters keyed by agent id. When set AND the lookup
+   * returns a value, the orchestrator uses that adapter directly — bypasses
+   * both the resolver path and the legacy adapterFactory path.
+   *
+   * Used by `@agentx/harness-pipeline` (the per-job container runtime),
+   * which receives pre-resolved bindings via spec.json and constructs
+   * adapters once at startup. The orchestrator inside the container then
+   * looks them up by id rather than re-resolving — the auth boundary is
+   * sharp: the container has no broker, no resolver, just adapters that
+   * were pre-built by code with the right credentials.
+   *
+   * Per memory `project_proxy_per_job_architecture`: this is the
+   * "executor" side of the assembler/executor split. harness-server
+   * (assembler) resolves bindings and writes spec.json; harness-pipeline
+   * (executor) reads spec.json, builds adapters, and runs runJob with this
+   * field populated.
+   */
+  adapters?: Map<string, AgentAdapter>;
   /** Hook for tests / future telemetry. Fires on every status transition. */
   onStatusChange?: (jobId: string, agentId: string | null, status: string) => void;
 }
@@ -172,6 +191,16 @@ async function constructAgentAdapter(
   deps: RunJobDeps,
   factory: AdapterFactory
 ): Promise<AgentAdapter> {
+  // Path 1 (highest priority): pre-built adapter from harness-pipeline /
+  // similar executor that pre-resolved at boot. Looked up by agent id.
+  if (deps.adapters) {
+    const prebuilt = deps.adapters.get(agent.id);
+    if (prebuilt) return prebuilt;
+    // Falls through if the agent isn't in the map — gives executors the
+    // option to pre-build only some agents and let others go through the
+    // resolver/factory paths.
+  }
+  // Path 2: resolver path (assembler-side or in-process resolution).
   if (deps.resolver && agent.accepts && agent.accepts.length > 0) {
     const binding = await deps.resolver.resolveBinding(agent.accepts);
     return bindingToAdapter(binding, {
@@ -179,5 +208,6 @@ async function constructAgentAdapter(
       localEndpoint: deps.localEndpoint,
     });
   }
+  // Path 3: legacy adapterFactory by adapter-id.
   return factory(agent.adapter, deps.broker, agent.config);
 }
