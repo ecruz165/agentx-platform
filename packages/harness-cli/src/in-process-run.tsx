@@ -11,6 +11,7 @@ import type { CredentialBroker } from '@agentx/agent-auth-lib';
 import {
   JobBus,
   findPipeline,
+  resolveAccepts,
   runJob,
   type AdapterFactory,
   type Envelope,
@@ -120,7 +121,11 @@ const initialJob: JobRecord = {
   status: 'received',
   submittedAt: new Date().toISOString(),
   input,
-  agents: pipeline.agents.map((a) => ({ ...a, status: 'pending' as const })),
+  agents: pipeline.agents.map((a) => ({
+    ...a,
+    accepts: resolveAccepts(a, 'default'),
+    status: 'pending' as const,
+  })),
 };
 const jobs = new Map<string, JobRecord>([[jobId, initialJob]]);
 const bus = new JobBus();

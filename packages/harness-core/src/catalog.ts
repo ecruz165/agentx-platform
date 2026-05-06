@@ -48,15 +48,27 @@ export interface AgentDef {
    * the natural payoff: a summarizer can lead with `local-qwen:qwen3` while
    * a code-reviewer holds out for `anthropic:claude-haiku-4-5`.
    *
-   * Validation here is structural only (must be an array of non-empty
-   * `<provider>:<model>` strings). Whether each entry actually exists in
-   * the registry is checked at resolve time — keeps the catalog validator
-   * decoupled from provider knowledge.
+   * Two equivalent shapes (per memory `project_set_scoped_accepts`):
    *
-   * Optional for backwards compatibility — agents without `accepts` go
-   * through today's spawn path (adapter picks its own model).
+   *   1. Flat array: `["anthropic:claude-haiku-4-5", "local-qwen:qwen3"]`
+   *      — single global priority list. Treated as `{default: [...]}`.
+   *
+   *   2. Named sets: `{ default: [...], cheap: [...], frontier: [...],
+   *      bench-claude: [...], bench-gpt: [...] }` — pick one set per-job
+   *      via the `set` field on the job submission. Falls back to
+   *      `default` when the active set isn't declared on this agent.
+   *      Selecting per-job (not per-server) lets a single running harness
+   *      serve different sets concurrently — natural for benchmarking
+   *      and per-customer policy.
+   *
+   * Validation is structural only (each leaf entry must be a non-empty
+   * `<provider>:<model>` string). Whether each entry actually exists in
+   * the registry is checked at resolve time.
+   *
+   * Use `resolveAccepts(agent, setName)` to project to a flat list. The
+   * orchestrator does this when registering agents for a job.
    */
-  accepts?: readonly string[];
+  accepts?: readonly string[] | Readonly<Record<string, readonly string[]>>;
 }
 
 export interface PipelineDef {
@@ -122,6 +134,9 @@ const EMPTY: PipelineCatalog = { pipelines: [] };
  * Reads the catalog file. Missing file → empty catalog (no throw) so a fresh
  * workspace boots without a config file. Malformed JSON or wrong shape throws
  * `CatalogError` with a path-prefixed message — fail loud on bad config.
+ *
+ * Catalog `accepts` Record-form (named sets) is preserved through loading.
+ * Set selection happens per-job at submission time via `resolveAccepts`.
  */
 export async function loadCatalog(workspaceRoot: string): Promise<PipelineCatalog> {
   const path = join(workspaceRoot, '.harness', 'config', 'pipelines.json');
@@ -142,6 +157,37 @@ export async function loadCatalog(workspaceRoot: string): Promise<PipelineCatalo
 
   validateCatalog(parsed, path);
   return parsed as PipelineCatalog;
+}
+
+/**
+ * Project an agent's `accepts` field to a flat list for a given set name.
+ *
+ *   - undefined accepts → returns undefined (legacy / no-binding agent)
+ *   - flat string[] accepts → returned as-is, set name ignored
+ *   - Record<set, string[]> accepts → returns accepts[setName] OR
+ *     accepts.default OR throws CatalogError
+ *
+ * Per memory `project_set_scoped_accepts`: this is called per-job at
+ * submission time using the `set` field of the job submission. A single
+ * running harness can serve different sets concurrently — natural for
+ * benchmarking and per-customer policy.
+ */
+export function resolveAccepts(
+  agent: AgentDef,
+  setName: string
+): readonly string[] | undefined {
+  const a = agent.accepts;
+  if (a === undefined) return undefined;
+  if (Array.isArray(a)) return a;
+  const sets = a as Record<string, readonly string[]>;
+  const picked = sets[setName] ?? sets.default;
+  if (!picked) {
+    throw new CatalogError(
+      `agent "${agent.id}" has no "${setName}" set and no "default" set ` +
+        `(declared sets: ${Object.keys(sets).join(', ')})`
+    );
+  }
+  return picked;
 }
 
 function validateCatalog(value: unknown, path: string): asserts value is PipelineCatalog {
@@ -193,25 +239,63 @@ function validateCatalog(value: unknown, path: string): asserts value is Pipelin
         throw new CatalogError(`${path}: pipelines[${i}].agents[${j}].systemPrompt must be a string`);
       }
       if (agent.accepts !== undefined) {
-        if (!Array.isArray(agent.accepts)) {
-          throw new CatalogError(
-            `${path}: pipelines[${i}].agents[${j}].accepts must be an array of "<provider>:<model>" strings`
-          );
-        }
-        for (const [k, entry] of (agent.accepts as unknown[]).entries()) {
-          if (typeof entry !== 'string' || !entry) {
-            throw new CatalogError(
-              `${path}: pipelines[${i}].agents[${j}].accepts[${k}] must be a non-empty string`
-            );
-          }
-          const colon = entry.indexOf(':');
-          if (colon <= 0 || colon === entry.length - 1) {
-            throw new CatalogError(
-              `${path}: pipelines[${i}].agents[${j}].accepts[${k}] must be of the form "<provider>:<model>" (got "${entry}")`
-            );
-          }
-        }
+        validateAcceptsField(agent.accepts, `${path}: pipelines[${i}].agents[${j}].accepts`);
       }
+    }
+  }
+}
+
+/**
+ * Validates either form of `accepts`: flat array of `<provider>:<model>`
+ * strings, OR a Record mapping set name → array of the same shape.
+ *
+ * Each leaf entry must be a non-empty string with exactly one separating
+ * colon and non-empty halves. Set names must be non-empty strings; the
+ * Record must declare at least one set.
+ */
+function validateAcceptsField(value: unknown, where: string): void {
+  if (Array.isArray(value)) {
+    validateAcceptsList(value, where);
+    return;
+  }
+  if (value && typeof value === 'object') {
+    const sets = value as Record<string, unknown>;
+    const setNames = Object.keys(sets);
+    if (setNames.length === 0) {
+      throw new CatalogError(
+        `${where} must declare at least one set (got an empty object)`
+      );
+    }
+    for (const setName of setNames) {
+      if (!setName) {
+        throw new CatalogError(`${where} has an empty set name`);
+      }
+      const list = sets[setName];
+      if (!Array.isArray(list)) {
+        throw new CatalogError(
+          `${where}["${setName}"] must be an array of "<provider>:<model>" strings`
+        );
+      }
+      validateAcceptsList(list, `${where}["${setName}"]`);
+    }
+    return;
+  }
+  throw new CatalogError(
+    `${where} must be an array of "<provider>:<model>" strings ` +
+      `OR an object mapping set name → array of those strings`
+  );
+}
+
+function validateAcceptsList(list: unknown[], where: string): void {
+  for (const [k, entry] of list.entries()) {
+    if (typeof entry !== 'string' || !entry) {
+      throw new CatalogError(`${where}[${k}] must be a non-empty string`);
+    }
+    const colon = entry.indexOf(':');
+    if (colon <= 0 || colon === entry.length - 1) {
+      throw new CatalogError(
+        `${where}[${k}] must be of the form "<provider>:<model>" (got "${entry}")`
+      );
     }
   }
 }

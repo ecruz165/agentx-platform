@@ -3,7 +3,7 @@ import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { CatalogError, findPipeline, loadCatalog, type PipelineCatalog } from './catalog.ts';
+import { CatalogError, findPipeline, loadCatalog, resolveAccepts, type AgentDef, type PipelineCatalog } from './catalog.ts';
 
 const tmpWorkspace = () => join(tmpdir(), `agentx-catalog-${randomUUID()}`);
 
@@ -264,5 +264,187 @@ describe('findPipeline', () => {
 
   it('returns undefined for an unknown id', () => {
     expect(findPipeline(catalog, 'missing')).toBeUndefined();
+  });
+});
+
+// ─── set-scoped accepts (Record form + resolveAccepts) ──────────────────────
+
+describe('loadCatalog — Record-form accepts (named sets)', () => {
+  const created: string[] = [];
+  afterEach(async () => {
+    for (const path of created.splice(0)) {
+      await rm(path, { force: true, recursive: true });
+    }
+  });
+
+  const writeCatalog = async (workspaceRoot: string, body: object) => {
+    const dir = join(workspaceRoot, '.harness', 'config');
+    await mkdir(dir, { recursive: true });
+    await writeFile(join(dir, 'pipelines.json'), JSON.stringify(body, null, 2), 'utf8');
+  };
+
+  it('parses Record-form accepts with multiple named sets', async () => {
+    const ws = tmpWorkspace();
+    created.push(ws);
+    await writeCatalog(ws, {
+      pipelines: [
+        {
+          id: 'p',
+          agents: [
+            {
+              id: 'a',
+              role: 'A',
+              adapter: 'claude-sdk',
+              accepts: {
+                default:      ['anthropic:claude-haiku-4-5'],
+                cheap:        ['local-qwen:qwen3'],
+                'bench-gpt':  ['openai:gpt-4o'],
+              },
+            },
+          ],
+        },
+      ],
+    });
+
+    const catalog = await loadCatalog(ws);
+    const accepts = catalog.pipelines[0]?.agents[0]?.accepts;
+    expect(accepts).toBeDefined();
+    expect(accepts).not.toEqual(expect.any(Array));
+    expect((accepts as Record<string, readonly string[]>).default).toEqual(['anthropic:claude-haiku-4-5']);
+    expect((accepts as Record<string, readonly string[]>).cheap).toEqual(['local-qwen:qwen3']);
+    expect((accepts as Record<string, readonly string[]>)['bench-gpt']).toEqual(['openai:gpt-4o']);
+  });
+
+  it('rejects an empty Record (no sets declared)', async () => {
+    const ws = tmpWorkspace();
+    created.push(ws);
+    await writeCatalog(ws, {
+      pipelines: [
+        {
+          id: 'p',
+          agents: [{ id: 'a', role: 'A', adapter: 'claude-sdk', accepts: {} }],
+        },
+      ],
+    });
+    await expect(loadCatalog(ws)).rejects.toThrow(/must declare at least one set/);
+  });
+
+  it('rejects when a set name maps to a non-array value', async () => {
+    const ws = tmpWorkspace();
+    created.push(ws);
+    await writeCatalog(ws, {
+      pipelines: [
+        {
+          id: 'p',
+          agents: [
+            {
+              id: 'a',
+              role: 'A',
+              adapter: 'claude-sdk',
+              accepts: { default: 'anthropic:claude-haiku-4-5' },
+            },
+          ],
+        },
+      ],
+    });
+    await expect(loadCatalog(ws)).rejects.toThrow(/must be an array/);
+  });
+
+  it('rejects when a set entry has malformed binding string', async () => {
+    const ws = tmpWorkspace();
+    created.push(ws);
+    await writeCatalog(ws, {
+      pipelines: [
+        {
+          id: 'p',
+          agents: [
+            {
+              id: 'a',
+              role: 'A',
+              adapter: 'claude-sdk',
+              accepts: { default: ['anthropic-no-colon'] },
+            },
+          ],
+        },
+      ],
+    });
+    await expect(loadCatalog(ws)).rejects.toThrow(/must be of the form "<provider>:<model>"/);
+  });
+
+  it('rejects neither array nor object', async () => {
+    const ws = tmpWorkspace();
+    created.push(ws);
+    await writeCatalog(ws, {
+      pipelines: [
+        {
+          id: 'p',
+          agents: [{ id: 'a', role: 'A', adapter: 'claude-sdk', accepts: 42 }],
+        },
+      ],
+    });
+    await expect(loadCatalog(ws)).rejects.toThrow(/must be an array.*OR an object/);
+  });
+});
+
+describe('resolveAccepts — projection by set name', () => {
+  const flatAgent: AgentDef = {
+    id: 'a', role: 'A', adapter: 'claude-sdk',
+    accepts: ['anthropic:claude-haiku-4-5', 'local-qwen:qwen3'],
+  };
+
+  const setAgent: AgentDef = {
+    id: 'b', role: 'B', adapter: 'claude-sdk',
+    accepts: {
+      default:      ['anthropic:claude-haiku-4-5'],
+      cheap:        ['local-qwen:qwen3'],
+      'bench-gpt':  ['openai:gpt-4o'],
+    },
+  };
+
+  const partialSetAgent: AgentDef = {
+    id: 'c', role: 'C', adapter: 'claude-sdk',
+    accepts: {
+      cheap: ['local-qwen:qwen3'],
+      // no default!
+    },
+  };
+
+  const noAcceptsAgent: AgentDef = {
+    id: 'd', role: 'D', adapter: 'claude-sdk',
+  };
+
+  it('returns flat-form accepts unchanged regardless of set name', () => {
+    expect(resolveAccepts(flatAgent, 'cheap')).toEqual(['anthropic:claude-haiku-4-5', 'local-qwen:qwen3']);
+    expect(resolveAccepts(flatAgent, 'bench-gpt')).toEqual(['anthropic:claude-haiku-4-5', 'local-qwen:qwen3']);
+    expect(resolveAccepts(flatAgent, 'default')).toEqual(['anthropic:claude-haiku-4-5', 'local-qwen:qwen3']);
+  });
+
+  it('returns the named set when present', () => {
+    expect(resolveAccepts(setAgent, 'default')).toEqual(['anthropic:claude-haiku-4-5']);
+    expect(resolveAccepts(setAgent, 'cheap')).toEqual(['local-qwen:qwen3']);
+    expect(resolveAccepts(setAgent, 'bench-gpt')).toEqual(['openai:gpt-4o']);
+  });
+
+  it('falls back to default when the named set is absent', () => {
+    expect(resolveAccepts(setAgent, 'frontier')).toEqual(['anthropic:claude-haiku-4-5']);
+    expect(resolveAccepts(setAgent, 'undefined-set')).toEqual(['anthropic:claude-haiku-4-5']);
+  });
+
+  it('throws when the named set is absent AND no default declared', () => {
+    expect(() => resolveAccepts(partialSetAgent, 'frontier')).toThrow(
+      /agent "c" has no "frontier" set and no "default" set/
+    );
+    expect(() => resolveAccepts(partialSetAgent, 'frontier')).toThrow(/declared sets: cheap/);
+  });
+
+  it('returns undefined when accepts is undefined', () => {
+    expect(resolveAccepts(noAcceptsAgent, 'default')).toBeUndefined();
+    expect(resolveAccepts(noAcceptsAgent, 'cheap')).toBeUndefined();
+  });
+
+  it('uses set name match exactly (case-sensitive)', () => {
+    // 'Cheap' (capital C) is not the same as 'cheap'
+    expect(resolveAccepts(setAgent, 'Cheap')).toEqual(['anthropic:claude-haiku-4-5']);
+    // ↑ falls back to default because 'Cheap' isn't declared
   });
 });

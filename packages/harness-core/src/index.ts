@@ -11,6 +11,7 @@ export {
   findPipeline,
   findProduct,
   validateUnifiedCatalog,
+  resolveAccepts,
   CatalogError,
   type Catalog,
   type PipelineCatalog,

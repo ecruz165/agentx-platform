@@ -5,6 +5,7 @@ import {
   JobBus,
   findPipeline,
   findProduct,
+  resolveAccepts,
   runJob,
   type AdapterFactory,
   type AdapterId,
@@ -53,6 +54,7 @@ export {
   findProduct,
   validateUnifiedCatalog,
   CatalogError,
+  resolveAccepts,
   runJob,
   defaultAdapterFactory,
   type Envelope,
@@ -343,6 +345,11 @@ function route(req: IncomingMessage, res: ServerResponse, ctx: ServerCtx) {
 function handleSubmitJob(res: ServerResponse, body: Record<string, unknown>, ctx: ServerCtx) {
   const jobId = typeof body.jobId === 'string' ? body.jobId : null;
   const pipelineId = typeof body.pipeline === 'string' ? body.pipeline : null;
+  // Job submission may carry a `set` to pick a named accepts-set. Per
+  // memory `project_set_scoped_accepts`, this is per-job policy: the
+  // same harness can serve different sets concurrently. Defaults to
+  // 'default' — agents whose accepts is a flat list ignore the set.
+  const setName = typeof body.set === 'string' && body.set ? body.set : 'default';
 
   if (!jobId) {
     badRequest(res, 'jobId is required');
@@ -350,24 +357,32 @@ function handleSubmitJob(res: ServerResponse, body: Record<string, unknown>, ctx
   }
 
   let agents: RegisteredAgent[];
-  if (pipelineId) {
-    const pipeline = findPipeline(ctx.catalog, pipelineId);
-    if (!pipeline) {
-      const known = ctx.catalog.pipelines.map((p) => p.id);
-      badRequest(res, `unknown pipeline "${pipelineId}". Known: ${known.join(', ') || '(none registered)'}`);
-      return;
+  try {
+    if (pipelineId) {
+      const pipeline = findPipeline(ctx.catalog, pipelineId);
+      if (!pipeline) {
+        const known = ctx.catalog.pipelines.map((p) => p.id);
+        badRequest(res, `unknown pipeline "${pipelineId}". Known: ${known.join(', ') || '(none registered)'}`);
+        return;
+      }
+      agents = [
+        registeredFromDef(COORDINATOR_AGENT, setName),
+        ...pipeline.agents.map((d) => registeredFromDef(d, setName)),
+        registeredFromDef(CHECKOUT_COORDINATOR_AGENT, setName),
+      ];
+    } else {
+      // Submit without a pipeline — register only the entry coordinator.
+      // Useful for smoke tests; production submits should always carry a
+      // pipeline id. We omit checkout-coordinator here because there's no
+      // pipeline output to consolidate.
+      agents = [registeredFromDef(COORDINATOR_AGENT, setName)];
     }
-    agents = [
-      registeredFromDef(COORDINATOR_AGENT),
-      ...pipeline.agents.map(registeredFromDef),
-      registeredFromDef(CHECKOUT_COORDINATOR_AGENT),
-    ];
-  } else {
-    // Submit without a pipeline — register only the entry coordinator.
-    // Useful for smoke tests; production submits should always carry a
-    // pipeline id. We omit checkout-coordinator here because there's no
-    // pipeline output to consolidate.
-    agents = [registeredFromDef(COORDINATOR_AGENT)];
+  } catch (err) {
+    // resolveAccepts throws CatalogError when the requested set is missing
+    // and no `default` is declared on the agent — surface as 400 with the
+    // actionable message.
+    badRequest(res, (err as Error).message);
+    return;
   }
 
   const submittedAt =
@@ -830,7 +845,7 @@ async function handleSubmitLoaderJob(
   }
 }
 
-function registeredFromDef(def: AgentDef): RegisteredAgent {
+function registeredFromDef(def: AgentDef, setName: string): RegisteredAgent {
   return {
     id: def.id,
     role: def.role,
@@ -838,7 +853,7 @@ function registeredFromDef(def: AgentDef): RegisteredAgent {
     systemPrompt: def.systemPrompt,
     status: 'pending',
     config: def.config,
-    accepts: def.accepts,
+    accepts: resolveAccepts(def, setName),
   };
 }
 
