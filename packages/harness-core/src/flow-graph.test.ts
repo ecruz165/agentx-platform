@@ -22,6 +22,7 @@ import {
   type FlowStateT,
   linearFlowFromAgents,
   makeGateExecutor,
+  makeTransformExecutor,
   type NodeExecutor,
   type SuspendRequest,
 } from './flow-graph.ts';
@@ -1128,5 +1129,147 @@ describe('compileFlow — gate kind (built-in executor)', () => {
     );
     expect(calls.filter((c) => c === 'worker').length).toBe(3);
     expect(calls).not.toContain('next');
+  });
+});
+
+// ─── makeTransformExecutor (built-in transform kind) ──────────────────────
+
+describe('makeTransformExecutor', () => {
+  function transformNode(id: string, expression: import('./catalog.ts').Expression): TaskStep {
+    return { id, kind: 'transform', config: { expression } };
+  }
+
+  it('writes a literal string to state.output', async () => {
+    const fn = makeTransformExecutor(transformNode('x', { kind: 'literal', value: 'hello' }));
+    const delta = await fn(initialState);
+    expect(delta.output).toBe('hello');
+    expect(delta.lastExit?.kind).toBe('success');
+  });
+
+  it('stringifies non-string literals', async () => {
+    const fn = makeTransformExecutor(transformNode('x', { kind: 'literal', value: 42 }));
+    const delta = await fn(initialState);
+    expect(delta.output).toBe('42');
+  });
+
+  it('stringifies object literals via JSON.stringify', async () => {
+    const fn = makeTransformExecutor(
+      transformNode('x', { kind: 'literal', value: { foo: 'bar', n: 1 } }),
+    );
+    const delta = await fn(initialState);
+    expect(delta.output).toBe('{"foo":"bar","n":1}');
+  });
+
+  it('resolves jsonpath against state and writes the value', async () => {
+    const fn = makeTransformExecutor(transformNode('x', { kind: 'jsonpath', path: '$.output' }));
+    const delta = await fn({ ...initialState, output: 'agent-said-this' });
+    expect(delta.output).toBe('agent-said-this');
+  });
+
+  it('emits "undefined" string when jsonpath misses', async () => {
+    const fn = makeTransformExecutor(
+      transformNode('x', { kind: 'jsonpath', path: '$.missing.field' }),
+    );
+    const delta = await fn(initialState);
+    // JSON.stringify(undefined) returns undefined, so we coerce to "undefined".
+    // Catalogs that need "absent" semantics should guard with a gate first.
+    expect(delta.output).toBe(undefined);
+    expect(delta.lastExit?.kind).toBe('success');
+  });
+
+  it('throws on js expression kind (no sandbox)', async () => {
+    const fn = makeTransformExecutor(
+      transformNode('x', { kind: 'js', expression: 'state.output' }),
+    );
+    await expect(fn(initialState)).rejects.toThrow(/not yet supported/);
+  });
+
+  it('throws when called with a non-transform node', () => {
+    expect(() =>
+      makeTransformExecutor({ id: 'a', kind: 'agent', config: { agent: { id: 'a' } as never } }),
+    ).toThrow(/expected "transform"/);
+  });
+});
+
+// ─── compileFlow integration with transform kind ──────────────────────────
+
+describe('compileFlow — transform kind (built-in executor)', () => {
+  it('threads the transformed value into the next node via state.output', async () => {
+    const seenInputs: string[] = [];
+    const flow: FlowDef = {
+      id: 'transform-thread',
+      nodes: [
+        trigger('t'),
+        agentNode('producer'),
+        {
+          id: 'extract',
+          kind: 'transform',
+          config: { expression: { kind: 'jsonpath', path: '$.output' } },
+        },
+        agentNode('consumer'),
+      ],
+      edges: [
+        { from: 't', to: 'producer', type: 'sequence' },
+        { from: 'producer', to: 'extract', type: 'sequence' },
+        { from: 'extract', to: 'consumer', type: 'sequence' },
+      ],
+    };
+    const executors = new Map<string, NodeExecutor>([
+      [
+        'producer',
+        async () => ({
+          output: 'producer-output',
+          lastExit: { nodeId: 'producer', kind: 'success' },
+        }),
+      ],
+      [
+        'consumer',
+        async (state) => {
+          seenInputs.push(state.output);
+          return { lastExit: { nodeId: 'consumer', kind: 'success' } };
+        },
+      ],
+    ]);
+    // No entry for 'extract' — flow-graph's builtinExecutor handles it.
+    const graph = compileFlow({ flow, executors });
+    await graph.invoke(initialState, { configurable: { thread_id: 't' } });
+    // The transform passed producer's output through unchanged.
+    expect(seenInputs).toEqual(['producer-output']);
+  });
+
+  it('combines with conditional edges — transform output drives routing', async () => {
+    const calls: string[] = [];
+    const flow: FlowDef = {
+      id: 'transform-cond',
+      nodes: [
+        trigger('t'),
+        {
+          id: 'set',
+          kind: 'transform',
+          config: { expression: { kind: 'literal', value: 'truthy' } },
+        },
+        agentNode('matched'),
+        agentNode('default'),
+      ],
+      edges: [
+        { from: 't', to: 'set', type: 'sequence' },
+        {
+          from: 'set',
+          to: 'matched',
+          type: 'conditional',
+          condition: { kind: 'jsonpath', path: '$.output' },
+        },
+        { from: 'set', to: 'default', type: 'sequence' },
+      ],
+    };
+    const executors = new Map<string, NodeExecutor>([
+      ['matched', makeRecorder(calls, 'matched')],
+      ['default', makeRecorder(calls, 'default')],
+    ]);
+    const graph = compileFlow({ flow, executors });
+    await graph.invoke(initialState, { configurable: { thread_id: 't' } });
+    // transform set output to 'truthy' → conditional jsonpath $.output is
+    // truthy → routes to matched, NOT default.
+    expect(calls).toEqual(['matched']);
   });
 });

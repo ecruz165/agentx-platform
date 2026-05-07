@@ -211,17 +211,13 @@ export async function runJob(jobId: string, deps: RunJobDeps): Promise<void> {
   for (const node of flow.nodes) {
     if (node.kind === 'agent') {
       executors.set(node.id, makeAgentExecutor(node.id, deps, factory, job, jobId));
-    } else if (
-      node.kind === 'tool' ||
-      node.kind === 'script' ||
-      node.kind === 'transform' ||
-      node.kind === 'subflow'
-    ) {
+    } else if (node.kind === 'tool' || node.kind === 'script' || node.kind === 'subflow') {
       // Throw loudly — these step kinds are typed in the catalog but the
       // executor for them is a follow-up. Better to fail fast than to
       // silently no-op and let the graph terminate with phantom success.
-      // gate is intentionally NOT in this list: flow-graph's
-      // builtinExecutor handles it natively (assertion evaluator).
+      // gate + transform are intentionally NOT in this list: flow-graph's
+      // builtinExecutor handles them natively (assertion evaluator + pure
+      // expression-to-output writer).
       const kind = node.kind;
       const id = node.id;
       executors.set(id, async () => {

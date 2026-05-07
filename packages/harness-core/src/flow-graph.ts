@@ -416,6 +416,9 @@ function defaultExecutor(nodeId: string): NodeExecutor {
  *
  *   - gate: evaluates GateConfig.assertions against state. Emits
  *     success when ALL hold; reject + RejectionPayload when ANY fails.
+ *   - transform: evaluates TransformConfig.expression against state and
+ *     writes the resolved value (stringified) to state.output. Always
+ *     emits success — transforms are pure data shaping, not branching.
  *
  * Returns null for kinds that need runJob-supplied executors (agent,
  * tool, script, subflow) or are no-ops handled elsewhere (trigger).
@@ -425,6 +428,9 @@ function defaultExecutor(nodeId: string): NodeExecutor {
 function builtinExecutor(node: TaskStep): NodeExecutor | null {
   if (node.kind === 'gate') {
     return makeGateExecutor(node);
+  }
+  if (node.kind === 'transform') {
+    return makeTransformExecutor(node);
   }
   return null;
 }
@@ -480,6 +486,47 @@ export function makeGateExecutor(node: TaskStep): NodeExecutor {
         findings: failures,
         attempt: attempts + 1,
       },
+    };
+  };
+}
+
+/**
+ * Transform executor — evaluates the configured Expression against
+ * current flow state and writes the resolved value to `state.output`.
+ *
+ *   - literal: writes expr.value verbatim (stringified for non-strings)
+ *   - jsonpath: writes the jsonpath-resolved value (stringified)
+ *   - js: throws (no sandbox; same as evalExpression)
+ *
+ * Always emits success. Transforms are pure data shaping — they don't
+ * branch, don't reject, and don't fail under normal conditions.
+ *
+ * Stringification uses JSON.stringify for non-strings and pass-through
+ * for strings; `undefined` results land as the literal string
+ * `"undefined"` (catalogs that need "absent" semantics should guard
+ * with a gate node first).
+ *
+ * Use cases: extracting structured fields from a prior agent's output,
+ * coercing types between steps, computing derived values from state.
+ *
+ * Exported so tests + future tooling (catalog dry-run, expression
+ * preview UI) can run a transform standalone.
+ */
+export function makeTransformExecutor(node: TaskStep): NodeExecutor {
+  if (node.kind !== 'transform') {
+    throw new Error(
+      `makeTransformExecutor: node "${node.id}" has kind "${node.kind}", expected "transform"`,
+    );
+  }
+  const config = node.config as { expression: Expression };
+  const nodeId = node.id;
+
+  return async (state) => {
+    const value = resolveExpressionValue(config.expression, state);
+    const output = typeof value === 'string' ? value : JSON.stringify(value);
+    return {
+      output,
+      lastExit: { nodeId, kind: 'success' },
     };
   };
 }

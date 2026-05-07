@@ -62,6 +62,7 @@ export {
   type FlowStateT,
   linearFlowFromAgents,
   makeGateExecutor,
+  makeTransformExecutor,
   type NodeExecutor,
   type NodeExit,
   type SuspendRequest,
