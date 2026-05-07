@@ -9,15 +9,16 @@ import {
   type AgentDef,
   type Catalog,
   type Envelope,
-  findPipeline,
+  type FlowCatalog,
+  findFlow,
   findProduct,
   JobBus,
   type JobRecord,
-  type PipelineCatalog,
   type RegisteredAgent,
   resolveAccepts,
   runJob,
   TokenAccumulator,
+  walkAgents,
 } from '@ecruz165/harness-core';
 import type { BaseChatModel } from '@langchain/core/language_models/chat_models';
 import { runEntryCoordinator } from './coordinator/entry-coordinator.ts';
@@ -39,12 +40,12 @@ export {
   type ContextSourceDef,
   defaultAdapterFactory,
   type Envelope,
-  findPipeline,
+  type FlowCatalog,
+  type FlowDef,
+  findFlow,
   findProduct,
   JobBus,
   loadCatalog,
-  type PipelineCatalog,
-  type PipelineDef,
   type ProductDef,
   resolveAccepts,
   runJob,
@@ -117,7 +118,7 @@ export interface HarnessServerOptions {
    * should always use `loadCatalog` so the source can be a YAML file,
    * S3 object, or central Catalog HTTP fetch — operator's choice.
    */
-  catalog?: PipelineCatalog;
+  catalog?: FlowCatalog;
   /**
    * Catalog loader. Called once at server startup; the resolved Catalog
    * (pipelines + products) is read-only for the lifetime of the server.
@@ -262,8 +263,8 @@ export async function startHarnessServer(opts: HarnessServerOptions): Promise<Ha
   const loader =
     opts.loadCatalog ??
     (opts.catalog
-      ? inlineCatalogLoader({ pipelines: opts.catalog.pipelines })
-      : inlineCatalogLoader({ pipelines: [] }));
+      ? inlineCatalogLoader({ flows: opts.catalog.flows })
+      : inlineCatalogLoader({ flows: [] }));
   let catalog: Catalog;
   try {
     catalog = await loader();
@@ -349,23 +350,23 @@ function route(req: IncomingMessage, res: ServerResponse, ctx: ServerCtx) {
   // (per the authority model — admins mutate via YAML/central Catalog,
   // not via runtime API). These routes are the read surface clients
   // use to discover what's available.
-  if (req.method === 'GET' && url === '/v1/catalog/pipelines') {
+  if (req.method === 'GET' && url === '/v1/catalog/flows') {
     ok(res, {
       service,
-      pipelines: ctx.catalog.pipelines,
-      count: ctx.catalog.pipelines.length,
+      flows: ctx.catalog.flows,
+      count: ctx.catalog.flows.length,
       ts: new Date().toISOString(),
     });
     return;
   }
-  const pipelineMatch = req.method === 'GET' && url.match(/^\/v1\/catalog\/pipelines\/([^/]+)$/);
-  if (pipelineMatch) {
-    const found = findPipeline(ctx.catalog, pipelineMatch[1]!);
+  const flowMatch = req.method === 'GET' && url.match(/^\/v1\/catalog\/flows\/([^/]+)$/);
+  if (flowMatch) {
+    const found = findFlow(ctx.catalog, flowMatch[1]!);
     if (!found) {
-      notFound(res, `pipeline not found: ${pipelineMatch[1]}`);
+      notFound(res, `flow not found: ${flowMatch[1]}`);
       return;
     }
-    ok(res, { service, pipeline: found, ts: new Date().toISOString() });
+    ok(res, { service, flow: found, ts: new Date().toISOString() });
     return;
   }
   if (req.method === 'GET' && url === '/v1/catalog/products') {
@@ -501,8 +502,8 @@ async function handleSubmitJob(
         catalog: ctx.catalog,
         model: ctx.coordinatorModel,
       });
-      if (decision.pipelineId === 'NONE' || !findPipeline(ctx.catalog, decision.pipelineId)) {
-        const known = ctx.catalog.pipelines.map((p) => p.id);
+      if (decision.pipelineId === 'NONE' || !findFlow(ctx.catalog, decision.pipelineId)) {
+        const known = ctx.catalog.flows.map((p) => p.id);
         badRequest(
           res,
           `coordinator could not pick a valid pipeline for the intent. ` +
@@ -520,18 +521,19 @@ async function handleSubmitJob(
   let agents: RegisteredAgent[];
   try {
     if (pipelineId) {
-      const pipeline = findPipeline(ctx.catalog, pipelineId);
+      const pipeline = findFlow(ctx.catalog, pipelineId);
       if (!pipeline) {
-        const known = ctx.catalog.pipelines.map((p) => p.id);
+        const known = ctx.catalog.flows.map((p) => p.id);
         badRequest(
           res,
           `unknown pipeline "${pipelineId}". Known: ${known.join(', ') || '(none registered)'}`,
         );
         return;
       }
+      const flatAgents = [...walkAgents(pipeline)];
       agents = [
         registeredFromDef(COORDINATOR_AGENT, setName),
-        ...pipeline.agents.map((d) => registeredFromDef(d, setName)),
+        ...flatAgents.map((d) => registeredFromDef(d, setName)),
         registeredFromDef(CHECKOUT_COORDINATOR_AGENT, setName),
       ];
     } else {

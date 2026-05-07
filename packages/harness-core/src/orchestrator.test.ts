@@ -9,7 +9,6 @@ import {
 } from '@ecruz165/agent-adapter';
 import type { CredentialBroker, ResolvedBinding } from '@ecruz165/agent-auth';
 import { describe, expect, it } from 'vitest';
-import type { PipelineCatalog } from './catalog.ts';
 import type { JobRecord } from './job.ts';
 import { JobBus } from './job-bus.ts';
 import { type AdapterFactory, runJob } from './orchestrator.ts';
@@ -54,20 +53,6 @@ class TestAdapter implements AgentAdapter {
     return this.behavior.reply;
   }
 }
-
-const sampleCatalog: PipelineCatalog = {
-  pipelines: [
-    {
-      id: 'feature-add',
-      agents: [
-        { id: 'planner', role: 'Plan', adapter: 'claude-sdk', systemPrompt: 'plan it' },
-        { id: 'implementer', role: 'Implement', adapter: 'claude-sdk', systemPrompt: 'build it' },
-        { id: 'reviewer', role: 'Review', adapter: 'claude-sdk', systemPrompt: 'review it' },
-      ],
-    },
-  ],
-};
-void sampleCatalog;
 
 describe('runJob (in-process)', () => {
   it('walks all non-coordinator agents, transitions statuses, and threads outputs', async () => {

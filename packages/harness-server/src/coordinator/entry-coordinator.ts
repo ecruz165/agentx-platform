@@ -33,7 +33,7 @@
  * project_pipeline_tmux_topology memory). Tests pass stub models.
  */
 
-import type { Catalog, PipelineDef } from '@ecruz165/harness-core';
+import type { Catalog, FlowDef } from '@ecruz165/harness-core';
 import type { BaseChatModel } from '@langchain/core/language_models/chat_models';
 import { HumanMessage, SystemMessage } from '@langchain/core/messages';
 import { Annotation, END, START, StateGraph } from '@langchain/langgraph';
@@ -172,7 +172,7 @@ export async function runEntryCoordinator(
   args: RunEntryCoordinatorArgs,
 ): Promise<RunEntryCoordinatorResult> {
   const graph = buildEntryCoordinatorGraph(args.model);
-  const availablePipelines = args.catalog.pipelines.map(toSummary);
+  const availablePipelines = args.catalog.flows.map(toSummary);
   const result = await graph.invoke({
     intent: args.intent,
     availablePipelines,
@@ -185,7 +185,7 @@ export async function runEntryCoordinator(
 
 // ─── helpers ──────────────────────────────────────────────────────────────
 
-function toSummary(p: PipelineDef): CoordinatorPipelineSummary {
+function toSummary(p: FlowDef): CoordinatorPipelineSummary {
   return {
     id: p.id,
     ...(p.description ? { description: p.description } : {}),

@@ -20,16 +20,18 @@ import {
   type AgentDef,
   type Catalog,
   CatalogError,
-  type PipelineDef,
+  type Edge,
+  type FlowDef,
   type ProductDef,
+  type TaskStep,
   validateUnifiedCatalog,
 } from '@ecruz165/harness-core';
 import YAML from 'yaml';
 
 /**
  * Local-dev catalog loader: stitches together
- *   - <workspaceRoot>/.harness/config/pipelines.json  → catalog.pipelines
- *   - <workspaceRoot>/harness-workspace.yml          → catalog.products
+ *   - <workspaceRoot>/.harness/config/flows.json    → catalog.flows
+ *   - <workspaceRoot>/harness-workspace.yml         → catalog.products
  * into one unified Catalog. Either source missing is fine — empty arrays.
  *
  * Failure modes:
@@ -39,43 +41,48 @@ import YAML from 'yaml';
  *     accepts traffic (per the rule: never serve with a partial catalog)
  */
 export async function loadCatalogFromWorkspaceYaml(workspaceRoot: string): Promise<Catalog> {
-  // Pipelines: workspace's pipelines.json uses a `phases` shape that's
-  // user-friendlier than harness-core's canonical `agents` array.
-  // readWorkspacePipelines accepts both shapes (phases or agents) and
-  // emits canonical agents, so the catalog passes harness-core's
-  // validator regardless of which form the workspace uses.
-  const pipelines = await readWorkspacePipelines(workspaceRoot);
+  // Flows: workspace's flows.json may use the developer-friendly `phases`
+  // shorthand (linear chain of agents) OR the canonical `nodes` + `edges`
+  // shape directly. readWorkspaceFlows accepts both and produces FlowDef[].
+  const flows = await readWorkspaceFlows(workspaceRoot);
 
   // Products come from harness-workspace.yml's per-product `contextSources`.
   const products = await readWorkspaceYamlProducts(workspaceRoot);
 
-  const catalog: Catalog = { pipelines, products };
+  const catalog: Catalog = { flows, products };
   validateUnifiedCatalog(catalog, '<merged-workspace-catalog>');
   return catalog;
 }
 
 /**
- * Read `<workspaceRoot>/.harness/config/pipelines.json` and translate
- * either the `phases` shape (workspace convention) or the `agents`
- * shape (canonical) into PipelineDef[].
+ * Read `<workspaceRoot>/.harness/config/flows.json` and produce FlowDef[].
  *
- * Translation rules (phases → agents):
- *   phase.id              → agent.id
- *   phase.agent           → agent.adapter   ('claude-sdk' | 'opencode-cli')
- *   phase.description     → agent.role      (falls back to phase.id)
- *   phase.systemPrompt    → agent.systemPrompt
- *   phase.model           → agent.config.model
- *   phase.reasoningEffort → agent.config.reasoningEffort
- *   phase.tools           → agent.config.tools
+ * Two input shapes accepted:
+ *   1. **Canonical** — flow has `nodes: TaskStep[]` and `edges: Edge[]`
+ *      directly. Used as-is.
+ *   2. **Phases shorthand** — flow has `phases: Phase[]`, a developer-
+ *      friendly flat list. Auto-expanded into a linear chain:
+ *      a manual trigger node → AgentStep node per phase → connected by
+ *      sequence edges in the listed order.
  *
- * If a pipeline already has `agents` (canonical), use that directly.
- * If both, prefer `agents` and ignore `phases` — explicit canonical wins.
+ * Phases-shorthand translation rules:
+ *   phase.id              → node.config.agent.id
+ *   phase.agent           → node.config.agent.adapter
+ *                           ('claude-sdk' | 'opencode-cli')
+ *   phase.description     → node.config.agent.role  (falls back to phase.id)
+ *   phase.systemPrompt    → node.config.agent.systemPrompt
+ *   phase.model           → node.config.agent.config.model
+ *   phase.reasoningEffort → node.config.agent.config.reasoningEffort
+ *   phase.tools           → node.config.agent.config.tools
  *
- * Missing file → empty pipelines (matches harness-core's loadCatalog).
+ * If a flow has canonical nodes+edges, use them directly. If both, prefer
+ * canonical and ignore phases — explicit wins.
+ *
+ * Missing file → empty flows (matches harness-core's loadCatalog).
  * Malformed JSON or unknown adapter id → CatalogError with the file path.
  */
-async function readWorkspacePipelines(workspaceRoot: string): Promise<PipelineDef[]> {
-  const path = join(workspaceRoot, '.harness', 'config', 'pipelines.json');
+async function readWorkspaceFlows(workspaceRoot: string): Promise<FlowDef[]> {
+  const path = join(workspaceRoot, '.harness', 'config', 'flows.json');
   if (!existsSync(path)) return [];
 
   let raw: string;
@@ -96,41 +103,60 @@ async function readWorkspacePipelines(workspaceRoot: string): Promise<PipelineDe
     throw new CatalogError(`${path}: top-level must be an object`);
   }
   const root = parsed as Record<string, unknown>;
-  if (!Array.isArray(root.pipelines)) {
-    throw new CatalogError(`${path}: missing "pipelines" array`);
+  if (!Array.isArray(root.flows)) {
+    throw new CatalogError(`${path}: missing "flows" array`);
   }
 
-  return root.pipelines.map((p: unknown, i: number) => {
-    if (!p || typeof p !== 'object') {
-      throw new CatalogError(`${path}: pipelines[${i}] must be an object`);
+  return root.flows.map((f: unknown, i: number) => {
+    if (!f || typeof f !== 'object') {
+      throw new CatalogError(`${path}: flows[${i}] must be an object`);
     }
-    const pipeline = p as Record<string, unknown>;
-    if (typeof pipeline.id !== 'string' || !pipeline.id) {
-      throw new CatalogError(`${path}: pipelines[${i}].id must be a non-empty string`);
+    const flow = f as Record<string, unknown>;
+    if (typeof flow.id !== 'string' || !flow.id) {
+      throw new CatalogError(`${path}: flows[${i}].id must be a non-empty string`);
     }
-    const description = typeof pipeline.description === 'string' ? pipeline.description : undefined;
+    const description = typeof flow.description === 'string' ? flow.description : undefined;
 
-    // Prefer canonical `agents` if present; otherwise translate `phases`.
-    const canonical = Array.isArray(pipeline.agents) ? (pipeline.agents as unknown[]) : null;
-    const phases =
-      !canonical && Array.isArray(pipeline.phases) ? (pipeline.phases as unknown[]) : null;
-    if (!canonical && !phases) {
+    // Prefer canonical (nodes + edges) if present; else expand phases shorthand.
+    const hasCanonical = Array.isArray(flow.nodes) && Array.isArray(flow.edges);
+    const phases = !hasCanonical && Array.isArray(flow.phases) ? (flow.phases as unknown[]) : null;
+    if (!hasCanonical && !phases) {
       throw new CatalogError(
-        `${path}: pipelines[${i}] needs either "agents" or "phases" (got neither)`,
+        `${path}: flows[${i}] needs either "nodes"+"edges" or "phases" (got neither)`,
       );
     }
 
-    const agents: AgentDef[] = canonical
-      ? canonical.map((a, j) => coerceCanonicalAgent(a, `${path}: pipelines[${i}].agents[${j}]`))
-      : phases!.map((ph, j) => phaseToAgent(ph, `${path}: pipelines[${i}].phases[${j}]`));
-
-    if (agents.length === 0) {
-      throw new CatalogError(
-        `${path}: pipelines[${i}].${canonical ? 'agents' : 'phases'} must be non-empty`,
-      );
+    let nodes: TaskStep[];
+    let edges: Edge[];
+    if (hasCanonical) {
+      nodes = flow.nodes as TaskStep[];
+      edges = flow.edges as Edge[];
+    } else {
+      // Expand phases → trigger + linear chain of agent nodes.
+      if (phases!.length === 0) {
+        throw new CatalogError(`${path}: flows[${i}].phases must be non-empty`);
+      }
+      const agents = phases!.map((ph, j) => phaseToAgent(ph, `${path}: flows[${i}].phases[${j}]`));
+      const triggerId = '__trigger';
+      nodes = [
+        { id: triggerId, kind: 'trigger', config: { kind: 'manual' } },
+        ...agents.map(
+          (a): TaskStep => ({
+            id: a.id,
+            kind: 'agent',
+            config: { agent: a },
+          }),
+        ),
+      ];
+      edges = [];
+      let prev = triggerId;
+      for (const a of agents) {
+        edges.push({ from: prev, to: a.id, type: 'sequence' });
+        prev = a.id;
+      }
     }
 
-    const def: PipelineDef = { id: pipeline.id, agents };
+    const def: FlowDef = { id: flow.id, nodes, edges };
     if (description !== undefined) def.description = description;
     return def;
   });

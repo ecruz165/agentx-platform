@@ -1,25 +1,25 @@
 {
-  "pipelines": [
+  "flows": [
     {
       "id": "feature-add",
-      "description": "Starter pipeline — plan, implement, review. CUSTOMIZE the system prompts and agent set for your team's actual workflow.",
-      "agents": [
+      "description": "Starter flow — plan, implement, review. Uses the developer-friendly `phases` shorthand: the loader auto-expands this into a trigger node + agent nodes connected by sequence edges. Switch to canonical `nodes`+`edges` shape when you need branching, gates, approvals, or loops. CUSTOMIZE the system prompts and agent set for your team's actual workflow.",
+      "phases": [
         {
           "id": "planner",
-          "role": "Plan",
-          "adapter": "claude-sdk",
+          "agent": "claude-sdk",
+          "description": "Plan",
           "systemPrompt": "TODO: replace with your planning system prompt. The planner reads the intent and produces a stepwise plan."
         },
         {
           "id": "implementer",
-          "role": "Implement",
-          "adapter": "claude-sdk",
+          "agent": "claude-sdk",
+          "description": "Implement",
           "systemPrompt": "TODO: replace with your implementation system prompt. The implementer follows the plan and produces concrete changes."
         },
         {
           "id": "reviewer",
-          "role": "Review",
-          "adapter": "claude-sdk",
+          "agent": "claude-sdk",
+          "description": "Review",
           "systemPrompt": "TODO: replace with your review system prompt. The reviewer reads the diff and either approves or requests changes."
         }
       ]

@@ -4,13 +4,18 @@ import { AdapterEventBus, type AgentAdapter, type InvocationSpec } from '@ecruz1
 import type { CredentialBroker } from '@ecruz165/agent-auth';
 import {
   type AdapterFactory,
+  type AgentDef,
+  type Edge,
   type Envelope,
-  findPipeline,
+  type FlowCatalog,
+  type FlowDef,
+  findFlow,
   JobBus,
   type JobRecord,
-  type PipelineCatalog,
   resolveAccepts,
   runJob,
+  type TaskStep,
+  walkAgents,
 } from '@ecruz165/harness-core';
 import { createCliRenderer } from '@opentui/core';
 import { createRoot, useKeyboard } from '@opentui/react';
@@ -42,45 +47,61 @@ const [pipelineId = 'feature-add', ...inputParts] = process.argv.slice(2);
 const input = inputParts.length > 0 ? inputParts.join(' ') : 'Add a button';
 
 // ─── catalog ──────────────────────────────────────────────────────────────
-const catalog: PipelineCatalog = {
-  pipelines: [
-    {
-      id: 'feature-add',
-      agents: [
-        { id: 'planner', role: 'Plan', adapter: 'claude-sdk', systemPrompt: 'Plan the work.' },
-        {
-          id: 'implementer',
-          role: 'Implement',
-          adapter: 'claude-sdk',
-          systemPrompt: 'Implement the plan.',
-        },
-        {
-          id: 'reviewer',
-          role: 'Review',
-          adapter: 'claude-sdk',
-          systemPrompt: 'Review the changes.',
-        },
-      ],
-    },
-    {
-      id: 'fix-bug',
-      agents: [
-        {
-          id: 'diagnose',
-          role: 'Diagnose',
-          adapter: 'claude-sdk',
-          systemPrompt: 'Diagnose the failure.',
-        },
-        { id: 'patch', role: 'Patch', adapter: 'claude-sdk', systemPrompt: 'Write the fix.' },
-      ],
-    },
+/** Build a linear flow: trigger → agent[0] → agent[1] → ... */
+function flowFromAgents(id: string, agents: AgentDef[]): FlowDef {
+  const triggerId = '__trigger';
+  const nodes: TaskStep[] = [
+    { id: triggerId, kind: 'trigger', config: { kind: 'manual' } },
+    ...agents.map(
+      (a): TaskStep => ({
+        id: a.id,
+        kind: 'agent',
+        config: { agent: a },
+      }),
+    ),
+  ];
+  const edges: Edge[] = [];
+  let prev = triggerId;
+  for (const a of agents) {
+    edges.push({ from: prev, to: a.id, type: 'sequence' });
+    prev = a.id;
+  }
+  return { id, nodes, edges };
+}
+
+const catalog: FlowCatalog = {
+  flows: [
+    flowFromAgents('feature-add', [
+      { id: 'planner', role: 'Plan', adapter: 'claude-sdk', systemPrompt: 'Plan the work.' },
+      {
+        id: 'implementer',
+        role: 'Implement',
+        adapter: 'claude-sdk',
+        systemPrompt: 'Implement the plan.',
+      },
+      {
+        id: 'reviewer',
+        role: 'Review',
+        adapter: 'claude-sdk',
+        systemPrompt: 'Review the changes.',
+      },
+    ]),
+    flowFromAgents('fix-bug', [
+      {
+        id: 'diagnose',
+        role: 'Diagnose',
+        adapter: 'claude-sdk',
+        systemPrompt: 'Diagnose the failure.',
+      },
+      { id: 'patch', role: 'Patch', adapter: 'claude-sdk', systemPrompt: 'Write the fix.' },
+    ]),
   ],
 };
 
-const pipeline = findPipeline(catalog, pipelineId);
+const pipeline = findFlow(catalog, pipelineId);
 if (!pipeline) {
-  console.error(`✗ pipeline "${pipelineId}" not found`);
-  console.error(`  available: ${catalog.pipelines.map((p) => p.id).join(', ')}`);
+  console.error(`✗ flow "${pipelineId}" not found`);
+  console.error(`  available: ${catalog.flows.map((f) => f.id).join(', ')}`);
   process.exit(1);
 }
 
@@ -112,9 +133,10 @@ const cannedReplies: Record<string, (user: string) => string> = {
   Patch: (diag) => `applied guard + regression test (diag: "${diag.slice(0, 30)}…")`,
 };
 
+const flatAgents: AgentDef[] = [...walkAgents(pipeline)];
 let factoryCallIdx = 0;
 const factory: AdapterFactory = () => {
-  const role = pipeline.agents[factoryCallIdx++]!.role;
+  const role = flatAgents[factoryCallIdx++]!.role;
   const replyFn = cannedReplies[role] ?? ((u) => `(${role}) ack: ${u.slice(0, 40)}`);
   return new MockAdapter(replyFn);
 };
@@ -133,7 +155,7 @@ const initialJob: JobRecord = {
   status: 'received',
   submittedAt: new Date().toISOString(),
   input,
-  agents: pipeline.agents.map((a) => ({
+  agents: flatAgents.map((a) => ({
     ...a,
     accepts: resolveAccepts(a, 'default'),
     status: 'pending' as const,

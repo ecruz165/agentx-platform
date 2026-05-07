@@ -3,7 +3,7 @@ import { join } from 'node:path';
 
 /**
  * The pipeline catalog declares which pipelines the harness knows about and,
- * for each, the agents that compose it. Per the authority memory, the catalog
+ * for each, the steps that compose it. Per the authority memory, the catalog
  * is admin-owned: clients submit *intent* (a pipeline id + input), they do not
  * design pipelines.
  *
@@ -132,10 +132,318 @@ export interface AgentDef {
   };
 }
 
-export interface PipelineDef {
+// ─── Flow taxonomy (v1 — graph + tags) ───────────────────────────────────
+//
+// One node primitive (TaskStep), polymorphic via `kind`. Edges carry all
+// routing logic. Behavioral modifiers are tags (Approval, Suspend, Loop).
+// Reliability concerns are policies. The graph maps 1:1 to LangGraph node
+// + conditional-edge execution.
+//
+// Spec: `.plans/flow-designer-spec-v1.0.md` (canonical reference).
+//
+// What's NOT in v1:
+//   - No `if`, `loop`, `try`, `fork`, `map` step kinds. All replaced by
+//     edges (conditional, parallel split/join, error, fallback, reject)
+//     and tags (Loop iterates a single node over a collection).
+//   - No `fail` / `succeed` step kinds. Terminal nodes are nodes with
+//     no outgoing edges; their `terminal` field defaults to 'success'.
+
+/**
+ * The single canvas primitive — every node on the flow graph is a TaskStep.
+ * Polymorphic via the `kind` discriminator; per-kind config goes in `config`,
+ * tags add behavioral modifiers, policy controls reliability, joinStrategy
+ * defines how multiple incoming edges combine.
+ */
+export interface TaskStep {
+  /** Stable id; referenced by edges. Unique within a flow. */
+  id: string;
+  /** Polymorphic discriminator. */
+  kind: 'agent' | 'tool' | 'script' | 'transform' | 'gate' | 'subflow' | 'trigger';
+  /** Per-kind config (typed by which kind is set). */
+  config:
+    | AgentConfig
+    | ToolConfig
+    | ScriptConfig
+    | TransformConfig
+    | GateConfig
+    | SubflowConfig
+    | TriggerConfig;
+  /** Behavioral modifier tags. Multiple allowed; render order is
+   *  Loop top-left, Approval/Suspend top-right. Approval and Suspend
+   *  are mutually exclusive on the same node. */
+  tags?: TaskStepTags;
+  /** Reliability policy. */
+  policy?: TaskStepPolicy;
+  /** Strategy for combining multiple incoming edges. Default 'all'. */
+  joinStrategy?: 'all' | 'any' | { nOfM: number };
+  /** Set on nodes with no outgoing edges. Defaults to 'success'. */
+  terminal?: 'success' | 'fail';
+}
+
+// ─── Per-kind configs ────────────────────────────────────────────────────
+
+/** LLM-driven execution. The dominant kind. */
+export interface AgentConfig {
+  agent: AgentDef;
+}
+
+/** Deterministic tool/API call. References a tool by id (resolved against
+ *  the tool catalog or skillzkit). */
+export interface ToolConfig {
+  toolId: string;
+  args?: Record<string, unknown>;
+}
+
+/** Code execution. */
+export interface ScriptConfig {
+  language: 'bash' | 'node' | 'python';
+  source: string;
+  env?: Record<string, string>;
+}
+
+/** Pure data shaping. Evaluates an expression against current flow state. */
+export interface TransformConfig {
+  expression: Expression;
+}
+
+/** Quality gate. Runs assertions; emits 'pass' (sequence edge) or 'reject'
+ *  (reject edge) based on whether all assertions hold. */
+export interface GateConfig {
+  assertions: Assertion[];
+}
+
+export interface Assertion {
+  expression: Expression;
+  /** Human-readable message embedded in the rejection payload when this
+   *  assertion fails. */
+  message: string;
+}
+
+/** Invoke another flow as a sub-flow. The parent pauses until the
+ *  sub-flow terminates; sub-flow output flows in as this node's output. */
+export interface SubflowConfig {
+  flowId: string;
+  input?: Record<string, unknown>;
+}
+
+/** Entry point. Exactly one trigger node per flow. */
+export type TriggerConfig =
+  | { kind: 'webhook'; path: string; method?: 'GET' | 'POST' }
+  | { kind: 'schedule'; cron: string; tz?: string }
+  | { kind: 'manual' }
+  | { kind: 'event'; eventType: string; matcher?: Expression }
+  | { kind: 'message'; channel: string };
+
+// ─── Tags (behavioral modifiers) ─────────────────────────────────────────
+
+export interface TaskStepTags {
+  approval?: ApprovalTag;
+  suspend?: SuspendTag;
+  loop?: LoopTag;
+}
+
+/** HITL gate. Pauses execution; assigns to a role; injects steering
+ *  context on retry. Emits both 'sequence' (approve) and 'reject' edges. */
+export interface ApprovalTag {
+  /** Org role authorized to approve (e.g., 'tech-lead', 'security-team'). */
+  assigneeRole: string;
+  /** Time before the approval auto-rejects. */
+  slaMs: number;
+  /** Optional structured input the reviewer fills in to steer retry. */
+  steeringInputs?: SteeringInputSchema;
+  /** Concurrency: only 'pessimistic' (single approver locks) in v1. */
+  concurrency: 'pessimistic';
+}
+
+export interface SteeringInputSchema {
+  fields: Array<{
+    name: string;
+    type: 'string' | 'number' | 'boolean';
+    required?: boolean;
+  }>;
+}
+
+/** Durable execution checkpoint. Serializes state, kills the worker,
+ *  hydrates a new worker on timer expiration or external signal. */
+export type SuspendTag =
+  | { trigger: { kind: 'timer'; durationMs: number } }
+  | { trigger: { kind: 'event'; eventType: string; matcher?: Expression } };
+
+/** Iterates the same node over a collection. Composes with anything;
+ *  Loop+Approval = approval per iteration; Loop+Suspend = durable
+ *  iteration checkpoint. */
+export interface LoopTag {
+  /** Hint about what kind of iterable `path` resolves to. The runtime
+   *  uses this to pick a default collector (e.g., 'directory' walks
+   *  files; 'collection' iterates an array). */
+  source: 'collection' | 'directory';
+  /** Expression resolving to the iterable. May reference flow state,
+   *  product repos, prior node output, etc. */
+  path: Expression;
+  /** Sequential = one iteration at a time; parallel = N at once. */
+  mode: 'sequential' | 'parallel';
+  /** Cap on concurrent iterations when `mode: 'parallel'`. */
+  concurrency?: number;
+}
+
+// ─── Policy (reliability config; not topology) ───────────────────────────
+
+export interface TaskStepPolicy {
+  retry?: RetryPolicy;
+  timeout?: Duration;
+  /** Behavior when an unhandled error occurs:
+   *   - 'propagate' (default) — fail the flow
+   *   - 'continue' — log and proceed past this node
+   *   - 'fallback' — route to the node's fallback edge if present */
+  onError?: 'propagate' | 'continue' | 'fallback';
+}
+
+export interface RetryPolicy {
+  maxAttempts: number;
+  backoff?: BackoffPolicy;
+}
+
+export type BackoffPolicy =
+  | { kind: 'fixed'; ms: number }
+  | { kind: 'exponential'; baseMs: number; maxMs?: number; multiplier?: number };
+
+/** Milliseconds. */
+export type Duration = number;
+
+// ─── Edges (carry all routing logic) ─────────────────────────────────────
+
+export type Edge = SequenceEdge | ConditionalEdge | FallbackEdge | ErrorEdge | RejectEdge;
+
+export interface SequenceEdge {
+  from: string;
+  to: string;
+  type: 'sequence';
+}
+
+export interface ConditionalEdge {
+  from: string;
+  to: string;
+  type: 'conditional';
+  condition: Expression;
+}
+
+export interface FallbackEdge {
+  from: string;
+  to: string;
+  type: 'fallback';
+}
+
+export interface ErrorEdge {
+  from: string;
+  to: string;
+  type: 'error';
+}
+
+/** Emitted only by Approval-tagged nodes and `kind: 'gate'` nodes when
+ *  they reject. Carries a structured rejection payload (steering context,
+ *  findings, attempt counter). The reject edge is the only edge that may
+ *  form a cycle (retry-with-context loops). */
+export interface RejectEdge {
+  from: string;
+  to: string;
+  type: 'reject';
+  /** Default 3. */
+  maxAttempts?: number;
+  /** Where to go when maxAttempts is exceeded. Default: fail the flow. */
+  onMaxAttempts?: { kind: 'fail' } | { kind: 'escalate'; to: string };
+}
+
+/** The runtime payload carried by reject edges. Becomes input context
+ *  to the destination node. */
+export interface RejectionPayload {
+  reason: string;
+  /** Reviewer-injected hints (Approval) or assertion-failure message (gate). */
+  steering?: string;
+  /** Structured gate output. */
+  findings?: unknown;
+  /** 1-indexed; incremented each loop iteration. */
+  attempt: number;
+}
+
+// ─── Expression (predicates + iterable resolution) ───────────────────────
+
+/** Generic expression evaluated by the runtime. Tagged-union over evaluators
+ *  so we can grow the language additively. */
+export type Expression =
+  /** JSONPath against flow state, e.g. `{ kind: 'jsonpath', path: '$.input.repos' }`. */
+  | { kind: 'jsonpath'; path: string }
+  /** Sandboxed JS, e.g. `{ kind: 'js', expression: 'ctx.review.score > 0.8' }`. */
+  | { kind: 'js'; expression: string }
+  /** Constant value. */
+  | { kind: 'literal'; value: unknown };
+
+// ─── FlowOutputContract (drives JobIntent emission semantics) ────────────
+
+/** Output contract for a flow. Drives validator (e.g., a
+ *  `kind: 'job-definition'` flow must declare `output.kind: 'job-intent'`)
+ *  and JobStateMachine emission semantics (terminal node output is parsed
+ *  against this shape). */
+export type FlowOutputContract =
+  /** Default for `kind: 'work'` — plain agent text response. */
+  | { kind: 'agent-text' }
+  /** Required for `kind: 'job-definition'` — terminal node emits a JobIntent. */
+  | { kind: 'job-intent' }
+  /** Fan-out meta-flows emitting an array of JobIntents. */
+  | { kind: 'job-intents'; min?: number; max?: number }
+  /** Spec-emitting flows (e.g. `flow-architect`). */
+  | { kind: 'flow-spec' }
+  /** Generalized typed output. */
+  | { kind: 'structured'; schema: unknown };
+
+/** The runtime representation of a JobIntent — what JobDefinitionFlows
+ *  emit, what gets submitted to JobStateMachine to launch the actual
+ *  work flow. */
+export interface JobIntent {
+  flowId: string;
+  productId: string;
+  input: unknown;
+  /** Optional: which named accepts-set to use ('default', 'cheap',
+   *  'frontier', 'bench-claude', etc.). */
+  set?: string;
+  /** Per-job overrides (e.g., timeout). Adapter-specific. */
+  config?: Record<string, unknown>;
+}
+
+// ─── FlowDef ─────────────────────────────────────────────────────────────
+
+export interface FlowDef {
   id: string;
   description?: string;
-  agents: AgentDef[];
+  /**
+   * Flow kind discriminator. Default 'work'.
+   *   - 'work' (default) — does product work; agents run for end-user value.
+   *   - 'job-definition' — emits a JobIntent (intake conversations).
+   *     Must declare `output: { kind: 'job-intent' }`.
+   *   - 'post-job' — runs after a job for cleanup/notifications.
+   */
+  kind?: 'work' | 'job-definition' | 'post-job';
+  /** Output contract for the terminal node. Default for `kind: 'work'`
+   *  is `{ kind: 'agent-text' }`. JobDefinitionFlows MUST declare
+   *  `{ kind: 'job-intent' }`. */
+  output?: FlowOutputContract;
+  /** All nodes (TaskSteps) in this flow. Exactly one must have
+   *  `kind: 'trigger'` (the entry point). */
+  nodes: TaskStep[];
+  /** All edges between nodes. Routing logic lives here. */
+  edges: Edge[];
+}
+
+/**
+ * Walk a flow's nodes; yield every AgentDef from `kind: 'agent'` nodes.
+ * Useful for surfaces that need a flat agent list — token-counting,
+ * capability preflight, "register every agent for this job".
+ */
+export function* walkAgents(flow: FlowDef): Generator<AgentDef> {
+  for (const node of flow.nodes) {
+    if (node.kind === 'agent') {
+      yield (node.config as AgentConfig).agent;
+    }
+  }
 }
 
 /**
@@ -211,26 +519,23 @@ export interface ProductDef {
   repos?: ProductRepo[];
 }
 
-export interface PipelineCatalog {
-  pipelines: PipelineDef[];
+export interface FlowCatalog {
+  flows: FlowDef[];
 }
 
 /**
- * Unified Catalog — pipelines + products + (future) agents. This is the
- * single shape that flows through `loadCatalog: () => Promise<Catalog>`.
- * `PipelineCatalog` is the original pipelines-only type; `Catalog` extends
- * it with the additional axes. Existing consumers that only need pipelines
- * can keep typing against `PipelineCatalog`; new consumers reach for
- * `Catalog`.
+ * Unified Catalog — flows + products. This is the single shape that flows
+ * through `loadCatalog: () => Promise<Catalog>`. `FlowCatalog` is the
+ * flows-only type; `Catalog` extends it with the additional axes.
  */
-export interface Catalog extends PipelineCatalog {
+export interface Catalog extends FlowCatalog {
   /** Optional in v1 — workspaces without products skip this. */
   products?: ProductDef[];
 }
 
 export class CatalogError extends Error {}
 
-const EMPTY: PipelineCatalog = { pipelines: [] };
+const EMPTY: FlowCatalog = { flows: [] };
 
 /**
  * Reads the catalog file. Missing file → empty catalog (no throw) so a fresh
@@ -240,8 +545,8 @@ const EMPTY: PipelineCatalog = { pipelines: [] };
  * Catalog `accepts` Record-form (named sets) is preserved through loading.
  * Set selection happens per-job at submission time via `resolveAccepts`.
  */
-export async function loadCatalog(workspaceRoot: string): Promise<PipelineCatalog> {
-  const path = join(workspaceRoot, '.harness', 'config', 'pipelines.json');
+export async function loadCatalog(workspaceRoot: string): Promise<FlowCatalog> {
+  const path = join(workspaceRoot, '.harness', 'config', 'flows.json');
   let raw: string;
   try {
     raw = await readFile(path, 'utf8');
@@ -257,8 +562,8 @@ export async function loadCatalog(workspaceRoot: string): Promise<PipelineCatalo
     throw new CatalogError(`${path}: invalid JSON — ${(err as Error).message}`);
   }
 
-  validateCatalog(parsed, path);
-  return parsed as PipelineCatalog;
+  validateFlowCatalog(parsed, path);
+  return parsed as FlowCatalog;
 }
 
 /**
@@ -289,73 +594,610 @@ export function resolveAccepts(agent: AgentDef, setName: string): readonly strin
   return picked;
 }
 
-function validateCatalog(value: unknown, path: string): asserts value is PipelineCatalog {
+function validateFlowCatalog(value: unknown, path: string): asserts value is FlowCatalog {
   if (!value || typeof value !== 'object') {
     throw new CatalogError(`${path}: top-level must be an object`);
   }
   const obj = value as Record<string, unknown>;
-  if (!Array.isArray(obj.pipelines)) {
-    throw new CatalogError(`${path}: missing "pipelines" array`);
+  if (!Array.isArray(obj.flows)) {
+    throw new CatalogError(`${path}: missing "flows" array`);
   }
   const ids = new Set<string>();
-  for (const [i, p] of obj.pipelines.entries()) {
-    if (!p || typeof p !== 'object') {
-      throw new CatalogError(`${path}: pipelines[${i}] must be an object`);
+  for (const [i, f] of obj.flows.entries()) {
+    validateFlow(f, `${path}: flows[${i}]`);
+    const flow = f as unknown as Record<string, unknown>;
+    if (ids.has(flow.id as string)) {
+      throw new CatalogError(`${path}: duplicate flow id "${flow.id}"`);
     }
-    const pipeline = p as Record<string, unknown>;
-    if (typeof pipeline.id !== 'string' || !pipeline.id) {
-      throw new CatalogError(`${path}: pipelines[${i}].id must be a non-empty string`);
+    ids.add(flow.id as string);
+  }
+}
+
+/**
+ * Validate a single FlowDef: kind discriminator + output contract +
+ * nodes (each TaskStep) + edges (referential integrity + cardinality
+ * rules + acyclicity except along reject edges) + exactly-one-trigger.
+ */
+function validateFlow(value: unknown, where: string): asserts value is FlowDef {
+  if (!value || typeof value !== 'object') {
+    throw new CatalogError(`${where} must be an object`);
+  }
+  const flow = value as Record<string, unknown>;
+  if (typeof flow.id !== 'string' || !flow.id) {
+    throw new CatalogError(`${where}.id must be a non-empty string`);
+  }
+
+  // kind discriminator (optional, default 'work')
+  if (flow.kind !== undefined) {
+    const validKinds = new Set(['work', 'job-definition', 'post-job']);
+    if (typeof flow.kind !== 'string' || !validKinds.has(flow.kind)) {
+      throw new CatalogError(
+        `${where}.kind must be one of: ${[...validKinds].join(', ')} (got ${JSON.stringify(flow.kind)})`,
+      );
     }
-    if (ids.has(pipeline.id)) {
-      throw new CatalogError(`${path}: duplicate pipeline id "${pipeline.id}"`);
+  }
+  const kind = (flow.kind as string | undefined) ?? 'work';
+
+  if (flow.output !== undefined) {
+    validateFlowOutputContract(flow.output, `${where}.output`);
+  }
+  if (kind === 'job-definition') {
+    const out = flow.output as { kind?: string } | undefined;
+    if (!out || out.kind !== 'job-intent') {
+      throw new CatalogError(`${where}: kind 'job-definition' requires output.kind 'job-intent'`);
     }
-    ids.add(pipeline.id);
-    if (!Array.isArray(pipeline.agents) || pipeline.agents.length === 0) {
-      throw new CatalogError(`${path}: pipelines[${i}].agents must be a non-empty array`);
+  }
+
+  if (!Array.isArray(flow.nodes) || flow.nodes.length === 0) {
+    throw new CatalogError(`${where}.nodes must be a non-empty array`);
+  }
+  if (!Array.isArray(flow.edges)) {
+    throw new CatalogError(`${where}.edges must be an array (may be empty)`);
+  }
+
+  // Validate each node + collect ids
+  const nodeIds = new Set<string>();
+  const nodeKinds = new Map<string, string>();
+  const nodeTags = new Map<string, Record<string, unknown> | undefined>();
+  let triggerCount = 0;
+  for (const [j, n] of (flow.nodes as unknown[]).entries()) {
+    const nodeWhere = `${where}.nodes[${j}]`;
+    validateNode(n, nodeWhere);
+    const node = n as Record<string, unknown>;
+    if (nodeIds.has(node.id as string)) {
+      throw new CatalogError(`${where} has duplicate node id "${node.id}"`);
     }
-    const agentIds = new Set<string>();
-    for (const [j, a] of pipeline.agents.entries()) {
-      if (!a || typeof a !== 'object') {
-        throw new CatalogError(`${path}: pipelines[${i}].agents[${j}] must be an object`);
-      }
-      const agent = a as Record<string, unknown>;
-      if (typeof agent.id !== 'string' || !agent.id) {
+    nodeIds.add(node.id as string);
+    nodeKinds.set(node.id as string, node.kind as string);
+    nodeTags.set(node.id as string, node.tags as Record<string, unknown> | undefined);
+    if (node.kind === 'trigger') triggerCount++;
+  }
+
+  if (triggerCount === 0) {
+    throw new CatalogError(`${where}: exactly one node must have kind 'trigger' (got 0)`);
+  }
+  if (triggerCount > 1) {
+    throw new CatalogError(
+      `${where}: exactly one node must have kind 'trigger' (got ${triggerCount})`,
+    );
+  }
+
+  // Validate each edge + cardinality rules + referential integrity
+  const outgoingByType = new Map<string, Map<string, number>>(); // from → (type → count)
+  const incomingCount = new Map<string, number>();
+  for (const [j, e] of (flow.edges as unknown[]).entries()) {
+    const edgeWhere = `${where}.edges[${j}]`;
+    validateEdge(e, edgeWhere);
+    const edge = e as Record<string, unknown>;
+    if (!nodeIds.has(edge.from as string)) {
+      throw new CatalogError(`${edgeWhere}.from references unknown node "${edge.from}"`);
+    }
+    if (!nodeIds.has(edge.to as string)) {
+      throw new CatalogError(`${edgeWhere}.to references unknown node "${edge.to}"`);
+    }
+    const fromMap = outgoingByType.get(edge.from as string) ?? new Map<string, number>();
+    fromMap.set(edge.type as string, (fromMap.get(edge.type as string) ?? 0) + 1);
+    outgoingByType.set(edge.from as string, fromMap);
+    incomingCount.set(edge.to as string, (incomingCount.get(edge.to as string) ?? 0) + 1);
+
+    // Edge-cardinality rules
+    if (edge.type === 'error' && (fromMap.get('error') ?? 0) > 1) {
+      throw new CatalogError(`${edgeWhere}: at most one 'error' edge allowed per source node`);
+    }
+    if (edge.type === 'fallback' && (fromMap.get('fallback') ?? 0) > 1) {
+      throw new CatalogError(`${edgeWhere}: at most one 'fallback' edge allowed per source node`);
+    }
+    if (edge.type === 'reject' && (fromMap.get('reject') ?? 0) > 1) {
+      throw new CatalogError(`${edgeWhere}: at most one 'reject' edge allowed per source node`);
+    }
+
+    // Reject edges may only originate from gate or approval-tagged nodes
+    if (edge.type === 'reject') {
+      const fromKind = nodeKinds.get(edge.from as string);
+      const fromTags = nodeTags.get(edge.from as string);
+      const isGate = fromKind === 'gate';
+      const hasApproval = !!(fromTags && (fromTags as Record<string, unknown>).approval);
+      if (!isGate && !hasApproval) {
         throw new CatalogError(
-          `${path}: pipelines[${i}].agents[${j}].id must be a non-empty string`,
+          `${edgeWhere}: reject edges may only originate from kind:'gate' nodes or Approval-tagged nodes (source "${edge.from}" is kind:'${fromKind}' without approval tag)`,
         );
       }
-      if (agentIds.has(agent.id)) {
-        throw new CatalogError(`${path}: pipelines[${i}] has duplicate agent id "${agent.id}"`);
-      }
-      agentIds.add(agent.id);
-      if (typeof agent.role !== 'string' || !agent.role) {
-        throw new CatalogError(
-          `${path}: pipelines[${i}].agents[${j}].role must be a non-empty string`,
-        );
-      }
-      if (agent.adapter !== 'claude-sdk' && agent.adapter !== 'opencode-cli') {
-        throw new CatalogError(
-          `${path}: pipelines[${i}].agents[${j}].adapter must be "claude-sdk" or "opencode-cli"`,
-        );
-      }
-      if (agent.systemPrompt !== undefined && typeof agent.systemPrompt !== 'string') {
-        throw new CatalogError(
-          `${path}: pipelines[${i}].agents[${j}].systemPrompt must be a string`,
-        );
-      }
-      if (agent.accepts !== undefined) {
-        validateAcceptsField(agent.accepts, `${path}: pipelines[${i}].agents[${j}].accepts`);
-      }
-      if (agent.fallbackOn !== undefined) {
-        validateFallbackOnField(
-          agent.fallbackOn,
-          `${path}: pipelines[${i}].agents[${j}].fallbackOn`,
-        );
-      }
-      if (agent.skillz !== undefined) {
-        validateSkillzField(agent.skillz, `${path}: pipelines[${i}].agents[${j}].skillz`);
+
+      // onMaxAttempts.escalate target must be a known node
+      if (edge.onMaxAttempts !== undefined) {
+        const oma = edge.onMaxAttempts as Record<string, unknown>;
+        if (oma.kind === 'escalate' && typeof oma.to === 'string' && !nodeIds.has(oma.to)) {
+          throw new CatalogError(
+            `${edgeWhere}.onMaxAttempts.to references unknown node "${oma.to}"`,
+          );
+        }
       }
     }
+  }
+
+  // Trigger constraints: no incoming edges, ≥1 outgoing
+  for (const node of flow.nodes as Array<Record<string, unknown>>) {
+    if (node.kind !== 'trigger') continue;
+    if ((incomingCount.get(node.id as string) ?? 0) > 0) {
+      throw new CatalogError(`${where}: trigger node "${node.id}" must have no incoming edges`);
+    }
+    const out = outgoingByType.get(node.id as string);
+    const totalOut = out ? [...out.values()].reduce((a, b) => a + b, 0) : 0;
+    if (totalOut === 0) {
+      throw new CatalogError(
+        `${where}: trigger node "${node.id}" must have at least one outgoing edge`,
+      );
+    }
+  }
+
+  // DAG check: only reject edges may form cycles. Run cycle detection
+  // on the (sequence | conditional | fallback | error) sub-graph.
+  const dagAdjacency = new Map<string, string[]>();
+  for (const e of flow.edges as Array<Record<string, unknown>>) {
+    if (e.type === 'reject') continue; // reject edges are cycle-allowed
+    const from = e.from as string;
+    const to = e.to as string;
+    const list = dagAdjacency.get(from) ?? [];
+    list.push(to);
+    dagAdjacency.set(from, list);
+  }
+  if (hasCycle(dagAdjacency)) {
+    throw new CatalogError(
+      `${where}: cycle detected on non-reject edges (only reject edges may form cycles for retry-with-context loops)`,
+    );
+  }
+}
+
+/**
+ * DFS cycle detection. Returns true if any cycle exists in the directed
+ * adjacency. Used to enforce "non-reject edges form a DAG" constraint.
+ */
+function hasCycle(adjacency: Map<string, string[]>): boolean {
+  const WHITE = 0;
+  const GRAY = 1;
+  const BLACK = 2;
+  const color = new Map<string, number>();
+  for (const node of adjacency.keys()) color.set(node, WHITE);
+  for (const node of adjacency.keys()) {
+    if (color.get(node) === WHITE) {
+      if (dfsCycle(node, adjacency, color)) return true;
+    }
+  }
+  return false;
+}
+
+function dfsCycle(
+  node: string,
+  adjacency: Map<string, string[]>,
+  color: Map<string, number>,
+): boolean {
+  color.set(node, 1); // gray
+  for (const next of adjacency.get(node) ?? []) {
+    const c = color.get(next) ?? 0;
+    if (c === 1) return true; // back edge — cycle
+    if (c === 0 && dfsCycle(next, adjacency, color)) return true;
+  }
+  color.set(node, 2); // black
+  return false;
+}
+
+/**
+ * Validate a single AgentDef. Centralized so legacy `agents[]` and new
+ * `AgentStep` validation share the same rules. `agentIds` is a per-pipeline
+ * set tracking already-seen agent ids for duplicate detection.
+ */
+function validateAgentDef(value: unknown, where: string, agentIds: Set<string>): void {
+  if (!value || typeof value !== 'object') {
+    throw new CatalogError(`${where} must be an object`);
+  }
+  const agent = value as Record<string, unknown>;
+  if (typeof agent.id !== 'string' || !agent.id) {
+    throw new CatalogError(`${where}.id must be a non-empty string`);
+  }
+  if (agentIds.has(agent.id)) {
+    throw new CatalogError(`${where} has duplicate agent id "${agent.id}"`);
+  }
+  agentIds.add(agent.id);
+  if (typeof agent.role !== 'string' || !agent.role) {
+    throw new CatalogError(`${where}.role must be a non-empty string`);
+  }
+  if (agent.adapter !== 'claude-sdk' && agent.adapter !== 'opencode-cli') {
+    throw new CatalogError(`${where}.adapter must be "claude-sdk" or "opencode-cli"`);
+  }
+  if (agent.systemPrompt !== undefined && typeof agent.systemPrompt !== 'string') {
+    throw new CatalogError(`${where}.systemPrompt must be a string`);
+  }
+  if (agent.accepts !== undefined) {
+    validateAcceptsField(agent.accepts, `${where}.accepts`);
+  }
+  if (agent.fallbackOn !== undefined) {
+    validateFallbackOnField(agent.fallbackOn, `${where}.fallbackOn`);
+  }
+  if (agent.skillz !== undefined) {
+    validateSkillzField(agent.skillz, `${where}.skillz`);
+  }
+}
+
+/**
+ * Validate a single TaskStep (node). Checks `kind` discriminator, per-kind
+ * config shape, optional tags (approval/suspend/loop), optional policy,
+ * optional joinStrategy, optional terminal field.
+ */
+const VALID_NODE_KINDS = new Set([
+  'agent',
+  'tool',
+  'script',
+  'transform',
+  'gate',
+  'subflow',
+  'trigger',
+]);
+
+function validateNode(value: unknown, where: string): void {
+  if (!value || typeof value !== 'object') {
+    throw new CatalogError(`${where} must be an object`);
+  }
+  const node = value as Record<string, unknown>;
+  if (typeof node.id !== 'string' || !node.id) {
+    throw new CatalogError(`${where}.id must be a non-empty string`);
+  }
+  if (typeof node.kind !== 'string' || !VALID_NODE_KINDS.has(node.kind)) {
+    throw new CatalogError(
+      `${where}.kind must be one of: ${[...VALID_NODE_KINDS].join(', ')} (got ${JSON.stringify(node.kind)})`,
+    );
+  }
+  if (!node.config || typeof node.config !== 'object') {
+    throw new CatalogError(`${where}.config must be an object`);
+  }
+  validateNodeConfig(node.kind, node.config, `${where}.config`);
+
+  if (node.tags !== undefined) {
+    validateTaskStepTags(node.tags, `${where}.tags`);
+  }
+  if (node.policy !== undefined) {
+    validateTaskStepPolicy(node.policy, `${where}.policy`);
+  }
+  if (node.joinStrategy !== undefined) {
+    validateJoinStrategy(node.joinStrategy, `${where}.joinStrategy`);
+  }
+  if (node.terminal !== undefined && node.terminal !== 'success' && node.terminal !== 'fail') {
+    throw new CatalogError(`${where}.terminal must be 'success' or 'fail' when present`);
+  }
+}
+
+function validateNodeConfig(kind: string, config: object, where: string): void {
+  const c = config as Record<string, unknown>;
+  switch (kind) {
+    case 'agent': {
+      const agentIds = new Set<string>();
+      validateAgentDef(c.agent, `${where}.agent`, agentIds);
+      break;
+    }
+    case 'tool':
+      if (typeof c.toolId !== 'string' || !c.toolId) {
+        throw new CatalogError(`${where}.toolId must be a non-empty string`);
+      }
+      break;
+    case 'script':
+      if (c.language !== 'bash' && c.language !== 'node' && c.language !== 'python') {
+        throw new CatalogError(
+          `${where}.language must be one of: bash, node, python (got ${JSON.stringify(c.language)})`,
+        );
+      }
+      if (typeof c.source !== 'string') {
+        throw new CatalogError(`${where}.source must be a string`);
+      }
+      break;
+    case 'transform':
+      validateExpression(c.expression, `${where}.expression`);
+      break;
+    case 'gate':
+      if (!Array.isArray(c.assertions) || c.assertions.length === 0) {
+        throw new CatalogError(`${where}.assertions must be a non-empty array`);
+      }
+      for (const [k, a] of (c.assertions as unknown[]).entries()) {
+        if (!a || typeof a !== 'object') {
+          throw new CatalogError(`${where}.assertions[${k}] must be an object`);
+        }
+        const assertion = a as Record<string, unknown>;
+        validateExpression(assertion.expression, `${where}.assertions[${k}].expression`);
+        if (typeof assertion.message !== 'string' || !assertion.message) {
+          throw new CatalogError(`${where}.assertions[${k}].message must be a non-empty string`);
+        }
+      }
+      break;
+    case 'subflow':
+      if (typeof c.flowId !== 'string' || !c.flowId) {
+        throw new CatalogError(`${where}.flowId must be a non-empty string`);
+      }
+      break;
+    case 'trigger':
+      validateTriggerConfig(c, where);
+      break;
+  }
+}
+
+function validateTriggerConfig(c: Record<string, unknown>, where: string): void {
+  switch (c.kind) {
+    case 'webhook':
+      if (typeof c.path !== 'string' || !c.path) {
+        throw new CatalogError(`${where}.path must be a non-empty string`);
+      }
+      if (c.method !== undefined && c.method !== 'GET' && c.method !== 'POST') {
+        throw new CatalogError(`${where}.method must be 'GET' or 'POST' when present`);
+      }
+      break;
+    case 'schedule':
+      if (typeof c.cron !== 'string' || !c.cron) {
+        throw new CatalogError(`${where}.cron must be a non-empty string`);
+      }
+      break;
+    case 'manual':
+      // No additional fields.
+      break;
+    case 'event':
+      if (typeof c.eventType !== 'string' || !c.eventType) {
+        throw new CatalogError(`${where}.eventType must be a non-empty string`);
+      }
+      if (c.matcher !== undefined) {
+        validateExpression(c.matcher, `${where}.matcher`);
+      }
+      break;
+    case 'message':
+      if (typeof c.channel !== 'string' || !c.channel) {
+        throw new CatalogError(`${where}.channel must be a non-empty string`);
+      }
+      break;
+    default:
+      throw new CatalogError(
+        `${where}.kind must be one of: webhook, schedule, manual, event, message (got ${JSON.stringify(c.kind)})`,
+      );
+  }
+}
+
+function validateTaskStepTags(value: unknown, where: string): void {
+  if (!value || typeof value !== 'object') {
+    throw new CatalogError(`${where} must be an object`);
+  }
+  const tags = value as Record<string, unknown>;
+  if (tags.approval !== undefined && tags.suspend !== undefined) {
+    throw new CatalogError(
+      `${where}: approval and suspend tags are mutually exclusive on the same node`,
+    );
+  }
+  if (tags.approval !== undefined) {
+    validateApprovalTag(tags.approval, `${where}.approval`);
+  }
+  if (tags.suspend !== undefined) {
+    validateSuspendTag(tags.suspend, `${where}.suspend`);
+  }
+  if (tags.loop !== undefined) {
+    validateLoopTag(tags.loop, `${where}.loop`);
+  }
+}
+
+function validateApprovalTag(value: unknown, where: string): void {
+  if (!value || typeof value !== 'object') {
+    throw new CatalogError(`${where} must be an object`);
+  }
+  const t = value as Record<string, unknown>;
+  if (typeof t.assigneeRole !== 'string' || !t.assigneeRole) {
+    throw new CatalogError(`${where}.assigneeRole must be a non-empty string`);
+  }
+  if (typeof t.slaMs !== 'number' || t.slaMs <= 0) {
+    throw new CatalogError(`${where}.slaMs must be a positive number`);
+  }
+  if (t.concurrency !== 'pessimistic') {
+    throw new CatalogError(
+      `${where}.concurrency must be 'pessimistic' (only mode supported in v1)`,
+    );
+  }
+}
+
+function validateSuspendTag(value: unknown, where: string): void {
+  if (!value || typeof value !== 'object') {
+    throw new CatalogError(`${where} must be an object`);
+  }
+  const t = value as Record<string, unknown>;
+  if (!t.trigger || typeof t.trigger !== 'object') {
+    throw new CatalogError(`${where}.trigger must be an object`);
+  }
+  const trig = t.trigger as Record<string, unknown>;
+  if (trig.kind === 'timer') {
+    if (typeof trig.durationMs !== 'number' || trig.durationMs <= 0) {
+      throw new CatalogError(`${where}.trigger.durationMs must be a positive number`);
+    }
+  } else if (trig.kind === 'event') {
+    if (typeof trig.eventType !== 'string' || !trig.eventType) {
+      throw new CatalogError(`${where}.trigger.eventType must be a non-empty string`);
+    }
+    if (trig.matcher !== undefined) {
+      validateExpression(trig.matcher, `${where}.trigger.matcher`);
+    }
+  } else {
+    throw new CatalogError(
+      `${where}.trigger.kind must be 'timer' or 'event' (got ${JSON.stringify(trig.kind)})`,
+    );
+  }
+}
+
+function validateLoopTag(value: unknown, where: string): void {
+  if (!value || typeof value !== 'object') {
+    throw new CatalogError(`${where} must be an object`);
+  }
+  const t = value as Record<string, unknown>;
+  if (t.source !== 'collection' && t.source !== 'directory') {
+    throw new CatalogError(
+      `${where}.source must be 'collection' or 'directory' (got ${JSON.stringify(t.source)})`,
+    );
+  }
+  validateExpression(t.path, `${where}.path`);
+  if (t.mode !== 'sequential' && t.mode !== 'parallel') {
+    throw new CatalogError(
+      `${where}.mode must be 'sequential' or 'parallel' (got ${JSON.stringify(t.mode)})`,
+    );
+  }
+  if (t.concurrency !== undefined && (typeof t.concurrency !== 'number' || t.concurrency <= 0)) {
+    throw new CatalogError(`${where}.concurrency must be a positive number when present`);
+  }
+}
+
+function validateTaskStepPolicy(value: unknown, where: string): void {
+  if (!value || typeof value !== 'object') {
+    throw new CatalogError(`${where} must be an object`);
+  }
+  const p = value as Record<string, unknown>;
+  if (p.retry !== undefined) {
+    if (!p.retry || typeof p.retry !== 'object') {
+      throw new CatalogError(`${where}.retry must be an object`);
+    }
+    const r = p.retry as Record<string, unknown>;
+    if (typeof r.maxAttempts !== 'number' || r.maxAttempts <= 0) {
+      throw new CatalogError(`${where}.retry.maxAttempts must be a positive number`);
+    }
+  }
+  if (p.timeout !== undefined && (typeof p.timeout !== 'number' || p.timeout < 0)) {
+    throw new CatalogError(`${where}.timeout must be a non-negative number when present`);
+  }
+  if (p.onError !== undefined) {
+    const validOnError = new Set(['propagate', 'continue', 'fallback']);
+    if (typeof p.onError !== 'string' || !validOnError.has(p.onError)) {
+      throw new CatalogError(
+        `${where}.onError must be one of: ${[...validOnError].join(', ')} (got ${JSON.stringify(p.onError)})`,
+      );
+    }
+  }
+}
+
+function validateJoinStrategy(value: unknown, where: string): void {
+  if (value === 'all' || value === 'any') return;
+  if (value && typeof value === 'object') {
+    const v = value as Record<string, unknown>;
+    if (typeof v.nOfM === 'number' && v.nOfM > 0) return;
+  }
+  throw new CatalogError(
+    `${where} must be 'all', 'any', or { nOfM: <positive number> } (got ${JSON.stringify(value)})`,
+  );
+}
+
+function validateExpression(value: unknown, where: string): void {
+  if (!value || typeof value !== 'object') {
+    throw new CatalogError(`${where} must be an Expression object`);
+  }
+  const e = value as Record<string, unknown>;
+  switch (e.kind) {
+    case 'jsonpath':
+      if (typeof e.path !== 'string' || !e.path) {
+        throw new CatalogError(`${where}.path must be a non-empty string`);
+      }
+      break;
+    case 'js':
+      if (typeof e.expression !== 'string' || !e.expression) {
+        throw new CatalogError(`${where}.expression must be a non-empty string`);
+      }
+      break;
+    case 'literal':
+      if (!('value' in e)) throw new CatalogError(`${where}.value is required`);
+      break;
+    default:
+      throw new CatalogError(
+        `${where}.kind must be one of: jsonpath, js, literal (got ${JSON.stringify(e.kind)})`,
+      );
+  }
+}
+
+function validateEdge(value: unknown, where: string): void {
+  if (!value || typeof value !== 'object') {
+    throw new CatalogError(`${where} must be an object`);
+  }
+  const edge = value as Record<string, unknown>;
+  if (typeof edge.from !== 'string' || !edge.from) {
+    throw new CatalogError(`${where}.from must be a non-empty string`);
+  }
+  if (typeof edge.to !== 'string' || !edge.to) {
+    throw new CatalogError(`${where}.to must be a non-empty string`);
+  }
+  const validTypes = new Set(['sequence', 'conditional', 'fallback', 'error', 'reject']);
+  if (typeof edge.type !== 'string' || !validTypes.has(edge.type)) {
+    throw new CatalogError(
+      `${where}.type must be one of: ${[...validTypes].join(', ')} (got ${JSON.stringify(edge.type)})`,
+    );
+  }
+  if (edge.type === 'conditional') {
+    validateExpression(edge.condition, `${where}.condition`);
+  }
+  if (edge.type === 'reject') {
+    if (
+      edge.maxAttempts !== undefined &&
+      (typeof edge.maxAttempts !== 'number' || edge.maxAttempts <= 0)
+    ) {
+      throw new CatalogError(`${where}.maxAttempts must be a positive number when present`);
+    }
+    if (edge.onMaxAttempts !== undefined) {
+      if (!edge.onMaxAttempts || typeof edge.onMaxAttempts !== 'object') {
+        throw new CatalogError(`${where}.onMaxAttempts must be an object when present`);
+      }
+      const oma = edge.onMaxAttempts as Record<string, unknown>;
+      if (oma.kind === 'fail') {
+        // OK
+      } else if (oma.kind === 'escalate') {
+        if (typeof oma.to !== 'string' || !oma.to) {
+          throw new CatalogError(`${where}.onMaxAttempts.to must be a non-empty string`);
+        }
+      } else {
+        throw new CatalogError(
+          `${where}.onMaxAttempts.kind must be 'fail' or 'escalate' (got ${JSON.stringify(oma.kind)})`,
+        );
+      }
+    }
+  }
+}
+
+function validateFlowOutputContract(value: unknown, where: string): void {
+  if (!value || typeof value !== 'object') {
+    throw new CatalogError(`${where} must be an object`);
+  }
+  const o = value as Record<string, unknown>;
+  const validKinds = new Set([
+    'agent-text',
+    'job-intent',
+    'job-intents',
+    'flow-spec',
+    'structured',
+  ]);
+  if (typeof o.kind !== 'string' || !validKinds.has(o.kind)) {
+    throw new CatalogError(
+      `${where}.kind must be one of: ${[...validKinds].join(', ')} (got ${JSON.stringify(o.kind)})`,
+    );
+  }
+  if (o.kind === 'job-intents') {
+    if (o.min !== undefined && (typeof o.min !== 'number' || o.min < 0))
+      throw new CatalogError(`${where}.min must be a non-negative number`);
+    if (o.max !== undefined && (typeof o.max !== 'number' || o.max < 0))
+      throw new CatalogError(`${where}.max must be a non-negative number`);
+  }
+  if (o.kind === 'structured' && o.schema === undefined) {
+    throw new CatalogError(`${where}.schema is required`);
   }
 }
 
@@ -476,8 +1318,8 @@ function validateAcceptsList(list: unknown[], where: string): void {
   }
 }
 
-export function findPipeline(catalog: PipelineCatalog, id: string): PipelineDef | undefined {
-  return catalog.pipelines.find((p) => p.id === id);
+export function findFlow(catalog: FlowCatalog, id: string): FlowDef | undefined {
+  return catalog.flows.find((f) => f.id === id);
 }
 
 export function findProduct(catalog: Catalog, id: string): ProductDef | undefined {
@@ -485,7 +1327,7 @@ export function findProduct(catalog: Catalog, id: string): ProductDef | undefine
 }
 
 /**
- * Validates the unified Catalog shape. Reuses pipeline validation
+ * Validates the unified Catalog shape. Reuses flow validation
  * (which is already comprehensive) and adds product-shape checks.
  * Caller-supplied path is included in error messages so YAML/JSON
  * sources surface bad-config locations without the validator needing
@@ -496,14 +1338,13 @@ export function validateUnifiedCatalog(value: unknown, path: string): asserts va
     throw new CatalogError(`${path}: top-level must be an object`);
   }
   const obj = value as Record<string, unknown>;
-  // Pipelines is required (even if empty array — distinguishes "I have
-  // no pipelines" from "I forgot the field").
-  if (!Array.isArray(obj.pipelines)) {
-    throw new CatalogError(`${path}: missing "pipelines" array (use [] for none)`);
+  // Flows is required (even if empty array — distinguishes "I have
+  // no flows" from "I forgot the field").
+  if (!Array.isArray(obj.flows)) {
+    throw new CatalogError(`${path}: missing "flows" array (use [] for none)`);
   }
-  // Re-use the pipeline-only validator by going through JSON to avoid
-  // accidental aliasing — this is config-load time, perf is irrelevant.
-  validateCatalog({ pipelines: obj.pipelines }, path);
+  // Re-use the flows-only validator.
+  validateFlowCatalog({ flows: obj.flows }, path);
 
   if (obj.products !== undefined) {
     if (!Array.isArray(obj.products)) {
