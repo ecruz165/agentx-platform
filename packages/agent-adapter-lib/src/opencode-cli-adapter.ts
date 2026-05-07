@@ -2,7 +2,7 @@ import { spawn } from 'node:child_process';
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type { CredentialBroker, Provider } from '@agentx/agent-auth';
+import type { CredentialBroker, Provider } from '@ecruz165/agent-auth';
 import { AdapterEventBus } from './events.ts';
 import type { AgentAdapter, InvocationSpec } from './types.ts';
 

@@ -3,7 +3,7 @@ import type { GraphEdge, GraphIngestionBackend, GraphNode, SourceTypeSchema } fr
 /**
  * In-memory test backend for the context loader's graph ingestion path.
  *
- * **Not related to `@agentx/edge-memory-server`** — that's per-job ephemeral
+ * **Not related to `@ecruz165/edge-memory-server`** — that's per-job ephemeral
  * scratch backed by SQLite + sqlite-vec, with a different interface
  * (MemoryStore) and a different lifecycle. This class implements
  * `GraphIngestionBackend` (graph nodes/edges/vectors) and lives in JS Maps

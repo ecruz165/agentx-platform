@@ -14,7 +14,7 @@
 
 ## 1. Purpose
 
-A standalone TypeScript library (`@agentx/context-loader-core`) that defines **how content becomes typed graph data + vectors** for both the edge tier (local `neo4j-edge` sidecar) and the central tier (self-hosted Neo4j Community on ECS+EBS). Both tiers run the same engine — see workspace memory `project_central_graph_store_choice`. The library:
+A standalone TypeScript library (`@ecruz165/context-loader-core`) that defines **how content becomes typed graph data + vectors** for both the edge tier (local `neo4j-edge` sidecar) and the central tier (self-hosted Neo4j Community on ECS+EBS). Both tiers run the same engine — see workspace memory `project_central_graph_store_choice`. The library:
 
 - Enumerates a catalog of **context source types**, each with its own matcher, chunker, graph schema, and embedder selection.
 - Chunks content via type-specific strategies (tree-sitter AST for code, heading-based for prose, per-page for PDFs, etc.).
@@ -26,9 +26,9 @@ The library is consumed by three layers, each in a different role:
 
 | Consumer | Role | When used |
 |---|---|---|
-| `@agentx/harness` | **Primary user surface.** Launches loaders as harness-server jobs (`harness context load <source>`), shows live progress in `jobs-tui`, exposes catalog management (`harness context source list/describe/extend`), and offers a first-run wizard (`harness context load configure`). | Daily developer workflow inside a workspace with a running triad. |
-| `@agentx/context-loader` | **Headless executable** — the binary `agentx-load`. Ingests directly when no harness is around (CI runs, scripts, ECS task entrypoints) and runs as the spawn-worker process when harness-cli launches a load. | Scripted/automated runs; spawn-worker mode under harness-server. |
-| `@agentx/edge-context-server` | **HTTP-triggered ingestion routes** — `POST /v1/sources/...` endpoints that internally call `ingest()`. | Browser/IDE integration paths that talk to edge-context over the network. |
+| `@ecruz165/harness` | **Primary user surface.** Launches loaders as harness-server jobs (`harness context load <source>`), shows live progress in `jobs-tui`, exposes catalog management (`harness context source list/describe/extend`), and offers a first-run wizard (`harness context load configure`). | Daily developer workflow inside a workspace with a running triad. |
+| `@ecruz165/context-loader` | **Headless executable** — the binary `agentx-load`. Ingests directly when no harness is around (CI runs, scripts, ECS task entrypoints) and runs as the spawn-worker process when harness-cli launches a load. | Scripted/automated runs; spawn-worker mode under harness-server. |
+| `@ecruz165/edge-context-server` | **HTTP-triggered ingestion routes** — `POST /v1/sources/...` endpoints that internally call `ingest()`. | Browser/IDE integration paths that talk to edge-context over the network. |
 
 The relationship between the top two rows is the same "thin headless emitter, thick consumer" pattern used elsewhere in the codebase (see `project_observability_via_emitter` memory): `agentx-load` emits structured `IngestionEvent`s; harness-cli is the rich subscriber that aggregates them across concurrent loads and renders them through `jobs-tui`. Because both speak the same wire format (JSON events over stdout standalone, over UDS in worker mode), the same loader binary serves all three consumers without branching.
 
@@ -53,7 +53,7 @@ The library introduces the concept of **context sources** — typed inputs from 
 - **Not a long-running daemon.** Each loader invocation is one ingestion run. State persists in the graph backend, not in the loader process.
 - **Not a generic file-walker / corpus indexer.** Source types are explicitly enumerated; matching files that don't fit any registered type are logged-and-skipped, not silently embedded as fallback.
 - **Not a license-policy gate.** License is *tracked* on each ingested OSS node; whether to ingest GPL code is a downstream policy decision.
-- **Not a CLI.** All CLI concerns (binary names, flag parsing, help text, install/distribution, job-mode UDS protocol) belong to `@agentx/context-loader`. See its PRD.
+- **Not a CLI.** All CLI concerns (binary names, flag parsing, help text, install/distribution, job-mode UDS protocol) belong to `@ecruz165/context-loader`. See its PRD.
 
 ## 4. Reference & Provenance
 
@@ -104,7 +104,7 @@ User stories:
 | ID | Requirement |
 |---|---|
 | F8 | Users can extend the catalog via `<workspace>/.harness/config/context-sources.yml` or `~/.agentx/context-sources.yml` (user-global). User entries are merged into the built-in catalog; user entries can override built-ins by id. |
-| F9 | Profile spec is YAML, Zod-validated. Schema is exported from `@agentx/context-loader-core/schema`. Invalid configs throw `SourceTypeValidationError` with path-rooted messages on the first invocation that touches them. |
+| F9 | Profile spec is YAML, Zod-validated. Schema is exported from `@ecruz165/context-loader-core/schema`. Invalid configs throw `SourceTypeValidationError` with path-rooted messages on the first invocation that touches them. |
 | F10 | Built-in chunkers are referenced by id in user configs (`chunker: { type: tree-sitter, granularity: function-class, ... }`). User-defined chunkers (out of scope for v1) would require code registration. |
 | F11 | The catalog supports config inheritance: a user-defined source type can extend a built-in (`extends: code-full`) and override specific fields. |
 
@@ -134,7 +134,7 @@ User stories:
 | F29 | **`structured-schema`**: OpenAPI/GraphQL/SQL/Proto. Per-endpoint or per-type chunks; preserve schema relationships as graph edges (`References`, `Returns`, `Accepts`). |
 | F30 | **`config`**: Whole-file chunk for small configs (`<16 KB`). Skip files over the size cap. Useful for "how is this project set up" queries. |
 | F31 | **`issue-tracker`**: Internal Jira/Confluence/etc., per `prd-edge-context-server.md` F24. Same auth-broker pattern as `oss-issues` but provider-aware. |
-| F32 | **`image-described`**: Two-stage. Image → vision LLM (calls `agent-vl` Docker service via OpenAI-compatible HTTP at `http://agent-vl:8080`) → description text → embedder → vector. The vision LLM call uses `@agentx/agent-adapter`'s `createAgent` directly with the local-endpoint config, NOT through harness-core's orchestrator. |
+| F32 | **`image-described`**: Two-stage. Image → vision LLM (calls `agent-vl` Docker service via OpenAI-compatible HTTP at `http://agent-vl:8080`) → description text → embedder → vector. The vision LLM call uses `@ecruz165/agent-adapter`'s `createAgent` directly with the local-endpoint config, NOT through harness-core's orchestrator. |
 | F33 | **`pdf`**: Per-page text extraction (use `pdfjs-dist` or similar). For scanned PDFs (no extractable text), fall back to per-page vision-LLM description via `agent-vl`. Each page = one chunk linked to the parent `Doc` node. |
 | F34 | **`learned`**: Different lifecycle from other source types — written by harness-server's end-of-job evaluator phase, not by user-triggered ingestion. The loader exposes a programmatic API for this path: `loader.upsertLearning({ jobId, productId, content, derivedFrom })`. |
 | F35 | **`skip`**: Lists denylist patterns (`.exe`, `.zip`, `.pyc`, `.otf`, `.gz`, `.psd`, `.bmpr`, `.dll`, `.so`, `.dylib`, lock files, `.terraform/providers/**`). Files matching this type produce zero chunks; the matcher logs at debug level and continues. |
@@ -182,8 +182,8 @@ User stories:
 ## 8. Public API
 
 ```ts
-// @agentx/context-loader-core
-import { ingest, ingestOssDep, type SourceTypeId, type GraphIngestionBackend, type IngestionEvent } from '@agentx/context-loader-core';
+// @ecruz165/context-loader-core
+import { ingest, ingestOssDep, type SourceTypeId, type GraphIngestionBackend, type IngestionEvent } from '@ecruz165/context-loader-core';
 
 // Programmatic API — single source ingestion
 await ingest({
@@ -297,11 +297,11 @@ overrides:
 
 | # | Question | Decision | Why |
 |---|---|---|---|
-| D1 | Library name | `@agentx/context-loader-core` (matches `harness-core` convention) | Multiple consumers (cli, edge-context-server, harness-cli shim) — `-core` is appropriate suffix |
+| D1 | Library name | `@ecruz165/context-loader-core` (matches `harness-core` convention) | Multiple consumers (cli, edge-context-server, harness-cli shim) — `-core` is appropriate suffix |
 | D4 | Reuse harness-core orchestrator? | **No** | Wrong abstraction — ingestion is data flow, not agent invocation |
-| D5 | Reuse `@agentx/agent-adapter` for vision/summarization? | **Yes** | `image-described` and `oss-issues` profile steps need LLM calls — use `createAgent` directly, not via runJob |
+| D5 | Reuse `@ecruz165/agent-adapter` for vision/summarization? | **Yes** | `image-described` and `oss-issues` profile steps need LLM calls — use `createAgent` directly, not via runJob |
 | D6 | Backend abstraction shape | One interface (`GraphIngestionBackend`), one production adapter (`Neo4jBackend`) used by both edge and central tiers | Engine unified to Neo4j on 2026-05-05; interface stays pluggable for future tiers. Matches `project_central_graph_store_choice.md`. |
-| D11 | Source type catalog versioning | Catalog is part of `@agentx/context-loader-core`'s major version | New built-in source type = minor release. Renamed/removed = major release |
+| D11 | Source type catalog versioning | Catalog is part of `@ecruz165/context-loader-core`'s major version | New built-in source type = minor release. Renamed/removed = major release |
 | D12 | License tracking on OSS sources | Yes — `license` is a required property on OSS-* node types | Tag, don't filter |
 | D13 | Tree-sitter grammars distribution | Bundled with package (wasm) | Avoids per-machine install dance. v1 grammars: TS/JS/Java/Kotlin/Python/Go/Rust/C/C++ |
 | D14 | Cross-source-type edges | Declared in source type schema; backend layer enforces | Otherwise the union schema across types becomes implicit — fragile |
@@ -388,8 +388,8 @@ CLI integration (binary `agentx-load`, harness-cli shim, job-mode UDS protocol) 
 
 | Dependency | Why | Hard / Soft |
 |---|---|---|
-| `@agentx/agent-auth` | `CredentialBroker` for GitHub/Jira/Confluence ingestion | **Hard** |
-| `@agentx/agent-adapter` | When a source-type step needs an LLM (vision for `image-described`, optional summarization for `oss-issues`) | **Hard** |
+| `@ecruz165/agent-auth` | `CredentialBroker` for GitHub/Jira/Confluence ingestion | **Hard** |
+| `@ecruz165/agent-adapter` | When a source-type step needs an LLM (vision for `image-described`, optional summarization for `oss-issues`) | **Hard** |
 | `tree-sitter` (Node binding) + per-language grammars | AST chunking | **Hard** |
 | `neo4j-driver` | `Neo4jBackend` (the only production adapter) | **Hard** |
 | `cheerio` + `@mozilla/readability` | HTML extraction for `crawled-web` | **Soft** |

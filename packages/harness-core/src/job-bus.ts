@@ -1,4 +1,4 @@
-import type { AdapterEvent, AdapterEventSource } from '@agentx/agent-adapter';
+import type { AdapterEvent, AdapterEventSource } from '@ecruz165/agent-adapter';
 
 /**
  * Job-scoped envelope wrapping an adapter event with the {jobId, agentId} that

@@ -1,4 +1,4 @@
-import type { AdapterEvent } from '@agentx/agent-adapter';
+import type { AdapterEvent } from '@ecruz165/agent-adapter';
 import { describe, expect, it } from 'vitest';
 import type { JobRecord } from './job.ts';
 import { JobBus } from './job-bus.ts';

@@ -7,7 +7,7 @@ design, ecosystem PRD, per-component PRDs, and four critical reviews.
 
 | Tree | Purpose | Consumed by |
 |---|---|---|
-| `packages/*` | Source for the npm packages we ship (`@agentx/*`) | DevContainers in workspace-template; users directly via npm |
+| `packages/*` | Source for the npm packages we ship (`@ecruz165/*`) | DevContainers in workspace-template; users directly via npm |
 | `workspace-template/` | Cloneable artifact `harness init` bootstraps onto a user's machine (per `prd-workspace-template.md`) | `harness init` (`workspace-setup-cli`) |
 
 The two trees communicate via versioned npm packages. During development, the
@@ -27,12 +27,12 @@ workspace-template uses local file refs into `packages/`.
 
 | Package | Maps to PRD | What it does today |
 |---|---|---|
-| `@agentx/agent-auth` | `prd-agent-auth-lib.md` | Credential types, `FileBroker` with `0600` gate, `AuthStore`, GitHub Device Flow + Copilot session-token exchange + `callCopilot()` |
-| `@agentx/agent-adapter` | `prd-agent-adapter-lib.md` | `ClaudeSdkAdapter`, `OpenCodeCliAdapter`, capture pipeline |
-| `@agentx/harness-server` | `prd-harness-server.md` | HTTP-over-UDS echo server (real orchestration in MVP-3+) |
-| `@agentx/edge-memory-server` | `prd-edge-memory-server.md` | HTTP-over-UDS echo server (real impl in MVP-2+) |
-| `@agentx/edge-context-server` | `prd-edge-context-server.md` | HTTP-over-UDS echo server (real impl in MVP-2+) |
-| `@agentx/harness` | `prd-harness-cli.md` | `harness auth/server/session/memory/context …` CLI |
+| `@ecruz165/agent-auth` | `prd-agent-auth-lib.md` | Credential types, `FileBroker` with `0600` gate, `AuthStore`, GitHub Device Flow + Copilot session-token exchange + `callCopilot()` |
+| `@ecruz165/agent-adapter` | `prd-agent-adapter-lib.md` | `ClaudeSdkAdapter`, `OpenCodeCliAdapter`, capture pipeline |
+| `@ecruz165/harness-server` | `prd-harness-server.md` | HTTP-over-UDS echo server (real orchestration in MVP-3+) |
+| `@ecruz165/edge-memory-server` | `prd-edge-memory-server.md` | HTTP-over-UDS echo server (real impl in MVP-2+) |
+| `@ecruz165/edge-context-server` | `prd-edge-context-server.md` | HTTP-over-UDS echo server (real impl in MVP-2+) |
+| `@ecruz165/harness` | `prd-harness-cli.md` | `harness auth/server/session/memory/context …` CLI |
 
 ## Path conventions (load-bearing for MVP-1 readiness)
 
@@ -54,12 +54,12 @@ For MVP-0 host-only: `<workspace>` = the repo root (where you run `pnpm` command
 
 | Package | PRD | Stage |
 |---|---|---|
-| `@agentx/harness-core` | `prd-harness-core.md` | Phase 1 (Layer 1 type freeze) |
-| `@agentx/token-codecs` | `prd-token-codecs-lib.md` | Phase 1 (no TOON in v1) |
-| `@agentx/agent-worker` | `prd-agent-worker-lib.md` | Phase 2 (worker model decision) |
-| `@agentx/harness-server` | `prd-harness-server.md` | Phase 3 |
-| `@agentx/workspace-setup-cli` | `prd-workspace-setup-cli.md` | Phase 5 |
-| `@agentx/vscode-extension` | `prd-vscode-extension.md` | deferred per scope cut |
+| `@ecruz165/harness-core` | `prd-harness-core.md` | Phase 1 (Layer 1 type freeze) |
+| `@ecruz165/token-codecs` | `prd-token-codecs-lib.md` | Phase 1 (no TOON in v1) |
+| `@ecruz165/agent-worker` | `prd-agent-worker-lib.md` | Phase 2 (worker model decision) |
+| `@ecruz165/harness-server` | `prd-harness-server.md` | Phase 3 |
+| `@ecruz165/workspace-setup-cli` | `prd-workspace-setup-cli.md` | Phase 5 |
+| `@ecruz165/vscode-extension` | `prd-vscode-extension.md` | deferred per scope cut |
 
 ## MVP roadmap
 

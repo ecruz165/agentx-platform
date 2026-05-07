@@ -9,7 +9,7 @@
  *   docker compose up -d neo4j-edge embedder
  *   RUN_NEO4J_INTEGRATION=1 \
  *     NEO4J_TEST_PASSWORD=devpassword \
- *     pnpm --filter @agentx/edge-context-server test
+ *     pnpm --filter @ecruz165/edge-context-server test
  *
  * The test seeds a fresh label namespace (`Symbol_<runId>`) with a few
  * synthetic Function-shaped nodes, embeds known terms, runs vector
@@ -17,7 +17,7 @@
  * depending on the harness-core ingest having been run.
  */
 
-import { Neo4jBackend } from '@agentx/context-loader-core';
+import { Neo4jBackend } from '@ecruz165/context-loader-core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ContextQueryService } from './query.ts';
 
@@ -64,7 +64,7 @@ describe.skipIf(!RUN_INTEGRATION)('ContextQueryService — real vector search', 
 
     // Embed each doc via the same embedder the query path uses, so
     // they live in one vector space.
-    const { createHttpEmbedderClient } = await import('@agentx/context-loader-core');
+    const { createHttpEmbedderClient } = await import('@ecruz165/context-loader-core');
     const embedder = createHttpEmbedderClient({
       config: { url: EMBEDDER_URL, model: EMBEDDER_MODEL, dim: 1024 },
     });

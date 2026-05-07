@@ -13,7 +13,7 @@
  * bindings.
  */
 
-import type { Credential, CredentialBroker, Provider, ResolvedBinding } from '@agentx/agent-auth';
+import type { Credential, CredentialBroker, Provider, ResolvedBinding } from '@ecruz165/agent-auth';
 
 export class SpecBroker implements CredentialBroker {
   /**

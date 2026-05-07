@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { request } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { type Envelope, type PipelineCatalog, startHarnessServer } from '@agentx/harness-server';
+import { type Envelope, type PipelineCatalog, startHarnessServer } from '@ecruz165/harness-server';
 
 /**
  * End-to-end demo of the Phase 0–5 event flow.

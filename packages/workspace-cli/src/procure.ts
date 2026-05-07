@@ -25,7 +25,7 @@ import { existsSync } from 'node:fs';
 import { cp, mkdir, rm, writeFile } from 'node:fs/promises';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { validateRepoAccess } from '@agentx/harness-server';
+import { validateRepoAccess } from '@ecruz165/harness-server';
 import { generateCodeWorkspace } from './code-workspace.ts';
 import type { ProcureResult, ProcureSpec, RepoSpec } from './types.ts';
 import { generateWorkspaceYml } from './yml.ts';

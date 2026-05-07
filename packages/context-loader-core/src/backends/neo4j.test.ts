@@ -8,7 +8,7 @@
  *
  *   RUN_NEO4J_INTEGRATION=1 NEO4J_TEST_URL=bolt://localhost:7687 \
  *     NEO4J_TEST_PASSWORD=devpassword \
- *     pnpm --filter @agentx/context-loader-core test
+ *     pnpm --filter @ecruz165/context-loader-core test
  *
  * CI: bring up Neo4j via testcontainers in a separate setup file (future).
  *

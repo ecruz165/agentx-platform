@@ -9,8 +9,8 @@ import {
   fetchGitHubUsername,
   loginGitHubCopilot,
   type Provider,
-} from '@agentx/agent-auth';
-import { type LoaderEvent, spawnLoaderJob } from '@agentx/harness-server';
+} from '@ecruz165/agent-auth';
+import { type LoaderEvent, spawnLoaderJob } from '@ecruz165/harness-server';
 import { udsRequest } from './uds-client.ts';
 import {
   findProduct,

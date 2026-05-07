@@ -22,7 +22,7 @@
  * override without a code change.
  */
 
-import type { CredentialBroker, ResolvedBinding, ToolId } from '@agentx/agent-auth';
+import type { CredentialBroker, ResolvedBinding, ToolId } from '@ecruz165/agent-auth';
 import { ClaudeSdkAdapter } from './claude-sdk-adapter.ts';
 import { CopilotChatAdapter } from './copilot-chat-adapter.ts';
 import { OpenAiChatAdapter } from './openai-chat-adapter.ts';

@@ -9,7 +9,7 @@
  * visible.
  */
 
-import type { AgentTokens } from '@agentx/harness-core';
+import type { AgentTokens } from '@ecruz165/harness-core';
 
 /**
  * Compact integer formatter. Examples: 1234 → "1.2k", 999 → "999",

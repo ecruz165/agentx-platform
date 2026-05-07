@@ -33,7 +33,7 @@
  * project_pipeline_tmux_topology memory). Tests pass stub models.
  */
 
-import type { Catalog, PipelineDef } from '@agentx/harness-core';
+import type { Catalog, PipelineDef } from '@ecruz165/harness-core';
 import type { BaseChatModel } from '@langchain/core/language_models/chat_models';
 import { HumanMessage, SystemMessage } from '@langchain/core/messages';
 import { Annotation, END, START, StateGraph } from '@langchain/langgraph';

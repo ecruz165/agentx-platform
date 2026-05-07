@@ -243,7 +243,7 @@ const issueTracker: SourceType = {
 const imageDescribed: SourceType = {
   id: 'image-described',
   description:
-    'Images — two-stage: vision LLM describes → text embedder vectorizes. Uses agent-vl Docker service; calls @agentx/agent-adapter directly (NOT through harness-core).',
+    'Images — two-stage: vision LLM describes → text embedder vectorizes. Uses agent-vl Docker service; calls @ecruz165/agent-adapter directly (NOT through harness-core).',
   matcher: {
     include: ['**/*.{png,jpg,jpeg,webp,gif}'],
     exclude: ['**/node_modules/**', '**/dist/**', '**/build/**'],

@@ -1,7 +1,7 @@
 /** @jsxImportSource @opentui/react */
 
-import { AdapterEventBus, type AgentAdapter, type InvocationSpec } from '@agentx/agent-adapter';
-import type { CredentialBroker } from '@agentx/agent-auth';
+import { AdapterEventBus, type AgentAdapter, type InvocationSpec } from '@ecruz165/agent-adapter';
+import type { CredentialBroker } from '@ecruz165/agent-auth';
 import {
   type AdapterFactory,
   type Envelope,
@@ -11,7 +11,7 @@ import {
   type PipelineCatalog,
   resolveAccepts,
   runJob,
-} from '@agentx/harness-core';
+} from '@ecruz165/harness-core';
 import { createCliRenderer } from '@opentui/core';
 import { createRoot, useKeyboard } from '@opentui/react';
 import { useEffect, useState } from 'react';

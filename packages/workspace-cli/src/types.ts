@@ -2,7 +2,7 @@
  * Shared types for the workspace-cli procurement flow.
  *
  * Naming convention:
- *   - `RepoSpec` mirrors `SpawnRepoSpec` from @agentx/harness-server but is
+ *   - `RepoSpec` mirrors `SpawnRepoSpec` from @ecruz165/harness-server but is
  *     declared locally to avoid a tight coupling with the spawn primitive's
  *     evolution. The shape MUST stay structurally compatible with
  *     SpawnRepoSpec — validateRepoAccess + harness-workspace.yml substitution

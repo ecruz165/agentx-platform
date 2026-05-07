@@ -146,7 +146,7 @@ export interface PipelineDef {
  * --product X` lands.
  */
 export interface ContextSourceDef {
-  /** Source-type id from @agentx/context-loader-core's catalog
+  /** Source-type id from @ecruz165/context-loader-core's catalog
    *  (`code-full`, `prose-markdown`, `oss-code`, …). */
   type: string;
   /** What to ingest: a path, an OSS package@version, or a URL. */
@@ -164,7 +164,7 @@ export interface ContextSourceDef {
  * (slice 9d) to pre-clone the repo as a bare and add a per-job
  * worktree before the devcontainer boots.
  *
- * Shape mirrors `SpawnRepoSpec` from `@agentx/harness-server` (which
+ * Shape mirrors `SpawnRepoSpec` from `@ecruz165/harness-server` (which
  * the spawn primitive owns) — declared here so the catalog can carry
  * the same shape without harness-core having to depend on
  * harness-server. Values cross the package boundary structurally.

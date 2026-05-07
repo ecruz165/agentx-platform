@@ -6,8 +6,8 @@ import {
   ClaudeSdkAdapter,
   OpenCodeCliAdapter,
   type OpenCodeCliAdapterOptions,
-} from '@agentx/agent-adapter';
-import type { BindingResolver, CredentialBroker, ResolvedBinding } from '@agentx/agent-auth';
+} from '@ecruz165/agent-adapter';
+import type { BindingResolver, CredentialBroker, ResolvedBinding } from '@ecruz165/agent-auth';
 import type { AdapterId } from './catalog.ts';
 import type { JobRecord, RegisteredAgent } from './job.ts';
 import { bridgeAdapter, type JobBus } from './job-bus.ts';
@@ -90,7 +90,7 @@ export interface RunJobDeps {
    * returns a value, the orchestrator uses that adapter directly — bypasses
    * both the resolver path and the legacy adapterFactory path.
    *
-   * Used by `@agentx/harness-pipeline` (the per-job container runtime),
+   * Used by `@ecruz165/harness-pipeline` (the per-job container runtime),
    * which receives pre-resolved bindings via spec.json and constructs
    * adapters once at startup. The orchestrator inside the container then
    * looks them up by id rather than re-resolving — the auth boundary is
@@ -106,7 +106,7 @@ export interface RunJobDeps {
   adapters?: Map<string, AgentAdapter>;
   /**
    * Optional override for the resolver-path adapter constructor. Defaults
-   * to `bindingToAdapter` from `@agentx/agent-adapter`. Tests inject this
+   * to `bindingToAdapter` from `@ecruz165/agent-adapter`. Tests inject this
    * to substitute mock adapters per ResolvedBinding without spawning real
    * SDK clients — important for slice 13c fallback tests, where each
    * candidate must produce a controllable success/failure.

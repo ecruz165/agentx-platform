@@ -15,7 +15,7 @@
  */
 
 import { connect, type Socket } from 'node:net';
-import type { IngestionEvent } from '@agentx/context-loader-core';
+import type { IngestionEvent } from '@ecruz165/context-loader-core';
 
 const HEARTBEAT_INTERVAL_MS = 5000;
 

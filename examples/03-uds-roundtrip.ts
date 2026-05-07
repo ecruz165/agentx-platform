@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process';
 import { join } from 'node:path';
-import { startContextServer } from '@agentx/edge-context-server';
-import { startMemoryServer } from '@agentx/edge-memory-server';
+import { startContextServer } from '@ecruz165/edge-context-server';
+import { startMemoryServer } from '@ecruz165/edge-memory-server';
 
 const SOCKET_DIR = join(process.cwd(), '.harness', 'run');
 const memorySocket = join(SOCKET_DIR, 'memory.sock');

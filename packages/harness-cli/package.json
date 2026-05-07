@@ -1,5 +1,5 @@
 {
-  "name": "@agentx/harness",
+  "name": "@ecruz165/harness",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -13,10 +13,10 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@agentx/agent-adapter": "workspace:*",
-    "@agentx/agent-auth": "workspace:*",
-    "@agentx/harness-core": "workspace:*",
-    "@agentx/harness-server": "workspace:*",
+    "@ecruz165/agent-adapter": "workspace:*",
+    "@ecruz165/agent-auth": "workspace:*",
+    "@ecruz165/harness-core": "workspace:*",
+    "@ecruz165/harness-server": "workspace:*",
     "@opentui/core": "^0.2.2",
     "@opentui/react": "^0.2.2",
     "react": "^19.0.0",

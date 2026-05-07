@@ -8,7 +8,7 @@
  */
 
 import { PassThrough } from 'node:stream';
-import { type Envelope, JobBus } from '@agentx/harness-core';
+import { type Envelope, JobBus } from '@ecruz165/harness-core';
 import { describe, expect, it } from 'vitest';
 import { consumeJsonlStream } from './pipeline-jsonl-stream.ts';
 

@@ -29,7 +29,7 @@
  */
 
 import { readFile } from 'node:fs/promises';
-import { JobBus } from '@agentx/harness-core';
+import { JobBus } from '@ecruz165/harness-core';
 import { runHarnessPipeline } from './index.ts';
 import { type JobSpec, JobSpecError, parseJobSpec } from './spec.ts';
 

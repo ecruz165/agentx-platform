@@ -23,7 +23,7 @@ import {
   type PipelineDef,
   type ProductDef,
   validateUnifiedCatalog,
-} from '@agentx/harness-core';
+} from '@ecruz165/harness-core';
 import YAML from 'yaml';
 
 /**

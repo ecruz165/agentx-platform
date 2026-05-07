@@ -17,7 +17,7 @@ export interface RepoConfig {
 }
 
 export interface ContextSourceConfig {
-  /** Source type id from the @agentx/context-loader-core catalog
+  /** Source type id from the @ecruz165/context-loader-core catalog
    *  (`code-full`, `prose-markdown`, `oss-code`, etc.). */
   type: string;
   /** What to ingest. For path sources this is a path relative to the

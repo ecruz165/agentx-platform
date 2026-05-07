@@ -10,7 +10,7 @@
  * per-agent AgentsColumn — different views, same data.
  */
 
-import type { Envelope } from '@agentx/harness-core';
+import type { Envelope } from '@ecruz165/harness-core';
 import { formatTokens } from './token-format.ts';
 
 export function eventPreview(env: Envelope): string {

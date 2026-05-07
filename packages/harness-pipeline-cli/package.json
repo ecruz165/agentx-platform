@@ -1,5 +1,5 @@
 {
-  "name": "@agentx/harness-pipeline",
+  "name": "@ecruz165/harness-pipeline",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -16,9 +16,9 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@agentx/agent-adapter": "workspace:*",
-    "@agentx/agent-auth": "workspace:*",
-    "@agentx/harness-core": "workspace:*"
+    "@ecruz165/agent-adapter": "workspace:*",
+    "@ecruz165/agent-auth": "workspace:*",
+    "@ecruz165/harness-core": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^22.7.0",

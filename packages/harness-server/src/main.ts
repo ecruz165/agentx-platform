@@ -2,7 +2,7 @@ import { startHarnessServer } from './index.ts';
 
 const socketPath = process.env.HARNESS_SOCKET_PATH ?? '/root/.harness/run/harness.sock';
 
-console.log(`Starting @agentx/harness-server on ${socketPath}…`);
+console.log(`Starting @ecruz165/harness-server on ${socketPath}…`);
 const handle = await startHarnessServer({ socketPath });
 console.log(`✓ harness-server listening on ${socketPath}`);
 

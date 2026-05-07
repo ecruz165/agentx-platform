@@ -1,7 +1,7 @@
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { FileEventSubscriber, OpenCodeCliAdapter } from '@agentx/agent-adapter';
-import { FileBroker } from '@agentx/agent-auth';
+import { FileEventSubscriber, OpenCodeCliAdapter } from '@ecruz165/agent-adapter';
+import { FileBroker } from '@ecruz165/agent-auth';
 
 const authPath = join(homedir(), '.agentx', 'auth.json');
 const capturePath = join('.harness', 'captures', '02-opencode-host-only.jsonl');

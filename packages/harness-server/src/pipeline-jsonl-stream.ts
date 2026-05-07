@@ -22,7 +22,7 @@
  */
 
 import type { Readable } from 'node:stream';
-import type { Envelope, JobBus } from '@agentx/harness-core';
+import type { Envelope, JobBus } from '@ecruz165/harness-core';
 
 /** Sentinel emitted by harness-pipeline's bin.ts as its final stdout
  *  line — communicates job-level outcome distinct from any envelope. */

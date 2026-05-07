@@ -26,7 +26,7 @@ import {
   InMemoryGraphBackend,
   ingest,
   Neo4jBackend,
-} from '@agentx/context-loader-core';
+} from '@ecruz165/context-loader-core';
 import { connectUdsEmitter, type UdsEmitter } from './uds-event-emitter.ts';
 
 // ─── Help / version / types (work without a backend) ──────────────────────

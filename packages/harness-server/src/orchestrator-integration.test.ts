@@ -3,9 +3,9 @@ import { rm } from 'node:fs/promises';
 import { request } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { AdapterEventBus, type AgentAdapter, type InvocationSpec } from '@agentx/agent-adapter';
-import type { CredentialBroker } from '@agentx/agent-auth';
-import type { AdapterId, PipelineCatalog } from '@agentx/harness-core';
+import { AdapterEventBus, type AgentAdapter, type InvocationSpec } from '@ecruz165/agent-adapter';
+import type { CredentialBroker } from '@ecruz165/agent-auth';
+import type { AdapterId, PipelineCatalog } from '@ecruz165/harness-core';
 import { afterEach, describe, expect, it } from 'vitest';
 import { startHarnessServer } from './index.ts';
 

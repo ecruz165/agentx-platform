@@ -24,7 +24,7 @@
  *   bun examples/15-real-qwen-via-pipeline.ts
  */
 
-import { type JobSpec, runHarnessPipeline } from '@agentx/harness-pipeline';
+import { type JobSpec, runHarnessPipeline } from '@ecruz165/harness-pipeline';
 
 const DMR_CHAT_URL = 'http://localhost:12434/engines/llama.cpp/v1';
 

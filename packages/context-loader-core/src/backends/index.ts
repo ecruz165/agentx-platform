@@ -2,7 +2,7 @@
  * Backend implementations of GraphIngestionBackend (graph nodes/edges/vectors).
  *
  * Naming convention: every backend in this directory is a *graph* backend.
- * It is distinct from `@agentx/edge-memory-server`'s SQLite + sqlite-vec
+ * It is distinct from `@ecruz165/edge-memory-server`'s SQLite + sqlite-vec
  * storage, which is per-job key-value+vector scratch with a separate
  * MemoryStore interface and lifecycle.
  *

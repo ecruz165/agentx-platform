@@ -1,4 +1,4 @@
-import { type AdapterEvent, AdapterEventBus } from '@agentx/agent-adapter';
+import { type AdapterEvent, AdapterEventBus } from '@ecruz165/agent-adapter';
 import { describe, expect, it } from 'vitest';
 import { bridgeAdapter, type Envelope, JobBus } from './job-bus.ts';
 

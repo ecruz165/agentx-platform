@@ -1,5 +1,5 @@
 /**
- * @agentx/harness-pipeline — the per-job runtime that executes one pipeline
+ * @ecruz165/harness-pipeline — the per-job runtime that executes one pipeline
  * job inside a harness-pipeline devcontainer.
  *
  * Per memory `project_proxy_per_job_architecture`:
@@ -26,15 +26,15 @@ import {
   OpenCodeServer,
   type OpenCodeServerOptions,
   type OpencodeProviderEntry,
-} from '@agentx/agent-adapter';
-import type { ResolvedBinding } from '@agentx/agent-auth';
+} from '@ecruz165/agent-adapter';
+import type { ResolvedBinding } from '@ecruz165/agent-auth';
 import {
   type Envelope,
   JobBus,
   type JobRecord,
   type RegisteredAgent,
   runJob,
-} from '@agentx/harness-core';
+} from '@ecruz165/harness-core';
 import type { JobSpec, SpecAgent } from './spec.ts';
 import { SpecBroker } from './spec-broker.ts';
 

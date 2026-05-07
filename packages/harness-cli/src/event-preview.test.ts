@@ -1,4 +1,4 @@
-import type { Envelope } from '@agentx/harness-core';
+import type { Envelope } from '@ecruz165/harness-core';
 import { describe, expect, it } from 'vitest';
 import { eventPreview } from './event-preview.ts';
 

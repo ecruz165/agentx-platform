@@ -7,14 +7,14 @@ import {
   AdapterEventBus,
   type AgentAdapter,
   type InvocationSpec,
-} from '@agentx/agent-adapter';
-import type { CredentialBroker } from '@agentx/agent-auth';
+} from '@ecruz165/agent-adapter';
+import type { CredentialBroker } from '@ecruz165/agent-auth';
 import {
   type AdapterFactory,
   type Envelope,
   type PipelineCatalog,
   startHarnessServer,
-} from '@agentx/harness-server';
+} from '@ecruz165/harness-server';
 
 /**
  * Phase 6 demo — full chain end-to-end without API keys:

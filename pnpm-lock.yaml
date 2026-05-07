@@ -8,28 +8,28 @@ importers:
 
   .:
     dependencies:
-      '@agentx/agent-adapter':
+      '@ecruz165/agent-adapter':
         specifier: workspace:*
         version: link:packages/agent-adapter-lib
-      '@agentx/agent-auth':
+      '@ecruz165/agent-auth':
         specifier: workspace:*
         version: link:packages/agent-auth-lib
-      '@agentx/edge-context-server':
+      '@ecruz165/edge-context-server':
         specifier: workspace:*
         version: link:packages/edge-context-server
-      '@agentx/edge-memory-server':
+      '@ecruz165/edge-memory-server':
         specifier: workspace:*
         version: link:packages/edge-memory-server
-      '@agentx/harness':
+      '@ecruz165/harness':
         specifier: workspace:*
         version: link:packages/harness-cli
-      '@agentx/harness-core':
+      '@ecruz165/harness-core':
         specifier: workspace:*
         version: link:packages/harness-core
-      '@agentx/harness-pipeline':
+      '@ecruz165/harness-pipeline':
         specifier: workspace:*
         version: link:packages/harness-pipeline-cli
-      '@agentx/harness-server':
+      '@ecruz165/harness-server':
         specifier: workspace:*
         version: link:packages/harness-server
     devDependencies:
@@ -57,12 +57,12 @@ importers:
 
   packages/agent-adapter-lib:
     dependencies:
-      '@agentx/agent-auth':
-        specifier: workspace:*
-        version: link:../agent-auth-lib
       '@anthropic-ai/sdk':
         specifier: ^0.30.1
         version: 0.30.1
+      '@ecruz165/agent-auth':
+        specifier: workspace:*
+        version: link:../agent-auth-lib
       '@langchain/core':
         specifier: ^1.1.44
         version: 1.1.44(ws@8.20.0)
@@ -91,10 +91,10 @@ importers:
 
   packages/agent-worker-lib:
     dependencies:
-      '@agentx/agent-adapter':
+      '@ecruz165/agent-adapter':
         specifier: workspace:*
         version: link:../agent-adapter-lib
-      '@agentx/agent-auth':
+      '@ecruz165/agent-auth':
         specifier: workspace:*
         version: link:../agent-auth-lib
     devDependencies:
@@ -107,7 +107,7 @@ importers:
 
   packages/context-loader-cli:
     dependencies:
-      '@agentx/context-loader-core':
+      '@ecruz165/context-loader-core':
         specifier: workspace:*
         version: link:../context-loader-core
     devDependencies:
@@ -120,10 +120,10 @@ importers:
 
   packages/context-loader-core:
     dependencies:
-      '@agentx/agent-adapter':
+      '@ecruz165/agent-adapter':
         specifier: workspace:*
         version: link:../agent-adapter-lib
-      '@agentx/agent-auth':
+      '@ecruz165/agent-auth':
         specifier: workspace:*
         version: link:../agent-auth-lib
       '@vscode/tree-sitter-wasm':
@@ -145,7 +145,7 @@ importers:
 
   packages/edge-context-server:
     dependencies:
-      '@agentx/context-loader-core':
+      '@ecruz165/context-loader-core':
         specifier: workspace:*
         version: link:../context-loader-core
       neo4j-driver:
@@ -170,16 +170,16 @@ importers:
 
   packages/harness-cli:
     dependencies:
-      '@agentx/agent-adapter':
+      '@ecruz165/agent-adapter':
         specifier: workspace:*
         version: link:../agent-adapter-lib
-      '@agentx/agent-auth':
+      '@ecruz165/agent-auth':
         specifier: workspace:*
         version: link:../agent-auth-lib
-      '@agentx/harness-core':
+      '@ecruz165/harness-core':
         specifier: workspace:*
         version: link:../harness-core
-      '@agentx/harness-server':
+      '@ecruz165/harness-server':
         specifier: workspace:*
         version: link:../harness-server
       '@opentui/core':
@@ -216,10 +216,10 @@ importers:
 
   packages/harness-core:
     dependencies:
-      '@agentx/agent-adapter':
+      '@ecruz165/agent-adapter':
         specifier: workspace:*
         version: link:../agent-adapter-lib
-      '@agentx/agent-auth':
+      '@ecruz165/agent-auth':
         specifier: workspace:*
         version: link:../agent-auth-lib
     devDependencies:
@@ -232,13 +232,13 @@ importers:
 
   packages/harness-pipeline-cli:
     dependencies:
-      '@agentx/agent-adapter':
+      '@ecruz165/agent-adapter':
         specifier: workspace:*
         version: link:../agent-adapter-lib
-      '@agentx/agent-auth':
+      '@ecruz165/agent-auth':
         specifier: workspace:*
         version: link:../agent-auth-lib
-      '@agentx/harness-core':
+      '@ecruz165/harness-core':
         specifier: workspace:*
         version: link:../harness-core
     devDependencies:
@@ -251,16 +251,16 @@ importers:
 
   packages/harness-server:
     dependencies:
-      '@agentx/agent-adapter':
+      '@ecruz165/agent-adapter':
         specifier: workspace:*
         version: link:../agent-adapter-lib
-      '@agentx/agent-auth':
+      '@ecruz165/agent-auth':
         specifier: workspace:*
         version: link:../agent-auth-lib
-      '@agentx/harness-core':
+      '@ecruz165/harness-core':
         specifier: workspace:*
         version: link:../harness-core
-      '@agentx/harness-pipeline':
+      '@ecruz165/harness-pipeline':
         specifier: workspace:*
         version: link:../harness-pipeline-cli
       '@langchain/core':
@@ -282,7 +282,7 @@ importers:
 
   packages/workspace-cli:
     dependencies:
-      '@agentx/harness-server':
+      '@ecruz165/harness-server':
         specifier: workspace:*
         version: link:../harness-server
       '@opentui/core':

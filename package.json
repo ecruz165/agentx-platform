@@ -38,14 +38,14 @@
     "tmux:reset": "scripts/tmux-reset.sh"
   },
   "dependencies": {
-    "@agentx/agent-adapter": "workspace:*",
-    "@agentx/agent-auth": "workspace:*",
-    "@agentx/edge-context-server": "workspace:*",
-    "@agentx/edge-memory-server": "workspace:*",
-    "@agentx/harness": "workspace:*",
-    "@agentx/harness-core": "workspace:*",
-    "@agentx/harness-pipeline": "workspace:*",
-    "@agentx/harness-server": "workspace:*"
+    "@ecruz165/agent-adapter": "workspace:*",
+    "@ecruz165/agent-auth": "workspace:*",
+    "@ecruz165/edge-context-server": "workspace:*",
+    "@ecruz165/edge-memory-server": "workspace:*",
+    "@ecruz165/harness": "workspace:*",
+    "@ecruz165/harness-core": "workspace:*",
+    "@ecruz165/harness-pipeline": "workspace:*",
+    "@ecruz165/harness-server": "workspace:*"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.14",

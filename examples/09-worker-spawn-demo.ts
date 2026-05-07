@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { readdir, readFile } from 'node:fs/promises';
 import { join, relative } from 'node:path';
-import { spawnWorker } from '@agentx/harness-server';
+import { spawnWorker } from '@ecruz165/harness-server';
 import YAML from 'yaml';
 
 /**

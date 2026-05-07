@@ -1,5 +1,5 @@
 {
-  "name": "@agentx/context-loader",
+  "name": "@ecruz165/context-loader",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -13,7 +13,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@agentx/context-loader-core": "workspace:*"
+    "@ecruz165/context-loader-core": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^22.7.0",

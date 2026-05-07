@@ -2,7 +2,7 @@ import { startContextServer } from './index.ts';
 
 const socketPath = process.env.CONTEXT_SOCKET_PATH ?? '/root/.harness/run/context.sock';
 
-console.log(`Starting @agentx/edge-context-server on ${socketPath}…`);
+console.log(`Starting @ecruz165/edge-context-server on ${socketPath}…`);
 const handle = await startContextServer({ socketPath });
 console.log(`✓ edge-context-server listening on ${socketPath}`);
 

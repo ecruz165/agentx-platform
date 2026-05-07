@@ -2,7 +2,7 @@ import { startMemoryServer } from './index.ts';
 
 const socketPath = process.env.MEMORY_SOCKET_PATH ?? '/root/.harness/run/memory.sock';
 
-console.log(`Starting @agentx/edge-memory-server on ${socketPath}…`);
+console.log(`Starting @ecruz165/edge-memory-server on ${socketPath}…`);
 const handle = await startMemoryServer({ socketPath });
 console.log(`✓ edge-memory-server listening on ${socketPath}`);
 

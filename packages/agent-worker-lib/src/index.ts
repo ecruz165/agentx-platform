@@ -1,5 +1,5 @@
 /**
- * @agentx/agent-worker — runs an LLM agent inside a sandboxed,
+ * @ecruz165/agent-worker — runs an LLM agent inside a sandboxed,
  * peekable tmux session, with workspace SKILL.md content as the
  * system prompt.
  *
@@ -14,7 +14,7 @@
  *      can `harness attach <jobId>` to watch live.
  *   4. It loads workspace SKILL.md files and concatenates them into
  *      the agent's system prompt.
- *   5. It invokes the agent via @agentx/agent-adapter; tool calls
+ *   5. It invokes the agent via @ecruz165/agent-adapter; tool calls
  *      from the agent (Bash → harness CLI → UDS → triad) flow back
  *      through the SKILL.md-documented surface.
  *   6. SIGTERM shuts down the tmux session; the worker exits.

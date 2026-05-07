@@ -1,5 +1,5 @@
-import { AdapterEventBus, type AgentAdapter, type InvocationSpec } from '@agentx/agent-adapter';
-import type { CredentialBroker } from '@agentx/agent-auth';
+import { AdapterEventBus, type AgentAdapter, type InvocationSpec } from '@ecruz165/agent-adapter';
+import type { CredentialBroker } from '@ecruz165/agent-auth';
 import {
   type AdapterFactory,
   type Envelope,
@@ -8,10 +8,10 @@ import {
   type JobRecord,
   type PipelineCatalog,
   runJob,
-} from '@agentx/harness-core';
+} from '@ecruz165/harness-core';
 
 /**
- * Demo 12 — in-process CLI host using only `@agentx/harness-core`.
+ * Demo 12 — in-process CLI host using only `@ecruz165/harness-core`.
  *
  * Same outcome as demo 11 (orchestrator drives a 3-agent pipeline to
  * completion, events stream live), but with NO server in the picture:

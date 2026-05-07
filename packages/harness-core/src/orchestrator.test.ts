@@ -6,8 +6,8 @@ import {
   BillingError,
   type InvocationSpec,
   RateLimitError,
-} from '@agentx/agent-adapter';
-import type { CredentialBroker, ResolvedBinding } from '@agentx/agent-auth';
+} from '@ecruz165/agent-adapter';
+import type { CredentialBroker, ResolvedBinding } from '@ecruz165/agent-auth';
 import { describe, expect, it } from 'vitest';
 import type { PipelineCatalog } from './catalog.ts';
 import type { JobRecord } from './job.ts';

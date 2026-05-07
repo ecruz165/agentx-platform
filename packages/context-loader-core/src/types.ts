@@ -1,9 +1,9 @@
 /**
- * Public API types for @agentx/context-loader-core.
+ * Public API types for @ecruz165/context-loader-core.
  *
  * The shapes here are the contract between:
  *   - Consumers calling ingest() programmatically
- *   - The CLI (@agentx/context-loader) wrapping them
+ *   - The CLI (@ecruz165/context-loader) wrapping them
  *   - Backend adapters (Neo4j) implementing GraphIngestionBackend
  *   - Source-type chunkers producing nodes/edges/vectors
  *

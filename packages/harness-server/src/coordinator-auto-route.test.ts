@@ -22,7 +22,7 @@ import { rm } from 'node:fs/promises';
 import { request } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type { PipelineCatalog } from '@agentx/harness-core';
+import type { PipelineCatalog } from '@ecruz165/harness-core';
 import { SimpleChatModel } from '@langchain/core/language_models/chat_models';
 import type { BaseMessage } from '@langchain/core/messages';
 import { afterEach, describe, expect, it } from 'vitest';

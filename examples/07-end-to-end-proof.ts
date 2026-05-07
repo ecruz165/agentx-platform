@@ -33,13 +33,13 @@ import { request } from 'node:http';
 import { dirname, join, resolve } from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
-import { ContextQueryService, startContextServer } from '@agentx/edge-context-server';
-import { startMemoryServer } from '@agentx/edge-memory-server';
+import { ContextQueryService, startContextServer } from '@ecruz165/edge-context-server';
+import { startMemoryServer } from '@ecruz165/edge-memory-server';
 import {
   type HarnessServerHandle,
   loadCatalogFromWorkspaceYaml,
   startHarnessServer,
-} from '@agentx/harness-server';
+} from '@ecruz165/harness-server';
 
 // ─── Cosmetics ────────────────────────────────────────────────────────────
 

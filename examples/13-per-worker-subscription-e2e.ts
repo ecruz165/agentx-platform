@@ -30,14 +30,14 @@
 import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { bindingToAdapter, ClaudeSdkAdapter, OpenCodeCliAdapter } from '@agentx/agent-adapter';
+import { bindingToAdapter, ClaudeSdkAdapter, OpenCodeCliAdapter } from '@ecruz165/agent-adapter';
 import {
   AuthStore,
   BindingResolutionError,
   DefaultBindingResolver,
   FileBroker,
   type Provider,
-} from '@agentx/agent-auth';
+} from '@ecruz165/agent-auth';
 
 // ─── helpers ──────────────────────────────────────────────────────────────
 

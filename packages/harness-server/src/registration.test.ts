@@ -3,7 +3,7 @@ import { rm } from 'node:fs/promises';
 import { request } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type { PipelineCatalog } from '@agentx/harness-core';
+import type { PipelineCatalog } from '@ecruz165/harness-core';
 import { afterEach, describe, expect, it } from 'vitest';
 import { type HarnessServerHandle, startHarnessServer } from './index.ts';
 

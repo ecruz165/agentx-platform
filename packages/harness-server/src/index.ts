@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { chmod, mkdir, unlink } from 'node:fs/promises';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { dirname } from 'node:path';
-import type { BindingResolver, CredentialBroker } from '@agentx/agent-auth';
+import type { BindingResolver, CredentialBroker } from '@ecruz165/agent-auth';
 import {
   type AdapterFactory,
   type AdapterId,
@@ -18,7 +18,7 @@ import {
   resolveAccepts,
   runJob,
   TokenAccumulator,
-} from '@agentx/harness-core';
+} from '@ecruz165/harness-core';
 import type { BaseChatModel } from '@langchain/core/language_models/chat_models';
 import { runEntryCoordinator } from './coordinator/entry-coordinator.ts';
 import { inlineCatalogLoader } from './load-catalog.ts';
@@ -27,8 +27,8 @@ import { runJobInContainer } from './run-job-in-container.ts';
 import type { SpawnRepoSpec } from './spawn-worker.ts';
 
 // Re-export the harness-core surface so existing consumers (harness-cli,
-// examples) that import from '@agentx/harness-server' keep working unchanged.
-// New consumers should prefer importing from '@agentx/harness-core' directly.
+// examples) that import from '@ecruz165/harness-server' keep working unchanged.
+// New consumers should prefer importing from '@ecruz165/harness-core' directly.
 export {
   type AdapterFactory,
   type AdapterId,
@@ -49,7 +49,7 @@ export {
   resolveAccepts,
   runJob,
   validateUnifiedCatalog,
-} from '@agentx/harness-core';
+} from '@ecruz165/harness-core';
 export {
   inlineCatalogLoader,
   loadCatalogFromWorkspaceYaml,
@@ -187,7 +187,7 @@ export interface HarnessServerHandle {
   stop(): Promise<void>;
 }
 
-export type { AgentStatus, JobRecord, RegisteredAgent } from '@agentx/harness-core';
+export type { AgentStatus, JobRecord, RegisteredAgent } from '@ecruz165/harness-core';
 export {
   buildCheckoutCoordinatorGraph,
   type RunCheckoutCoordinatorArgs,

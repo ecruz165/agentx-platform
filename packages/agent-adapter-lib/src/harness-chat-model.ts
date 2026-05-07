@@ -30,7 +30,7 @@
  *     binding (one that supports tools natively).
  */
 
-import type { CredentialBroker, ResolvedBinding } from '@agentx/agent-auth';
+import type { CredentialBroker, ResolvedBinding } from '@ecruz165/agent-auth';
 import {
   type BaseChatModelParams,
   SimpleChatModel,

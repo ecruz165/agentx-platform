@@ -1,5 +1,5 @@
 {
-  "name": "@agentx/harness-core",
+  "name": "@ecruz165/harness-core",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -11,8 +11,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@agentx/agent-adapter": "workspace:*",
-    "@agentx/agent-auth": "workspace:*"
+    "@ecruz165/agent-adapter": "workspace:*",
+    "@ecruz165/agent-auth": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^22.7.0",

@@ -21,7 +21,7 @@
  *     ANN over the indexed labels.
  */
 
-import { createHttpEmbedderClient } from '@agentx/context-loader-core';
+import { createHttpEmbedderClient } from '@ecruz165/context-loader-core';
 import neo4j, { type Driver, type Session } from 'neo4j-driver';
 
 export interface ContextQueryServiceOptions {
