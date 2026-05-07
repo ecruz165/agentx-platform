@@ -52,6 +52,13 @@ export {
   walkAgents,
 } from './catalog.ts';
 export {
+  type ChangedFile,
+  discoverChangedFiles,
+  mimeFromPath,
+  parseGitDiffNameStatus,
+  runGit,
+} from './changed-files.ts';
+export {
   type ApprovalRequest,
   type ApprovalResume,
   buildRouter,
