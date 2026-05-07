@@ -69,6 +69,8 @@ async function main() {
       return handleMemory(rest);
     case 'context':
       return handleContext(rest);
+    case 'steering':
+      return handleSteering(rest);
     case 'project':
       return handleProject(rest);
     case 'submit':
@@ -493,6 +495,97 @@ async function handleMemory(args: string[]) {
   die('Usage: harness memory <query|put>');
 }
 
+/**
+ * `harness steering` — operator-facing CLI to push or read steering
+ * context attached to an in-flight or paused job.
+ *
+ * Surface:
+ *   harness steering check [--job <id>]
+ *     GET /v1/jobs/<id>/steering — print the current steering array.
+ *     Reads $HARNESS_JOB_ID from env when --job is omitted.
+ *
+ *   harness steering push --text "<text>" [--job <id>]
+ *     POST /v1/jobs/<id>/steering — append a steering entry. Lands on
+ *     the agent's systemPrompt at next adapter invocation (passive)
+ *     AND on `harness steering check` immediately (active).
+ *
+ *   harness steering wait [--job <id>] [--since <ts>]
+ *     Long-poll: returns when steering changes. v1 implements as a
+ *     simple polling loop on the GET endpoint with a 30s default
+ *     timeout. Server-side push (SSE) is a follow-up.
+ *
+ * Per the steering.md SKILL pattern: agents Bash-call `harness steering
+ * check` between LLM turns to pick up operator-injected guidance
+ * mid-job. Operators (or peer agents) push via `harness steering push`.
+ *
+ * jobId resolution: agents running in container workers inherit
+ * HARNESS_JOB_ID from spawn-worker. In-process adapter calls do NOT
+ * propagate per-job env (the harness-server process is shared across
+ * concurrent jobs); for those callers, --job <id> is required.
+ */
+async function handleSteering(args: string[]) {
+  const [verb, ...rest] = args;
+  const parsed = parseRawArgs(rest);
+  const jobId = parsed.flags.job ?? process.env.HARNESS_JOB_ID;
+
+  if (verb === 'check') {
+    if (!jobId) {
+      die(
+        'No jobId provided. Pass --job <id>, or set $HARNESS_JOB_ID in env\n' +
+          '(container workers inherit HARNESS_JOB_ID from spawn-worker; in-process callers must pass --job).',
+      );
+    }
+    const resp = await udsRequest(HARNESS_SOCKET, 'GET', `/v1/jobs/${jobId}/steering`);
+    print(resp.body);
+    return;
+  }
+
+  if (verb === 'push') {
+    if (!jobId) {
+      die('No jobId provided. Pass --job <id> or set $HARNESS_JOB_ID.');
+    }
+    const text = parsed.flags.text;
+    if (!text || text === 'true') {
+      die('Usage: harness steering push --text "<text>" [--job <id>]');
+    }
+    const resp = await udsRequest(HARNESS_SOCKET, 'POST', `/v1/jobs/${jobId}/steering`, { text });
+    print(resp.body);
+    return;
+  }
+
+  if (verb === 'wait') {
+    if (!jobId) {
+      die('No jobId provided. Pass --job <id> or set $HARNESS_JOB_ID.');
+    }
+    const sinceStr = parsed.flags.since;
+    const sinceCount = sinceStr ? Number(sinceStr) : 0;
+    if (sinceStr && Number.isNaN(sinceCount)) {
+      die(
+        '--since must be an integer count of already-seen steering entries (got: ' + sinceStr + ')',
+      );
+    }
+    const timeoutMs = Number(parsed.flags.timeout ?? '30000');
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+      const resp = await udsRequest(HARNESS_SOCKET, 'GET', `/v1/jobs/${jobId}/steering`);
+      const body = (resp.body as Record<string, unknown>) ?? {};
+      const arr = Array.isArray(body.steering) ? (body.steering as string[]) : [];
+      if (arr.length > sinceCount) {
+        print({ ...body, since: sinceCount, newEntries: arr.slice(sinceCount) });
+        return;
+      }
+      // Poll interval: tight enough to feel responsive, loose enough to
+      // not hammer the UDS socket. 500ms is a reasonable default.
+      await new Promise((r) => setTimeout(r, 500));
+    }
+    die(
+      `harness steering wait: timed out after ${timeoutMs}ms (no new entries since ${sinceCount})`,
+    );
+  }
+
+  die('Usage: harness steering <check|push|wait> [--job <id>] [--text "..."] [--since <count>]');
+}
+
 async function handleContext(args: string[]) {
   const session = await readSession();
   const [verb, ...rest] = args;
@@ -896,6 +989,7 @@ function usage(): void {
       '  harness project <list|show> [id]',
       '  harness submit <pipeline> [--product <id>] [--name "<title>"] [--input <file>|--input-text "<text>"]',
       '  harness memory <query|put> <key> [value]',
+      '  harness steering <check|push|wait> [--job <id>] [--text "..."]',
       '  harness context query <text>',
       '  harness context load <target> --type <id> --backend <url> --embedder-url <url>',
       "  harness context load --product <id>            # loads all of a product's declared contextSources",
