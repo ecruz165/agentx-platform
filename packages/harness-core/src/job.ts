@@ -1,4 +1,4 @@
-import type { AdapterId } from './catalog.ts';
+import type { AdapterId, FlowDef } from './catalog.ts';
 
 export type AgentStatus = 'pending' | 'running' | 'completed' | 'failed';
 
@@ -96,6 +96,19 @@ export interface JobRecord {
   submittedAt: string;
   status: string;
   agents: RegisteredAgent[];
+  /**
+   * The compiled flow that defines this job's execution graph. Optional
+   * for backwards compatibility — every JobRecord submission today
+   * provides agents directly (a flat list); runJob synthesizes a linear
+   * FlowDef from that list when this field is absent. New callers
+   * (Phase 4+) attach the canonical FlowDef from the catalog so the
+   * graph executor can honor non-linear topology, edge kinds, and tags.
+   *
+   * Not persisted across server restarts in the in-memory job map; if a
+   * future SQLite/Postgres backend stores JobRecords, the flow can be
+   * looked up by id from the catalog rather than serialized inline.
+   */
+  flow?: FlowDef;
   /**
    * Job-level cumulative tokens — sum of every agent's running total.
    * Maintained eagerly by `TokenAccumulator` so the API and TUI can

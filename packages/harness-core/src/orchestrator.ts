@@ -9,6 +9,7 @@ import {
 } from '@ecruz165/agent-adapter';
 import type { BindingResolver, CredentialBroker, ResolvedBinding } from '@ecruz165/agent-auth';
 import type { AdapterId } from './catalog.ts';
+import { compileFlow, linearFlowFromAgents, type NodeExecutor } from './flow-graph.ts';
 import type { JobRecord, RegisteredAgent } from './job.ts';
 import { bridgeAdapter, type JobBus } from './job-bus.ts';
 
@@ -117,29 +118,34 @@ export interface RunJobDeps {
 }
 
 /**
- * Phase 6 minimal sequential orchestrator.
+ * Phase 4 graph-based orchestrator.
  *
- * Walks the job's registered agents in declaration order (skipping the
- * synthetic coordinator), constructs each adapter via the factory, bridges
- * its event source onto the JobBus, and invokes it. The output of each
- * agent becomes the user prompt for the next agent.
+ * runJob owns the JobRecord side-effects (status fields, bus events,
+ * onStatusChange hook order) and delegates topology to a compiled
+ * LangGraph StateGraph (see flow-graph.ts). Per-step-kind logic lives in
+ * executor closures built below; the graph compiler routes between them
+ * per the FlowDef's edges + tags.
  *
- * Failure semantics: fail-fast. The first agent to throw stops the pipeline;
- * the failed agent is marked `failed`, the job is marked `failed`, and any
- * remaining agents stay `pending`.
+ * Backwards compat: legacy callers pass a JobRecord with a flat agents
+ * list and no `flow` field. runJob synthesizes a linear FlowDef from
+ * `job.agents` for that case (linearFlowFromAgents from flow-graph.ts),
+ * preserving the historical sequential-walk behavior — including the
+ * coordinator-skip semantic and the slice 13c per-agent fallback chain
+ * inside each agent executor.
  *
- * State updates mutate the JobRecord in place — the in-memory `jobs` map
- * holds references, so subsequent GET /v1/jobs/:id calls observe the new
- * status without polling the orchestrator.
+ * Failure semantics: fail-fast unchanged. The first agent to throw
+ * (without an `error` edge to catch it) terminates the graph; the agent
+ * executor sets agent.status='failed' + job.status='failed' before the
+ * router throws, so by the time the throw reaches runJob the side-effects
+ * are already applied.
  *
- * NOT in scope here (deferred to MVP-3+ orchestrator):
- *   - DAG / parallel execution (`dependsOn`)
- *   - retries with backoff
- *   - HITL injection points
- *   - SQLite persistence of agent transitions
- *   - per-agent timeouts beyond what the adapter enforces
- *   - structured inter-agent message passing (currently raw string concat
- *     of prior output as the next user prompt)
+ * NOT yet in scope (follow-up commits):
+ *   - Tag semantics (Approval interrupt + resume; Suspend checkpoint;
+ *     Loop iteration). Tag wrappers in flow-graph.ts are stubs today.
+ *   - tool/script/transform/gate/subflow step kinds (executors throw
+ *     'not yet implemented').
+ *   - Real expression-language sandbox for `js` predicates (jsonpath +
+ *     literal work today).
  */
 export async function runJob(jobId: string, deps: RunJobDeps): Promise<void> {
   const job = deps.jobs.get(jobId);
@@ -149,46 +155,133 @@ export async function runJob(jobId: string, deps: RunJobDeps): Promise<void> {
   job.status = 'running';
   deps.onStatusChange?.(jobId, null, 'running');
 
-  let priorOutput = job.input ?? '';
+  // Use the catalog-attached flow if present; else synthesize a linear
+  // flow from the registered agents list (legacy JobRecord shape).
+  const flow = job.flow ?? linearFlowFromAgents(`__legacy_${jobId}`, job.agents);
 
-  for (const agent of job.agents) {
-    // Skip the synthetic coordinators — both are placeholder agents
-    // owned by harness-server (entry: pipeline-routing decision;
-    // exit: harvest+distill+promote). Their adapter binding is
-    // declarative-only today; when they become real LLM-driven agents
-    // this skip rule moves into config (e.g., a `synthetic: true`
-    // flag on AgentDef) so the orchestrator can decide to skip vs run
-    // based on declared capability rather than hardcoded ids.
-    if (agent.id === 'coordinator' || agent.id === 'checkout-coordinator') continue;
+  // Build per-node executors. Only kind:'agent' nodes run real work in
+  // this slice; other kinds use the compiler's defaultExecutor (success
+  // no-op) — except tool/script/transform/gate/subflow which intentionally
+  // throw via the explicit executor below so misuse is loud, not silent.
+  const executors = new Map<string, NodeExecutor>();
+  for (const node of flow.nodes) {
+    if (node.kind === 'agent') {
+      executors.set(node.id, makeAgentExecutor(node.id, deps, factory, job, jobId));
+    } else if (
+      node.kind === 'tool' ||
+      node.kind === 'script' ||
+      node.kind === 'transform' ||
+      node.kind === 'gate' ||
+      node.kind === 'subflow'
+    ) {
+      // Throw loudly — these step kinds are typed in the catalog but the
+      // executor for them is a follow-up. Better to fail fast than to
+      // silently no-op and let the graph terminate with phantom success.
+      const kind = node.kind;
+      const id = node.id;
+      executors.set(id, async () => {
+        throw new Error(`step kind "${kind}" (node "${id}") not yet implemented`);
+      });
+    }
+    // trigger nodes use defaultExecutor (success) — initial state already
+    // carries job.input as `output`.
+  }
+
+  const graph = compileFlow({ flow, executors });
+
+  try {
+    await graph.invoke({
+      jobId,
+      output: job.input ?? '',
+      messages: [],
+      attempts: {},
+      lastExit: null,
+      rejectionPayload: null,
+    });
+  } catch {
+    // Graph terminated via a router throw (no error edge for an agent
+    // failure) OR an executor genuinely threw. The agent executor has
+    // already mutated job.status='failed' + agent.status='failed' for
+    // the agent-failure case; for unexpected throws the job is left in
+    // 'running' and we mark it failed defensively here.
+    if (job.status !== 'failed') {
+      job.status = 'failed';
+      deps.onStatusChange?.(jobId, null, 'failed');
+    }
+    return;
+  }
+
+  // Graph terminated normally — every successful path ended at END.
+  if (job.status !== 'failed') {
+    job.status = 'completed';
+    deps.onStatusChange?.(jobId, null, 'completed');
+  }
+}
+
+/**
+ * Build the per-node executor for a kind:'agent' TaskStep. Looks up the
+ * RegisteredAgent on the JobRecord by id (registration walks the FlowDef
+ * via walkAgents and creates a RegisteredAgent per node, so the ids
+ * align). The executor:
+ *
+ *   1. Skips coordinator / checkout-coordinator (returns success exit
+ *      without running any adapter — preserves the historical hardcoded-
+ *      skip semantic).
+ *   2. Marks the agent running + fires onStatusChange.
+ *   3. Runs the existing buildCandidates → runCandidates pipeline, which
+ *      handles slice 13c multi-binding fallback inside the agent.
+ *   4. On success: marks agent completed, returns { output, lastExit }.
+ *   5. On failure: marks agent + job failed, fires onStatusChange in the
+ *      historical order (agent then job), returns an error exit so the
+ *      router can dispatch to an `error` edge if present (else throw).
+ *
+ * Construction-failure: the synthetic "adapter construction failed" bus
+ * event (parity with pre-Phase-4 behavior) is published here for both
+ * eager-buildCandidates throws and runCandidates' construction-failure
+ * outcome.
+ */
+function makeAgentExecutor(
+  agentId: string,
+  deps: RunJobDeps,
+  factory: AdapterFactory,
+  job: JobRecord,
+  jobId: string,
+): NodeExecutor {
+  return async (state) => {
+    const agent = job.agents.find((a) => a.id === agentId);
+    if (!agent || agent.id === 'coordinator' || agent.id === 'checkout-coordinator') {
+      return { lastExit: { nodeId: agentId, kind: 'success' } };
+    }
 
     agent.status = 'running';
     deps.onStatusChange?.(jobId, agent.id, 'running');
 
-    // Build the candidate list. For pre-built / factory / single-shot
-    // resolver paths this is a one-element list; for the
-    // `resolveAllBindings` path it can hold multiple bindings, in which
-    // case any AdapterError thrown by candidate N falls through to N+1.
     let candidates: AgentCandidate[];
     try {
       candidates = await buildCandidates(agent, deps, factory);
     } catch (err) {
-      // Eager construction failure (e.g., resolveAllBindings threw).
-      // Treat as the same shape as the existing single-shot construction
-      // failure — synthetic error event + agent/job marked failed.
       failAgent(jobId, agent, job, deps, `adapter construction failed: ${(err as Error).message}`);
-      return;
+      return {
+        lastExit: {
+          nodeId: agentId,
+          kind: 'error',
+          errorName: 'ConstructionFailure',
+          errorMessage: (err as Error).message,
+        },
+      };
     }
 
-    const outcome = await runCandidates(candidates, agent, priorOutput, deps, jobId);
+    const outcome = await runCandidates(candidates, agent, state.output, deps, jobId);
+
     if (outcome.kind === 'success') {
-      priorOutput = outcome.result;
       agent.status = 'completed';
       deps.onStatusChange?.(jobId, agent.id, 'completed');
-      continue;
+      return {
+        output: outcome.result,
+        lastExit: { nodeId: agentId, kind: 'success' },
+      };
     }
-    // Failure — already-published error events are emitted by the bridged
-    // adapter on invoke-failures; only emit a synthetic one for the
-    // construction-failure case (parity with the pre-13c behavior).
+
     if (outcome.kind === 'construction-failure') {
       deps.bus.publish(jobId, agent.id, {
         kind: 'error',
@@ -200,11 +293,16 @@ export async function runJob(jobId: string, deps: RunJobDeps): Promise<void> {
     job.status = 'failed';
     deps.onStatusChange?.(jobId, agent.id, 'failed');
     deps.onStatusChange?.(jobId, null, 'failed');
-    return;
-  }
-
-  job.status = 'completed';
-  deps.onStatusChange?.(jobId, null, 'completed');
+    return {
+      lastExit: {
+        nodeId: agentId,
+        kind: 'error',
+        errorName: outcome.error instanceof Error ? outcome.error.name : 'Error',
+        errorMessage:
+          outcome.error instanceof Error ? outcome.error.message : String(outcome.error),
+      },
+    };
+  };
 }
 
 /**

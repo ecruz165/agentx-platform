@@ -12,7 +12,9 @@
   },
   "dependencies": {
     "@ecruz165/agent-adapter": "workspace:*",
-    "@ecruz165/agent-auth": "workspace:*"
+    "@ecruz165/agent-auth": "workspace:*",
+    "@langchain/core": "^1.1.44",
+    "@langchain/langgraph": "^1.3.0"
   },
   "devDependencies": {
     "@types/node": "^22.7.0",

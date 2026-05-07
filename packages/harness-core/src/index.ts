@@ -51,6 +51,17 @@ export {
   validateUnifiedCatalog,
   walkAgents,
 } from './catalog.ts';
+export {
+  buildRouter,
+  type CompileFlowOptions,
+  compileFlow,
+  evalExpression,
+  FlowState,
+  type FlowStateT,
+  linearFlowFromAgents,
+  type NodeExecutor,
+  type NodeExit,
+} from './flow-graph.ts';
 export type { AgentStatus, AgentTokens, JobRecord, RegisteredAgent } from './job.ts';
 export { bridgeAdapter, type Envelope, JobBus } from './job-bus.ts';
 export {
