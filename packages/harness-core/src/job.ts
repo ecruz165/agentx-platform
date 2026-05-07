@@ -1,6 +1,6 @@
 import type { AdapterId, FlowDef } from './catalog.ts';
 
-export type AgentStatus = 'pending' | 'running' | 'completed' | 'failed';
+export type AgentStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
 
 /**
  * Per-call token usage: input ("provided", what was sent to the LLM)

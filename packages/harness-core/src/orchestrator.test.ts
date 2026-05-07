@@ -1300,3 +1300,196 @@ describe('runJob + resumeJob (Approval tag)', () => {
     expect(graphs.has('jA')).toBe(false);
   });
 });
+
+describe('runJob + steerJob (operator steering reaches agent)', () => {
+  it('prepends accumulated steering into the agent systemPrompt on next invocation', async () => {
+    const { runJob, steerJob, resumeJob } = await import('./orchestrator.ts');
+
+    const jobs = new Map<string, JobRecord>();
+    const bus = new JobBus();
+    const graphs = new Map<string, CompiledFlowGraph>();
+
+    const job: JobRecord = {
+      jobId: 'jSteer',
+      pipeline: 'plan-then-build',
+      status: 'received',
+      submittedAt: 'now',
+      input: 'design feature X',
+      flow: {
+        id: 'plan-then-build',
+        nodes: [
+          { id: '__trigger', kind: 'trigger', config: { kind: 'manual' } },
+          {
+            id: 'planner',
+            kind: 'agent',
+            config: { agent: { id: 'planner' } as never },
+            tags: {
+              approval: {
+                assigneeRole: 'tech-lead',
+                slaMs: 60_000,
+                concurrency: 'pessimistic',
+              },
+            },
+          },
+          {
+            id: 'builder',
+            kind: 'agent',
+            config: { agent: { id: 'builder' } as never },
+          },
+        ],
+        edges: [
+          { from: '__trigger', to: 'planner', type: 'sequence' },
+          { from: 'planner', to: 'builder', type: 'sequence' },
+        ],
+      },
+      agents: [
+        {
+          id: 'planner',
+          role: 'Plan',
+          adapter: 'claude-sdk',
+          systemPrompt: 'be a thoughtful planner',
+          status: 'pending',
+        },
+        {
+          id: 'builder',
+          role: 'Build',
+          adapter: 'claude-sdk',
+          systemPrompt: 'implement the plan',
+          status: 'pending',
+        },
+      ],
+    };
+    jobs.set('jSteer', job);
+
+    const adapters: TestAdapter[] = [];
+    const factory: AdapterFactory = () => {
+      const a = new TestAdapter({ kind: 'ok', reply: `r-${adapters.length + 1}` });
+      adapters.push(a);
+      return a;
+    };
+
+    const deps = {
+      jobs,
+      bus,
+      broker: dummyBroker,
+      adapterFactory: factory,
+      graphs,
+    };
+
+    // Run — pauses at the Approval interrupt after planner runs.
+    await runJob('jSteer', deps);
+    expect(job.status).toBe('awaiting-approval');
+    // Planner saw its baseline systemPrompt only (no steering yet).
+    expect(adapters[0]?.invokeCalls[0]?.system).toBe('be a thoughtful planner');
+
+    // Operator pushes steering while paused.
+    await steerJob('jSteer', 'consider OAuth specifically', deps);
+
+    // Resume with approve → builder runs and should see the steering
+    // prepended to its systemPrompt.
+    await resumeJob('jSteer', { decision: 'approve' }, deps);
+    expect(job.status).toBe('completed');
+
+    expect(adapters[1]?.invokeCalls[0]?.system).toBe(
+      'implement the plan\n\n[OPERATOR STEERING]\n— consider OAuth specifically',
+    );
+  });
+});
+
+describe('runJob + cancelJob (cooperative cancellation)', () => {
+  it('marks the job cancelled at the next node-tick boundary; downstream agents do not run', async () => {
+    const { runJob, cancelJob, resumeJob } = await import('./orchestrator.ts');
+
+    const jobs = new Map<string, JobRecord>();
+    const bus = new JobBus();
+    const graphs = new Map<string, CompiledFlowGraph>();
+
+    const job: JobRecord = {
+      jobId: 'jCancel',
+      pipeline: 'plan-then-build',
+      status: 'received',
+      submittedAt: 'now',
+      input: 'design feature X',
+      flow: {
+        id: 'plan-then-build',
+        nodes: [
+          { id: '__trigger', kind: 'trigger', config: { kind: 'manual' } },
+          {
+            id: 'planner',
+            kind: 'agent',
+            config: { agent: { id: 'planner' } as never },
+            tags: {
+              approval: {
+                assigneeRole: 'tech-lead',
+                slaMs: 60_000,
+                concurrency: 'pessimistic',
+              },
+            },
+          },
+          {
+            id: 'builder',
+            kind: 'agent',
+            config: { agent: { id: 'builder' } as never },
+          },
+        ],
+        edges: [
+          { from: '__trigger', to: 'planner', type: 'sequence' },
+          { from: 'planner', to: 'builder', type: 'sequence' },
+        ],
+      },
+      agents: [
+        {
+          id: 'planner',
+          role: 'Plan',
+          adapter: 'claude-sdk',
+          systemPrompt: 'plan',
+          status: 'pending',
+        },
+        {
+          id: 'builder',
+          role: 'Build',
+          adapter: 'claude-sdk',
+          systemPrompt: 'build',
+          status: 'pending',
+        },
+      ],
+    };
+    jobs.set('jCancel', job);
+
+    const adapters: TestAdapter[] = [];
+    const factory: AdapterFactory = () => {
+      const a = new TestAdapter({ kind: 'ok', reply: `r-${adapters.length + 1}` });
+      adapters.push(a);
+      return a;
+    };
+
+    const deps = {
+      jobs,
+      bus,
+      broker: dummyBroker,
+      adapterFactory: factory,
+      graphs,
+    };
+
+    // Run — pauses at planner's approval interrupt.
+    await runJob('jCancel', deps);
+    expect(job.status).toBe('awaiting-approval');
+    expect(adapters).toHaveLength(1); // planner ran once
+
+    // Cancel while paused.
+    await cancelJob('jCancel', 'changed my mind', deps);
+
+    // Resume — the next node-tick (builder) sees cancelRequested and
+    // short-circuits to status='cancelled' WITHOUT invoking its adapter.
+    // Note: the approval-tagged planner's synthetic node runs first on
+    // resume; it doesn't check cancellation (no agent backing it). The
+    // builder is the first real agent that sees cancelRequested.
+    await resumeJob('jCancel', { decision: 'approve' }, deps);
+
+    expect(job.status).toBe('cancelled');
+    expect(job.agents.find((a) => a.id === 'builder')?.status).toBe('cancelled');
+    // Builder's adapter was NEVER constructed (cancellation short-
+    // circuits before the candidate-build path).
+    expect(adapters).toHaveLength(1); // still just the original planner
+  });
+});

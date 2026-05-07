@@ -247,7 +247,7 @@ export async function runJob(jobId: string, deps: RunJobDeps): Promise<void> {
   try {
     result = await graph.invoke(initial, config);
   } catch {
-    if (job.status !== 'failed') {
+    if (job.status !== 'failed' && job.status !== 'cancelled') {
       job.status = 'failed';
       deps.onStatusChange?.(jobId, null, 'failed');
     }
@@ -297,7 +297,7 @@ export async function resumeJob(
   try {
     result = await graph.invoke(new Command({ resume: resumeValue }), config);
   } catch {
-    if (job.status !== 'failed') {
+    if (job.status !== 'failed' && job.status !== 'cancelled') {
       job.status = 'failed';
       deps.onStatusChange?.(jobId, null, 'failed');
     }
@@ -308,6 +308,134 @@ export async function resumeJob(
   finalizeOrPause(jobId, job, result, deps);
 }
 
+/**
+ * Compose an effective systemPrompt by appending operator steering
+ * onto the agent's baseline. Empty steering returns the baseline
+ * verbatim (zero overhead for the steady-state, no-steering case).
+ *
+ * Format: baseline + a clearly-labeled `[OPERATOR STEERING]` block so
+ * the LLM can recognize the addition as out-of-band guidance vs its
+ * baseline role description. Steering entries are joined with `\n— `
+ * to give the LLM clean delineation between operator-pushed messages.
+ *
+ * Exported so tests can pin the format and so future skill-based
+ * read paths can compose the same way.
+ */
+export function composeSystemPromptWithSteering(
+  baseline: string | undefined,
+  steering: readonly string[],
+): string | undefined {
+  if (steering.length === 0) return baseline;
+  const block = `[OPERATOR STEERING]\n— ${steering.join('\n— ')}`;
+  if (!baseline) return block;
+  return `${baseline}\n\n${block}`;
+}
+
+/**
+ * Push a steering entry into the live state of a paused or in-flight
+ * job. Writes via the LangGraph checkpointer (graph.updateState) so the
+ * value lands on the same thread_id the runJob/resumeJob path uses.
+ *
+ * Effect timing:
+ *   - Paused job: applied at the next resume (the resumed node sees
+ *     state.steering with the new entry).
+ *   - Running job: written to the checkpointer for future ticks; the
+ *     currently-executing node won't see it until its NEXT invocation.
+ *     LangGraph doesn't expose mid-execution state mutation visibility.
+ *
+ * Throws if no cached graph exists for the jobId — callers should
+ * either ensure runJob has fired first, or fall back to a queued-write
+ * pattern (out of scope here).
+ */
+export async function steerJob(jobId: string, text: string, deps: RunJobDeps): Promise<void> {
+  const graph = deps.graphs?.get(jobId);
+  if (!graph) {
+    throw new Error(
+      `steerJob: no cached graph for jobId "${jobId}" — runJob must be in flight or paused.`,
+    );
+  }
+  const config = { configurable: { thread_id: jobId } };
+  await callUpdateState(graph, config, { steering: [text] });
+}
+
+/**
+ * Mark a job for cooperative cancellation. Writes
+ * `cancelRequested: true` (and an optional reason) into the live
+ * state via the checkpointer; the agent executor checks this at the
+ * top of every node-tick and short-circuits to status='cancelled'
+ * when set. Hard cancellation of an in-flight adapter call is NOT
+ * supported — that requires per-adapter cancel primitives the
+ * adapter layer doesn't yet expose.
+ *
+ * After this returns, callers should expect job.status to transition
+ * to 'cancelled' on the NEXT node-tick boundary, not synchronously.
+ */
+export async function cancelJob(
+  jobId: string,
+  reason: string | undefined,
+  deps: RunJobDeps,
+): Promise<void> {
+  const graph = deps.graphs?.get(jobId);
+  if (!graph) {
+    throw new Error(
+      `cancelJob: no cached graph for jobId "${jobId}" — runJob must be in flight or paused.`,
+    );
+  }
+  const config = { configurable: { thread_id: jobId } };
+  await callUpdateState(graph, config, {
+    cancelRequested: true,
+    cancelReason: reason ?? null,
+  });
+}
+
+/**
+ * Read the current steering array for a job. Reads via
+ * graph.getState(config); returns an empty array when the graph or
+ * state is missing. Used by the GET /v1/jobs/:id/steering route to
+ * surface the current value to agents (active-pull pattern via
+ * `harness steering check`) and to dispatchers polling for
+ * visibility.
+ */
+export async function getJobSteering(jobId: string, deps: RunJobDeps): Promise<readonly string[]> {
+  const graph = deps.graphs?.get(jobId);
+  if (!graph) return [];
+  const config = { configurable: { thread_id: jobId } };
+  const state = await callGetState(graph, config);
+  const steering = state?.values?.steering;
+  return Array.isArray(steering) ? (steering as string[]) : [];
+}
+
+/**
+ * Structural call to `graph.updateState(config, partial)`. The
+ * CompiledFlowGraph type we cache doesn't include updateState in its
+ * minimal contract (we only enforced `invoke`); cast through here so
+ * the helper is the single place that asserts the runtime shape.
+ */
+async function callUpdateState(
+  graph: CompiledFlowGraph,
+  config: { configurable: { thread_id: string } },
+  partial: Record<string, unknown>,
+): Promise<void> {
+  const g = graph as unknown as {
+    updateState: (cfg: typeof config, values: Record<string, unknown>) => Promise<unknown>;
+  };
+  if (typeof g.updateState !== 'function') {
+    throw new Error('compiled graph has no updateState method — checkpointer required');
+  }
+  await g.updateState(config, partial);
+}
+
+async function callGetState(
+  graph: CompiledFlowGraph,
+  config: { configurable: { thread_id: string } },
+): Promise<{ values?: Record<string, unknown> } | null> {
+  const g = graph as unknown as {
+    getState: (cfg: typeof config) => Promise<{ values?: Record<string, unknown> } | null>;
+  };
+  if (typeof g.getState !== 'function') return null;
+  return g.getState(config);
+}
+
 function freshFlowState(jobId: string, input: string) {
   return {
     jobId,
@@ -316,6 +444,9 @@ function freshFlowState(jobId: string, input: string) {
     attempts: {},
     lastExit: null,
     rejectionPayload: null,
+    steering: [],
+    cancelRequested: false,
+    cancelReason: null,
   };
 }
 
@@ -363,8 +494,9 @@ function finalizeOrPause(
     return;
   }
 
-  // No interrupt — terminal state.
-  if (job.status !== 'failed') {
+  // No interrupt — terminal state. Preserve cancelled / failed; only
+  // promote to 'completed' from 'running' (the normal happy path).
+  if (job.status !== 'failed' && job.status !== 'cancelled') {
     job.status = 'completed';
     deps.onStatusChange?.(jobId, null, 'completed');
   }
@@ -429,6 +561,27 @@ function makeAgentExecutor(
       return { lastExit: { nodeId: agentId, kind: 'success' } };
     }
 
+    // Cooperative cancellation: check at the boundary BEFORE any work.
+    // Mark the agent + job 'cancelled' as a side-effect (mirrors the
+    // failure-side pattern) and return an error exit. The router will
+    // throw (no error edge handles 'Cancelled' specially), runJob's
+    // outer catch detects job.status === 'cancelled' and skips the
+    // defensive 'failed' transition.
+    if (state.cancelRequested) {
+      agent.status = 'cancelled';
+      job.status = 'cancelled';
+      deps.onStatusChange?.(jobId, agent.id, 'cancelled');
+      deps.onStatusChange?.(jobId, null, 'cancelled');
+      return {
+        lastExit: {
+          nodeId: agentId,
+          kind: 'error',
+          errorName: 'Cancelled',
+          errorMessage: state.cancelReason ?? 'cancelled by operator',
+        },
+      };
+    }
+
     agent.status = 'running';
     deps.onStatusChange?.(jobId, agent.id, 'running');
 
@@ -447,7 +600,23 @@ function makeAgentExecutor(
       };
     }
 
-    const outcome = await runCandidates(candidates, agent, state.output, deps, jobId);
+    // Compose the effective systemPrompt: agent.systemPrompt + any
+    // accumulated operator steering. Steering is prepended as a
+    // separately-marked block so the agent can recognize it as
+    // out-of-band guidance vs its baseline role definition.
+    const effectiveSystemPrompt = composeSystemPromptWithSteering(
+      agent.systemPrompt,
+      state.steering,
+    );
+
+    const outcome = await runCandidates(
+      candidates,
+      agent,
+      state.output,
+      deps,
+      jobId,
+      effectiveSystemPrompt,
+    );
 
     if (outcome.kind === 'success') {
       agent.status = 'completed';
@@ -517,6 +686,7 @@ async function runCandidates(
   userInput: string,
   deps: RunJobDeps,
   jobId: string,
+  systemPrompt: string | undefined = agent.systemPrompt,
 ): Promise<CandidateOutcome> {
   let lastError: unknown;
   let lastWasConstruction = false;
@@ -557,7 +727,7 @@ async function runCandidates(
     const detach = bridgeAdapter(deps.bus, jobId, agent.id, adapter.events);
     try {
       const result = await adapter.invoke({
-        system: agent.systemPrompt,
+        system: systemPrompt,
         user: userInput,
       });
       detach();

@@ -24,6 +24,7 @@ import {
   type NodeExecutor,
   type SuspendRequest,
 } from './flow-graph.ts';
+import { composeSystemPromptWithSteering } from './orchestrator.ts';
 
 // ─── helpers ──────────────────────────────────────────────────────────────
 
@@ -73,6 +74,9 @@ const initialState: FlowStateT = {
   attempts: {},
   lastExit: null,
   rejectionPayload: null,
+  steering: [],
+  cancelRequested: false,
+  cancelReason: null,
 };
 
 // ─── compileFlow: topology ────────────────────────────────────────────────
@@ -518,6 +522,9 @@ describe('evalExpression', () => {
     attempts: { node1: 2 },
     lastExit: null,
     rejectionPayload: null,
+    steering: [],
+    cancelRequested: false,
+    cancelReason: null,
   };
 
   it('handles literal true', () => {
@@ -919,5 +926,30 @@ describe('compileFlow — Loop tag', () => {
         output: ['a'] as unknown as string,
       }),
     ).rejects.toThrow(/directory/);
+  });
+});
+
+// ─── composeSystemPromptWithSteering ──────────────────────────────────────
+
+describe('composeSystemPromptWithSteering', () => {
+  it('returns the baseline verbatim when steering is empty', () => {
+    expect(composeSystemPromptWithSteering('be helpful', [])).toBe('be helpful');
+  });
+
+  it('returns undefined when both baseline and steering are empty', () => {
+    expect(composeSystemPromptWithSteering(undefined, [])).toBeUndefined();
+  });
+
+  it('appends a labeled steering block when steering is present', () => {
+    const result = composeSystemPromptWithSteering('be helpful', ['focus on auth']);
+    expect(result).toBe('be helpful\n\n[OPERATOR STEERING]\n— focus on auth');
+  });
+
+  it('joins multiple steering entries with delimiters', () => {
+    const result = composeSystemPromptWithSteering(undefined, [
+      'use OAuth',
+      'avoid breaking changes',
+    ]);
+    expect(result).toBe('[OPERATOR STEERING]\n— use OAuth\n— avoid breaking changes');
   });
 });

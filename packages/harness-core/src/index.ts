@@ -70,10 +70,14 @@ export { bridgeAdapter, type Envelope, JobBus } from './job-bus.ts';
 export {
   type AdapterFactory,
   type CompiledFlowGraph,
+  cancelJob,
+  composeSystemPromptWithSteering,
   DEFAULT_FALLBACK_ERRORS,
   defaultAdapterFactory,
+  getJobSteering,
   type RunJobDeps,
   resumeJob,
   runJob,
+  steerJob,
 } from './orchestrator.ts';
 export { TokenAccumulator } from './token-accumulator.ts';

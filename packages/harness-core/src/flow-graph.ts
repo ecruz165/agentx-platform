@@ -106,6 +106,42 @@ export const FlowState = Annotation.Root({
     reducer: (_, n) => n,
     default: () => null,
   }),
+  /**
+   * In-flight operator steering — append-only string array. Operators
+   * (or peer agents) push entries via `steerJob(jobId, text, deps)`;
+   * the agent executor prepends the joined text into the agent's
+   * system prompt on its next adapter invocation. Reducer concatenates
+   * so multiple steering pushes accumulate; default is empty.
+   *
+   * Two access modes for agents:
+   *   1. Passive — the agent executor reads this and prepends to the
+   *      systemPrompt automatically. Works for any adapter.
+   *   2. Active — Bash-capable agents can `harness steering check
+   *      --job $HARNESS_JOB_ID` between LLM calls within a single
+   *      node, getting fresh steering without waiting for the next
+   *      node-tick. SKILL.md teaches the procedure.
+   */
+  steering: Annotation<string[]>({
+    reducer: (a, b) => [...a, ...b],
+    default: () => [],
+  }),
+  /**
+   * Cooperative-cancellation flag. `cancelJob(jobId, reason, deps)`
+   * sets this true via the checkpointer. The agent executor checks at
+   * each node-tick boundary; when set, marks the agent + job as
+   * 'cancelled' and short-circuits to a terminal status without
+   * invoking the adapter. Hard cancellation (kill the in-flight
+   * adapter call) is NOT supported here — that requires per-adapter
+   * cancellation primitives the adapter layer doesn't yet expose.
+   */
+  cancelRequested: Annotation<boolean>({
+    reducer: (_, n) => n,
+    default: () => false,
+  }),
+  cancelReason: Annotation<string | null>({
+    reducer: (_, n) => n,
+    default: () => null,
+  }),
 });
 
 export type FlowStateT = typeof FlowState.State;
