@@ -48,6 +48,7 @@ import type {
   SuspendTag,
   TaskStep,
 } from './catalog.ts';
+import type { ChangedFile } from './changed-files.ts';
 
 /**
  * Per-node exit signal. Drives error/fallback/reject routing in the
@@ -142,6 +143,26 @@ export const FlowState = Annotation.Root({
     reducer: (_, n) => n,
     default: () => null,
   }),
+  /**
+   * Staged changes across product repos, populated by the agent
+   * executor after each successful node-tick (and surfaced via
+   * ApprovalRequest at HITL interrupts). Reducer merges by `id`
+   * (`${repo}::${path}`): the latest entry for a path wins, so
+   * agents that re-stage a file replace earlier entries cleanly.
+   * Entries that no longer appear in a fresh discovery still persist
+   * — once observed in state, a file stays in the changedFiles list
+   * until the job terminates. Reviewers see the cumulative diff
+   * surface, not a momentary snapshot.
+   */
+  changedFiles: Annotation<ChangedFile[]>({
+    reducer: (existing, incoming) => {
+      const merged = new Map<string, ChangedFile>();
+      for (const c of existing) merged.set(c.id, c);
+      for (const c of incoming) merged.set(c.id, c);
+      return [...merged.values()];
+    },
+    default: () => [],
+  }),
 });
 
 export type FlowStateT = typeof FlowState.State;
@@ -195,6 +216,11 @@ export interface ApprovalRequest {
   content: string;
   /** 1-indexed attempt counter — increments each time the gate runs. */
   attempt: number;
+  /** Staged file changes the reviewer can inspect — pulled from
+   *  `state.changedFiles` at interrupt time. Empty when no agent has
+   *  staged changes (or no product repos are wired). UI uses this to
+   *  render a sidebar of files for diff/content fetch. */
+  changes: ChangedFile[];
 }
 
 export interface ApprovalResume {
@@ -216,6 +242,11 @@ export interface SuspendRequest {
   kind: 'suspend';
   nodeId: string;
   trigger: SuspendTag['trigger'];
+  /** Staged file changes pending review while the job is suspended.
+   *  Same surface as ApprovalRequest.changes — operators inspecting a
+   *  long-running suspend (e.g., overnight timer) can preview what
+   *  the agent did before it paused. */
+  changes: ChangedFile[];
 }
 
 /**
@@ -677,14 +708,25 @@ function makeApprovalExecutor(node: SyntheticApprovalNode): NodeExecutor {
       ...(tag.steeringInputs ? { steeringInputs: tag.steeringInputs } : {}),
       content: state.output,
       attempt: attempts + 1,
+      changes: state.changedFiles,
     };
 
     const resume = interrupt(request) as ApprovalResume;
 
     if (resume?.decision === 'approve') {
+      // Forward-looking steering on approve: reviewer's steering text
+      // appended to state.steering so DOWNSTREAM agents pick it up
+      // via the existing passive-prepend path. (Reject cycles use
+      // rejectionPayload.steering; approve uses the long-lived
+      // state.steering channel — different semantic, same content.)
+      const forward =
+        typeof resume.steering === 'string' && resume.steering.length > 0
+          ? { steering: [resume.steering] }
+          : {};
       return {
         attempts: { [nodeId]: attempts + 1 },
         lastExit: { nodeId, kind: 'success' },
+        ...forward,
       };
     }
 
@@ -719,11 +761,12 @@ function makeSuspendExecutor(node: SyntheticSuspendNode): NodeExecutor {
   const nodeId = node.id;
   const originalId = nodeId.replace(new RegExp(`${SUSPEND_SUFFIX}$`), '');
 
-  return async (_state) => {
+  return async (state) => {
     const request: SuspendRequest = {
       kind: 'suspend',
       nodeId: originalId,
       trigger: tag.trigger,
+      changes: state.changedFiles,
     };
     interrupt(request);
     // Resume value is unused for suspend — wake-up is the signal.

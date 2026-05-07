@@ -79,6 +79,7 @@ const initialState: FlowStateT = {
   steering: [],
   cancelRequested: false,
   cancelReason: null,
+  changedFiles: [],
 };
 
 // ─── compileFlow: topology ────────────────────────────────────────────────
@@ -529,6 +530,7 @@ describe('evalExpression', () => {
     steering: [],
     cancelRequested: false,
     cancelReason: null,
+    changedFiles: [],
   };
 
   it('handles literal true', () => {
@@ -967,6 +969,185 @@ describe('composeSystemPromptWithSteering', () => {
       'avoid breaking changes',
     ]);
     expect(result).toBe('[OPERATOR STEERING]\n— use OAuth\n— avoid breaking changes');
+  });
+});
+
+// ─── state.changedFiles channel reducer ────────────────────────────────────
+
+describe('FlowState.changedFiles channel', () => {
+  // The channel reducer merges incoming entries by id, latest wins.
+  // We can't unit-test the channel directly without compiling a graph;
+  // exercise via compileFlow with two writers.
+
+  it('merges by id; later writes for the same path replace earlier ones', async () => {
+    const flow: FlowDef = {
+      id: 'merge',
+      nodes: [trigger('t'), agentNode('a'), agentNode('b')],
+      edges: [
+        { from: 't', to: 'a', type: 'sequence' },
+        { from: 'a', to: 'b', type: 'sequence' },
+      ],
+    };
+    const executors = new Map<string, NodeExecutor>([
+      [
+        'a',
+        async () => ({
+          changedFiles: [
+            {
+              id: 'web::src/x.ts',
+              repo: 'web',
+              path: 'src/x.ts',
+              filename: 'x.ts',
+              changeKind: 'added',
+              statusCode: 'A',
+              mimeType: 'application/typescript',
+            },
+            {
+              id: 'web::README.md',
+              repo: 'web',
+              path: 'README.md',
+              filename: 'README.md',
+              changeKind: 'modified',
+              statusCode: 'M',
+              mimeType: 'text/markdown',
+            },
+          ],
+          lastExit: { nodeId: 'a', kind: 'success' },
+        }),
+      ],
+      [
+        'b',
+        async () => ({
+          changedFiles: [
+            // Re-emit src/x.ts as 'modified' (was 'added' before).
+            {
+              id: 'web::src/x.ts',
+              repo: 'web',
+              path: 'src/x.ts',
+              filename: 'x.ts',
+              changeKind: 'modified',
+              statusCode: 'M',
+              mimeType: 'application/typescript',
+            },
+          ],
+          lastExit: { nodeId: 'b', kind: 'success' },
+        }),
+      ],
+    ]);
+    const graph = compileFlow({ flow, executors });
+    const result = (await graph.invoke(initialState, {
+      configurable: { thread_id: 't' },
+    })) as Record<string, unknown>;
+
+    const changed = result.changedFiles as Array<{ id: string; changeKind: string }>;
+    expect(changed).toHaveLength(2);
+    const xts = changed.find((c) => c.id === 'web::src/x.ts');
+    const readme = changed.find((c) => c.id === 'web::README.md');
+    // x.ts replaced (b's write wins); README.md preserved from a.
+    expect(xts?.changeKind).toBe('modified');
+    expect(readme?.changeKind).toBe('modified');
+  });
+});
+
+// ─── ApprovalRequest carries changes from state ───────────────────────────
+
+describe('ApprovalRequest with changes', () => {
+  const approvalTag: ApprovalTag = {
+    assigneeRole: 'tech-lead',
+    slaMs: 60_000,
+    concurrency: 'pessimistic',
+  };
+  function approvalAgentNode(id: string, tag: ApprovalTag): TaskStep {
+    return {
+      id,
+      kind: 'agent',
+      config: { agent: { id } as never },
+      tags: { approval: tag },
+    };
+  }
+
+  it('carries state.changedFiles into ApprovalRequest.changes at interrupt time', async () => {
+    const flow: FlowDef = {
+      id: 'changes-in-approval',
+      nodes: [trigger('t'), approvalAgentNode('plan', approvalTag), agentNode('build')],
+      edges: [
+        { from: 't', to: 'plan', type: 'sequence' },
+        { from: 'plan', to: 'build', type: 'sequence' },
+      ],
+    };
+    const executors = new Map<string, NodeExecutor>([
+      [
+        'plan',
+        async () => ({
+          output: 'plan v1',
+          changedFiles: [
+            {
+              id: 'web::src/auth.ts',
+              repo: 'web',
+              path: 'src/auth.ts',
+              filename: 'auth.ts',
+              changeKind: 'modified',
+              statusCode: 'M',
+              mimeType: 'application/typescript',
+            },
+          ],
+          lastExit: { nodeId: 'plan', kind: 'success' },
+        }),
+      ],
+      ['build', makeRecorder([], 'build')],
+    ]);
+    const graph = compileFlow({ flow, executors });
+    const config = { configurable: { thread_id: 'changes-1' } };
+    const result = (await graph.invoke(initialState, config)) as Record<string, unknown>;
+
+    expect(result.__interrupt__).toBeDefined();
+    const interrupts = result.__interrupt__ as Array<{ value: ApprovalRequest }>;
+    const request = interrupts[0]?.value;
+    expect(request?.changes).toHaveLength(1);
+    expect(request?.changes?.[0]?.path).toBe('src/auth.ts');
+    expect(request?.changes?.[0]?.changeKind).toBe('modified');
+  });
+
+  it('forward-steering on approve appends to state.steering for downstream agents', async () => {
+    const seenSystemPrompts: Array<string | undefined> = [];
+    const flow: FlowDef = {
+      id: 'forward-steering',
+      nodes: [trigger('t'), approvalAgentNode('plan', approvalTag), agentNode('build')],
+      edges: [
+        { from: 't', to: 'plan', type: 'sequence' },
+        { from: 'plan', to: 'build', type: 'sequence' },
+      ],
+    };
+    const executors = new Map<string, NodeExecutor>([
+      [
+        'plan',
+        async () => ({
+          output: 'plan',
+          lastExit: { nodeId: 'plan', kind: 'success' },
+        }),
+      ],
+      [
+        'build',
+        async (state) => {
+          // The wired runJob would prepend state.steering into systemPrompt;
+          // here in the unit test, we directly inspect state.steering.
+          seenSystemPrompts.push(state.steering.join('|'));
+          return { lastExit: { nodeId: 'build', kind: 'success' } };
+        },
+      ],
+    ]);
+    const graph = compileFlow({ flow, executors });
+    const config = { configurable: { thread_id: 'fwd-steer' } };
+
+    await graph.invoke(initialState, config); // pauses
+    // Approve with forward-looking steering.
+    await graph.invoke(
+      new Command({ resume: { decision: 'approve', steering: 'prioritize auth first' } }),
+      config,
+    );
+
+    // Builder saw the steering on its state.steering channel.
+    expect(seenSystemPrompts).toEqual(['prioritize auth first']);
   });
 });
 

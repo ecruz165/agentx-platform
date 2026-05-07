@@ -110,6 +110,24 @@ export interface JobRecord {
    */
   flow?: FlowDef;
   /**
+   * Filesystem root under which this job's product repos live. Each
+   * repo in `productRepos` is expected at `<workdirRoot>/<repoName>`.
+   * Used by the agent executor (and harness-server file routes) to
+   * discover staged changes via `git diff --cached` and to serve file
+   * content to HITL reviewers.
+   *
+   *   - in-process runJob: harness-server sets this to its workspaceRoot
+   *     so the agent's working directory IS the workspace's clones.
+   *   - container runJobInContainer: per-job worktree path
+   *     (`<workspaceRoot>/.harness/wt/<jobId>`) — each job gets isolated
+   *     working trees rather than sharing the developer's clones.
+   *
+   * Optional — when absent, change discovery silently returns no
+   * entries (useful for tests and registration-only mode where there's
+   * no real filesystem to scan).
+   */
+  workdirRoot?: string;
+  /**
    * Job-level cumulative tokens — sum of every agent's running total.
    * Maintained eagerly by `TokenAccumulator` so the API and TUI can
    * read without recomputation. See `AgentTokens` doc for sum

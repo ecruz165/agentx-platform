@@ -10,6 +10,7 @@ import {
 import type { BindingResolver, CredentialBroker, ResolvedBinding } from '@ecruz165/agent-auth';
 import { Command } from '@langchain/langgraph';
 import type { AdapterId } from './catalog.ts';
+import { discoverChangedFiles } from './changed-files.ts';
 import {
   type ApprovalRequest,
   type ApprovalResume,
@@ -444,6 +445,7 @@ function freshFlowState(jobId: string, input: string) {
     steering: [],
     cancelRequested: false,
     cancelReason: null,
+    changedFiles: [],
   };
 }
 
@@ -618,9 +620,24 @@ function makeAgentExecutor(
     if (outcome.kind === 'success') {
       agent.status = 'completed';
       deps.onStatusChange?.(jobId, agent.id, 'completed');
+
+      // Discover staged changes after the agent's run. The agent may
+      // have edited files in product repos and `git add`-ed the ones
+      // it wants reviewed. Result merges into state.changedFiles via
+      // the channel reducer; downstream interrupts (Approval / Suspend)
+      // surface the cumulative set in their request payload.
+      //
+      // No-op when workdirRoot or productRepos is missing — registration-
+      // only / no-filesystem flows skip this cleanly.
+      const changedFiles =
+        job.workdirRoot && Array.isArray(job.productRepos) && job.productRepos.length > 0
+          ? await discoverChangedFiles(job.workdirRoot, job.productRepos).catch(() => [])
+          : [];
+
       return {
         output: outcome.result,
         lastExit: { nodeId: agentId, kind: 'success' },
+        ...(changedFiles.length > 0 ? { changedFiles } : {}),
       };
     }
 
