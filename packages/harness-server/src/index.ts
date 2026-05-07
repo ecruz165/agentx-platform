@@ -18,6 +18,7 @@ import {
   getJobSteering,
   JobBus,
   type JobRecord,
+  mimeFromPath,
   type RegisteredAgent,
   resolveAccepts,
   resumeJob,
@@ -36,6 +37,13 @@ import {
   statusSnapshot as dispatcherStatusSnapshot,
   evaluateSubmission,
 } from './dispatcher.ts';
+import {
+  fileAtHead,
+  fileDiff,
+  listAllFiles,
+  safeResolveInRepo,
+  streamFileContent,
+} from './file-routes.ts';
 import { inlineCatalogLoader } from './load-catalog.ts';
 import { type LoaderEvent, spawnLoaderJob } from './loader-spawn.ts';
 import { runJobInContainer } from './run-job-in-container.ts';
@@ -516,6 +524,58 @@ function route(req: IncomingMessage, res: ServerResponse, ctx: ServerCtx) {
     return;
   }
 
+  // GET /v1/jobs/:id/files — full file listing for the job's product
+  // repos with change overlay. Reviewer's entry point for browsing
+  // what the agent did. Returns 200 even for jobs with no changes
+  // (lists files at HEAD).
+  const filesListMatch = req.method === 'GET' && url.match(/^\/v1\/jobs\/([^/]+)\/files$/);
+  if (filesListMatch) {
+    const id = filesListMatch[1]!;
+    const job = ctx.jobs.get(id);
+    if (!job) {
+      notFound(res, `job not found: ${id}`);
+      return;
+    }
+    handleFilesList(res, job).catch((err: Error) => {
+      if (!res.headersSent) {
+        res.statusCode = 500;
+        res.setHeader('Content-Type', 'application/json');
+        res.end(JSON.stringify({ error: err.message }));
+      }
+    });
+    return;
+  }
+
+  // GET /v1/jobs/:id/files/:repo/<path>/content — raw file bytes.
+  // GET /v1/jobs/:id/files/:repo/<path>/diff    — unified diff vs HEAD.
+  // The path captures multiple slash-separated segments; the trailing
+  // /content or /diff suffix delimits.
+  const fileEndpointMatch =
+    req.method === 'GET' &&
+    url.match(/^\/v1\/jobs\/([^/]+)\/files\/([^/]+)\/(.+)\/(content|diff)$/);
+  if (fileEndpointMatch) {
+    const [, jobId, repo, filePath, kind] = fileEndpointMatch;
+    const job = ctx.jobs.get(jobId!);
+    if (!job) {
+      notFound(res, `job not found: ${jobId}`);
+      return;
+    }
+    handleFileEndpoint(
+      res,
+      job,
+      repo!,
+      decodeURIComponent(filePath!),
+      kind as 'content' | 'diff',
+    ).catch((err: Error) => {
+      if (!res.headersSent) {
+        res.statusCode = 500;
+        res.setHeader('Content-Type', 'application/json');
+        res.end(JSON.stringify({ error: err.message }));
+      }
+    });
+    return;
+  }
+
   // GET /v1/jobs/:id/steering — current steering array (read surface for
   // active-pull agents, the harness steering CLI, and operator dashboards).
   // Returns an empty array if the job has no steering yet — distinguish
@@ -777,6 +837,11 @@ async function handleSubmitJob(
     // cycles, …) instead of synthesizing a flat linear flow from the
     // agents list. Absent for registration-only submissions.
     ...(resolvedFlow ? { flow: resolvedFlow } : {}),
+    // workdirRoot tells the agent executor where product repos live —
+    // for the in-process path that's the workspace root. Container
+    // path (runJobInContainer) overrides via its own JobRecord setup
+    // when the per-job worktree is created.
+    workdirRoot: ctx.workspaceRoot,
     status: 'received',
     submittedAt,
     agents,
@@ -1175,6 +1240,111 @@ async function handleGetSteering(
     steering,
     ts: new Date().toISOString(),
   });
+}
+
+/**
+ * GET /v1/jobs/:id/files — list all files in the job's product repos
+ * with a change-status overlay. Used by HITL UIs to render a file
+ * tree where reviewers see at a glance which files were touched.
+ *
+ * Returns empty repos array (200, not 404) when the job has no
+ * productRepos or no workdirRoot — caller can treat that as "nothing
+ * to browse" without needing to distinguish error cases.
+ */
+async function handleFilesList(res: ServerResponse, job: JobRecord): Promise<void> {
+  const workdirRoot = job.workdirRoot;
+  const repos = Array.isArray(job.productRepos) ? job.productRepos : [];
+  if (!workdirRoot || repos.length === 0) {
+    ok(res, {
+      service: 'harness',
+      jobId: job.jobId,
+      repos: [],
+      totalFiles: 0,
+      changedFiles: 0,
+      ts: new Date().toISOString(),
+    });
+    return;
+  }
+  const listing = await listAllFiles(workdirRoot, repos);
+  ok(res, {
+    service: 'harness',
+    jobId: job.jobId,
+    ...listing,
+    ts: new Date().toISOString(),
+  });
+}
+
+/**
+ * Handle GET /v1/jobs/:id/files/:repo/<path>/(content|diff). Validates
+ * repo membership + path-traversal, then dispatches to the
+ * file-routes module.
+ *
+ * Errors:
+ *   - 403 when :repo is not in job.productRepos
+ *   - 400 when <path> escapes the repo (../ traversal)
+ *   - 404 when the file doesn't exist (content) — diff returns 204 if
+ *     the path has no changes, 404 if the path doesn't exist anywhere
+ *   - 413 when the file exceeds MAX_FILE_BYTES (content only)
+ */
+async function handleFileEndpoint(
+  res: ServerResponse,
+  job: JobRecord,
+  repo: string,
+  filePath: string,
+  kind: 'content' | 'diff',
+): Promise<void> {
+  const workdirRoot = job.workdirRoot;
+  if (!workdirRoot) {
+    res.statusCode = 503;
+    res.setHeader('Content-Type', 'application/json');
+    res.end(JSON.stringify({ error: 'job has no workdirRoot — file browse unavailable' }));
+    return;
+  }
+  const repos = Array.isArray(job.productRepos) ? job.productRepos : [];
+  if (!repos.includes(repo)) {
+    res.statusCode = 403;
+    res.setHeader('Content-Type', 'application/json');
+    res.end(
+      JSON.stringify({
+        error: `repo "${repo}" not in job.productRepos`,
+        productRepos: repos,
+      }),
+    );
+    return;
+  }
+  const absolute = safeResolveInRepo(workdirRoot, repo, filePath);
+  if (absolute === null) {
+    res.statusCode = 400;
+    res.setHeader('Content-Type', 'application/json');
+    res.end(JSON.stringify({ error: 'path traversal rejected' }));
+    return;
+  }
+
+  if (kind === 'diff') {
+    const diff = await fileDiff(workdirRoot, repo, filePath);
+    if (diff === null) {
+      // No changes for this path → 204 No Content. Distinguish from
+      // file-not-found by checking HEAD presence.
+      const head = await fileAtHead(workdirRoot, repo, filePath);
+      if (head === null) {
+        // Not in HEAD AND no diff → file doesn't exist anywhere.
+        res.statusCode = 404;
+        res.setHeader('Content-Type', 'application/json');
+        res.end(JSON.stringify({ error: 'file not found' }));
+        return;
+      }
+      res.statusCode = 204;
+      res.end();
+      return;
+    }
+    res.statusCode = 200;
+    res.setHeader('Content-Type', 'text/x-diff; charset=utf-8');
+    res.end(diff);
+    return;
+  }
+
+  // kind === 'content'
+  await streamFileContent(res, absolute, mimeFromPath(filePath));
 }
 
 async function handleSubmitLoaderProductJobs(
