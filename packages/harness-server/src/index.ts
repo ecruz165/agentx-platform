@@ -10,10 +10,12 @@ import {
   type ApprovalRequest,
   type Catalog,
   type CompiledFlowGraph,
+  cancelJob,
   type Envelope,
   type FlowCatalog,
   findFlow,
   findProduct,
+  getJobSteering,
   JobBus,
   type JobRecord,
   type RegisteredAgent,
@@ -21,11 +23,19 @@ import {
   resumeJob,
   runJob,
   type SuspendRequest,
+  steerJob,
   TokenAccumulator,
   walkAgents,
 } from '@ecruz165/harness-core';
 import type { BaseChatModel } from '@langchain/core/language_models/chat_models';
 import { runEntryCoordinator } from './coordinator/entry-coordinator.ts';
+import {
+  enqueue as dispatcherEnqueue,
+  fireImmediate as dispatcherFireImmediate,
+  onJobTerminal as dispatcherOnJobTerminal,
+  statusSnapshot as dispatcherStatusSnapshot,
+  evaluateSubmission,
+} from './dispatcher.ts';
 import { inlineCatalogLoader } from './load-catalog.ts';
 import { type LoaderEvent, spawnLoaderJob } from './loader-spawn.ts';
 import { runJobInContainer } from './run-job-in-container.ts';
@@ -45,12 +55,15 @@ export {
   CatalogError,
   type CompiledFlowGraph,
   type ContextSourceDef,
+  cancelJob,
+  composeSystemPromptWithSteering,
   defaultAdapterFactory,
   type Envelope,
   type FlowCatalog,
   type FlowDef,
   findFlow,
   findProduct,
+  getJobSteering,
   JobBus,
   loadCatalog,
   type ProductDef,
@@ -58,6 +71,7 @@ export {
   resumeJob,
   runJob,
   type SuspendRequest,
+  steerJob,
   validateUnifiedCatalog,
 } from '@ecruz165/harness-core';
 export {
@@ -189,6 +203,18 @@ export interface HarnessServerOptions {
   forwardSshAgent?: boolean | string;
   /** In-container SSH agent socket path. Default `/ssh-agent.sock`. */
   sshAgentContainerPath?: string;
+  /**
+   * Maximum number of jobs that may run concurrently on the in-process
+   * runJob path. Submissions beyond capacity wait in a FIFO queue;
+   * submissions when queue + in-flight ≥ capacity * QUEUE_MULTIPLIER
+   * are rejected with 503. The container path is unaffected (each
+   * container is its own concurrency boundary).
+   *
+   * Default: 5 — a sensible per-task cap that leaves headroom for LLM
+   * rate limits without starving short-lived jobs. Production
+   * deployments tune via this option.
+   */
+  maxConcurrentJobs?: number;
 }
 
 export interface HarnessServerHandle {
@@ -294,6 +320,9 @@ export async function startHarnessServer(opts: HarnessServerOptions): Promise<Ha
     graphs: new Map(),
     pendingApprovals: new Map(),
     pendingSuspends: new Map(),
+    inFlight: new Set(),
+    queue: [],
+    capacity: opts.maxConcurrentJobs ?? 5,
     workspaceRoot: opts.workspaceRoot ?? process.cwd(),
     ...(opts.forwardSshAgent !== undefined ? { forwardSshAgent: opts.forwardSshAgent } : {}),
     ...(opts.sshAgentContainerPath ? { sshAgentContainerPath: opts.sshAgentContainerPath } : {}),
@@ -325,6 +354,15 @@ export async function startHarnessServer(opts: HarnessServerOptions): Promise<Ha
   };
 }
 
+interface QueuedSubmission {
+  jobId: string;
+  enqueuedAt: number;
+  /** Closure that fires the actual runJob invocation when a slot opens.
+   *  Captured at enqueue time so the dispatcher doesn't need to re-resolve
+   *  broker / factory / resolver later. */
+  fire: () => void;
+}
+
 interface ServerCtx {
   bus: JobBus;
   catalog: Catalog;
@@ -343,6 +381,14 @@ interface ServerCtx {
    * Map entirely and recompile on demand from the FlowDef.
    */
   graphs: Map<string, CompiledFlowGraph>;
+  /** Dispatcher: in-flight jobIds (those currently running runJob).
+   *  Distinct from jobs (which holds ALL JobRecords including queued,
+   *  paused, completed). */
+  inFlight: Set<string>;
+  /** FIFO queue of submissions waiting for an in-flight slot. */
+  queue: QueuedSubmission[];
+  /** Concurrency cap on the in-process runJob path. */
+  capacity: number;
   /**
    * Latest ApprovalRequest per paused job. Populated by the
    * onAwaitingApproval hook; consumed by GET /v1/jobs/:id/approval so
@@ -470,6 +516,37 @@ function route(req: IncomingMessage, res: ServerResponse, ctx: ServerCtx) {
     return;
   }
 
+  // GET /v1/jobs/:id/steering — current steering array (read surface for
+  // active-pull agents, the harness steering CLI, and operator dashboards).
+  // Returns an empty array if the job has no steering yet — distinguish
+  // from 404 which means "no such job."
+  const steeringGetMatch = req.method === 'GET' && url.match(/^\/v1\/jobs\/([^/]+)\/steering$/);
+  if (steeringGetMatch) {
+    const id = steeringGetMatch[1]!;
+    if (!ctx.jobs.has(id)) {
+      notFound(res, `job not found: ${id}`);
+      return;
+    }
+    handleGetSteering(res, id, ctx).catch((err: Error) => {
+      if (!res.headersSent) {
+        res.statusCode = 500;
+        res.setHeader('Content-Type', 'application/json');
+        res.end(JSON.stringify({ error: err.message }));
+      }
+    });
+    return;
+  }
+
+  // GET /v1/dispatcher/status — queue depth, in-flight jobIds, capacity.
+  if (req.method === 'GET' && url === '/v1/dispatcher/status') {
+    ok(res, {
+      service,
+      ...dispatcherStatusSnapshot(ctx),
+      ts: new Date().toISOString(),
+    });
+    return;
+  }
+
   let body = '';
   req.on('data', (c) => (body += c.toString()));
   req.on('end', () => {
@@ -503,6 +580,43 @@ function route(req: IncomingMessage, res: ServerResponse, ctx: ServerCtx) {
     if (resumeMatch && parsed !== null) {
       const id = resumeMatch[1]!;
       handleResumeJob(res, id, parsed, ctx).catch((err: Error) => {
+        if (!res.headersSent) {
+          res.statusCode = 500;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({ error: err.message }));
+        }
+      });
+      return;
+    }
+
+    // POST /v1/jobs/:id/steering — operator pushes steering text into a
+    // running or paused job. Body: { text: string }. Reaches the agent
+    // on its next adapter invocation (passive prepend) AND becomes
+    // visible to active-pull skill consumers immediately.
+    const steeringPostMatch =
+      req.method === 'POST' ? url.match(/^\/v1\/jobs\/([^/]+)\/steering$/) : null;
+    if (steeringPostMatch && parsed !== null && typeof parsed === 'object') {
+      const id = steeringPostMatch[1]!;
+      handleSteerJob(res, id, parsed as Record<string, unknown>, ctx).catch((err: Error) => {
+        if (!res.headersSent) {
+          res.statusCode = 500;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({ error: err.message }));
+        }
+      });
+      return;
+    }
+
+    // POST /v1/jobs/:id/cancel — cooperative cancellation. Body:
+    // { reason?: string }. Sets state.cancelRequested via the
+    // checkpointer; the agent executor short-circuits to status
+    // 'cancelled' at the next node-tick boundary.
+    const cancelMatch = req.method === 'POST' ? url.match(/^\/v1\/jobs\/([^/]+)\/cancel$/) : null;
+    if (cancelMatch) {
+      const id = cancelMatch[1]!;
+      const cancelBody =
+        parsed && typeof parsed === 'object' ? (parsed as Record<string, unknown>) : {};
+      handleCancelJob(res, id, cancelBody, ctx).catch((err: Error) => {
         if (!res.headersSent) {
           res.statusCode = 500;
           res.setHeader('Content-Type', 'application/json');
@@ -667,6 +781,31 @@ async function handleSubmitJob(
     submittedAt,
     agents,
   };
+  // Pre-flight capacity check for the in-process runJob path. Container
+  // submissions flow through their own concurrency boundary (one
+  // container per job) and bypass the dispatcher. Only deny here when
+  // we're certain we'd hit the dispatcher AND it'd reject.
+  const willUseContainer =
+    process.env.AGENTX_USE_CONTAINER === '1' &&
+    ctx.resolver !== undefined &&
+    hasContainerRepos(body, job, ctx);
+  if (ctx.broker && !willUseContainer) {
+    const decision = evaluateSubmission(ctx);
+    if (decision.kind === 'reject') {
+      res.statusCode = 503;
+      res.setHeader('Content-Type', 'application/json');
+      res.end(
+        JSON.stringify({
+          error: decision.reason,
+          jobId,
+          dispatcher: dispatcherStatusSnapshot(ctx),
+          ts: new Date().toISOString(),
+        }),
+      );
+      return;
+    }
+  }
+
   ctx.jobs.set(jobId, job);
 
   // Slice 13d: attach the token accumulator BEFORE runJob fires.
@@ -738,6 +877,8 @@ async function handleSubmitJob(
       }
     }
 
+    // The dispatcher gates only the in-process path. Container submissions
+    // flow through their own concurrency boundary (one container per job).
     if (useContainer && containerRepos !== null && containerRepos.length > 0) {
       const containerProductId = job.productId ?? 'unknown';
       const containerPipeline = pipelineId ?? 'noop';
@@ -771,7 +912,12 @@ async function handleSubmitJob(
       return;
     }
 
-    queueMicrotask(() => {
+    // Dispatch through the in-process dispatcher: bounded concurrency
+    // with FIFO queueing. Capacity check has already happened above
+    // (we 503'd before responding 200 if the queue overflow threshold
+    // was hit) — this fire closure either runs immediately or waits in
+    // the queue for a slot.
+    const fire = () => {
       void runJob(jobId, {
         jobs: ctx.jobs,
         bus: ctx.bus,
@@ -779,8 +925,18 @@ async function handleSubmitJob(
         adapterFactory,
         resolver,
         graphs: ctx.graphs,
-        onStatusChange: (_jid, agentId, status) => {
+        onStatusChange: (jid, agentId, status) => {
           onJobTerminal(agentId, status);
+          // Free the dispatcher slot on terminal status. Paused statuses
+          // (awaiting-approval / suspended) are intentionally NOT
+          // terminal — paused jobs continue holding their slot until
+          // they actually complete or fail.
+          if (
+            agentId === null &&
+            (status === 'completed' || status === 'failed' || status === 'cancelled')
+          ) {
+            dispatcherOnJobTerminal(ctx, jid);
+          }
         },
         onAwaitingApproval: (jid, request) => {
           ctx.pendingApprovals.set(jid, request);
@@ -789,7 +945,18 @@ async function handleSubmitJob(
           ctx.pendingSuspends.set(jid, request);
         },
       });
-    });
+    };
+
+    const decision = evaluateSubmission(ctx);
+    if (decision.kind === 'fire-immediate') {
+      dispatcherFireImmediate(ctx, jobId, fire);
+    } else if (decision.kind === 'enqueue') {
+      dispatcherEnqueue(ctx, jobId, fire);
+    }
+    // 'reject' decision is impossible here — capacity was checked before
+    // the 200 response. Defensive: if it somehow happens, fall through
+    // (the job stays in 'received' state; operator visibility via
+    // /v1/dispatcher/status flags it).
   }
 }
 
@@ -876,6 +1043,137 @@ async function handleResumeJob(
         ctx.pendingSuspends.set(jid, request);
       },
     });
+  });
+}
+
+/**
+ * Push operator steering into a job's live state via the LangGraph
+ * checkpointer. Body: { text: string }. Validates body shape +
+ * job existence; surfaces the new steering immediately on the
+ * GET /v1/jobs/:id/steering endpoint and prepends to the agent's
+ * systemPrompt at next adapter invocation (passive path).
+ */
+async function handleSteerJob(
+  res: ServerResponse,
+  jobId: string,
+  body: Record<string, unknown>,
+  ctx: ServerCtx,
+): Promise<void> {
+  if (!ctx.jobs.has(jobId)) {
+    notFound(res, `job not found: ${jobId}`);
+    return;
+  }
+  const text = body.text;
+  if (typeof text !== 'string' || text.length === 0) {
+    badRequest(res, 'body.text is required and must be a non-empty string');
+    return;
+  }
+  const broker = ctx.broker;
+  if (!broker) {
+    badRequest(res, 'cannot steer — no credential broker configured');
+    return;
+  }
+  try {
+    await steerJob(jobId, text, {
+      jobs: ctx.jobs,
+      bus: ctx.bus,
+      broker,
+      adapterFactory: ctx.adapterFactory,
+      resolver: ctx.resolver,
+      graphs: ctx.graphs,
+    });
+  } catch (err) {
+    badRequest(res, (err as Error).message);
+    return;
+  }
+  ok(res, {
+    service: 'harness',
+    method: 'POST',
+    path: `/v1/jobs/${jobId}/steering`,
+    jobId,
+    accepted: text,
+    ts: new Date().toISOString(),
+  });
+}
+
+/**
+ * Mark a job for cooperative cancellation. The agent executor honors
+ * the flag at the next node-tick boundary. Body: { reason?: string }.
+ * Returns 200 immediately; the actual status transition to 'cancelled'
+ * lands asynchronously when the agent reaches its next boundary.
+ */
+async function handleCancelJob(
+  res: ServerResponse,
+  jobId: string,
+  body: Record<string, unknown>,
+  ctx: ServerCtx,
+): Promise<void> {
+  if (!ctx.jobs.has(jobId)) {
+    notFound(res, `job not found: ${jobId}`);
+    return;
+  }
+  const reason = typeof body.reason === 'string' ? body.reason : undefined;
+  const broker = ctx.broker;
+  if (!broker) {
+    badRequest(res, 'cannot cancel — no credential broker configured');
+    return;
+  }
+  try {
+    await cancelJob(jobId, reason, {
+      jobs: ctx.jobs,
+      bus: ctx.bus,
+      broker,
+      adapterFactory: ctx.adapterFactory,
+      resolver: ctx.resolver,
+      graphs: ctx.graphs,
+    });
+  } catch (err) {
+    badRequest(res, (err as Error).message);
+    return;
+  }
+  ok(res, {
+    service: 'harness',
+    method: 'POST',
+    path: `/v1/jobs/${jobId}/cancel`,
+    jobId,
+    reason: reason ?? null,
+    ts: new Date().toISOString(),
+  });
+}
+
+/**
+ * Read current steering for a job. Returns the array verbatim — empty
+ * when no steering has been pushed. Used by the active-pull skill
+ * (`harness steering check`) and by operator dashboards.
+ */
+async function handleGetSteering(
+  res: ServerResponse,
+  jobId: string,
+  ctx: ServerCtx,
+): Promise<void> {
+  const broker = ctx.broker;
+  if (!broker) {
+    ok(res, {
+      service: 'harness',
+      jobId,
+      steering: [],
+      ts: new Date().toISOString(),
+    });
+    return;
+  }
+  const steering = await getJobSteering(jobId, {
+    jobs: ctx.jobs,
+    bus: ctx.bus,
+    broker,
+    adapterFactory: ctx.adapterFactory,
+    resolver: ctx.resolver,
+    graphs: ctx.graphs,
+  });
+  ok(res, {
+    service: 'harness',
+    jobId,
+    steering,
+    ts: new Date().toISOString(),
   });
 }
 
@@ -1309,6 +1607,24 @@ function parseRepos(value: unknown): SpawnRepoSpec[] | null {
     });
   }
   return out;
+}
+
+/**
+ * Pre-flight check: would this submission route through the container
+ * runJob path? Used by the dispatcher gate to decide whether the
+ * in-process capacity policy applies. Mirrors the resolution logic
+ * inside handleSubmitJob (request-body repos take priority; falls back
+ * to catalog product repos) without committing to the actual
+ * runJobInContainer arguments.
+ */
+function hasContainerRepos(body: Record<string, unknown>, job: JobRecord, ctx: ServerCtx): boolean {
+  const submissionRepos = parseRepos(body.repos);
+  if (submissionRepos !== null && submissionRepos.length > 0) return true;
+  if (job.productId) {
+    const product = findProduct(ctx.catalog, job.productId);
+    if (product?.repos && product.repos.length > 0) return true;
+  }
+  return false;
 }
 
 function registeredFromDef(def: AgentDef, setName: string): RegisteredAgent {
