@@ -198,7 +198,7 @@ function phaseToAgent(value: unknown, path: string): AgentDef {
 /** Type-narrow + light validate a value that's already in canonical
  *  AgentDef shape. The unified validator runs again on the merged
  *  Catalog so this is just enough to make the construction safe. */
-function coerceCanonicalAgent(value: unknown, path: string): AgentDef {
+function _coerceCanonicalAgent(value: unknown, path: string): AgentDef {
   if (!value || typeof value !== 'object') {
     throw new CatalogError(`${path}: must be an object`);
   }

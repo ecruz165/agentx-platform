@@ -774,8 +774,8 @@ function validateFlow(value: unknown, where: string): asserts value is FlowDef {
  */
 function hasCycle(adjacency: Map<string, string[]>): boolean {
   const WHITE = 0;
-  const GRAY = 1;
-  const BLACK = 2;
+  const _GRAY = 1;
+  const _BLACK = 2;
   const color = new Map<string, number>();
   for (const node of adjacency.keys()) color.set(node, WHITE);
   for (const node of adjacency.keys()) {
