@@ -8,10 +8,26 @@ import {
   type OpenCodeCliAdapterOptions,
 } from '@ecruz165/agent-adapter';
 import type { BindingResolver, CredentialBroker, ResolvedBinding } from '@ecruz165/agent-auth';
+import { Command } from '@langchain/langgraph';
 import type { AdapterId } from './catalog.ts';
-import { compileFlow, linearFlowFromAgents, type NodeExecutor } from './flow-graph.ts';
+import {
+  type ApprovalRequest,
+  type ApprovalResume,
+  compileFlow,
+  linearFlowFromAgents,
+  type NodeExecutor,
+  type SuspendRequest,
+} from './flow-graph.ts';
 import type { JobRecord, RegisteredAgent } from './job.ts';
 import { bridgeAdapter, type JobBus } from './job-bus.ts';
+
+/** Compiled-graph handle cached per-job for resume. Structural so this
+ *  module doesn't pin a specific LangGraph type. Exported so callers
+ *  (harness-server, tests) can declare their `graphs` Map without
+ *  having to mirror the shape inline. */
+export interface CompiledFlowGraph {
+  invoke(input: unknown, config?: unknown): Promise<Record<string, unknown>>;
+}
 
 /**
  * Default set of AdapterError subclasses that trigger fall-through to
@@ -115,6 +131,34 @@ export interface RunJobDeps {
   bindingToAdapterFn?: (binding: ResolvedBinding, options: BindingToAdapterOptions) => AgentAdapter;
   /** Hook for tests / future telemetry. Fires on every status transition. */
   onStatusChange?: (jobId: string, agentId: string | null, status: string) => void;
+  /**
+   * Per-job compiled-graph cache. When provided, runJob stores the
+   * compiled graph keyed by jobId on flows that may pause (Approval or
+   * Suspend tags). resumeJob fetches from this map. Caller (typically
+   * harness-server) holds a long-lived Map; entries are deleted on
+   * job completion or failure.
+   *
+   * Optional — when absent, paused jobs cannot resume (the next call
+   * to resumeJob will throw). In-process demos that don't exercise
+   * Approval/Suspend safely omit it.
+   */
+  graphs?: Map<string, CompiledFlowGraph>;
+  /**
+   * Hook fired when the graph pauses at an Approval interrupt. Receives
+   * the ApprovalRequest payload — assignee role, content under review,
+   * etc. Caller is responsible for surfacing this to a reviewer (TUI
+   * notification, web UI, Slack, …) and eventually calling resumeJob
+   * with the decision.
+   */
+  onAwaitingApproval?: (jobId: string, request: ApprovalRequest) => void;
+  /**
+   * Hook fired when the graph pauses at a Suspend interrupt. Receives
+   * the SuspendRequest with the suspend trigger (timer or event).
+   * Caller schedules the wake-up — setTimeout/cron for timer triggers,
+   * event-bus subscription for event triggers — and calls resumeJob
+   * with any value (suspend has no meaningful resume payload).
+   */
+  onSuspend?: (jobId: string, request: SuspendRequest) => void;
 }
 
 /**
@@ -187,35 +231,167 @@ export async function runJob(jobId: string, deps: RunJobDeps): Promise<void> {
     // carries job.input as `output`.
   }
 
-  const graph = compileFlow({ flow, executors });
+  const graph = compileFlow({ flow, executors }) as CompiledFlowGraph;
 
+  // Cache the compiled graph for resume. Even flows without Approval /
+  // Suspend tags benefit minimally — the cache is only consulted by
+  // resumeJob, and runJob unconditionally clears it on terminal states.
+  deps.graphs?.set(jobId, graph);
+
+  // thread_id ties the graph invocation to its checkpointer entry; same
+  // thread_id on resume picks up the same paused state.
+  const config = { configurable: { thread_id: jobId } };
+  const initial = freshFlowState(jobId, job.input ?? '');
+
+  let result: Record<string, unknown>;
   try {
-    await graph.invoke({
-      jobId,
-      output: job.input ?? '',
-      messages: [],
-      attempts: {},
-      lastExit: null,
-      rejectionPayload: null,
-    });
+    result = await graph.invoke(initial, config);
   } catch {
-    // Graph terminated via a router throw (no error edge for an agent
-    // failure) OR an executor genuinely threw. The agent executor has
-    // already mutated job.status='failed' + agent.status='failed' for
-    // the agent-failure case; for unexpected throws the job is left in
-    // 'running' and we mark it failed defensively here.
     if (job.status !== 'failed') {
       job.status = 'failed';
       deps.onStatusChange?.(jobId, null, 'failed');
     }
+    deps.graphs?.delete(jobId);
     return;
   }
 
-  // Graph terminated normally — every successful path ended at END.
+  finalizeOrPause(jobId, job, result, deps);
+}
+
+/**
+ * Resume a paused (awaiting-approval or suspended) job by feeding the
+ * Command({resume}) value into the cached compiled graph. Invariants:
+ *   - The graph instance must exist in deps.graphs (set by runJob).
+ *   - The thread_id is the jobId, same as the original invocation, so
+ *     the checkpointer rehydrates the right paused state.
+ *
+ * After resume, the graph either runs to completion (job → completed),
+ * pauses again at another interrupt (job → awaiting-approval/suspended),
+ * or fails (job → failed).
+ *
+ * Throws if no cached graph exists for the jobId — callers should treat
+ * that as a programming error (resume on a job that never paused, or on
+ * a job whose graph was already removed by a prior resumeJob).
+ */
+export async function resumeJob(
+  jobId: string,
+  resumeValue: ApprovalResume | unknown,
+  deps: RunJobDeps,
+): Promise<void> {
+  const job = deps.jobs.get(jobId);
+  if (!job) return;
+
+  const graph = deps.graphs?.get(jobId);
+  if (!graph) {
+    throw new Error(
+      `resumeJob: no cached graph for jobId "${jobId}" — runJob may not have run yet, or the graph was already cleared.`,
+    );
+  }
+
+  job.status = 'running';
+  deps.onStatusChange?.(jobId, null, 'running');
+
+  const config = { configurable: { thread_id: jobId } };
+
+  let result: Record<string, unknown>;
+  try {
+    result = await graph.invoke(new Command({ resume: resumeValue }), config);
+  } catch {
+    if (job.status !== 'failed') {
+      job.status = 'failed';
+      deps.onStatusChange?.(jobId, null, 'failed');
+    }
+    deps.graphs?.delete(jobId);
+    return;
+  }
+
+  finalizeOrPause(jobId, job, result, deps);
+}
+
+function freshFlowState(jobId: string, input: string) {
+  return {
+    jobId,
+    output: input,
+    messages: [],
+    attempts: {},
+    lastExit: null,
+    rejectionPayload: null,
+  };
+}
+
+/**
+ * Common post-invoke handler for runJob and resumeJob. Inspects the
+ * graph result for an `__interrupt__` field (Approval or Suspend
+ * interrupts) and updates JobRecord accordingly:
+ *
+ *   - Approval interrupt → job.status = 'awaiting-approval', fire
+ *     onAwaitingApproval, KEEP the cached graph (will be needed for
+ *     resume).
+ *   - Suspend interrupt → job.status = 'suspended', fire onSuspend,
+ *     KEEP the cached graph.
+ *   - No interrupt + job not failed → terminal success: job.status =
+ *     'completed', clear the cached graph (graph instance is no longer
+ *     needed; the JobRecord retains the final state).
+ *   - No interrupt + job already failed → terminal failure (agent
+ *     executor already set this); clear the cached graph.
+ */
+function finalizeOrPause(
+  jobId: string,
+  job: JobRecord,
+  result: Record<string, unknown>,
+  deps: RunJobDeps,
+): void {
+  const interrupts = extractInterrupts(result);
+  if (interrupts.length > 0) {
+    const first = interrupts[0];
+    if (first?.kind === 'approval') {
+      job.status = 'awaiting-approval';
+      deps.onStatusChange?.(jobId, null, 'awaiting-approval');
+      deps.onAwaitingApproval?.(jobId, first);
+      return;
+    }
+    if (first?.kind === 'suspend') {
+      job.status = 'suspended';
+      deps.onStatusChange?.(jobId, null, 'suspended');
+      deps.onSuspend?.(jobId, first);
+      return;
+    }
+    // Unknown interrupt kind — treat as awaiting-approval-ish pause.
+    // Defensive: don't lose the cached graph.
+    job.status = 'awaiting-approval';
+    deps.onStatusChange?.(jobId, null, 'awaiting-approval');
+    return;
+  }
+
+  // No interrupt — terminal state.
   if (job.status !== 'failed') {
     job.status = 'completed';
     deps.onStatusChange?.(jobId, null, 'completed');
   }
+  deps.graphs?.delete(jobId);
+}
+
+function extractInterrupts(
+  result: Record<string, unknown>,
+): Array<ApprovalRequest | SuspendRequest> {
+  const raw = result.__interrupt__;
+  if (!Array.isArray(raw)) return [];
+  const out: Array<ApprovalRequest | SuspendRequest> = [];
+  for (const entry of raw) {
+    if (entry && typeof entry === 'object' && 'value' in entry) {
+      const value = (entry as { value: unknown }).value;
+      if (
+        value &&
+        typeof value === 'object' &&
+        'kind' in value &&
+        ((value as { kind: unknown }).kind === 'approval' ||
+          (value as { kind: unknown }).kind === 'suspend')
+      ) {
+        out.push(value as ApprovalRequest | SuspendRequest);
+      }
+    }
+  }
+  return out;
 }
 
 /**

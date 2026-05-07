@@ -9,9 +9,10 @@ import {
 } from '@ecruz165/agent-adapter';
 import type { CredentialBroker, ResolvedBinding } from '@ecruz165/agent-auth';
 import { describe, expect, it } from 'vitest';
+import type { ApprovalRequest } from './flow-graph.ts';
 import type { JobRecord } from './job.ts';
 import { JobBus } from './job-bus.ts';
-import { type AdapterFactory, runJob } from './orchestrator.ts';
+import { type AdapterFactory, type CompiledFlowGraph, runJob } from './orchestrator.ts';
 
 const dummyBroker: CredentialBroker = {
   async getCredential(provider) {
@@ -1174,5 +1175,128 @@ describe('runJob — slice 13c runtime fallback', () => {
 
     expect(job.status).toBe('completed');
     expect(job.agents[0]?.status).toBe('completed');
+  });
+});
+
+describe('runJob + resumeJob (Approval tag)', () => {
+  it('pauses on Approval, surfaces request via onAwaitingApproval, resumes on approve', async () => {
+    const { runJob, resumeJob } = await import('./orchestrator.ts');
+
+    const jobs = new Map<string, JobRecord>();
+    const bus = new JobBus();
+    const graphs = new Map<string, CompiledFlowGraph>();
+    const statusTransitions: Array<[string | null, string]> = [];
+    const approvalRequests: ApprovalRequest[] = [];
+
+    const job: JobRecord = {
+      jobId: 'jA',
+      pipeline: 'with-approval',
+      status: 'received',
+      submittedAt: 'now',
+      input: 'do the thing',
+      flow: {
+        id: 'with-approval',
+        nodes: [
+          { id: '__trigger', kind: 'trigger', config: { kind: 'manual' } },
+          {
+            id: 'planner',
+            kind: 'agent',
+            config: { agent: { id: 'planner' } as never },
+            tags: {
+              approval: {
+                assigneeRole: 'tech-lead',
+                slaMs: 60_000,
+                concurrency: 'pessimistic',
+              },
+            },
+          },
+          {
+            id: 'builder',
+            kind: 'agent',
+            config: { agent: { id: 'builder' } as never },
+          },
+        ],
+        edges: [
+          { from: '__trigger', to: 'planner', type: 'sequence' },
+          { from: 'planner', to: 'builder', type: 'sequence' },
+        ],
+      },
+      agents: [
+        {
+          id: 'planner',
+          role: 'Plan',
+          adapter: 'claude-sdk',
+          systemPrompt: 'plan',
+          status: 'pending',
+        },
+        {
+          id: 'builder',
+          role: 'Build',
+          adapter: 'claude-sdk',
+          systemPrompt: 'build',
+          status: 'pending',
+        },
+      ],
+    };
+    jobs.set('jA', job);
+
+    let factoryCalls = 0;
+    const factory: AdapterFactory = () => {
+      factoryCalls++;
+      return new TestAdapter({ kind: 'ok', reply: `reply-${factoryCalls}` });
+    };
+
+    await runJob('jA', {
+      jobs,
+      bus,
+      broker: dummyBroker,
+      adapterFactory: factory,
+      graphs,
+      onStatusChange: (_jobId, agentId, status) => {
+        statusTransitions.push([agentId, status]);
+      },
+      onAwaitingApproval: (_jobId, request) => {
+        approvalRequests.push(request);
+      },
+    });
+
+    // Job paused.
+    expect(job.status).toBe('awaiting-approval');
+    // Planner ran; builder did NOT.
+    expect(job.agents.find((a) => a.id === 'planner')?.status).toBe('completed');
+    expect(job.agents.find((a) => a.id === 'builder')?.status).toBe('pending');
+    // Hook fired with the right shape.
+    expect(approvalRequests).toHaveLength(1);
+    expect(approvalRequests[0]?.nodeId).toBe('planner');
+    expect(approvalRequests[0]?.assigneeRole).toBe('tech-lead');
+    expect(approvalRequests[0]?.content).toBe('reply-1'); // planner's output
+    // Status transitions include awaiting-approval.
+    expect(statusTransitions).toContainEqual([null, 'awaiting-approval']);
+    // Graph cached.
+    expect(graphs.has('jA')).toBe(true);
+
+    // Resume with approve.
+    await resumeJob(
+      'jA',
+      { decision: 'approve' },
+      {
+        jobs,
+        bus,
+        broker: dummyBroker,
+        adapterFactory: factory,
+        graphs,
+        onStatusChange: (_jobId, agentId, status) => {
+          statusTransitions.push([agentId, status]);
+        },
+      },
+    );
+
+    // Job completed; builder now ran.
+    expect(job.status).toBe('completed');
+    expect(job.agents.find((a) => a.id === 'builder')?.status).toBe('completed');
+    // Planner did NOT re-run on resume (approval is in a synthetic node).
+    expect(factoryCalls).toBe(2); // 1 planner + 1 builder, no third call.
+    // Graph cleared from cache after completion.
+    expect(graphs.has('jA')).toBe(false);
   });
 });

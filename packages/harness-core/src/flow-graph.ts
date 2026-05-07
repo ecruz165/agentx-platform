@@ -28,8 +28,26 @@
  *     ids run as what; this file just routes.
  */
 
-import { Annotation, END, START, StateGraph } from '@langchain/langgraph';
-import type { AgentDef, Edge, Expression, FlowDef, RejectionPayload, TaskStep } from './catalog.ts';
+import {
+  Annotation,
+  type BaseCheckpointSaver,
+  END,
+  interrupt,
+  MemorySaver,
+  START,
+  StateGraph,
+} from '@langchain/langgraph';
+import type {
+  AgentDef,
+  ApprovalTag,
+  Edge,
+  Expression,
+  FlowDef,
+  LoopTag,
+  RejectionPayload,
+  SuspendTag,
+  TaskStep,
+} from './catalog.ts';
 
 /**
  * Per-node exit signal. Drives error/fallback/reject routing in the
@@ -109,23 +127,88 @@ export interface CompileFlowOptions {
    *  …). Missing ids fall through to a no-op executor that records a
    *  success exit — useful for steps that are inert pass-throughs. */
   executors: Map<string, NodeExecutor>;
+  /** Checkpointer for state persistence. Required for Approval and Suspend
+   *  tags (LangGraph's interrupt() needs a checkpointer to persist state
+   *  while paused) — defaults to MemorySaver when any node carries either
+   *  tag. Caller can pass a Postgres/SQLite saver to make awaiting-
+   *  approval / suspended jobs survive process restarts. */
+  checkpointer?: BaseCheckpointSaver;
+}
+
+/**
+ * Payload surfaced via LangGraph's interrupt() when an Approval-tagged
+ * node pauses for review. The reviewer (or harness-server's HITL UI)
+ * inspects this, decides approve/reject, and resumes via
+ * `Command({ resume: ApprovalResume })`.
+ */
+export interface ApprovalRequest {
+  /** Discriminator — distinguishes approval from suspend interrupts. */
+  kind: 'approval';
+  /** The original (untagged) node id whose output is being reviewed.
+   *  The synthetic approval node has id `${nodeId}__approval`. */
+  nodeId: string;
+  /** Org role authorized to approve (from the ApprovalTag). */
+  assigneeRole: string;
+  /** Time-to-respond before the harness should auto-reject (caller's
+   *  responsibility to enforce; harness-core just surfaces the value). */
+  slaMs: number;
+  /** Optional structured input schema the reviewer fills in. */
+  steeringInputs?: ApprovalTag['steeringInputs'];
+  /** The output text the reviewer is approving — pulled from
+   *  `state.output` at interrupt time. */
+  content: string;
+  /** 1-indexed attempt counter — increments each time the gate runs. */
+  attempt: number;
+}
+
+export interface ApprovalResume {
+  decision: 'approve' | 'reject';
+  /** Reviewer-provided steering text (free-form) or structured fields
+   *  matching `steeringInputs`. Becomes the rejectionPayload.steering
+   *  on reject; ignored on approve. */
+  steering?: unknown;
+}
+
+/**
+ * Payload surfaced when a Suspend-tagged node pauses. Caller (harness-
+ * server) is responsible for scheduling the resume — timer-based via
+ * setTimeout/cron, or event-based via subscription to the matched
+ * eventType. Resume value is unused (Suspend has no decision; resume
+ * is the "wake up" signal itself).
+ */
+export interface SuspendRequest {
+  kind: 'suspend';
+  nodeId: string;
+  trigger: SuspendTag['trigger'];
 }
 
 /**
  * Compile a FlowDef into a runnable LangGraph. Returns a compiled graph
  * the caller invokes via `graph.invoke(initialState)`.
  *
- * Topology: every TaskStep becomes a node; every Edge contributes to the
- * per-source-node router. The trigger node receives `addEdge(START, …)`;
- * terminal nodes (no outgoing edges) receive `addEdge(…, END)`.
- *
- * Tags wrap their host node's executor with side-effects (Approval =
- * interrupt; Suspend = checkpoint; Loop = self-cycle until predicate). Tag
- * wrappers are stubs in this slice; full semantics land in follow-up
- * commits.
+ * Topology pipeline:
+ *   1. Rewrite for Approval/Suspend tags — insert synthetic interrupt
+ *      nodes and redirect outgoing edges. Required because LangGraph's
+ *      interrupt() re-runs the entire node on resume; isolating the
+ *      interrupt in its own node prevents re-running the inner work
+ *      (e.g., re-invoking an LLM).
+ *   2. Trigger lookup + START edge.
+ *   3. Per-node executor — original-step executors come from the
+ *      `executors` map; synthetic interrupt nodes carry tag-specific
+ *      executors built here. Loop tag is wrapped without a topology
+ *      rewrite — it iterates the inner inside a single node.
+ *   4. Per-source-node ConditionalEdgeRouter from each node's outgoing
+ *      edges (sequence/conditional/error/fallback/reject precedence).
+ *   5. Compile with checkpointer — defaults to MemorySaver when any
+ *      node carries an Approval or Suspend tag, since interrupt()
+ *      requires a checkpointer to persist paused state.
  */
 export function compileFlow(opts: CompileFlowOptions) {
-  const { flow, executors } = opts;
+  const { executors } = opts;
+
+  // Step 1: rewrite topology for Approval/Suspend tags.
+  const flow = rewriteFlowForInterruptTags(opts.flow);
+
   const trigger = flow.nodes.find((n) => n.kind === 'trigger');
   if (!trigger) {
     throw new Error(`flow "${flow.id}" has no trigger node`);
@@ -135,8 +218,15 @@ export function compileFlow(opts: CompileFlowOptions) {
   const builder: any = new StateGraph(FlowState);
 
   for (const node of flow.nodes) {
-    const exec = executors.get(node.id) ?? defaultExecutor(node.id);
-    const wrapped = wrapWithTags(node, exec);
+    const baseExec =
+      // Synthetic approval / suspend nodes carry tag metadata that the
+      // executor reads inline; they aren't in the caller-supplied map.
+      isSyntheticApprovalNode(node)
+        ? makeApprovalExecutor(node)
+        : isSyntheticSuspendNode(node)
+          ? makeSuspendExecutor(node)
+          : (executors.get(node.id) ?? defaultExecutor(node.id));
+    const wrapped = wrapWithTags(node, baseExec);
     builder.addNode(node.id, wrapped);
   }
 
@@ -152,7 +242,14 @@ export function compileFlow(opts: CompileFlowOptions) {
     builder.addConditionalEdges(node.id, buildRouter(node.id, out));
   }
 
-  return builder.compile();
+  // Step 5: choose checkpointer. Auto-attach MemorySaver when any node
+  // requires interrupt-driven pausing.
+  const needsCheckpointer = flow.nodes.some(
+    (n) => isSyntheticApprovalNode(n) || isSyntheticSuspendNode(n),
+  );
+  const checkpointer = opts.checkpointer ?? (needsCheckpointer ? new MemorySaver() : undefined);
+
+  return checkpointer ? builder.compile({ checkpointer }) : builder.compile();
 }
 
 /**
@@ -263,11 +360,288 @@ function defaultExecutor(nodeId: string): NodeExecutor {
   return async () => ({ lastExit: { nodeId, kind: 'success' } });
 }
 
-function wrapWithTags(_step: TaskStep, exec: NodeExecutor): NodeExecutor {
-  // Tag wrappers are stubs in this slice. The inner executor runs as-is;
-  // Approval (interrupt), Suspend (checkpoint), and Loop (cycle until
-  // predicate) land in follow-up commits.
-  return exec;
+/**
+ * Wrap a node executor with tag-driven behavior modifiers.
+ *
+ * Approval and Suspend tags are NOT applied here — they are handled by
+ * the topology rewriter (rewriteFlowForInterruptTags) which inserts
+ * synthetic interrupt nodes after the original. The original step's
+ * executor runs as-is; the synthetic node owns the interrupt.
+ *
+ * Loop tag IS handled here, as a wrapper. The wrapper resolves the
+ * iteration source from state, runs the inner once per item with the
+ * item set as `state.output`, and aggregates results. No topology
+ * rewrite needed — Loop is a within-node iteration, not a separate
+ * graph node.
+ */
+function wrapWithTags(step: TaskStep, exec: NodeExecutor): NodeExecutor {
+  if (!step.tags?.loop) return exec;
+  return loopWrapper(step.id, step.tags.loop, exec);
+}
+
+// ─── Topology rewriter (Approval + Suspend tags) ──────────────────────────
+
+/** Suffix appended to a tagged node's id to derive its synthetic
+ *  approval node id. Exported only as a constant pattern; no public API
+ *  surface depends on the literal value. */
+const APPROVAL_SUFFIX = '__approval';
+const SUSPEND_SUFFIX = '__suspend';
+
+interface SyntheticApprovalNode extends TaskStep {
+  __approvalTag: ApprovalTag;
+}
+interface SyntheticSuspendNode extends TaskStep {
+  __suspendTag: SuspendTag;
+}
+
+function isSyntheticApprovalNode(node: TaskStep): node is SyntheticApprovalNode {
+  return '__approvalTag' in node;
+}
+function isSyntheticSuspendNode(node: TaskStep): node is SyntheticSuspendNode {
+  return '__suspendTag' in node;
+}
+
+/**
+ * Rewrite a FlowDef so that every node carrying an Approval or Suspend
+ * tag has a synthetic interrupt node inserted immediately after it. The
+ * original node's outgoing edges are redirected to start from the
+ * synthetic node — so the interrupt becomes the routing decision point.
+ *
+ * Why: LangGraph's interrupt() re-runs the entire host node on resume.
+ * If Approval is wrapped around an LLM agent, the agent runs twice
+ * (once before interrupt, once after) — wasteful and non-idempotent.
+ * Splitting the work + interrupt into separate nodes means only the
+ * interrupt node re-runs on resume; the work runs exactly once.
+ *
+ * Approval ⊥ Suspend per validator (TaskStepTags.approval and
+ * .suspend cannot both be set), so a node gets at most one rewrite.
+ * Loop tag is unaffected here — it's a wrapper, not a topology change.
+ */
+function rewriteFlowForInterruptTags(flow: FlowDef): FlowDef {
+  const tagged = flow.nodes.filter(
+    (n) => n.tags?.approval !== undefined || n.tags?.suspend !== undefined,
+  );
+  if (tagged.length === 0) return flow;
+
+  const newNodes: TaskStep[] = [];
+  const renames = new Map<string, string>();
+
+  for (const node of flow.nodes) {
+    if (node.tags?.approval) {
+      const syntheticId = `${node.id}${APPROVAL_SUFFIX}`;
+      const synthetic: SyntheticApprovalNode = {
+        id: syntheticId,
+        kind: 'agent',
+        // The synthetic node has no real config; the executor pulls
+        // tag data from __approvalTag rather than config.
+        config: { agent: { id: syntheticId } as AgentDef },
+        __approvalTag: node.tags.approval,
+      };
+      newNodes.push({ ...node, tags: undefined }, synthetic);
+      renames.set(node.id, syntheticId);
+    } else if (node.tags?.suspend) {
+      const syntheticId = `${node.id}${SUSPEND_SUFFIX}`;
+      const synthetic: SyntheticSuspendNode = {
+        id: syntheticId,
+        kind: 'agent',
+        config: { agent: { id: syntheticId } as AgentDef },
+        __suspendTag: node.tags.suspend,
+      };
+      newNodes.push({ ...node, tags: undefined }, synthetic);
+      renames.set(node.id, syntheticId);
+    } else {
+      newNodes.push(node);
+    }
+  }
+
+  const newEdges: Edge[] = [];
+  // For every tagged-original node, insert a sequence edge → synthetic.
+  for (const orig of tagged) {
+    const syntheticId = renames.get(orig.id);
+    if (!syntheticId) continue;
+    newEdges.push({ from: orig.id, to: syntheticId, type: 'sequence' });
+  }
+  // Redirect existing edges that originated from a tagged node — their
+  // `from` becomes the synthetic id (the interrupt is the new exit
+  // point). Edges TO a tagged node are unchanged (the original still
+  // runs first and is still the entry point).
+  for (const edge of flow.edges) {
+    const newFrom = renames.get(edge.from) ?? edge.from;
+    newEdges.push({ ...edge, from: newFrom } as Edge);
+  }
+
+  return { ...flow, nodes: newNodes, edges: newEdges };
+}
+
+// ─── Tag-node executors ──────────────────────────────────────────────────
+
+/**
+ * Synthetic Approval node executor.
+ *
+ * On first execution: calls interrupt(...) with an ApprovalRequest
+ * payload. The graph pauses; runJob picks up the interrupt from
+ * `result.__interrupt__` and marks the JobRecord 'awaiting-approval'.
+ *
+ * On resume (Command({resume: ApprovalResume})): interrupt() returns
+ * the resume value. The executor:
+ *   - 'approve' → success exit (forward via sequence/conditional)
+ *   - 'reject' → reject exit + RejectionPayload (route via reject edge;
+ *     attempt counter increments on this synthetic node's id)
+ */
+function makeApprovalExecutor(node: SyntheticApprovalNode): NodeExecutor {
+  const tag = node.__approvalTag;
+  const nodeId = node.id;
+  // Strip the suffix to recover the original (untagged) node id for
+  // the user-facing payload.
+  const originalId = nodeId.replace(new RegExp(`${APPROVAL_SUFFIX}$`), '');
+
+  return async (state) => {
+    const attempts = state.attempts[nodeId] ?? 0;
+
+    const request: ApprovalRequest = {
+      kind: 'approval',
+      nodeId: originalId,
+      assigneeRole: tag.assigneeRole,
+      slaMs: tag.slaMs,
+      ...(tag.steeringInputs ? { steeringInputs: tag.steeringInputs } : {}),
+      content: state.output,
+      attempt: attempts + 1,
+    };
+
+    const resume = interrupt(request) as ApprovalResume;
+
+    if (resume?.decision === 'approve') {
+      return {
+        attempts: { [nodeId]: attempts + 1 },
+        lastExit: { nodeId, kind: 'success' },
+      };
+    }
+
+    return {
+      attempts: { [nodeId]: attempts + 1 },
+      lastExit: { nodeId, kind: 'reject' },
+      rejectionPayload: {
+        reason: 'rejected by reviewer',
+        ...(typeof resume?.steering === 'string' ? { steering: resume.steering } : {}),
+        ...(resume?.steering !== undefined && typeof resume.steering !== 'string'
+          ? { findings: resume.steering }
+          : {}),
+        attempt: attempts + 1,
+      },
+    };
+  };
+}
+
+/**
+ * Synthetic Suspend node executor.
+ *
+ * Calls interrupt(...) with a SuspendRequest payload. runJob marks the
+ * JobRecord 'suspended'. The caller (harness-server) is responsible for
+ * scheduling the resume — timer-based via setTimeout/cron, or event-
+ * based via subscription.
+ *
+ * On resume (Command({resume})): the resume value is unused; suspend
+ * has no decision, just a wake-up signal. The executor returns success.
+ */
+function makeSuspendExecutor(node: SyntheticSuspendNode): NodeExecutor {
+  const tag = node.__suspendTag;
+  const nodeId = node.id;
+  const originalId = nodeId.replace(new RegExp(`${SUSPEND_SUFFIX}$`), '');
+
+  return async (_state) => {
+    const request: SuspendRequest = {
+      kind: 'suspend',
+      nodeId: originalId,
+      trigger: tag.trigger,
+    };
+    interrupt(request);
+    // Resume value is unused for suspend — wake-up is the signal.
+    return {
+      lastExit: { nodeId, kind: 'success' },
+    };
+  };
+}
+
+/**
+ * Loop tag wrapper. Resolves the iteration source from state, runs the
+ * inner executor once per item with `state.output` set to the item, and
+ * aggregates outputs. Halts iteration on the first error or reject from
+ * the inner.
+ *
+ * v1 supports `mode: 'sequential'` only — parallel mode requires a
+ * cap-aware async pool and is deferred. `source: 'directory'` requires
+ * filesystem traversal and is also deferred (catalog authors hit a
+ * runtime error if they try it).
+ *
+ * Iterables resolve via the same Expression types used for conditional
+ * edges, but here we want the RAW value (an array), not a boolean —
+ * see resolveExpressionValue.
+ */
+function loopWrapper(nodeId: string, tag: LoopTag, inner: NodeExecutor): NodeExecutor {
+  return async (state) => {
+    if (tag.source === 'directory') {
+      throw new Error(`Loop source: 'directory' is not yet supported (node "${nodeId}")`);
+    }
+    if (tag.mode === 'parallel') {
+      throw new Error(
+        `Loop mode: 'parallel' is not yet supported (node "${nodeId}") — use 'sequential'`,
+      );
+    }
+
+    const raw = resolveExpressionValue(tag.path, state);
+    if (!Array.isArray(raw)) {
+      return {
+        lastExit: {
+          nodeId,
+          kind: 'error',
+          errorName: 'LoopPathError',
+          errorMessage: `Loop path did not resolve to an array (got ${typeof raw})`,
+        },
+      };
+    }
+
+    const outputs: string[] = [];
+    let lastDelta: Partial<FlowStateT> = {};
+
+    for (const item of raw) {
+      const itemInput = typeof item === 'string' ? item : JSON.stringify(item);
+      const itemState: FlowStateT = { ...state, output: itemInput };
+      const delta = await inner(itemState);
+
+      if (delta.lastExit?.kind === 'error' || delta.lastExit?.kind === 'reject') {
+        // Halt on first failure — preserves the per-item error so the
+        // edge router can dispatch.
+        return delta;
+      }
+      if (typeof delta.output === 'string') outputs.push(delta.output);
+      lastDelta = delta;
+    }
+
+    return {
+      ...lastDelta,
+      output: outputs.join('\n---\n'),
+      lastExit: { nodeId, kind: 'success' },
+    };
+  };
+}
+
+/**
+ * Resolve an Expression to its raw value (used for Loop iteration). Like
+ * evalExpression but returns the value rather than coercing to boolean.
+ *
+ *   - literal → expr.value
+ *   - jsonpath → resolved value or undefined
+ *   - js → throws (no sandbox; same as evalExpression)
+ */
+function resolveExpressionValue(expr: Expression, state: FlowStateT): unknown {
+  switch (expr.kind) {
+    case 'literal':
+      return expr.value;
+    case 'jsonpath':
+      return resolveJsonPath(expr.path, state);
+    case 'js':
+      throw new Error('"js" expression kind is not yet supported');
+  }
 }
 
 /**

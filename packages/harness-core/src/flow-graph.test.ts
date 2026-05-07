@@ -11,15 +11,18 @@
  * graph you'd expect, and does each edge kind dispatch correctly?
  */
 
+import { Command } from '@langchain/langgraph';
 import { describe, expect, it } from 'vitest';
-import type { Edge, FlowDef, TaskStep } from './catalog.ts';
+import type { ApprovalTag, Edge, FlowDef, LoopTag, SuspendTag, TaskStep } from './catalog.ts';
 import {
+  type ApprovalRequest,
   buildRouter,
   compileFlow,
   evalExpression,
   type FlowStateT,
   linearFlowFromAgents,
   type NodeExecutor,
+  type SuspendRequest,
 } from './flow-graph.ts';
 
 // ─── helpers ──────────────────────────────────────────────────────────────
@@ -591,5 +594,330 @@ describe('linearFlowFromAgents', () => {
     expect(flow.nodes).toHaveLength(1);
     expect(flow.nodes[0]?.kind).toBe('trigger');
     expect(flow.edges).toEqual([]);
+  });
+});
+
+// ─── Approval tag ─────────────────────────────────────────────────────────
+
+describe('compileFlow — Approval tag', () => {
+  const approvalTag: ApprovalTag = {
+    assigneeRole: 'tech-lead',
+    slaMs: 60_000,
+    concurrency: 'pessimistic',
+  };
+
+  function approvalAgentNode(id: string, tag: ApprovalTag): TaskStep {
+    return {
+      id,
+      kind: 'agent',
+      config: { agent: { id } as never },
+      tags: { approval: tag },
+    };
+  }
+
+  it('pauses with an ApprovalRequest after the inner node runs', async () => {
+    const calls: string[] = [];
+    const flow: FlowDef = {
+      id: 'approval-pause',
+      nodes: [trigger('t'), approvalAgentNode('plan', approvalTag), agentNode('build')],
+      edges: [
+        { from: 't', to: 'plan', type: 'sequence' },
+        { from: 'plan', to: 'build', type: 'sequence' },
+      ],
+    };
+    const executors = new Map<string, NodeExecutor>([
+      [
+        'plan',
+        async () => {
+          calls.push('plan');
+          return {
+            output: 'a draft plan',
+            lastExit: { nodeId: 'plan', kind: 'success' },
+          };
+        },
+      ],
+      ['build', makeRecorder(calls, 'build')],
+    ]);
+    const graph = compileFlow({ flow, executors });
+    const config = { configurable: { thread_id: 't1' } };
+    const result = (await graph.invoke(initialState, config)) as Record<string, unknown>;
+
+    // Plan ran; build did NOT (graph paused at the approval interrupt).
+    expect(calls).toEqual(['plan']);
+    expect(result.__interrupt__).toBeDefined();
+    const interrupts = result.__interrupt__ as Array<{ value: ApprovalRequest }>;
+    expect(interrupts).toHaveLength(1);
+    expect(interrupts[0]?.value.kind).toBe('approval');
+    expect(interrupts[0]?.value.nodeId).toBe('plan');
+    expect(interrupts[0]?.value.assigneeRole).toBe('tech-lead');
+    expect(interrupts[0]?.value.content).toBe('a draft plan');
+    expect(interrupts[0]?.value.attempt).toBe(1);
+  });
+
+  it('forwards via sequence edge on resume with approve', async () => {
+    const calls: string[] = [];
+    const flow: FlowDef = {
+      id: 'approval-approve',
+      nodes: [trigger('t'), approvalAgentNode('plan', approvalTag), agentNode('build')],
+      edges: [
+        { from: 't', to: 'plan', type: 'sequence' },
+        { from: 'plan', to: 'build', type: 'sequence' },
+      ],
+    };
+    const executors = new Map<string, NodeExecutor>([
+      [
+        'plan',
+        async () => {
+          calls.push('plan');
+          return { output: 'plan-output', lastExit: { nodeId: 'plan', kind: 'success' } };
+        },
+      ],
+      ['build', makeRecorder(calls, 'build')],
+    ]);
+    const graph = compileFlow({ flow, executors });
+    const config = { configurable: { thread_id: 'approve-thread' } };
+
+    await graph.invoke(initialState, config); // pauses at approval
+
+    // Resume with approve.
+    await graph.invoke(new Command({ resume: { decision: 'approve' } }), config);
+
+    // build now ran. plan did NOT re-run on resume (synthetic node owns
+    // the interrupt).
+    expect(calls).toEqual(['plan', 'build']);
+  });
+
+  it('routes via reject edge on resume with reject and increments attempt', async () => {
+    const calls: string[] = [];
+    const flow: FlowDef = {
+      id: 'approval-reject',
+      nodes: [trigger('t'), approvalAgentNode('plan', approvalTag), agentNode('build')],
+      edges: [
+        { from: 't', to: 'plan', type: 'sequence' },
+        { from: 'plan', to: 'build', type: 'sequence' },
+        // Self-loop on reject: planner re-runs with steering.
+        { from: 'plan', to: 'plan', type: 'reject', maxAttempts: 3 },
+      ],
+    };
+    const executors = new Map<string, NodeExecutor>([
+      [
+        'plan',
+        async (state) => {
+          calls.push(`plan:${state.rejectionPayload?.steering ?? 'fresh'}`);
+          return { output: 'a plan', lastExit: { nodeId: 'plan', kind: 'success' } };
+        },
+      ],
+      ['build', makeRecorder(calls, 'build')],
+    ]);
+    const graph = compileFlow({ flow, executors });
+    const config = { configurable: { thread_id: 'reject-thread' } };
+
+    await graph.invoke(initialState, config); // pause 1
+    // Reject with steering — should cycle back to plan, then pause again.
+    const r2 = (await graph.invoke(
+      new Command({ resume: { decision: 'reject', steering: 'focus on auth' } }),
+      config,
+    )) as Record<string, unknown>;
+
+    expect(r2.__interrupt__).toBeDefined();
+    // Plan ran twice — once initially, once after reject.
+    expect(calls.filter((c) => c.startsWith('plan')).length).toBe(2);
+    expect(calls.filter((c) => c === 'build').length).toBe(0);
+    // Second plan run saw the steering text from rejection payload.
+    expect(calls).toContain('plan:focus on auth');
+
+    // Approve the second draft.
+    await graph.invoke(new Command({ resume: { decision: 'approve' } }), config);
+    expect(calls.filter((c) => c === 'build').length).toBe(1);
+  });
+});
+
+// ─── Suspend tag ──────────────────────────────────────────────────────────
+
+describe('compileFlow — Suspend tag', () => {
+  const suspendTag: SuspendTag = {
+    trigger: { kind: 'timer', durationMs: 60_000 },
+  };
+
+  function suspendAgentNode(id: string, tag: SuspendTag): TaskStep {
+    return {
+      id,
+      kind: 'agent',
+      config: { agent: { id } as never },
+      tags: { suspend: tag },
+    };
+  }
+
+  it('pauses with a SuspendRequest carrying the trigger info', async () => {
+    const flow: FlowDef = {
+      id: 'suspend-pause',
+      nodes: [
+        trigger('t'),
+        agentNode('a'),
+        suspendAgentNode('cooldown', suspendTag),
+        agentNode('b'),
+      ],
+      edges: [
+        { from: 't', to: 'a', type: 'sequence' },
+        { from: 'a', to: 'cooldown', type: 'sequence' },
+        { from: 'cooldown', to: 'b', type: 'sequence' },
+      ],
+    };
+    const executors = new Map<string, NodeExecutor>([
+      ['a', makeRecorder([], 'a')],
+      ['cooldown', makeRecorder([], 'cooldown')],
+      ['b', makeRecorder([], 'b')],
+    ]);
+    const graph = compileFlow({ flow, executors });
+    const config = { configurable: { thread_id: 'suspend-thread' } };
+
+    const result = (await graph.invoke(initialState, config)) as Record<string, unknown>;
+    const interrupts = result.__interrupt__ as Array<{ value: SuspendRequest }>;
+    expect(interrupts).toHaveLength(1);
+    expect(interrupts[0]?.value.kind).toBe('suspend');
+    expect(interrupts[0]?.value.nodeId).toBe('cooldown');
+    expect(interrupts[0]?.value.trigger).toEqual({
+      kind: 'timer',
+      durationMs: 60_000,
+    });
+  });
+
+  it('continues to downstream nodes on resume', async () => {
+    const calls: string[] = [];
+    const flow: FlowDef = {
+      id: 'suspend-resume',
+      nodes: [trigger('t'), suspendAgentNode('a', suspendTag), agentNode('b')],
+      edges: [
+        { from: 't', to: 'a', type: 'sequence' },
+        { from: 'a', to: 'b', type: 'sequence' },
+      ],
+    };
+    const executors = new Map<string, NodeExecutor>([
+      ['a', makeRecorder(calls, 'a')],
+      ['b', makeRecorder(calls, 'b')],
+    ]);
+    const graph = compileFlow({ flow, executors });
+    const config = { configurable: { thread_id: 'suspend-resume-thread' } };
+
+    await graph.invoke(initialState, config);
+    await graph.invoke(new Command({ resume: 'wake' }), config);
+
+    expect(calls).toEqual(['a', 'b']);
+  });
+});
+
+// ─── Loop tag ─────────────────────────────────────────────────────────────
+
+describe('compileFlow — Loop tag', () => {
+  const sequentialLoop: LoopTag = {
+    source: 'collection',
+    path: { kind: 'jsonpath', path: '$.output' },
+    mode: 'sequential',
+  };
+
+  function loopAgentNode(id: string, tag: LoopTag): TaskStep {
+    return {
+      id,
+      kind: 'agent',
+      config: { agent: { id } as never },
+      tags: { loop: tag },
+    };
+  }
+
+  it('iterates the inner once per item with state.output set per-iteration', async () => {
+    const seenInputs: string[] = [];
+    const flow: FlowDef = {
+      id: 'loop',
+      nodes: [trigger('t'), loopAgentNode('per-item', sequentialLoop)],
+      edges: [{ from: 't', to: 'per-item', type: 'sequence' }],
+    };
+    const executors = new Map<string, NodeExecutor>([
+      [
+        'per-item',
+        async (state) => {
+          seenInputs.push(state.output);
+          return {
+            output: `processed:${state.output}`,
+            lastExit: { nodeId: 'per-item', kind: 'success' },
+          };
+        },
+      ],
+    ]);
+    const graph = compileFlow({ flow, executors });
+    // Seed initialState.output with an array — the loop tag's path
+    // resolves $.output, so this becomes the iterable.
+    const result = (await graph.invoke({
+      ...initialState,
+      output: ['a', 'b', 'c'] as unknown as string,
+    })) as Record<string, unknown>;
+
+    expect(seenInputs).toEqual(['a', 'b', 'c']);
+    expect(result.output).toBe('processed:a\n---\nprocessed:b\n---\nprocessed:c');
+  });
+
+  it('halts iteration on first inner error', async () => {
+    const seenInputs: string[] = [];
+    const flow: FlowDef = {
+      id: 'loop-halt',
+      nodes: [trigger('t'), loopAgentNode('per-item', sequentialLoop)],
+      edges: [{ from: 't', to: 'per-item', type: 'sequence' }],
+    };
+    const executors = new Map<string, NodeExecutor>([
+      [
+        'per-item',
+        async (state) => {
+          seenInputs.push(state.output);
+          if (state.output === 'b') {
+            return {
+              lastExit: { nodeId: 'per-item', kind: 'error', errorMessage: 'b is bad' },
+            };
+          }
+          return { lastExit: { nodeId: 'per-item', kind: 'success' } };
+        },
+      ],
+    ]);
+    const graph = compileFlow({ flow, executors });
+    try {
+      await graph.invoke({
+        ...initialState,
+        output: ['a', 'b', 'c'] as unknown as string,
+      });
+    } catch {
+      // Router may throw; doesn't matter for this assertion.
+    }
+    // Halted at 'b' — 'c' never seen.
+    expect(seenInputs).toEqual(['a', 'b']);
+  });
+
+  it('errors on parallel mode (deferred to v1.x)', async () => {
+    const flow: FlowDef = {
+      id: 'loop-parallel',
+      nodes: [trigger('t'), loopAgentNode('per-item', { ...sequentialLoop, mode: 'parallel' })],
+      edges: [{ from: 't', to: 'per-item', type: 'sequence' }],
+    };
+    const executors = new Map<string, NodeExecutor>([['per-item', makeRecorder([], 'per-item')]]);
+    const graph = compileFlow({ flow, executors });
+    await expect(
+      graph.invoke({
+        ...initialState,
+        output: ['a'] as unknown as string,
+      }),
+    ).rejects.toThrow(/parallel/);
+  });
+
+  it('errors on directory source (deferred)', async () => {
+    const flow: FlowDef = {
+      id: 'loop-dir',
+      nodes: [trigger('t'), loopAgentNode('per-item', { ...sequentialLoop, source: 'directory' })],
+      edges: [{ from: 't', to: 'per-item', type: 'sequence' }],
+    };
+    const executors = new Map<string, NodeExecutor>([['per-item', makeRecorder([], 'per-item')]]);
+    const graph = compileFlow({ flow, executors });
+    await expect(
+      graph.invoke({
+        ...initialState,
+        output: ['a'] as unknown as string,
+      }),
+    ).rejects.toThrow(/directory/);
   });
 });

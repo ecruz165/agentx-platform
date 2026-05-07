@@ -52,6 +52,8 @@ export {
   walkAgents,
 } from './catalog.ts';
 export {
+  type ApprovalRequest,
+  type ApprovalResume,
   buildRouter,
   type CompileFlowOptions,
   compileFlow,
@@ -61,14 +63,17 @@ export {
   linearFlowFromAgents,
   type NodeExecutor,
   type NodeExit,
+  type SuspendRequest,
 } from './flow-graph.ts';
 export type { AgentStatus, AgentTokens, JobRecord, RegisteredAgent } from './job.ts';
 export { bridgeAdapter, type Envelope, JobBus } from './job-bus.ts';
 export {
   type AdapterFactory,
+  type CompiledFlowGraph,
   DEFAULT_FALLBACK_ERRORS,
   defaultAdapterFactory,
   type RunJobDeps,
+  resumeJob,
   runJob,
 } from './orchestrator.ts';
 export { TokenAccumulator } from './token-accumulator.ts';
