@@ -21,6 +21,7 @@ import {
   evalExpression,
   type FlowStateT,
   linearFlowFromAgents,
+  makeGateExecutor,
   type NodeExecutor,
   type SuspendRequest,
 } from './flow-graph.ts';
@@ -965,5 +966,167 @@ describe('composeSystemPromptWithSteering', () => {
       'avoid breaking changes',
     ]);
     expect(result).toBe('[OPERATOR STEERING]\n— use OAuth\n— avoid breaking changes');
+  });
+});
+
+// ─── makeGateExecutor (built-in gate kind) ────────────────────────────────
+
+describe('makeGateExecutor', () => {
+  function gateNode(
+    id: string,
+    assertions: Array<{ expression: import('./catalog.ts').Expression; message: string }>,
+  ): TaskStep {
+    return { id, kind: 'gate', config: { assertions } };
+  }
+
+  it('emits success when there are no assertions', async () => {
+    const fn = makeGateExecutor(gateNode('g', []));
+    const delta = await fn(initialState);
+    expect(delta.lastExit?.kind).toBe('success');
+    expect(delta.rejectionPayload).toBeUndefined();
+  });
+
+  it('emits success when all assertions pass', async () => {
+    const fn = makeGateExecutor(
+      gateNode('g', [
+        { expression: { kind: 'literal', value: true }, message: 'always-true' },
+        {
+          expression: { kind: 'jsonpath', path: '$.output' },
+          message: 'output is non-empty',
+        },
+      ]),
+    );
+    const delta = await fn({ ...initialState, output: 'has-value' });
+    expect(delta.lastExit?.kind).toBe('success');
+    expect(delta.rejectionPayload).toBeUndefined();
+  });
+
+  it('emits reject + payload when an assertion fails', async () => {
+    const fn = makeGateExecutor(
+      gateNode('g', [{ expression: { kind: 'literal', value: false }, message: 'never holds' }]),
+    );
+    const delta = await fn(initialState);
+    expect(delta.lastExit?.kind).toBe('reject');
+    expect(delta.rejectionPayload?.reason).toBe('never holds');
+    expect(delta.rejectionPayload?.attempt).toBe(1);
+    expect(delta.attempts?.g).toBe(1);
+  });
+
+  it('joins multiple failure messages and lists structured findings', async () => {
+    const fn = makeGateExecutor(
+      gateNode('g', [
+        { expression: { kind: 'literal', value: true }, message: 'this passes' },
+        { expression: { kind: 'literal', value: false }, message: 'first failure' },
+        {
+          expression: { kind: 'jsonpath', path: '$.nonexistent' },
+          message: 'second failure',
+        },
+      ]),
+    );
+    const delta = await fn(initialState);
+    expect(delta.lastExit?.kind).toBe('reject');
+    expect(delta.rejectionPayload?.reason).toBe('first failure; second failure');
+    const findings = delta.rejectionPayload?.findings as Array<{ message: string }>;
+    expect(findings.length).toBe(2);
+    expect(findings.map((f) => f.message)).toEqual(['first failure', 'second failure']);
+  });
+
+  it('increments the attempt counter across reject cycles', async () => {
+    const fn = makeGateExecutor(
+      gateNode('g', [{ expression: { kind: 'literal', value: false }, message: 'no' }]),
+    );
+    const first = await fn({ ...initialState, attempts: { g: 0 } });
+    expect(first.rejectionPayload?.attempt).toBe(1);
+
+    const second = await fn({ ...initialState, attempts: { g: 1 } });
+    expect(second.rejectionPayload?.attempt).toBe(2);
+  });
+
+  it('throws when called with a non-gate node', () => {
+    expect(() =>
+      makeGateExecutor({ id: 'a', kind: 'agent', config: { agent: { id: 'a' } as never } }),
+    ).toThrow(/expected "gate"/);
+  });
+});
+
+// ─── compileFlow integration with gate kind ───────────────────────────────
+
+describe('compileFlow — gate kind (built-in executor)', () => {
+  it('routes via sequence edge when assertions hold', async () => {
+    const calls: string[] = [];
+    const flow: FlowDef = {
+      id: 'gate-pass',
+      nodes: [
+        trigger('t'),
+        agentNode('worker'),
+        {
+          id: 'g',
+          kind: 'gate',
+          config: {
+            assertions: [
+              {
+                expression: { kind: 'jsonpath', path: '$.output' },
+                message: 'worker produced output',
+              },
+            ],
+          },
+        },
+        agentNode('next'),
+      ],
+      edges: [
+        { from: 't', to: 'worker', type: 'sequence' },
+        { from: 'worker', to: 'g', type: 'sequence' },
+        { from: 'g', to: 'next', type: 'sequence' },
+      ],
+    };
+    const executors = new Map<string, NodeExecutor>([
+      [
+        'worker',
+        async () => ({
+          output: 'real-output',
+          lastExit: { nodeId: 'worker', kind: 'success' },
+        }),
+      ],
+      ['next', makeRecorder(calls, 'next')],
+    ]);
+    // Note: NO entry for 'g' — flow-graph's builtinExecutor handles it.
+    const graph = compileFlow({ flow, executors });
+    await graph.invoke(initialState, { configurable: { thread_id: 't' } });
+    expect(calls).toEqual(['next']);
+  });
+
+  it('cycles back via reject edge when an assertion fails; honors maxAttempts', async () => {
+    const calls: string[] = [];
+    const flow: FlowDef = {
+      id: 'gate-reject',
+      nodes: [
+        trigger('t'),
+        agentNode('worker'),
+        {
+          id: 'g',
+          kind: 'gate',
+          config: {
+            assertions: [{ expression: { kind: 'literal', value: false }, message: 'fail' }],
+          },
+        },
+        agentNode('next'),
+      ],
+      edges: [
+        { from: 't', to: 'worker', type: 'sequence' },
+        { from: 'worker', to: 'g', type: 'sequence' },
+        { from: 'g', to: 'next', type: 'sequence' },
+        { from: 'g', to: 'worker', type: 'reject', maxAttempts: 3 },
+      ],
+    };
+    const executors = new Map<string, NodeExecutor>([
+      ['worker', makeRecorder(calls, 'worker')],
+      ['next', makeRecorder(calls, 'next')],
+    ]);
+    const graph = compileFlow({ flow, executors });
+    await expect(graph.invoke(initialState, { configurable: { thread_id: 't' } })).rejects.toThrow(
+      /reject limit/,
+    );
+    expect(calls.filter((c) => c === 'worker').length).toBe(3);
+    expect(calls).not.toContain('next');
   });
 });

@@ -257,11 +257,14 @@ export function compileFlow(opts: CompileFlowOptions) {
     const baseExec =
       // Synthetic approval / suspend nodes carry tag metadata that the
       // executor reads inline; they aren't in the caller-supplied map.
+      // Built-in executors (gate) apply to stateless step kinds that
+      // need no runJob deps — caller can still override by putting an
+      // explicit entry in the executors map.
       isSyntheticApprovalNode(node)
         ? makeApprovalExecutor(node)
         : isSyntheticSuspendNode(node)
           ? makeSuspendExecutor(node)
-          : (executors.get(node.id) ?? defaultExecutor(node.id));
+          : (executors.get(node.id) ?? builtinExecutor(node) ?? defaultExecutor(node.id));
     const wrapped = wrapWithTags(node, baseExec);
     builder.addNode(node.id, wrapped);
   }
@@ -405,6 +408,80 @@ function groupEdgesBySource(edges: readonly Edge[]): Map<string, Edge[]> {
 
 function defaultExecutor(nodeId: string): NodeExecutor {
   return async () => ({ lastExit: { nodeId, kind: 'success' } });
+}
+
+/**
+ * Per-step-kind built-in executor for stateless kinds that need no
+ * external dependencies (no adapter, no broker, no subprocess).
+ *
+ *   - gate: evaluates GateConfig.assertions against state. Emits
+ *     success when ALL hold; reject + RejectionPayload when ANY fails.
+ *
+ * Returns null for kinds that need runJob-supplied executors (agent,
+ * tool, script, subflow) or are no-ops handled elsewhere (trigger).
+ * Caller can still override any built-in by providing an explicit
+ * entry in the executors map.
+ */
+function builtinExecutor(node: TaskStep): NodeExecutor | null {
+  if (node.kind === 'gate') {
+    return makeGateExecutor(node);
+  }
+  return null;
+}
+
+/**
+ * Gate executor — runs all assertions against the current state.
+ *
+ * All pass: returns `{ lastExit: { kind: 'success' } }`. Routing
+ * proceeds via sequence/conditional edges as normal.
+ *
+ * Any fail: returns `{ lastExit: { kind: 'reject' }, rejectionPayload }`
+ * with the failed assertion messages joined into `reason` and the
+ * structured failures listed in `findings`. The router cycles back via
+ * the gate's reject edge (validator restricts reject-source to gate or
+ * approval-tagged nodes) with the attempt counter incrementing on the
+ * gate node's id.
+ *
+ * Empty assertions list: trivially passes. Useful for "always-pass"
+ * gates used as topology placeholders or as documentation of expected
+ * conditions that hold by construction.
+ *
+ * Exported so tests + future tooling (gate-preview UI) can run it
+ * standalone without compiling a full graph.
+ */
+export function makeGateExecutor(node: TaskStep): NodeExecutor {
+  if (node.kind !== 'gate') {
+    throw new Error(`makeGateExecutor: node "${node.id}" has kind "${node.kind}", expected "gate"`);
+  }
+  const config = node.config as {
+    assertions?: ReadonlyArray<{ expression: Expression; message: string }>;
+  };
+  const assertions = config.assertions ?? [];
+  const nodeId = node.id;
+
+  return async (state) => {
+    const failures: Array<{ message: string; expression: Expression }> = [];
+    for (const assertion of assertions) {
+      if (!evalExpression(assertion.expression, state)) {
+        failures.push({ message: assertion.message, expression: assertion.expression });
+      }
+    }
+
+    if (failures.length === 0) {
+      return { lastExit: { nodeId, kind: 'success' } };
+    }
+
+    const attempts = state.attempts[nodeId] ?? 0;
+    return {
+      attempts: { [nodeId]: attempts + 1 },
+      lastExit: { nodeId, kind: 'reject' },
+      rejectionPayload: {
+        reason: failures.map((f) => f.message).join('; '),
+        findings: failures,
+        attempt: attempts + 1,
+      },
+    };
+  };
 }
 
 /**

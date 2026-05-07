@@ -215,12 +215,13 @@ export async function runJob(jobId: string, deps: RunJobDeps): Promise<void> {
       node.kind === 'tool' ||
       node.kind === 'script' ||
       node.kind === 'transform' ||
-      node.kind === 'gate' ||
       node.kind === 'subflow'
     ) {
       // Throw loudly — these step kinds are typed in the catalog but the
       // executor for them is a follow-up. Better to fail fast than to
       // silently no-op and let the graph terminate with phantom success.
+      // gate is intentionally NOT in this list: flow-graph's
+      // builtinExecutor handles it natively (assertion evaluator).
       const kind = node.kind;
       const id = node.id;
       executors.set(id, async () => {
