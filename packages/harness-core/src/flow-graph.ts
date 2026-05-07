@@ -278,14 +278,25 @@ export function compileFlow(opts: CompileFlowOptions) {
     builder.addConditionalEdges(node.id, buildRouter(node.id, out));
   }
 
-  // Step 5: choose checkpointer. Auto-attach MemorySaver when any node
-  // requires interrupt-driven pausing.
-  const needsCheckpointer = flow.nodes.some(
-    (n) => isSyntheticApprovalNode(n) || isSyntheticSuspendNode(n),
-  );
-  const checkpointer = opts.checkpointer ?? (needsCheckpointer ? new MemorySaver() : undefined);
+  // Step 5: attach checkpointer.
+  //
+  // Always attach one (defaulting to MemorySaver) — not just for flows
+  // with Approval/Suspend tags. Reasoning: the steerJob / cancelJob
+  // primitives use graph.updateState() to write to the checkpointer
+  // mid-flight, and operators expect to steer ANY in-flight job, not
+  // only the ones with HITL gates. Without a checkpointer attached,
+  // updateState throws.
+  //
+  // Cost: per-tick checkpoint writes (small for in-process MemorySaver,
+  // ~Map.set). The graph is already cached on deps.graphs for the
+  // lifetime of the job, so the checkpointer adds negligible memory
+  // beyond what we already retain.
+  //
+  // Caller-supplied checkpointer wins, as before — production swaps in
+  // PostgresSaver / SqliteSaver via opts.checkpointer.
+  const checkpointer = opts.checkpointer ?? new MemorySaver();
 
-  return checkpointer ? builder.compile({ checkpointer }) : builder.compile();
+  return builder.compile({ checkpointer });
 }
 
 /**

@@ -94,7 +94,7 @@ describe('compileFlow — topology', () => {
     ]);
 
     const graph = compileFlow({ flow, executors });
-    const result = await graph.invoke(initialState);
+    const result = await graph.invoke(initialState, { configurable: { thread_id: 't' } });
 
     expect(calls).toEqual(['a']);
     expect(result.output).toBe('done');
@@ -125,7 +125,7 @@ describe('compileFlow — topology', () => {
       ['b', makeRecorder(calls, 'b')],
     ]);
     const graph = compileFlow({ flow, executors });
-    await graph.invoke(initialState);
+    await graph.invoke(initialState, { configurable: { thread_id: 't' } });
     expect(calls).toEqual(['a', 'b']);
   });
 
@@ -155,7 +155,7 @@ describe('compileFlow — topology', () => {
       ],
     ]);
     const graph = compileFlow({ flow, executors });
-    const result = await graph.invoke(initialState);
+    const result = await graph.invoke(initialState, { configurable: { thread_id: 't' } });
     expect(result.output).toBe('from-a+from-b');
   });
 });
@@ -196,7 +196,7 @@ describe('compileFlow — conditional edges', () => {
       ['c', makeRecorder(calls, 'c')],
     ]);
     const graph = compileFlow({ flow, executors });
-    await graph.invoke(initialState);
+    await graph.invoke(initialState, { configurable: { thread_id: 't' } });
     // Output is truthy → first conditional matches → b runs, c does not.
     expect(calls).toEqual(['b']);
   });
@@ -223,7 +223,7 @@ describe('compileFlow — conditional edges', () => {
       ['c', makeRecorder(calls, 'c')],
     ]);
     const graph = compileFlow({ flow, executors });
-    await graph.invoke(initialState);
+    await graph.invoke(initialState, { configurable: { thread_id: 't' } });
     expect(calls).toEqual(['a', 'c']);
   });
 });
@@ -248,7 +248,7 @@ describe('compileFlow — error edges', () => {
       ['handler', makeRecorder(calls, 'handler')],
     ]);
     const graph = compileFlow({ flow, executors });
-    await graph.invoke(initialState);
+    await graph.invoke(initialState, { configurable: { thread_id: 't' } });
     // a errored, error edge → handler. b never runs.
     expect(calls).toEqual(['handler']);
   });
@@ -276,7 +276,7 @@ describe('compileFlow — error edges', () => {
     // Invoke may resolve or reject depending on LangGraph internals;
     // either way, b must NOT have run.
     try {
-      await graph.invoke(initialState);
+      await graph.invoke(initialState, { configurable: { thread_id: 't' } });
     } catch {
       // Expected on some runtimes.
     }
@@ -322,7 +322,9 @@ describe('compileFlow — reject edges (cycles)', () => {
     const graph = compileFlow({ flow, executors });
 
     // Reject limit blows up — but worker + gate must have run 3x each.
-    await expect(graph.invoke(initialState)).rejects.toThrow(/reject limit/);
+    await expect(graph.invoke(initialState, { configurable: { thread_id: 't' } })).rejects.toThrow(
+      /reject limit/,
+    );
     expect(calls.filter((c) => c === 'worker').length).toBe(3);
     expect(calls.filter((c) => c === 'gate').length).toBe(3);
   });
@@ -350,7 +352,7 @@ describe('compileFlow — reject edges (cycles)', () => {
       ['escalation', makeRecorder(calls, 'escalation')],
     ]);
     const graph = compileFlow({ flow, executors });
-    await graph.invoke(initialState);
+    await graph.invoke(initialState, { configurable: { thread_id: 't' } });
     expect(calls.filter((c) => c === 'worker').length).toBe(2);
     expect(calls.filter((c) => c === 'gate').length).toBe(2);
     expect(calls).toContain('escalation');
@@ -375,7 +377,7 @@ describe('compileFlow — fallback edges', () => {
       ['catchall', makeRecorder(calls, 'catchall')],
     ]);
     const graph = compileFlow({ flow, executors });
-    await graph.invoke(initialState);
+    await graph.invoke(initialState, { configurable: { thread_id: 't' } });
     expect(calls).toEqual(['a', 'catchall']);
   });
 
@@ -396,7 +398,7 @@ describe('compileFlow — fallback edges', () => {
       ['catchall', makeRecorder(calls, 'catchall')],
     ]);
     const graph = compileFlow({ flow, executors });
-    await graph.invoke(initialState);
+    await graph.invoke(initialState, { configurable: { thread_id: 't' } });
     expect(calls).toEqual(['a', 'next']);
     expect(calls).not.toContain('catchall');
   });
@@ -853,10 +855,13 @@ describe('compileFlow — Loop tag', () => {
     const graph = compileFlow({ flow, executors });
     // Seed initialState.output with an array — the loop tag's path
     // resolves $.output, so this becomes the iterable.
-    const result = (await graph.invoke({
-      ...initialState,
-      output: ['a', 'b', 'c'] as unknown as string,
-    })) as Record<string, unknown>;
+    const result = (await graph.invoke(
+      {
+        ...initialState,
+        output: ['a', 'b', 'c'] as unknown as string,
+      },
+      { configurable: { thread_id: 't' } },
+    )) as Record<string, unknown>;
 
     expect(seenInputs).toEqual(['a', 'b', 'c']);
     expect(result.output).toBe('processed:a\n---\nprocessed:b\n---\nprocessed:c');
@@ -885,10 +890,13 @@ describe('compileFlow — Loop tag', () => {
     ]);
     const graph = compileFlow({ flow, executors });
     try {
-      await graph.invoke({
-        ...initialState,
-        output: ['a', 'b', 'c'] as unknown as string,
-      });
+      await graph.invoke(
+        {
+          ...initialState,
+          output: ['a', 'b', 'c'] as unknown as string,
+        },
+        { configurable: { thread_id: 't' } },
+      );
     } catch {
       // Router may throw; doesn't matter for this assertion.
     }
@@ -905,10 +913,13 @@ describe('compileFlow — Loop tag', () => {
     const executors = new Map<string, NodeExecutor>([['per-item', makeRecorder([], 'per-item')]]);
     const graph = compileFlow({ flow, executors });
     await expect(
-      graph.invoke({
-        ...initialState,
-        output: ['a'] as unknown as string,
-      }),
+      graph.invoke(
+        {
+          ...initialState,
+          output: ['a'] as unknown as string,
+        },
+        { configurable: { thread_id: 't' } },
+      ),
     ).rejects.toThrow(/parallel/);
   });
 
@@ -921,10 +932,13 @@ describe('compileFlow — Loop tag', () => {
     const executors = new Map<string, NodeExecutor>([['per-item', makeRecorder([], 'per-item')]]);
     const graph = compileFlow({ flow, executors });
     await expect(
-      graph.invoke({
-        ...initialState,
-        output: ['a'] as unknown as string,
-      }),
+      graph.invoke(
+        {
+          ...initialState,
+          output: ['a'] as unknown as string,
+        },
+        { configurable: { thread_id: 't' } },
+      ),
     ).rejects.toThrow(/directory/);
   });
 });
