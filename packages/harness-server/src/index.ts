@@ -7,7 +7,9 @@ import {
   type AdapterFactory,
   type AdapterId,
   type AgentDef,
+  type ApprovalRequest,
   type Catalog,
+  type CompiledFlowGraph,
   type Envelope,
   type FlowCatalog,
   findFlow,
@@ -16,7 +18,9 @@ import {
   type JobRecord,
   type RegisteredAgent,
   resolveAccepts,
+  resumeJob,
   runJob,
+  type SuspendRequest,
   TokenAccumulator,
   walkAgents,
 } from '@ecruz165/harness-core';
@@ -34,9 +38,12 @@ export {
   type AdapterFactory,
   type AdapterId,
   type AgentDef,
+  type ApprovalRequest,
+  type ApprovalResume,
   bridgeAdapter,
   type Catalog,
   CatalogError,
+  type CompiledFlowGraph,
   type ContextSourceDef,
   defaultAdapterFactory,
   type Envelope,
@@ -48,7 +55,9 @@ export {
   loadCatalog,
   type ProductDef,
   resolveAccepts,
+  resumeJob,
   runJob,
+  type SuspendRequest,
   validateUnifiedCatalog,
 } from '@ecruz165/harness-core';
 export {
@@ -282,6 +291,9 @@ export async function startHarnessServer(opts: HarnessServerOptions): Promise<Ha
     catalog,
     jobs,
     tokens,
+    graphs: new Map(),
+    pendingApprovals: new Map(),
+    pendingSuspends: new Map(),
     workspaceRoot: opts.workspaceRoot ?? process.cwd(),
     ...(opts.forwardSshAgent !== undefined ? { forwardSshAgent: opts.forwardSshAgent } : {}),
     ...(opts.sshAgentContainerPath ? { sshAgentContainerPath: opts.sshAgentContainerPath } : {}),
@@ -321,6 +333,33 @@ interface ServerCtx {
    *  before the orchestrator fires; mutates JobRecord with per-call
    *  history + running totals. Detached when the job ends. */
   tokens: TokenAccumulator;
+  /**
+   * Per-job compiled-graph cache for resume. runJob populates this when a
+   * flow may pause (Approval / Suspend tags); resumeJob fetches from it
+   * when the HITL endpoint receives a decision. runJob clears the entry
+   * on terminal status — entries here means "this job is paused, holding
+   * a checkpointer reference." MemorySaver-based today; if the
+   * checkpointer becomes durable (Postgres / SQLite) we can drop this
+   * Map entirely and recompile on demand from the FlowDef.
+   */
+  graphs: Map<string, CompiledFlowGraph>;
+  /**
+   * Latest ApprovalRequest per paused job. Populated by the
+   * onAwaitingApproval hook; consumed by GET /v1/jobs/:id/approval so
+   * reviewers can fetch the request payload (assignee role, content
+   * under review, attempt counter) without subscribing to the SSE
+   * stream. Cleared when the job leaves 'awaiting-approval'.
+   */
+  pendingApprovals: Map<string, ApprovalRequest>;
+  /**
+   * Latest SuspendRequest per paused job. Same shape rationale as
+   * pendingApprovals but for Suspend-tagged pauses. The harness-server
+   * doesn't yet schedule wake-ups (cron/event listeners are a separate
+   * slice) — for now this exists so external callers can `GET
+   * /v1/jobs/:id/suspend` to inspect what's blocked, then trigger a
+   * resume manually via POST /v1/jobs/:id/resume.
+   */
+  pendingSuspends: Map<string, SuspendRequest>;
   /** Workspace root for the container path (slice 9d-4). Defaults to
    *  process.cwd() at server start. */
   workspaceRoot: string;
@@ -402,6 +441,35 @@ function route(req: IncomingMessage, res: ServerResponse, ctx: ServerCtx) {
     return;
   }
 
+  // GET /v1/jobs/:id/approval — pending ApprovalRequest payload (for HITL UIs).
+  // 404 when the job has no pending approval. Suspend has its own route.
+  const approvalMatch = req.method === 'GET' && url.match(/^\/v1\/jobs\/([^/]+)\/approval$/);
+  if (approvalMatch) {
+    const id = approvalMatch[1]!;
+    const request = ctx.pendingApprovals.get(id);
+    if (!request) {
+      notFound(res, `no pending approval for job: ${id}`);
+      return;
+    }
+    ok(res, { service, jobId: id, request, ts: new Date().toISOString() });
+    return;
+  }
+
+  // GET /v1/jobs/:id/suspend — pending SuspendRequest payload. Mirrors the
+  // approval route. v1 does NOT auto-schedule wakes — caller (cron, event
+  // handler, or operator) calls POST /v1/jobs/:id/resume manually.
+  const suspendMatch = req.method === 'GET' && url.match(/^\/v1\/jobs\/([^/]+)\/suspend$/);
+  if (suspendMatch) {
+    const id = suspendMatch[1]!;
+    const request = ctx.pendingSuspends.get(id);
+    if (!request) {
+      notFound(res, `no pending suspend for job: ${id}`);
+      return;
+    }
+    ok(res, { service, jobId: id, request, ts: new Date().toISOString() });
+    return;
+  }
+
   let body = '';
   req.on('data', (c) => (body += c.toString()));
   req.on('end', () => {
@@ -414,6 +482,27 @@ function route(req: IncomingMessage, res: ServerResponse, ctx: ServerCtx) {
       // responding. Catch any unhandled rejection so a failure becomes
       // a 500 rather than an unhandled-promise crash.
       handleSubmitJob(res, parsed as Record<string, unknown>, ctx).catch((err: Error) => {
+        if (!res.headersSent) {
+          res.statusCode = 500;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({ error: err.message }));
+        }
+      });
+      return;
+    }
+
+    // POST /v1/jobs/:id/resume — feed a Command({resume}) into the cached
+    // graph. Body shape:
+    //   - For Approval pauses: { decision: 'approve' | 'reject', steering?: ... }
+    //   - For Suspend pauses: any value (resume is just the wake signal)
+    // Responds 200 immediately and runs the resume in the background; the
+    // caller polls GET /v1/jobs/:id (or subscribes to /events) to observe
+    // the next status — completed, failed, or paused-again at another
+    // interrupt.
+    const resumeMatch = req.method === 'POST' ? url.match(/^\/v1\/jobs\/([^/]+)\/resume$/) : null;
+    if (resumeMatch && parsed !== null) {
+      const id = resumeMatch[1]!;
+      handleResumeJob(res, id, parsed, ctx).catch((err: Error) => {
         if (!res.headersSent) {
           res.statusCode = 500;
           res.setHeader('Content-Type', 'application/json');
@@ -519,6 +608,12 @@ async function handleSubmitJob(
   }
 
   let agents: RegisteredAgent[];
+  // Resolved FlowDef for the picked pipeline — attached to the JobRecord
+  // so runJob's graph executor can honor non-linear topology, edge kinds,
+  // and tags. When pipelineId is null (registration-only mode) no flow
+  // is attached and runJob falls back to linearFlowFromAgents at fire
+  // time.
+  let resolvedFlow: ReturnType<typeof findFlow>;
   try {
     if (pipelineId) {
       const pipeline = findFlow(ctx.catalog, pipelineId);
@@ -530,6 +625,7 @@ async function handleSubmitJob(
         );
         return;
       }
+      resolvedFlow = pipeline;
       const flatAgents = [...walkAgents(pipeline)];
       agents = [
         registeredFromDef(COORDINATOR_AGENT, setName),
@@ -562,6 +658,11 @@ async function handleSubmitJob(
     // runEntryCoordinator). Clients reading the response can then see
     // exactly which pipeline got picked.
     ...(pipelineId ? { pipeline: pipelineId } : {}),
+    // Attach the catalog FlowDef so runJob's graph executor honors the
+    // declared topology (Approval gates, conditional edges, reject
+    // cycles, …) instead of synthesizing a flat linear flow from the
+    // agents list. Absent for registration-only submissions.
+    ...(resolvedFlow ? { flow: resolvedFlow } : {}),
     status: 'received',
     submittedAt,
     agents,
@@ -602,6 +703,12 @@ async function handleSubmitJob(
       // (agentId === null). Same hook works for both paths.
       if (agentId === null && (status === 'completed' || status === 'failed')) {
         tokens.detach(jobId);
+        // Clear any leftover pause-state when the job ends (defensive —
+        // runJob already drops the cached graph; pending-request maps
+        // also get explicit cleanup on resume but a final sweep here
+        // catches the failed-after-pause path).
+        ctx.pendingApprovals.delete(jobId);
+        ctx.pendingSuspends.delete(jobId);
       }
     };
     const useContainer = process.env.AGENTX_USE_CONTAINER === '1' && resolver !== undefined;
@@ -671,12 +778,105 @@ async function handleSubmitJob(
         broker,
         adapterFactory,
         resolver,
+        graphs: ctx.graphs,
         onStatusChange: (_jid, agentId, status) => {
           onJobTerminal(agentId, status);
+        },
+        onAwaitingApproval: (jid, request) => {
+          ctx.pendingApprovals.set(jid, request);
+        },
+        onSuspend: (jid, request) => {
+          ctx.pendingSuspends.set(jid, request);
         },
       });
     });
   }
+}
+
+/**
+ * Resume a paused job — feeds the body verbatim into Command({resume}) on
+ * the cached compiled graph. Validates the job exists + is paused; then
+ * fires resumeJob in the background and returns 202-style ack.
+ *
+ * Approval body shape: { decision: 'approve' | 'reject', steering?: ... }
+ * Suspend body shape: any value (the wake signal — payload unused).
+ *
+ * The response always returns immediately. Status transitions land on the
+ * JobBus / GET /v1/jobs/:id; this endpoint just kicks the resume.
+ */
+async function handleResumeJob(
+  res: ServerResponse,
+  jobId: string,
+  body: unknown,
+  ctx: ServerCtx,
+): Promise<void> {
+  const job = ctx.jobs.get(jobId);
+  if (!job) {
+    notFound(res, `job not found: ${jobId}`);
+    return;
+  }
+  if (job.status !== 'awaiting-approval' && job.status !== 'suspended') {
+    badRequest(
+      res,
+      `job "${jobId}" is not paused (status: ${job.status}). Only awaiting-approval / suspended jobs can resume.`,
+    );
+    return;
+  }
+  const broker = ctx.broker;
+  if (!broker) {
+    badRequest(res, 'cannot resume — no credential broker configured on this server');
+    return;
+  }
+
+  const wasApproval = job.status === 'awaiting-approval';
+  // Clear the pending payload immediately — once we kick resumeJob, the
+  // graph leaves the awaiting state and the cached request is stale.
+  // resumeJob may surface a NEW request via the same hooks if the flow
+  // pauses again at a downstream interrupt.
+  ctx.pendingApprovals.delete(jobId);
+  ctx.pendingSuspends.delete(jobId);
+
+  // Re-attach the token accumulator before resuming. Detach happens via
+  // onStatusChange when the job hits a terminal state — same as runJob.
+  ctx.tokens.attach(ctx.bus, jobId);
+
+  ok(res, {
+    service: 'harness',
+    method: 'POST',
+    path: `/v1/jobs/${jobId}/resume`,
+    body,
+    job,
+    accepted: wasApproval ? 'approval' : 'suspend',
+    ts: new Date().toISOString(),
+  });
+
+  const resolver = ctx.resolver;
+  const adapterFactory = ctx.adapterFactory;
+  const tokens = ctx.tokens;
+  const onJobTerminal = (agentId: string | null, status: string) => {
+    if (agentId === null && (status === 'completed' || status === 'failed')) {
+      tokens.detach(jobId);
+      ctx.pendingApprovals.delete(jobId);
+      ctx.pendingSuspends.delete(jobId);
+    }
+  };
+  queueMicrotask(() => {
+    void resumeJob(jobId, body, {
+      jobs: ctx.jobs,
+      bus: ctx.bus,
+      broker,
+      adapterFactory,
+      resolver,
+      graphs: ctx.graphs,
+      onStatusChange: (_jid, agentId, status) => onJobTerminal(agentId, status),
+      onAwaitingApproval: (jid, request) => {
+        ctx.pendingApprovals.set(jid, request);
+      },
+      onSuspend: (jid, request) => {
+        ctx.pendingSuspends.set(jid, request);
+      },
+    });
+  });
 }
 
 async function handleSubmitLoaderProductJobs(
