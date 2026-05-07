@@ -1,27 +1,53 @@
 {
   "name": "@ecruz165/workspace",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.0.1",
+  "description": "Procure a new agentx project workspace from the workspace-template — the front door for setting up agent flows on a new product.",
   "type": "module",
-  "main": "src/bin.tsx",
+  "main": "./dist/bin.js",
   "bin": {
-    "agentx-workspace": "src/bin.tsx"
+    "agentx-workspace": "./dist/bin.js"
+  },
+  "files": [
+    "dist",
+    "workspace-template",
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "public"
   },
   "scripts": {
+    "build": "tsup && pnpm copy-template",
+    "copy-template": "rm -rf workspace-template && cp -r ../../workspace-template ./workspace-template",
+    "clean": "rm -rf dist workspace-template",
+    "prepublishOnly": "pnpm build",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
-    "@ecruz165/harness-server": "workspace:*",
     "@opentui/core": "^0.2.2",
     "@opentui/react": "^0.2.2",
-    "commander": "^12.1.0",
-    "react": "^19.0.0",
-    "yaml": "^2.6.0"
+    "react": "^19.0.0"
   },
   "devDependencies": {
+    "@ecruz165/harness-server": "workspace:*",
     "@types/node": "^22.7.0",
     "@types/react": "^19.0.0",
-    "typescript": "^5.6.0"
+    "commander": "^12.1.0",
+    "tsup": "^8.5.1",
+    "typescript": "^5.6.0",
+    "yaml": "^2.6.0"
+  },
+  "keywords": [
+    "agentx",
+    "agent",
+    "workflow",
+    "scaffolding",
+    "cli"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ecruz165/agentx-platform.git",
+    "directory": "packages/workspace-cli"
   }
 }

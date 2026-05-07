@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
 /**
  * agentx-workspace — procure a new agentx project from workspace-template/.
  *
