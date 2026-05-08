@@ -71,8 +71,8 @@ public class AgentxLoadRunner {
     public AgentxLoadRunner(
         Jdbi jdbi,
         ObjectMapper objectMapper,
-        @Value("${agentx.context-loader.command}") List<String> baseCommand,
-        @Value("${agentx.context-loader.working-dir:.}") String workingDir,
+        @Value("${agentx.context-loader.command:bun,packages/context-loader-cli/src/bin.ts}") String baseCommandCsv,
+        @Value("${agentx.context-loader.working-dir:..}") String workingDir,
         @Value("${agentx.neo4j.uri:bolt://localhost:7687}") String neo4jUri,
         @Value("${agentx.neo4j.user:neo4j}") String neo4jUser,
         @Value("${agentx.neo4j.password:controlplane}") String neo4jPassword,
@@ -82,7 +82,10 @@ public class AgentxLoadRunner {
     ) {
         this.jdbi = jdbi;
         this.objectMapper = objectMapper;
-        this.baseCommand = baseCommand;
+        this.baseCommand = java.util.Arrays.stream(baseCommandCsv.split(","))
+            .map(String::trim)
+            .filter(s -> !s.isEmpty())
+            .toList();
         this.workingDir = workingDir;
         this.neo4jUri = neo4jUri;
         this.neo4jUser = neo4jUser;
@@ -91,7 +94,7 @@ public class AgentxLoadRunner {
         this.embedderModel = embedderModel;
         this.embedderDim = embedderDim;
         log.info("AgentxLoadRunner configured: command={} cwd={} neo4j={} embedder={}",
-            baseCommand, workingDir, neo4jUri, embedderUrl);
+            this.baseCommand, workingDir, neo4jUri, embedderUrl);
     }
 
     /**
