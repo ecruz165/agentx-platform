@@ -8,22 +8,13 @@ spring:
     virtual:
       enabled: true
 
-  # Datasource: defaults match compose.yaml below.
-  # `spring-boot-docker-compose` auto-injects matching values when compose is running locally.
-  datasource:
-    url: jdbc:postgresql://localhost:5432/controlplane
-    username: controlplane
-    password: controlplane
-    driver-class-name: org.postgresql.Driver
-
-  jpa:
-    hibernate:
-      ddl-auto: validate   # Flyway owns schema; JPA only validates entity ↔ schema agreement
-    open-in-view: false
-    properties:
-      hibernate:
-        jdbc.time_zone: UTC
-        format_sql: false
+  # Datasource: not configured here so that auto-config picks the right source per environment.
+  # Priority chain (Spring Boot resolves first match):
+  #   1. SPRING_DATASOURCE_URL env var → external Postgres (production)
+  #   2. spring-boot-docker-compose detects a postgres service in compose.yaml → uses it
+  #   3. Neither → core/config/EmbeddedPostgresConfig spawns embedded Postgres (default for local dev)
+  #
+  # To force-disable embedded Postgres: set agentx.embedded-postgres.enabled=false
 
   flyway:
     enabled: true
@@ -31,9 +22,9 @@ spring:
     baseline-on-migrate: true
     schemas: public
 
-  # Spring Modulith: persist published events to Postgres (durable in-process eventing).
-  # Phase 0 compromise: Modulith auto-creates its own event_publication table; full
-  # Flyway ownership of this schema is deferred to Phase 1 (per prd-core-module.md F16).
+  # Spring Modulith eventing: JDBC variant (NOT JPA) — uses raw SQL DDL ships in
+  # spring-modulith-starter-jdbc. Schema auto-applied at startup; Flyway owns
+  # everything else (per prd-core-module.md F16).
   modulith:
     events:
       jdbc:
