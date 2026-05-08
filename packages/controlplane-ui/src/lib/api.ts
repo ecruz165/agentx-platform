@@ -89,6 +89,31 @@ export const jobs = {
   cancel: (id: string) => request<Job>(`/api/jobs/${id}/cancel`, { method: "POST" }),
 };
 
+// ── Benchmarks ────────────────────────────────────────────────────────
+
+export interface BenchmarkRunSummary {
+  runId: string;
+  label?: string;
+  total: number;
+  completed: number;
+  failed: number;
+  inFlight: number;
+  cancelled: number;
+  p50LatencyMs: number;
+  p95LatencyMs: number;
+  successRate: number;
+  scored: number;
+  avgScore?: number | null;
+  p50Score?: number | null;
+}
+
+export const benchmarks = {
+  compare: (runIds: string[]) =>
+    request<BenchmarkRunSummary[]>(
+      `/api/benchmarks/compare?runIds=${encodeURIComponent(runIds.join(","))}`,
+    ),
+};
+
 // ── Catalog ───────────────────────────────────────────────────────────
 
 export interface Flow {

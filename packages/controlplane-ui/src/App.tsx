@@ -4,6 +4,7 @@ import IntakePage from "./pages/Intake";
 import SessionsPage from "./pages/Sessions";
 import JobsPage from "./pages/Jobs";
 import CatalogPage from "./pages/Catalog";
+import BenchmarksPage from "./pages/Benchmarks";
 
 export default function App() {
   return (
@@ -15,6 +16,7 @@ export default function App() {
         <Route path="/sessions" element={<SessionsPage />} />
         <Route path="/jobs" element={<JobsPage />} />
         <Route path="/catalog" element={<CatalogPage />} />
+        <Route path="/benchmarks" element={<BenchmarksPage />} />
       </Routes>
     </NavShell>
   );
