@@ -13,6 +13,7 @@
  */
 
 import { Command } from 'commander';
+import { runBuildWorker } from './build-worker.ts';
 import { runSetup } from './setup.ts';
 import { runStart } from './start.ts';
 import { runTmux } from './tmux.ts';
@@ -53,9 +54,21 @@ program
     '--remote-controlplane <url>',
     'point harness at a hosted controlplane (skips local central-data + controlplane); only edge-server + harness-server come up locally',
   )
+  .option('--rebuild-worker', 'force rebuild of the per-job worker devcontainer image (default: skip when present)')
+  .option('--skip-worker', 'skip building the worker devcontainer image entirely')
   .option('--platform-root <dir>', 'override the agentx-platform repo root (env: AGENTX_PLATFORM_ROOT)')
   .action(async (opts) => {
     await runStart(opts);
+  });
+
+program
+  .command('build-worker')
+  .description('build (or rebuild) the per-job worker devcontainer image (agentx/worker:dev)')
+  .option('--force', 'rebuild even if the image already exists locally')
+  .option('--tag <tag>', 'override the image tag (default: agentx/worker:dev)')
+  .option('--platform-root <dir>', 'override the agentx-platform repo root (env: AGENTX_PLATFORM_ROOT)')
+  .action(async (opts) => {
+    await runBuildWorker(opts);
   });
 
 program

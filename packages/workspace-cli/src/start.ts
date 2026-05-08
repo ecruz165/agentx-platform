@@ -20,6 +20,7 @@
 import { type ChildProcess, spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
+import { runBuildWorker } from './build-worker.ts';
 
 export type EmbedderVariant =
   | 'qwen-0.6b'
@@ -42,6 +43,16 @@ export interface StartOptions {
    * you only want the laptop-side edge containers.
    */
   remoteControlplane?: string;
+  /**
+   * Force-rebuild the worker devcontainer image even if it already
+   * exists locally. Default: skip rebuild when present.
+   */
+  rebuildWorker?: boolean;
+  /**
+   * Skip the worker image build entirely. Useful when you already have
+   * agentx/worker:dev present and want a faster start.
+   */
+  skipWorker?: boolean;
 }
 
 const VALID_VARIANTS: EmbedderVariant[] = [
@@ -108,6 +119,18 @@ export async function runStart(opts: StartOptions): Promise<void> {
   ];
 
   await runDocker(args, composeDir, envOverrides);
+
+  // Pre-build the per-job worker devcontainer image (build-once-locally
+  // pattern). Each job's devcontainer references agentx/worker:dev
+  // rather than rebuilding from workspace-template/.devcontainer/worker/
+  // Dockerfile every time. Idempotent: skips when the image already exists.
+  if (!opts.skipWorker) {
+    console.log('');
+    await runBuildWorker({
+      force: opts.rebuildWorker,
+      platformRoot: opts.platformRoot,
+    });
+  }
 
   console.log('');
   console.log('[workspace] up; tail logs with:');
