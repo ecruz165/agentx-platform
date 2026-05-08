@@ -1,0 +1,15 @@
+@import "tailwindcss";
+
+/* Hero UI v3 plugin — wires the component theme into Tailwind v4. */
+@plugin "./hero.ts";
+
+/* Hero UI dark theme reads from the `.dark` class on <html>. The
+   index.html ships with class="dark" by default — desktop-admin-UI
+   convention favors dark for long-look monitoring views. */
+
+@source "../node_modules/@heroui";
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+}
