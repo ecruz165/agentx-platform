@@ -1,0 +1,30 @@
+# Remote-controlplane overlay — when controlplane (and central-data + UI)
+# are hosted elsewhere, only the local-edge pieces (edge-server,
+# harness-server) run on the user's machine. The harness reports to the
+# remote controlplane via CONTROLPLANE_URL (set in env or .env).
+#
+# Required env (gitignored .env at the workspace root, or shell):
+#   CONTROLPLANE_URL=https://controlplane.prod.example.com
+#
+# Optional:
+#   AGENTX_ORG_ID=acme-prod          # tenant to register against
+#   HARNESS_ID=daisys-laptop         # stable id for repeat-restarts
+#   HARNESS_REGION=us-east-1
+#
+# Activate:
+#   workspace start --remote-controlplane    # local edge + harness only
+#   docker compose -f compose.yaml -f compose.qwen-0.6b.yaml \
+#                  -f compose.remote-controlplane.yaml up -d edge-server harness-server
+#
+# (The base compose.yaml's central-data and controlplane services aren't
+# brought up — only edge-server + harness-server are explicitly listed.)
+
+services:
+  harness-server:
+    environment:
+      CONTROLPLANE_URL: ${CONTROLPLANE_URL:?CONTROLPLANE_URL is required for the remote-controlplane variant (e.g. https://controlplane.prod.example.com)}
+    # The base compose pinned depends_on: controlplane: service_healthy
+    # — drop it because we're not bringing the local controlplane up.
+    depends_on:
+      edge-server:
+        condition: service_healthy

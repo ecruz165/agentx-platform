@@ -126,11 +126,23 @@ services:
     environment:
       HARNESS_SOCKET: /run/harness/harness.sock
       EDGE_SOCKETS_DIR: /run/edge
-      # Catalog source — the controlplane HTTP API, reached via compose
-      # service-name DNS. AGENTX_ORG_ID picks which tenant's catalog to
-      # load. Phase 7 swaps to a system-token-scoped endpoint.
-      CONTROLPLANE_URL: http://controlplane:8080
+      # Catalog source — the controlplane HTTP API. Default is compose
+      # service-name DNS for the local-everything case; override
+      # CONTROLPLANE_URL to point at a hosted controlplane (e.g.,
+      # https://controlplane.prod.example.com) for hybrid setups
+      # where the harness is local but the controlplane is deployed.
+      # AGENTX_ORG_ID picks which tenant's catalog to load. Phase 7
+      # swaps to a system-token-scoped endpoint.
+      CONTROLPLANE_URL: ${CONTROLPLANE_URL:-http://controlplane:8080}
       AGENTX_ORG_ID: ${AGENTX_ORG_ID:-dev-org}
+      # Self-register with controlplane's HarnessRegistry on startup +
+      # heartbeat every HARNESS_HEARTBEAT_INTERVAL_MS. HARNESS_ID needs
+      # to be stable across restarts so the controlplane doesn't
+      # accumulate stale rows.
+      HARNESS_ID: ${HARNESS_ID:-harness-local-dev}
+      HARNESS_NAME: ${HARNESS_NAME:-harness-local-dev}
+      HARNESS_REGION: ${HARNESS_REGION:-local}
+      HARNESS_HEARTBEAT_INTERVAL_MS: "30000"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock     # DooD
       - edge-sockets:/run/edge:ro                     # reach edge-context + edge-memory

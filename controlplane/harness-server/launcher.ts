@@ -89,10 +89,92 @@ const harnessSrv = await startHarnessServer({
 
 console.log(`[harness-server] listening on ${harnessSocket}`);
 console.log(`[harness-server] edge sockets: ${process.env.EDGE_SOCKETS_DIR ?? '/run/edge'}`);
+
+// ── Self-register with controlplane's HarnessRegistry ────────────────
+// POST /api/registry/harnesses; save sessionToken; loop heartbeats every
+// HARNESS_HEARTBEAT_INTERVAL_MS (default 30 s). On shutdown we stop the
+// heartbeat loop but don't deregister — the controlplane marks stale
+// harnesses based on heartbeat timestamps. Phase 7 auth replaces the
+// opaque sessionToken with a signed/scoped one; same RPC shape.
+const harnessId = process.env.HARNESS_ID ?? `harness-${Bun.env.HOSTNAME ?? 'local'}`;
+const harnessName = process.env.HARNESS_NAME ?? harnessId;
+const harnessRegion = process.env.HARNESS_REGION ?? 'local';
+const harnessVersion = process.env.HARNESS_VERSION ?? '0.1.0';
+const heartbeatIntervalMs = Number(process.env.HARNESS_HEARTBEAT_INTERVAL_MS ?? 30000);
+const registerEnabled = (process.env.HARNESS_REGISTER ?? 'true').toLowerCase() !== 'false';
+
+let sessionToken: string | null = null;
+let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+
+async function registerWithControlplane(): Promise<void> {
+  const body = {
+    id: harnessId,
+    name: harnessName,
+    version: harnessVersion,
+    region: harnessRegion,
+    capabilities: { adapters: ['claude-sdk'] },
+    endpoints: { rpc: harnessSocket },
+  };
+  const res = await fetch(`${controlplaneUrl}/api/registry/harnesses`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Org-Id': orgId,
+    },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`register failed: ${res.status} ${text.slice(0, 200)}`);
+  }
+  const data = (await res.json()) as { harnessId: string; sessionToken: string };
+  sessionToken = data.sessionToken;
+  console.log(`[harness-server] registered with controlplane: harnessId=${data.harnessId}`);
+}
+
+async function sendHeartbeat(): Promise<void> {
+  if (!sessionToken) return;
+  try {
+    const res = await fetch(`${controlplaneUrl}/api/registry/heartbeat`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Org-Id': orgId,
+      },
+      body: JSON.stringify({
+        harnessId,
+        sessionToken,
+        currentLoad: 0,
+        healthOk: true,
+      }),
+    });
+    if (!res.ok) {
+      console.warn(`[harness-server] heartbeat ${res.status} — may need re-register`);
+    }
+  } catch (err) {
+    console.warn(`[harness-server] heartbeat error: ${(err as Error).message}`);
+  }
+}
+
+if (registerEnabled) {
+  try {
+    await registerWithControlplane();
+    heartbeatTimer = setInterval(sendHeartbeat, heartbeatIntervalMs);
+    console.log(`[harness-server] heartbeat loop every ${heartbeatIntervalMs}ms`);
+  } catch (err) {
+    console.warn(
+      `[harness-server] register failed (continuing without registry): ${(err as Error).message}`,
+    );
+  }
+} else {
+  console.log('[harness-server] HARNESS_REGISTER=false — skipping controlplane registration');
+}
+
 console.log('[harness-server] ready; SIGTERM to stop');
 
 const shutdown = async () => {
   console.log('[harness-server] shutdown…');
+  if (heartbeatTimer) clearInterval(heartbeatTimer);
   await harnessSrv.stop().catch(() => {});
   process.exit(0);
 };

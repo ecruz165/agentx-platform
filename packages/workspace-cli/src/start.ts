@@ -35,6 +35,13 @@ export interface StartOptions {
   platformRoot?: string;
   /** Skip detached mode; tail logs after up. */
   follow?: boolean;
+  /**
+   * When set, the local stack runs only edge-server + harness-server,
+   * and harness-server reports to the controlplane URL provided here.
+   * Useful when the controlplane is hosted (prod / shared-team) and
+   * you only want the laptop-side edge containers.
+   */
+  remoteControlplane?: string;
 }
 
 const VALID_VARIANTS: EmbedderVariant[] = [
@@ -57,6 +64,7 @@ export async function runStart(opts: StartOptions): Promise<void> {
   const composeDir = join(root, 'controlplane');
   const baseFile = join(composeDir, 'compose.yaml');
   const overlayFile = join(composeDir, `compose.${variant}.yaml`);
+  const remoteOverlayFile = join(composeDir, 'compose.remote-controlplane.yaml');
 
   if (!existsSync(baseFile)) {
     console.error(`error: ${baseFile} not found.`);
@@ -68,20 +76,38 @@ export async function runStart(opts: StartOptions): Promise<void> {
     process.exit(2);
   }
 
-  console.log(`[workspace] starting platform (embedder=${variant})…`);
-  console.log(`[workspace] compose: -f ${baseFile} -f ${overlayFile}`);
+  const composeFiles = [baseFile, overlayFile];
+  let services: string[] = [];          // empty = "all in compose"
+  let envOverrides: NodeJS.ProcessEnv = {};
+
+  if (opts.remoteControlplane) {
+    if (!existsSync(remoteOverlayFile)) {
+      console.error(`error: ${remoteOverlayFile} not found.`);
+      process.exit(2);
+    }
+    composeFiles.push(remoteOverlayFile);
+    // Bring up only the laptop-side services; central-data + controlplane
+    // are remote.
+    services = ['edge-server', 'harness-server'];
+    envOverrides.CONTROLPLANE_URL = opts.remoteControlplane;
+    console.log(
+      `[workspace] starting (embedder=${variant}, remote controlplane=${opts.remoteControlplane})…`,
+    );
+  } else {
+    console.log(`[workspace] starting platform (embedder=${variant})…`);
+  }
+
+  console.log(`[workspace] compose: ${composeFiles.map((f) => `-f ${f}`).join(' ')}`);
 
   const args = [
     'compose',
-    '-f',
-    baseFile,
-    '-f',
-    overlayFile,
+    ...composeFiles.flatMap((f) => ['-f', f]),
     'up',
     '-d',
+    ...services,
   ];
 
-  await runDocker(args, composeDir);
+  await runDocker(args, composeDir, envOverrides);
 
   console.log('');
   console.log('[workspace] up; tail logs with:');
@@ -98,11 +124,15 @@ function resolveRoot(override?: string): string {
   return process.cwd();
 }
 
-function runDocker(args: string[], cwd: string): Promise<void> {
+function runDocker(
+  args: string[],
+  cwd: string,
+  envOverrides: NodeJS.ProcessEnv = {},
+): Promise<void> {
   return new Promise<void>((resolve, reject) => {
     const child: ChildProcess = spawn('docker', args, {
       cwd,
-      env: process.env,
+      env: { ...process.env, ...envOverrides },
       stdio: 'inherit',
     });
     child.on('exit', (code) => {

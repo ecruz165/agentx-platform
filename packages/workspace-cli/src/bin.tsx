@@ -49,6 +49,10 @@ program
     'embedder variant: qwen-0.6b | qwen-4b | qwen-8b | openai | bedrock',
     'qwen-0.6b',
   )
+  .option(
+    '--remote-controlplane <url>',
+    'point harness at a hosted controlplane (skips local central-data + controlplane); only edge-server + harness-server come up locally',
+  )
   .option('--platform-root <dir>', 'override the agentx-platform repo root (env: AGENTX_PLATFORM_ROOT)')
   .action(async (opts) => {
     await runStart(opts);
