@@ -35,6 +35,7 @@ import {
   type SummarizeFn,
 } from './consolidate.ts';
 import { IdleThrottle, type IdleThrottleOptions } from './idle-throttle.ts';
+import { type InspectInput, inspect } from './inspect.ts';
 import { Metrics, opForPath } from './metrics.ts';
 import { InMemorySnapshotStore, type SnapshotStore } from './snapshot.ts';
 import {
@@ -323,6 +324,18 @@ function dispatchV1(
       handleRestore(res, store, audit, snapshots, parsed).catch((e: Error) =>
         serverError(res, e.message),
       );
+    });
+    return;
+  }
+
+  // POST /v1/memory/inspect — body { scope?, showLineage? }. PRD F37.
+  if (req.method === 'POST' && url === '/v1/memory/inspect') {
+    consumeJsonBody(req, (parsed, err) => {
+      if (err) {
+        badRequest(res, err);
+        return;
+      }
+      handleInspect(res, store, parsed).catch((e: Error) => serverError(res, e.message));
     });
     return;
   }
@@ -672,6 +685,32 @@ async function handleTag(
   } catch (err) {
     badRequest(res, (err as Error).message);
   }
+}
+
+/**
+ * PRD F37 — inspect surface. Composes the existing query interface
+ * + JS aggregation (cap ~1M entries per PRD §5; SQL GROUP BY is a
+ * v1.x optimization).
+ */
+async function handleInspect(
+  res: ServerResponse,
+  store: MemoryStore,
+  body: unknown,
+): Promise<void> {
+  const input: InspectInput = {};
+  if (isObject(body)) {
+    const b = body as Record<string, unknown>;
+    if (isScope(b.scope)) input.scope = b.scope as MemoryScope;
+    if (b.showLineage === true) input.showLineage = true;
+  }
+  const result = await inspect(input, store);
+  ok(res, {
+    service: 'memory',
+    method: 'POST',
+    path: '/v1/memory/inspect',
+    result,
+    ts: new Date().toISOString(),
+  });
 }
 
 /**
@@ -1046,6 +1085,12 @@ export {
   IdleThrottle,
   type IdleThrottleOptions,
 } from './idle-throttle.ts';
+export {
+  type InspectInput,
+  type InspectResult,
+  type InspectScopeBreakdown,
+  inspect,
+} from './inspect.ts';
 export { type MetricOp, Metrics, opForPath } from './metrics.ts';
 export {
   InMemorySnapshotStore,

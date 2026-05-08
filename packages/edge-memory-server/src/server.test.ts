@@ -526,6 +526,68 @@ describe('edge-memory-server HTTP routes', () => {
   });
 });
 
+describe('POST /v1/memory/inspect (PRD F37)', () => {
+  const cleanups: Array<() => Promise<void>> = [];
+  afterEach(async () => {
+    for (const c of cleanups.splice(0)) await c();
+  });
+
+  it('returns feedback + scope breakdown', async () => {
+    const socketPath = tmpSocket();
+    const handle = await startMemoryServer({ socketPath });
+    cleanups.push(async () => {
+      await handle.stop();
+      await rm(socketPath, { force: true });
+    });
+
+    await udsJson(socketPath, 'POST', '/v1/memory/put', {
+      key: 'a',
+      value: 'A',
+      scope: { jobId: 'j1' },
+    });
+    await udsJson(socketPath, 'POST', '/v1/memory/tag', { key: 'a', feedback: 'positive' });
+    await udsJson(socketPath, 'POST', '/v1/memory/put', {
+      key: 'b',
+      value: 'B',
+      scope: { jobId: 'j2' },
+    });
+
+    const r = await udsJson(socketPath, 'POST', '/v1/memory/inspect', {});
+    expect(r.status).toBe(200);
+    expect(r.body.result.totalEntries).toBe(2);
+    expect(r.body.result.byFeedback).toEqual({ positive: 1, negative: 0, unconfirmed: 1 });
+    expect(r.body.result.byScope.jobIds).toEqual({ j1: 1, j2: 1 });
+  });
+
+  it('showLineage=true surfaces per-entry consolidation lineage', async () => {
+    const socketPath = tmpSocket();
+    const handle = await startMemoryServer({ socketPath });
+    cleanups.push(async () => {
+      await handle.stop();
+      await rm(socketPath, { force: true });
+    });
+
+    await udsJson(socketPath, 'POST', '/v1/memory/put', {
+      key: 'plan',
+      value: 'A',
+      scope: { jobId: 'j1' },
+    });
+    await udsJson(socketPath, 'POST', '/v1/memory/tag', { key: 'plan', feedback: 'positive' });
+    await udsJson(socketPath, 'POST', '/v1/memory/consolidate', {
+      from: { scope: { jobId: 'j1' } },
+      to: { scope: { productId: 'web' } },
+    });
+
+    const r = await udsJson(socketPath, 'POST', '/v1/memory/inspect', {
+      scope: { productId: 'web' },
+      showLineage: true,
+    });
+    expect(r.body.result.lineage).toHaveLength(1);
+    expect(r.body.result.lineage[0].consolidatedBy).toBe('rule');
+    expect(r.body.result.lineage[0].consolidatedFromScope).toEqual({ jobId: 'j1' });
+  });
+});
+
 describe('POST /v1/memory/snapshot + restore (PRD F5)', () => {
   const cleanups: Array<() => Promise<void>> = [];
   afterEach(async () => {

@@ -41,6 +41,7 @@ npm install -g @ecruz165/edge-memory-cli
 | `cleanup` | Delete unconfirmed entries within `--scope` (PRD F19). Job-end residual pruning — labeled positive/negative entries are preserved. |
 | `snapshot` | Capture entries matching `--scope` into a snapshot (PRD F5). Returns the snapshotId. |
 | `restore` | Restore a snapshot by `--snapshot <id>`. `--merge` to keep existing entries (default replaces). |
+| `inspect` | Aggregate breakdown of contents (PRD F37). Optional `--scope`, `--show-lineage`. Human + `--json` formats. |
 | `health` | Probe the daemon for state + backend + entry count. |
 
 Run `edge-memory --help` for the canonical list.

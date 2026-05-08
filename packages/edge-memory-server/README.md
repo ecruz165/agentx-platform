@@ -38,6 +38,7 @@ POST /v1/memory/consolidate       body: ConsolidateInput (PRD F14/F15); promote 
 POST /v1/memory/cleanup-unconfirmed  body: { scope }; delete unconfirmed entries (PRD F19; job-end residual cleanup)
 POST /v1/memory/snapshot          body: { scope }; capture entries → { snapshotId, count } (PRD F5)
 POST /v1/memory/restore           body: { snapshotId, mode? }; mode: 'replace' (default) | 'merge'
+POST /v1/memory/inspect           body: { scope?, showLineage? }; aggregate breakdown (PRD F37)
 POST /v1/audit                    body: optional AuditLogQuery; response: { events, count }
 ```
 
@@ -163,7 +164,6 @@ Tracked in PRD; not yet implemented:
 - LLM-driven `feedback-summarize` strategy ships with a placeholder
   summarizer (concatenation); production wires Anthropic Messages
   client via the `summarize` option on `startMemoryServer`
-- `inspect` CLI subcommand
 - `--workspace` flag (F27)
 
 ## Tests

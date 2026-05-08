@@ -157,6 +157,7 @@ Commands:
   cleanup   Delete unconfirmed entries within --scope (PRD F19; job-end pruning)
   snapshot  Capture entries matching --scope into a snapshot (PRD F5)
   restore   Restore a snapshot by --snapshot <id> (mode: --replace [default] or --merge)
+  inspect   Scope-summary breakdown (PRD F37). Optional --scope, --show-lineage.
   health    Server health probe
 
 Global flags:
@@ -192,6 +193,8 @@ Examples:
   edge-memory cleanup --scope jobId:job_42
   edge-memory snapshot --scope sessionId:abc-123
   edge-memory restore --snapshot snap_123 --merge
+  edge-memory inspect
+  edge-memory inspect --scope productId:web --show-lineage
   edge-memory health --json
 `;
 
@@ -248,6 +251,8 @@ export async function run(io: RunIO): Promise<number> {
         return await cmdSnapshot(parsed, socket, json, stdout, stderr);
       case 'restore':
         return await cmdRestore(parsed, socket, json, stdout, stderr);
+      case 'inspect':
+        return await cmdInspect(parsed, socket, json, stdout);
       case 'health':
         return await cmdHealth(socket, json, stdout);
       default:
@@ -773,6 +778,54 @@ async function cmdRestore(
   } else {
     stdout(`restored ${result.restored} entries from ${result.snapshotId} (mode=${result.mode})\n`);
   }
+  return 0;
+}
+
+async function cmdInspect(
+  parsed: ParsedArgs,
+  socket: string,
+  json: boolean,
+  stdout: (s: string) => void,
+): Promise<number> {
+  const body: Record<string, unknown> = {};
+  if (Object.keys(parsed.scope).length > 0) body.scope = parsed.scope;
+  if (parsed.flags['show-lineage'] === true) body.showLineage = true;
+  const r = await udsJson<Record<string, unknown>>(socket, 'POST', '/v1/memory/inspect', body);
+  const result = r.body.result as {
+    totalEntries: number;
+    byFeedback: { positive: number; negative: number; unconfirmed: number };
+    byScope: Record<string, Record<string, number>>;
+    lineage?: Array<Record<string, unknown>>;
+  };
+  if (json) {
+    stdout(`${JSON.stringify(result)}\n`);
+    return 0;
+  }
+  // Human format: top-line + feedback breakdown + non-empty scope groups + lineage table.
+  const lines: string[] = [];
+  lines.push(`total: ${result.totalEntries}`);
+  lines.push(
+    `feedback: +${result.byFeedback.positive} −${result.byFeedback.negative} ?${result.byFeedback.unconfirmed}`,
+  );
+  for (const [group, breakdown] of Object.entries(result.byScope)) {
+    const entries = Object.entries(breakdown);
+    if (entries.length === 0) continue;
+    const inline = entries.map(([k, n]) => `${k}=${n}`).join(', ');
+    lines.push(`${group}: ${inline}`);
+  }
+  if (result.lineage && result.lineage.length > 0) {
+    lines.push('');
+    lines.push('lineage:');
+    for (const e of result.lineage) {
+      const prov = (e.consolidatedBy as string | undefined) ?? '(direct)';
+      const fb = e.feedback as string;
+      const cf = e.consolidatedFromIds as string[] | undefined;
+      lines.push(
+        `  ${e.id} [${e.key}] feedback=${fb} via=${prov}${cf ? ` (from ${cf.length} src)` : ''}`,
+      );
+    }
+  }
+  stdout(`${lines.join('\n')}\n`);
   return 0;
 }
 

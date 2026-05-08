@@ -450,6 +450,57 @@ describe('edge-memory CLI — tag (F18)', () => {
   });
 });
 
+describe('edge-memory CLI — inspect (F37)', () => {
+  const cleanups: Array<() => Promise<void>> = [];
+  afterEach(async () => {
+    for (const c of cleanups.splice(0)) await c();
+  });
+  async function startServer(): Promise<string> {
+    const socketPath = join(tmpdir(), `inspect-cli-${randomUUID().slice(0, 8)}.sock`);
+    const handle = await startMemoryServer({ socketPath });
+    cleanups.push(async () => {
+      await handle.stop();
+      await rm(socketPath, { force: true });
+    });
+    return socketPath;
+  }
+
+  it('inspect prints total + feedback + scope breakdown', async () => {
+    const socket = await startServer();
+    await runCli(['put', 'a', '--value', 'A', '--scope', 'jobId:j1'], socket);
+    await runCli(['put', 'b', '--value', 'B', '--scope', 'jobId:j1'], socket);
+    await runCli(['tag', '--key', 'a', '--feedback', 'positive'], socket);
+
+    const r = await runCli(['inspect'], socket);
+    expect(r.code).toBe(0);
+    expect(r.stdout).toMatch(/total: 2/);
+    expect(r.stdout).toMatch(/feedback: \+1 −0 \?1/);
+    expect(r.stdout).toMatch(/jobIds: j1=2/);
+  });
+
+  it('--json emits raw aggregate', async () => {
+    const socket = await startServer();
+    await runCli(['put', 'a', '--value', 'A'], socket);
+    const r = await runCli(['inspect', '--json'], socket);
+    expect(r.code).toBe(0);
+    const body = JSON.parse(r.stdout);
+    expect(body.totalEntries).toBe(1);
+  });
+
+  it('--show-lineage surfaces per-entry breakdown in human format', async () => {
+    const socket = await startServer();
+    await runCli(['put', 'plan', '--value', 'A', '--scope', 'jobId:j1'], socket);
+    await runCli(['tag', '--key', 'plan', '--feedback', 'positive'], socket);
+    await runCli(['consolidate', '--from', 'jobId:j1', '--to', 'productId:web'], socket);
+
+    const r = await runCli(['inspect', '--scope', 'productId:web', '--show-lineage'], socket);
+    expect(r.code).toBe(0);
+    expect(r.stdout).toContain('lineage:');
+    expect(r.stdout).toMatch(/feedback=positive/);
+    expect(r.stdout).toMatch(/via=rule/);
+  });
+});
+
 describe('edge-memory CLI — snapshot + restore (F5)', () => {
   const cleanups: Array<() => Promise<void>> = [];
   afterEach(async () => {
