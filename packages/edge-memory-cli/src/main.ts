@@ -154,6 +154,7 @@ Commands:
   audit     Read the audit log (filter by --op, --since, --until, --scope, --actor)
   tag       Tag entries positive/negative (--feedback positive|negative; --source ...)
   consolidate  Promote tagged entries from --from <scope> to --to <scope>
+  cleanup   Delete unconfirmed entries within --scope (PRD F19; job-end pruning)
   health    Server health probe
 
 Global flags:
@@ -186,6 +187,7 @@ Examples:
   edge-memory consolidate --from jobId:job_42 --to productId:web
   edge-memory consolidate --from jobId:j --to userId:alice --strategy feedback-summarize
   edge-memory consolidate --from jobId:j --to productId:web --feedback-filter positive --keep-source
+  edge-memory cleanup --scope jobId:job_42
   edge-memory health --json
 `;
 
@@ -236,6 +238,8 @@ export async function run(io: RunIO): Promise<number> {
         return await cmdTag(parsed, socket, json, stdout, stderr);
       case 'consolidate':
         return await cmdConsolidate(parsed, socket, json, stdout, stderr);
+      case 'cleanup':
+        return await cmdCleanup(parsed, socket, json, stdout, stderr);
       case 'health':
         return await cmdHealth(socket, json, stdout);
       default:
@@ -685,6 +689,34 @@ function parseScopeFlag(raw: string): MemoryScope | null {
   const value = raw.slice(colon + 1);
   if (!SCOPE_KEYS.includes(key)) return null;
   return { [key]: value } as MemoryScope;
+}
+
+async function cmdCleanup(
+  parsed: ParsedArgs,
+  socket: string,
+  json: boolean,
+  stdout: (s: string) => void,
+  stderr: (s: string) => void,
+): Promise<number> {
+  if (Object.keys(parsed.scope).length === 0) {
+    stderr('error: --scope is required (e.g., --scope jobId:job_42)\n');
+    return 2;
+  }
+  const r = await udsJson<Record<string, unknown>>(
+    socket,
+    'POST',
+    '/v1/memory/cleanup-unconfirmed',
+    {
+      scope: parsed.scope,
+    },
+  );
+  const result = r.body.result as { deleted: number; deletedIds: string[] };
+  if (json) {
+    stdout(`${JSON.stringify(result)}\n`);
+  } else {
+    stdout(`cleaned up ${result.deleted} unconfirmed entries\n`);
+  }
+  return 0;
 }
 
 async function cmdHealth(

@@ -35,6 +35,7 @@ POST /v1/memory/export            body: optional MemoryQuery; response: text/pla
 POST /v1/memory/import            body: text/plain JSONL; response: { imported, errors: [{line, error}] }
 POST /v1/memory/tag               body: MemoryTagInput (PRD F18); response: { tagged, alreadyTagged, taggedIds }
 POST /v1/memory/consolidate       body: ConsolidateInput (PRD F14/F15); promote feedback-tagged entries from→to scope
+POST /v1/memory/cleanup-unconfirmed  body: { scope }; delete unconfirmed entries (PRD F19; job-end residual cleanup)
 POST /v1/audit                    body: optional AuditLogQuery; response: { events, count }
 ```
 

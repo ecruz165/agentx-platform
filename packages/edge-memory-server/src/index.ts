@@ -275,6 +275,18 @@ function dispatchV1(
     return;
   }
 
+  // POST /v1/memory/cleanup-unconfirmed — body { scope, dryRun? }. PRD F19.
+  if (req.method === 'POST' && url === '/v1/memory/cleanup-unconfirmed') {
+    consumeJsonBody(req, (parsed, err) => {
+      if (err) {
+        badRequest(res, err);
+        return;
+      }
+      handleCleanup(res, store, audit, parsed).catch((e: Error) => serverError(res, e.message));
+    });
+    return;
+  }
+
   // POST /v1/audit — body: optional AuditLogQuery filter. Read-only.
   // Response: { events: AuditEvent[], count }. Newest first.
   if (req.method === 'POST' && url === '/v1/audit') {
@@ -614,6 +626,64 @@ async function handleTag(
       service: 'memory',
       method: 'POST',
       path: '/v1/memory/tag',
+      result,
+      ts: new Date().toISOString(),
+    });
+  } catch (err) {
+    badRequest(res, (err as Error).message);
+  }
+}
+
+/**
+ * PRD F19 — clean up unconfirmed entries within a scope (typically
+ * `{jobId}` at session-end). Composes forget with the new
+ * feedback='unconfirmed' predicate. Returns the same { deleted,
+ * deletedIds } shape as forget.
+ *
+ * Operationally this is "the half of consolidation that doesn't
+ * promote": the residual unlabeled entries that no feedback hook ever
+ * tagged. The PRD's `MEMORY_PRESERVE_UNCONFIRMED` opt-out is enforced
+ * by the caller (don't call this endpoint if you set the env var) —
+ * the daemon doesn't second-guess a deliberate request.
+ */
+async function handleCleanup(
+  res: ServerResponse,
+  store: MemoryStore,
+  audit: AuditLog,
+  body: unknown,
+): Promise<void> {
+  if (!isObject(body)) {
+    badRequest(res, 'body must be a JSON object with at least { scope }');
+    return;
+  }
+  const b = body as Record<string, unknown>;
+  if (!isScope(b.scope)) {
+    badRequest(res, 'body.scope is required and must be a valid MemoryScope object');
+    return;
+  }
+  const scope = b.scope as MemoryScope;
+  if (!Object.values(scope).some((v) => v !== undefined)) {
+    badRequest(
+      res,
+      'body.scope must have at least one set field (refusing global unconfirmed wipe)',
+    );
+    return;
+  }
+  try {
+    const result = await store.forget({ scope, feedback: 'unconfirmed' });
+    if (result.deleted > 0) {
+      await audit.append({
+        op: 'cleanup',
+        actor: resolveActor(),
+        count: result.deleted,
+        entryIds: result.deletedIds,
+        scope,
+      });
+    }
+    ok(res, {
+      service: 'memory',
+      method: 'POST',
+      path: '/v1/memory/cleanup-unconfirmed',
       result,
       ts: new Date().toISOString(),
     });

@@ -450,6 +450,41 @@ describe('edge-memory CLI — tag (F18)', () => {
   });
 });
 
+describe('edge-memory CLI — cleanup (F19)', () => {
+  const cleanups: Array<() => Promise<void>> = [];
+  afterEach(async () => {
+    for (const c of cleanups.splice(0)) await c();
+  });
+  async function startServer(): Promise<string> {
+    const socketPath = join(tmpdir(), `cleanup-${randomUUID().slice(0, 8)}.sock`);
+    const handle = await startMemoryServer({ socketPath });
+    cleanups.push(async () => {
+      await handle.stop();
+      await rm(socketPath, { force: true });
+    });
+    return socketPath;
+  }
+
+  it('cleanup --scope jobId:X — reports unconfirmed count', async () => {
+    const socket = await startServer();
+    await runCli(['put', 'a', '--value', 'A', '--scope', 'jobId:j1'], socket);
+    await runCli(['put', 'b', '--value', 'B', '--scope', 'jobId:j1'], socket);
+    await runCli(['put', 'c', '--value', 'C', '--scope', 'jobId:j1'], socket);
+    await runCli(['tag', '--key', 'a', '--feedback', 'positive'], socket);
+
+    const r = await runCli(['cleanup', '--scope', 'jobId:j1'], socket);
+    expect(r.code).toBe(0);
+    expect(r.stdout).toMatch(/cleaned up 2 unconfirmed/);
+  });
+
+  it('rejects missing --scope (refuses global wipe at the CLI layer)', async () => {
+    const socket = await startServer();
+    const r = await runCli(['cleanup'], socket);
+    expect(r.code).toBe(2);
+    expect(r.stderr).toMatch(/--scope/);
+  });
+});
+
 describe('edge-memory CLI — consolidate (F14/F15)', () => {
   const cleanups: Array<() => Promise<void>> = [];
   afterEach(async () => {

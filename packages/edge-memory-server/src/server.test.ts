@@ -526,6 +526,70 @@ describe('edge-memory-server HTTP routes', () => {
   });
 });
 
+describe('POST /v1/memory/cleanup-unconfirmed (PRD F19)', () => {
+  const cleanups: Array<() => Promise<void>> = [];
+  afterEach(async () => {
+    for (const c of cleanups.splice(0)) await c();
+  });
+
+  it('deletes only unconfirmed entries within scope; positive/negative survive', async () => {
+    const socketPath = tmpSocket();
+    const handle = await startMemoryServer({ socketPath });
+    cleanups.push(async () => {
+      await handle.stop();
+      await rm(socketPath, { force: true });
+    });
+
+    await udsJson(socketPath, 'POST', '/v1/memory/put', {
+      key: 'a',
+      value: 'A',
+      scope: { jobId: 'j1' },
+    });
+    await udsJson(socketPath, 'POST', '/v1/memory/put', {
+      key: 'b',
+      value: 'B',
+      scope: { jobId: 'j1' },
+    });
+    await udsJson(socketPath, 'POST', '/v1/memory/tag', {
+      key: 'a',
+      feedback: 'positive',
+    });
+    // 'b' remains unconfirmed.
+
+    const r = await udsJson(socketPath, 'POST', '/v1/memory/cleanup-unconfirmed', {
+      scope: { jobId: 'j1' },
+    });
+    expect(r.status).toBe(200);
+    expect(r.body.result.deleted).toBe(1);
+
+    const remaining = await udsJson(socketPath, 'POST', '/v1/memory/query', {
+      kind: 'recent',
+      scope: { jobId: 'j1' },
+    });
+    expect(remaining.body.result.entries).toHaveLength(1);
+    expect(remaining.body.result.entries[0].key).toBe('a');
+
+    // Audit logs op=cleanup.
+    const audit = await udsJson(socketPath, 'POST', '/v1/audit', { op: 'cleanup' });
+    expect(audit.body.result.events).toHaveLength(1);
+    expect(audit.body.result.events[0].count).toBe(1);
+  });
+
+  it('rejects empty scope (refuses global wipe)', async () => {
+    const socketPath = tmpSocket();
+    const handle = await startMemoryServer({ socketPath });
+    cleanups.push(async () => {
+      await handle.stop();
+      await rm(socketPath, { force: true });
+    });
+    const r = await udsJson(socketPath, 'POST', '/v1/memory/cleanup-unconfirmed', {
+      scope: {},
+    });
+    expect(r.status).toBe(400);
+    expect(r.body.error).toMatch(/scope/);
+  });
+});
+
 describe('POST /v1/memory/consolidate (PRD F14/F15)', () => {
   const cleanups: Array<() => Promise<void>> = [];
   afterEach(async () => {
