@@ -32,6 +32,7 @@ POST /v1/memory/query             body: MemoryQuery (kind: structured | recent |
 POST /v1/memory/forget            body: MemoryForgetPredicate (at least one of key, scope, olderThan)
 POST /v1/memory/export            body: optional MemoryQuery; response: text/plain JSONL of entries
 POST /v1/memory/import            body: text/plain JSONL; response: { imported, errors: [{line, error}] }
+POST /v1/audit                    body: optional AuditLogQuery; response: { events, count }
 ```
 
 `export` + `import` are the v1 backup / GDPR / migration surface (PRD F26). Roundtrip is lossy on identity (server reissues `id` + `createdAt` for every imported entry) but lossless on content (key, value, scope preserved). Similarity / graph query kinds are rejected for export — those don't have natural "all matching entries" semantics.
@@ -47,12 +48,19 @@ All optional, AND-combined when set. Subset-match: a query with
 `{productId:'web'}` matches entries that have `productId === 'web'`
 regardless of their other scope tags.
 
-## Backends
+## Backends — memory store
 
 | Backend | When to use | Persistence | Similarity |
 |---|---|---|---|
 | `InMemoryMemoryStore` | Tests, dev bringup, environments without sqlite-vec binary | None | ❌ |
 | `SqliteVecMemoryStore` | Production default per PRD F10 | SQLite WAL file | ✅ via vec0 + KNN |
+
+## Backends — audit log
+
+| Backend | When to use | Persistence |
+|---|---|---|
+| `InMemoryAuditLog` | Tests, dev bringup | None |
+| `SqliteAuditLog` | Production. Separate file from the memory store by default — different retention + GDPR carve-outs (audit log is append-only forensics that survives `forget`). | SQLite WAL file |
 
 `InMemoryMemoryStore` returns `kind:'unsupported'` for similarity
 queries. Same observable shape; the CLI surfaces a clear error rather
@@ -60,14 +68,18 @@ than silently returning empty.
 
 ## Production config (env)
 
-`main.ts` selects backend at startup:
+`main.ts` selects backends at startup:
 
 ```bash
-# Backend selection
+# Memory store
 export MEMORY_DB_PATH=/var/lib/agentx/memory.sqlite      # unset → InMemoryMemoryStore
 export MEMORY_VECTOR_DIM=1024                            # default 1024 (qwen3-0.6B)
 export MEMORY_EMBEDDER_URL=http://localhost:12434/engines/llama.cpp/v1
 export MEMORY_EMBEDDER_MODEL=ai/qwen3-embedding:0.6B-F16
+
+# Audit log (PRD F12) — separate file by default; same file works
+# but mixes retention policies.
+export MEMORY_AUDIT_DB_PATH=/var/lib/agentx/memory-audit.sqlite   # unset → InMemoryAuditLog
 
 # Listen address
 export MEMORY_SOCKET_PATH=/root/.harness/run/memory.sock
@@ -133,7 +145,6 @@ per agent invocation).
 Tracked in PRD; not yet implemented:
 
 - Snapshot + restore for session writes (F5)
-- Audit log (F12) — append-only `(timestamp, scope, op, actor)`
 - Prometheus `/metrics` (F13)
 - Idle throttling (F9) — drop embedder + close connections after 10min idle
 - OpenAPI 3.1 auto-gen from Zod schemas (F11)

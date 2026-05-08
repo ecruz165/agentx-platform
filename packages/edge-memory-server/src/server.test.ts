@@ -381,6 +381,112 @@ describe('edge-memory-server HTTP routes', () => {
     }
   });
 
+  it('every put logs one audit event with op=put + scope + entryId', async () => {
+    const socketPath = tmpSocket();
+    const handle = await startMemoryServer({ socketPath });
+    cleanups.push(async () => {
+      await handle.stop();
+      await rm(socketPath, { force: true });
+    });
+
+    await udsJson(socketPath, 'POST', '/v1/memory/put', {
+      key: 'plan',
+      value: 'A',
+      scope: { productId: 'web' },
+    });
+
+    const r = await udsJson(socketPath, 'POST', '/v1/audit', {});
+    expect(r.body.result.events).toHaveLength(1);
+    const ev = r.body.result.events[0];
+    expect(ev.op).toBe('put');
+    expect(ev.count).toBe(1);
+    expect(ev.scope.productId).toBe('web');
+    expect(ev.entryIds).toHaveLength(1);
+    expect(ev.entryIds[0]).toMatch(/^mem_/);
+    expect(ev.actor).toBe('uds:local'); // PRD F33 placeholder
+  });
+
+  it('forget logs one event with the deleted ids; empty-match forgets do NOT', async () => {
+    const socketPath = tmpSocket();
+    const handle = await startMemoryServer({ socketPath });
+    cleanups.push(async () => {
+      await handle.stop();
+      await rm(socketPath, { force: true });
+    });
+
+    await udsJson(socketPath, 'POST', '/v1/memory/put', { key: 'a', value: 'A' });
+    await udsJson(socketPath, 'POST', '/v1/memory/put', { key: 'a', value: 'B' });
+
+    // No-match forget — should NOT generate an audit event.
+    const before = await udsJson(socketPath, 'POST', '/v1/audit', { op: 'forget' });
+    expect(before.body.result.events).toHaveLength(0);
+    await udsJson(socketPath, 'POST', '/v1/memory/forget', { key: 'nonexistent' });
+    const stillEmpty = await udsJson(socketPath, 'POST', '/v1/audit', { op: 'forget' });
+    expect(stillEmpty.body.result.events).toHaveLength(0);
+
+    // Real forget — generates one event.
+    await udsJson(socketPath, 'POST', '/v1/memory/forget', { key: 'a' });
+    const r = await udsJson(socketPath, 'POST', '/v1/audit', { op: 'forget' });
+    expect(r.body.result.events).toHaveLength(1);
+    expect(r.body.result.events[0].count).toBe(2);
+    expect(r.body.result.events[0].entryIds).toHaveLength(2);
+  });
+
+  it('import logs one event with op=import + count + sample ids', async () => {
+    const socketPath = tmpSocket();
+    const handle = await startMemoryServer({ socketPath });
+    cleanups.push(async () => {
+      await handle.stop();
+      await rm(socketPath, { force: true });
+    });
+
+    const jsonl = [
+      JSON.stringify({ key: 'a', value: 'A' }),
+      JSON.stringify({ key: 'b', value: 'B' }),
+      JSON.stringify({ key: 'c', value: 'C' }),
+    ].join('\n');
+    await udsText(socketPath, 'POST', '/v1/memory/import', jsonl);
+
+    const r = await udsJson(socketPath, 'POST', '/v1/audit', { op: 'import' });
+    expect(r.body.result.events).toHaveLength(1);
+    expect(r.body.result.events[0].count).toBe(3);
+    expect(r.body.result.events[0].entryIds).toHaveLength(3);
+  });
+
+  it('audit query filters by op + scope', async () => {
+    const socketPath = tmpSocket();
+    const handle = await startMemoryServer({ socketPath });
+    cleanups.push(async () => {
+      await handle.stop();
+      await rm(socketPath, { force: true });
+    });
+
+    await udsJson(socketPath, 'POST', '/v1/memory/put', {
+      key: 'a',
+      value: 'A',
+      scope: { productId: 'web' },
+    });
+    await udsJson(socketPath, 'POST', '/v1/memory/put', {
+      key: 'b',
+      value: 'B',
+      scope: { productId: 'api' },
+    });
+    await udsJson(socketPath, 'POST', '/v1/memory/forget', {
+      scope: { productId: 'web' },
+    });
+
+    const allPuts = await udsJson(socketPath, 'POST', '/v1/audit', { op: 'put' });
+    expect(allPuts.body.result.events).toHaveLength(2);
+
+    const webOnly = await udsJson(socketPath, 'POST', '/v1/audit', {
+      scope: { productId: 'web' },
+    });
+    // 1 put (web) + 1 forget (web) = 2
+    expect(webOnly.body.result.events).toHaveLength(2);
+    const ops = webOnly.body.result.events.map((e: { op: string }) => e.op).sort();
+    expect(ops).toEqual(['forget', 'put']);
+  });
+
   it('invalid JSON body returns 400', async () => {
     const socketPath = tmpSocket();
     const handle = await startMemoryServer({ socketPath });

@@ -27,6 +27,7 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import type {
+  AuditEvent,
   MemoryForgetResult,
   MemoryQueryResult,
   MemoryScope,
@@ -141,6 +142,7 @@ Commands:
   forget    Delete entries matching a predicate
   export    Stream matching entries as JSONL (one object per line)
   import    Read JSONL from stdin or --in <file>; put each line
+  audit     Read the audit log (filter by --op, --since, --until, --scope, --actor)
   health    Server health probe
 
 Global flags:
@@ -163,6 +165,8 @@ Examples:
   edge-memory export --type recent --limit 100 --out recent.jsonl
   cat backup.jsonl | edge-memory import
   edge-memory import --in backup.jsonl
+  edge-memory audit --op forget --since 2026-05-01T00:00:00Z
+  edge-memory audit --scope userId:alice --limit 50
   edge-memory health --json
 `;
 
@@ -195,6 +199,8 @@ export async function run(io: RunIO): Promise<number> {
         return await cmdExport(parsed, socket, stdout);
       case 'import':
         return await cmdImport(parsed, socket, json, stdout, stderr);
+      case 'audit':
+        return await cmdAudit(parsed, socket, json, stdout);
       case 'health':
         return await cmdHealth(socket, json, stdout);
       default:
@@ -479,6 +485,67 @@ function readStdin(): Promise<string> {
     process.stdin.on('end', () => resolve(buf));
     process.stdin.on('error', reject);
   });
+}
+
+/**
+ * Read the audit log. Filter flags: --op, --since, --until, --actor,
+ * --scope (repeatable), --limit. Output (human): newest first, one
+ * line per event with timestamp + op + count + scope summary.
+ *
+ * Read-only forensic surface — never mutates state. Useful for:
+ *   - Debugging "what got deleted yesterday"
+ *   - Compliance reports for a user/org scope
+ *   - Tracing back from a missing entry to the forget that removed it
+ */
+async function cmdAudit(
+  parsed: ParsedArgs,
+  socket: string,
+  json: boolean,
+  stdout: (s: string) => void,
+): Promise<number> {
+  const body: Record<string, unknown> = {};
+  if (Object.keys(parsed.scope).length > 0) body.scope = parsed.scope;
+  const op = stringFlag(parsed.flags, 'op');
+  if (op) body.op = op;
+  const since = stringFlag(parsed.flags, 'since');
+  if (since) body.since = since;
+  const until = stringFlag(parsed.flags, 'until');
+  if (until) body.until = until;
+  const actor = stringFlag(parsed.flags, 'actor');
+  if (actor) body.actor = actor;
+  const limit = numberFlag(parsed.flags, 'limit');
+  if (limit != null) body.limit = limit;
+
+  const r = await udsJson<{ result: { events: AuditEvent[]; count: number } }>(
+    socket,
+    'POST',
+    '/v1/audit',
+    body,
+  );
+  if (json) {
+    stdout(`${JSON.stringify(r.body.result)}\n`);
+    return 0;
+  }
+  if (r.body.result.events.length === 0) {
+    stdout('(no events)\n');
+    return 0;
+  }
+  const lines: string[] = [];
+  for (const ev of r.body.result.events) {
+    const scopeBits = ev.scope
+      ? Object.entries(ev.scope)
+          .filter(([, v]) => v !== undefined)
+          .map(([k, v]) => `${k}=${v}`)
+          .join(' ')
+      : '';
+    lines.push(
+      `${ev.timestamp}  ${ev.op.padEnd(7)} ` +
+        `count=${ev.count}  ${scopeBits ? `(${scopeBits})  ` : ''}` +
+        `actor=${ev.actor}`,
+    );
+  }
+  stdout(`${lines.join('\n')}\n`);
+  return 0;
 }
 
 async function cmdHealth(

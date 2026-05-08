@@ -35,6 +35,7 @@ npm install -g @ecruz165/edge-memory-cli
 | `forget` | Delete entries by predicate. At least one of `--key`, `--older-than`, `--scope`. |
 | `export` | Stream matching entries as JSONL. Optional: `--type`, `--key`, `--scope`, `--out <file>`. |
 | `import` | Read JSONL from stdin or `--in <file>`; put each line. Reports per-line errors. |
+| `audit` | Read the audit log. Optional: `--op put\|forget\|import`, `--since/--until <iso>`, `--actor`, `--scope`, `--limit`. |
 | `health` | Probe the daemon for state + backend + entry count. |
 
 Run `edge-memory --help` for the canonical list.
@@ -101,6 +102,50 @@ on it); per-line errors print to stderr.
 
 `export` rejects similarity / graph query kinds with 400 — those don't
 have natural "all matching entries" semantics.
+
+## audit — append-only forensics
+
+Read-only forensic surface — never mutates state. Every put / forget / import
+on the server appends one event with timestamp, op, scope, count, and a
+sample of entryIds.
+
+```sh
+# Last 100 events (newest first)
+edge-memory audit
+
+# Filter by operation
+edge-memory audit --op forget
+edge-memory audit --op import
+
+# Time range
+edge-memory audit --since 2026-05-01T00:00:00Z --until 2026-05-08T00:00:00Z
+
+# By scope (subset match)
+edge-memory audit --scope userId:alice
+edge-memory audit --scope productId:web --scope userId:alice
+
+# By actor (PRD F33 — currently 'uds:local'; v1.x adds real UID)
+edge-memory audit --actor uds:local
+
+# Cap result size
+edge-memory audit --limit 10
+
+# JSON for scripting
+edge-memory audit --json | jq '.events[].entryIds | length'
+```
+
+**One event per operation, not per entry.** A `forget` that deletes 1000
+entries logs ONE event with `count: 1000` and `entryIds` capped at 100
+samples. Same for bulk `import`. Keeps the audit log compact and queries
+fast on large stores.
+
+**No-op operations don't pollute the log.** A `forget` with predicate
+that matches zero entries does NOT generate an event. An import where
+every line errors does NOT generate an event.
+
+**Append-only. Always.** No "forget the audit log" CLI verb exists.
+The audit log persists past memory `forget` operations — that's the
+whole point of forensics.
 
 ## forget — predicate semantics
 

@@ -1,17 +1,23 @@
 /**
- * Edge memory server entrypoint. Selects the backend at startup based
- * on env:
+ * Edge memory server entrypoint. Selects backends at startup based on env:
  *
- *   MEMORY_DB_PATH   — when set, opens a SqliteVecMemoryStore at this
- *                      path (the production default per PRD F10).
- *                      ":memory:" for transient in-process.
- *   MEMORY_VECTOR_DIM — vector dimension for sqlite-vec schema. Must
- *                      match the embedder's output. Default 1024
- *                      (matches qwen3-embedding:0.6B-F16).
- *   MEMORY_EMBEDDER_URL  — OpenAI-compat /v1 endpoint for the embedder.
- *                          Required when MEMORY_DB_PATH is set.
- *   MEMORY_EMBEDDER_MODEL — Embedder model id.
- *                           Default 'ai/qwen3-embedding:0.6B-F16'.
+ * Memory store:
+ *   MEMORY_DB_PATH        — when set, opens a SqliteVecMemoryStore at this
+ *                           path (production default per PRD F10).
+ *                           ":memory:" for transient in-process.
+ *   MEMORY_VECTOR_DIM     — vector dim. Default 1024 (qwen3-0.6B).
+ *   MEMORY_EMBEDDER_URL   — OpenAI-compat /v1 endpoint. Required when
+ *                           MEMORY_DB_PATH is set.
+ *   MEMORY_EMBEDDER_MODEL — Embedder model. Default ai/qwen3-embedding:0.6B-F16.
+ *
+ * Audit log (PRD F12):
+ *   MEMORY_AUDIT_DB_PATH  — when set, opens a SqliteAuditLog at this path.
+ *                           Separate file from MEMORY_DB_PATH by default —
+ *                           different retention policies. Unset → falls
+ *                           back to InMemoryAuditLog.
+ *
+ * Listen address:
+ *   MEMORY_SOCKET_PATH    — UDS path. Default /root/.harness/run/memory.sock.
  *
  * When MEMORY_DB_PATH is unset, falls back to the in-memory store —
  * useful for tests, dev bringup, and any environment where sqlite-vec's
@@ -19,20 +25,25 @@
  */
 
 import {
+  type AuditLog,
+  InMemoryAuditLog,
   InMemoryMemoryStore,
   type MemoryStore,
+  SqliteAuditLog,
   SqliteVecMemoryStore,
   startMemoryServer,
 } from './index.ts';
 
 const socketPath = process.env.MEMORY_SOCKET_PATH ?? '/root/.harness/run/memory.sock';
 
-const store: MemoryStore = await pickBackend();
+const store: MemoryStore = await pickStore();
+const audit: AuditLog = await pickAudit();
 
 console.log(`Starting @ecruz165/edge-memory-server on ${socketPath}…`);
-console.log(`  backend: ${store.constructor.name}`);
+console.log(`  store:  ${store.constructor.name}`);
+console.log(`  audit:  ${audit.constructor.name}`);
 
-const handle = await startMemoryServer({ socketPath, store });
+const handle = await startMemoryServer({ socketPath, store, audit });
 console.log(`✓ edge-memory-server listening on ${socketPath}`);
 
 const shutdown = async (signal: string) => {
@@ -47,10 +58,10 @@ process.on('SIGHUP', () => shutdown('SIGHUP'));
 
 await new Promise(() => {});
 
-async function pickBackend(): Promise<MemoryStore> {
+async function pickStore(): Promise<MemoryStore> {
   const dbPath = process.env.MEMORY_DB_PATH;
   if (!dbPath) {
-    console.log('  (no MEMORY_DB_PATH set; using in-memory backend)');
+    console.log('  (no MEMORY_DB_PATH set; using in-memory store)');
     return new InMemoryMemoryStore();
   }
   const vectorDim = Number(process.env.MEMORY_VECTOR_DIM ?? '1024');
@@ -72,4 +83,13 @@ async function pickBackend(): Promise<MemoryStore> {
     vectorDim,
     embed: (texts) => embedder.embed(texts).then((arrs) => arrs.map((a) => Array.from(a))),
   });
+}
+
+async function pickAudit(): Promise<AuditLog> {
+  const auditPath = process.env.MEMORY_AUDIT_DB_PATH;
+  if (!auditPath) {
+    console.log('  (no MEMORY_AUDIT_DB_PATH set; using in-memory audit log)');
+    return new InMemoryAuditLog();
+  }
+  return SqliteAuditLog.open({ dbPath: auditPath });
 }

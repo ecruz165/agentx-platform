@@ -22,6 +22,13 @@ import { chmod, mkdir, unlink } from 'node:fs/promises';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { dirname } from 'node:path';
 import {
+  type AuditLog,
+  type AuditLogQuery,
+  type AuditOp,
+  DEFAULT_ACTOR,
+  InMemoryAuditLog,
+} from './audit.ts';
+import {
   InMemoryMemoryStore,
   type MemoryForgetPredicate,
   type MemoryPutInput,
@@ -36,6 +43,11 @@ export interface MemoryServerOptions {
    *  for tests and dev. Production wires sqlite-vec when the backend
    *  lands (separate slice). */
   store?: MemoryStore;
+  /** Audit log. Defaults to a fresh InMemoryAuditLog — sufficient for
+   *  tests and dev. Production wires SqliteAuditLog with its own
+   *  persistence path. Per PRD F12, every put / forget / import is
+   *  recorded with timestamp, scope, op, actor, count, entryIds. */
+  audit?: AuditLog;
 }
 
 export interface MemoryServerHandle {
@@ -43,6 +55,9 @@ export interface MemoryServerHandle {
    *  state without poking through the HTTP surface. Production callers
    *  shouldn't need this; they go through the API. */
   store: MemoryStore;
+  /** Reference to the audit log for the same reason — tests can
+   *  cross-check audit events against the operations they triggered. */
+  audit: AuditLog;
   stop(): Promise<void>;
 }
 
@@ -53,7 +68,8 @@ export async function startMemoryServer(opts: MemoryServerOptions): Promise<Memo
   await unlink(opts.socketPath).catch(() => {});
 
   const store = opts.store ?? new InMemoryMemoryStore();
-  const server = createServer((req, res) => route(req, res, store));
+  const audit = opts.audit ?? new InMemoryAuditLog();
+  const server = createServer((req, res) => route(req, res, store, audit));
 
   await new Promise<void>((resolve, reject) => {
     server.once('error', reject);
@@ -64,6 +80,7 @@ export async function startMemoryServer(opts: MemoryServerOptions): Promise<Memo
 
   return {
     store,
+    audit,
     async stop() {
       await new Promise<void>((resolve) => server.close(() => resolve()));
       await unlink(opts.socketPath).catch(() => {});
@@ -71,7 +88,12 @@ export async function startMemoryServer(opts: MemoryServerOptions): Promise<Memo
   };
 }
 
-function route(req: IncomingMessage, res: ServerResponse, store: MemoryStore): void {
+function route(
+  req: IncomingMessage,
+  res: ServerResponse,
+  store: MemoryStore,
+  audit: AuditLog,
+): void {
   const url = (req.url ?? '/').split('?')[0]!.replace(/\/$/, '') || '/';
 
   // GET /health — backend state + size for diagnostic dashboards.
@@ -87,7 +109,7 @@ function route(req: IncomingMessage, res: ServerResponse, store: MemoryStore): v
         badRequest(res, err);
         return;
       }
-      handlePut(res, store, parsed).catch((e: Error) => serverError(res, e.message));
+      handlePut(res, store, audit, parsed).catch((e: Error) => serverError(res, e.message));
     });
     return;
   }
@@ -111,7 +133,7 @@ function route(req: IncomingMessage, res: ServerResponse, store: MemoryStore): v
         badRequest(res, err);
         return;
       }
-      handleForget(res, store, parsed).catch((e: Error) => serverError(res, e.message));
+      handleForget(res, store, audit, parsed).catch((e: Error) => serverError(res, e.message));
     });
     return;
   }
@@ -137,7 +159,20 @@ function route(req: IncomingMessage, res: ServerResponse, store: MemoryStore): v
   // Roundtrip is lossy on id/createdAt (server reissues both); content
   // is preserved.
   if (req.method === 'POST' && url === '/v1/memory/import') {
-    handleImport(req, res, store).catch((e: Error) => serverError(res, e.message));
+    handleImport(req, res, store, audit).catch((e: Error) => serverError(res, e.message));
+    return;
+  }
+
+  // POST /v1/audit — body: optional AuditLogQuery filter. Read-only.
+  // Response: { events: AuditEvent[], count }. Newest first.
+  if (req.method === 'POST' && url === '/v1/audit') {
+    consumeJsonBody(req, (parsed, err) => {
+      if (err) {
+        badRequest(res, err);
+        return;
+      }
+      handleAuditQuery(res, audit, parsed).catch((e: Error) => serverError(res, e.message));
+    });
     return;
   }
 
@@ -158,7 +193,12 @@ async function handleHealth(res: ServerResponse, store: MemoryStore): Promise<vo
   });
 }
 
-async function handlePut(res: ServerResponse, store: MemoryStore, body: unknown): Promise<void> {
+async function handlePut(
+  res: ServerResponse,
+  store: MemoryStore,
+  audit: AuditLog,
+  body: unknown,
+): Promise<void> {
   if (!isObject(body)) {
     badRequest(res, 'body must be a JSON object');
     return;
@@ -181,6 +221,13 @@ async function handlePut(res: ServerResponse, store: MemoryStore, body: unknown)
       : {}),
   };
   const entry = await store.put(input);
+  await audit.append({
+    op: 'put',
+    actor: DEFAULT_ACTOR,
+    count: 1,
+    entryIds: [entry.id],
+    ...(input.scope ? { scope: input.scope } : {}),
+  });
   ok(res, {
     service: 'memory',
     method: 'POST',
@@ -190,7 +237,12 @@ async function handlePut(res: ServerResponse, store: MemoryStore, body: unknown)
   });
 }
 
-async function handleForget(res: ServerResponse, store: MemoryStore, body: unknown): Promise<void> {
+async function handleForget(
+  res: ServerResponse,
+  store: MemoryStore,
+  audit: AuditLog,
+  body: unknown,
+): Promise<void> {
   if (!isObject(body)) {
     badRequest(res, 'body must be a JSON MemoryForgetPredicate object');
     return;
@@ -204,6 +256,18 @@ async function handleForget(res: ServerResponse, store: MemoryStore, body: unkno
   if (isScope(b.scope)) predicate.scope = b.scope as MemoryScope;
   try {
     const result = await store.forget(predicate);
+    // Only audit if something was actually deleted; an empty-match
+    // forget shouldn't pollute the log. The forget API returns
+    // deleted=0 cleanly, so this filters those out.
+    if (result.deleted > 0) {
+      await audit.append({
+        op: 'forget',
+        actor: DEFAULT_ACTOR,
+        count: result.deleted,
+        entryIds: result.deletedIds,
+        ...(predicate.scope ? { scope: predicate.scope } : {}),
+      });
+    }
     ok(res, {
       service: 'memory',
       method: 'POST',
@@ -290,6 +354,7 @@ async function handleImport(
   req: IncomingMessage,
   res: ServerResponse,
   store: MemoryStore,
+  audit: AuditLog,
 ): Promise<void> {
   let body = '';
   await new Promise<void>((resolve, reject) => {
@@ -305,6 +370,7 @@ async function handleImport(
     .map((l) => l.trim())
     .filter((l) => l.length > 0);
   let imported = 0;
+  const importedIds: string[] = [];
   const errors: Array<{ line: number; error: string }> = [];
 
   for (let i = 0; i < lines.length; i++) {
@@ -333,15 +399,32 @@ async function handleImport(
       continue;
     }
     try {
-      await store.put({
+      const entry = await store.put({
         key,
         value,
         ...(isScope(obj.scope) ? { scope: obj.scope as MemoryScope } : {}),
       });
       imported++;
+      // Cap entryIds sample at 100 — for a 10K-line import we don't
+      // need every id in the audit row, just a representative sample.
+      // The `count` is authoritative.
+      if (importedIds.length < 100) importedIds.push(entry.id);
     } catch (err) {
       errors.push({ line: lineNum, error: (err as Error).message });
     }
+  }
+
+  // One audit event for the whole import operation, not N events for
+  // N lines — bulk semantics. Skip when nothing was imported (an
+  // all-errors run shouldn't pollute the audit log with zero-count
+  // events).
+  if (imported > 0) {
+    await audit.append({
+      op: 'import',
+      actor: DEFAULT_ACTOR,
+      count: imported,
+      entryIds: importedIds,
+    });
   }
 
   ok(res, {
@@ -349,6 +432,37 @@ async function handleImport(
     method: 'POST',
     path: '/v1/memory/import',
     result: { imported, errors },
+    ts: new Date().toISOString(),
+  });
+}
+
+/**
+ * Read-only audit query. Body is an optional AuditLogQuery; missing
+ * fields are wildcards. Newest first; default limit 100.
+ */
+async function handleAuditQuery(
+  res: ServerResponse,
+  audit: AuditLog,
+  body: unknown,
+): Promise<void> {
+  const filter: AuditLogQuery = {};
+  if (isObject(body)) {
+    const b = body as Record<string, unknown>;
+    if (typeof b.since === 'string') filter.since = b.since;
+    if (typeof b.until === 'string') filter.until = b.until;
+    if (b.op === 'put' || b.op === 'forget' || b.op === 'import') {
+      filter.op = b.op as AuditOp;
+    }
+    if (typeof b.actor === 'string') filter.actor = b.actor;
+    if (typeof b.limit === 'number') filter.limit = b.limit;
+    if (isScope(b.scope)) filter.scope = b.scope as MemoryScope;
+  }
+  const events = await audit.query(filter);
+  ok(res, {
+    service: 'memory',
+    method: 'POST',
+    path: '/v1/audit',
+    result: { events, count: events.length },
     ts: new Date().toISOString(),
   });
 }
@@ -430,6 +544,19 @@ function safeJson(s: string): unknown {
   }
 }
 
+export {
+  type AuditEvent,
+  type AuditLog,
+  type AuditLogQuery,
+  type AuditOp,
+  DEFAULT_ACTOR,
+  InMemoryAuditLog,
+  matchesAuditFilter,
+} from './audit.ts';
+export {
+  SqliteAuditLog,
+  type SqliteAuditLogOptions,
+} from './sqlite-audit-log.ts';
 export {
   type EmbedFn,
   SqliteVecMemoryStore,

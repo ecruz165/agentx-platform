@@ -226,6 +226,74 @@ describe('edge-memory CLI — happy paths', () => {
     expect(r.stderr).toMatch(/line 3/);
   });
 
+  it('audit lists events newest-first (human format)', async () => {
+    const socket = await startServer();
+    await runCli(['put', 'a', '--value', 'A', '--scope', 'productId:web'], socket);
+    await runCli(['put', 'b', '--value', 'B'], socket);
+    await runCli(['forget', '--key', 'a'], socket);
+
+    const r = await runCli(['audit'], socket);
+    expect(r.code).toBe(0);
+    const lines = r.stdout
+      .trim()
+      .split('\n')
+      .filter((l) => l.length > 0);
+    // Newest first: forget then 2 puts.
+    expect(lines).toHaveLength(3);
+    expect(lines[0]).toMatch(/forget/);
+    expect(lines[0]).toMatch(/count=1/);
+    expect(lines[0]).toMatch(/actor=uds:local/);
+  });
+
+  it('audit --op filters', async () => {
+    const socket = await startServer();
+    await runCli(['put', 'a', '--value', 'A'], socket);
+    await runCli(['put', 'b', '--value', 'B'], socket);
+    await runCli(['forget', '--key', 'a'], socket);
+
+    const onlyForget = await runCli(['audit', '--op', 'forget'], socket);
+    expect(onlyForget.code).toBe(0);
+    const lines = onlyForget.stdout
+      .trim()
+      .split('\n')
+      .filter((l) => l.length > 0);
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toMatch(/forget/);
+  });
+
+  it('audit --scope filters by scope subset', async () => {
+    const socket = await startServer();
+    await runCli(['put', 'a', '--value', 'A', '--scope', 'productId:web'], socket);
+    await runCli(['put', 'b', '--value', 'B', '--scope', 'productId:api'], socket);
+
+    const webOnly = await runCli(['audit', '--scope', 'productId:web'], socket);
+    expect(webOnly.code).toBe(0);
+    const lines = webOnly.stdout
+      .trim()
+      .split('\n')
+      .filter((l) => l.length > 0);
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toMatch(/productId=web/);
+  });
+
+  it('audit --json emits the full event objects', async () => {
+    const socket = await startServer();
+    await runCli(['put', 'a', '--value', 'A'], socket);
+    const r = await runCli(['audit', '--json'], socket);
+    expect(r.code).toBe(0);
+    const result = JSON.parse(r.stdout);
+    expect(result.events).toHaveLength(1);
+    expect(result.events[0].op).toBe('put');
+    expect(result.events[0].entryIds).toHaveLength(1);
+  });
+
+  it('audit on a fresh server returns no events', async () => {
+    const socket = await startServer();
+    const r = await runCli(['audit'], socket);
+    expect(r.code).toBe(0);
+    expect(r.stdout).toMatch(/no events/);
+  });
+
   it('export → import roundtrip preserves content (ids reissued)', async () => {
     const socket = await startServer();
     await runCli(['put', 'plan', '--value', 'A'], socket);
