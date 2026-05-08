@@ -3,7 +3,9 @@ package com.jefelabs.agentx.controlplane.catalog.service;
 import com.jefelabs.agentx.controlplane.catalog.domain.Flow;
 import com.jefelabs.agentx.controlplane.catalog.persistence.FlowDao;
 import com.jefelabs.agentx.controlplane.catalog.persistence.FlowDaoRow;
+import com.jefelabs.agentx.controlplane.catalog.sse.CatalogChangedEvent;
 import org.jdbi.v3.core.Jdbi;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.core.JacksonException;
@@ -29,10 +31,12 @@ public class FlowService {
 
     private final Jdbi jdbi;
     private final ObjectMapper objectMapper;
+    private final ApplicationEventPublisher events;
 
-    public FlowService(Jdbi jdbi, ObjectMapper objectMapper) {
+    public FlowService(Jdbi jdbi, ObjectMapper objectMapper, ApplicationEventPublisher events) {
         this.jdbi = jdbi;
         this.objectMapper = objectMapper;
+        this.events = events;
     }
 
     @Transactional
@@ -49,9 +53,11 @@ public class FlowService {
             flow.createdBy()
         );
         // Re-read so the response carries server-populated audit timestamps.
-        return dao.findById(flow.orgId(), flow.id())
+        Flow saved = dao.findById(flow.orgId(), flow.id())
             .map(this::toDomain)
             .orElseThrow(() -> new IllegalStateException("Upsert succeeded but row not found: " + flow.id()));
+        events.publishEvent(new CatalogChangedEvent(flow.orgId(), "flow", flow.id(), "upsert"));
+        return saved;
     }
 
     public Optional<Flow> findById(String orgId, String id) {
@@ -66,7 +72,9 @@ public class FlowService {
 
     @Transactional
     public boolean softDelete(String orgId, String id, String deletedBy) {
-        return jdbi.onDemand(FlowDao.class).softDelete(orgId, id, deletedBy) > 0;
+        boolean removed = jdbi.onDemand(FlowDao.class).softDelete(orgId, id, deletedBy) > 0;
+        if (removed) events.publishEvent(new CatalogChangedEvent(orgId, "flow", id, "delete"));
+        return removed;
     }
 
     // ── JSON conversion at the persistence boundary ───────────────────────

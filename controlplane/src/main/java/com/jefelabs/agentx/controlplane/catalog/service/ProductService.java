@@ -3,7 +3,9 @@ package com.jefelabs.agentx.controlplane.catalog.service;
 import com.jefelabs.agentx.controlplane.catalog.domain.Product;
 import com.jefelabs.agentx.controlplane.catalog.persistence.ProductDao;
 import com.jefelabs.agentx.controlplane.catalog.persistence.ProductDaoRow;
+import com.jefelabs.agentx.controlplane.catalog.sse.CatalogChangedEvent;
 import org.jdbi.v3.core.Jdbi;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.core.JacksonException;
@@ -18,10 +20,12 @@ public class ProductService {
 
     private final Jdbi jdbi;
     private final ObjectMapper objectMapper;
+    private final ApplicationEventPublisher events;
 
-    public ProductService(Jdbi jdbi, ObjectMapper objectMapper) {
+    public ProductService(Jdbi jdbi, ObjectMapper objectMapper, ApplicationEventPublisher events) {
         this.jdbi = jdbi;
         this.objectMapper = objectMapper;
+        this.events = events;
     }
 
     @Transactional
@@ -35,9 +39,11 @@ public class ProductService {
             writeJson(product.repos()),
             product.createdBy()
         );
-        return dao.findById(product.orgId(), product.id())
+        Product saved = dao.findById(product.orgId(), product.id())
             .map(this::toDomain)
             .orElseThrow(() -> new IllegalStateException("Upsert succeeded but row not found: " + product.id()));
+        events.publishEvent(new CatalogChangedEvent(product.orgId(), "product", product.id(), "upsert"));
+        return saved;
     }
 
     public Optional<Product> findById(String orgId, String id) {
@@ -52,7 +58,9 @@ public class ProductService {
 
     @Transactional
     public boolean softDelete(String orgId, String id, String deletedBy) {
-        return jdbi.onDemand(ProductDao.class).softDelete(orgId, id, deletedBy) > 0;
+        boolean removed = jdbi.onDemand(ProductDao.class).softDelete(orgId, id, deletedBy) > 0;
+        if (removed) events.publishEvent(new CatalogChangedEvent(orgId, "product", id, "delete"));
+        return removed;
     }
 
     private Product toDomain(ProductDaoRow row) {

@@ -223,11 +223,102 @@ if (registerEnabled) {
   console.log('[harness-server] HARNESS_REGISTER=false — skipping controlplane registration');
 }
 
+// ── Subscribe to controlplane catalog-changed events ─────────────────
+// Read /api/catalog/events as a streaming text/event-stream response;
+// on each `catalog-changed` event, re-fetch the catalog and mutate
+// harnessSrv.catalog in-place. Internal harness lookups read
+// ctx.catalog.flows on every request, so swaps are visible to new
+// submissions. In-flight jobs keep their pinned FlowDef snapshot.
+//
+// Hand-rolled SSE parser (instead of EventSource) because EventSource
+// is not exposed as a global in Bun's bundled-script runtime — fetch+
+// ReadableStream is the portable answer, same primitive we already use
+// for /v1/dispatcher/status.
+//
+// Disabled via HARNESS_CATALOG_SSE=false (default on).
+const catalogSseEnabled = (process.env.HARNESS_CATALOG_SSE ?? 'true').toLowerCase() !== 'false';
+let catalogSseAbort: AbortController | null = null;
+
+async function subscribeCatalogEvents(): Promise<void> {
+  const eventsUrl = `${controlplaneUrl}/api/catalog/events`;
+  console.log(`[harness-server] subscribing to catalog events at ${eventsUrl}`);
+
+  while (catalogSseEnabled && !shuttingDown) {
+    catalogSseAbort = new AbortController();
+    try {
+      const res = await fetch(eventsUrl, {
+        method: 'GET',
+        headers: { Accept: 'text/event-stream', 'X-Org-Id': orgId },
+        signal: catalogSseAbort.signal,
+      });
+      if (!res.ok || !res.body) {
+        throw new Error(`status ${res.status}`);
+      }
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = '';
+      // SSE frame parse: blank line separates events; each event has
+      // "event: <name>" + "data: <json>" lines.
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        let sep: number;
+        while ((sep = buf.indexOf('\n\n')) >= 0) {
+          const frame = buf.slice(0, sep);
+          buf = buf.slice(sep + 2);
+          await handleSseFrame(frame);
+        }
+      }
+    } catch (err) {
+      if (shuttingDown) return;
+      console.warn(`[harness-server] catalog SSE disconnected: ${(err as Error).message}`);
+    }
+    // Reconnect after a short backoff (matches EventSource default-ish behavior).
+    await new Promise((r) => setTimeout(r, 3000));
+  }
+}
+
+async function handleSseFrame(frame: string): Promise<void> {
+  let eventName = 'message';
+  const dataLines: string[] = [];
+  for (const line of frame.split('\n')) {
+    if (line.startsWith('event:')) eventName = line.slice(6).trim();
+    else if (line.startsWith('data:')) dataLines.push(line.slice(5).trim());
+  }
+  if (eventName !== 'catalog-changed' || dataLines.length === 0) return;
+
+  let payload: { kind?: string; id?: string; op?: string } | null = null;
+  try {
+    payload = JSON.parse(dataLines.join('\n'));
+  } catch {
+    /* ignore parse errors */
+  }
+  console.log(
+    `[harness-server] catalog-changed: ${payload?.kind ?? '?'}/${payload?.id ?? '?'} (${payload?.op ?? '?'})`,
+  );
+  try {
+    const fresh = await loadCatalog();
+    harnessSrv.catalog.flows = fresh.flows;
+    harnessSrv.catalog.products = fresh.products;
+    console.log(
+      `[harness-server] catalog refreshed: ${fresh.flows.length} flow(s), ${(fresh.products ?? []).length} product(s)`,
+    );
+  } catch (err) {
+    console.warn(`[harness-server] catalog refresh failed: ${(err as Error).message}`);
+  }
+}
+
+let shuttingDown = false;
+if (catalogSseEnabled) void subscribeCatalogEvents();
+
 console.log('[harness-server] ready; SIGTERM to stop');
 
 const shutdown = async () => {
   console.log('[harness-server] shutdown…');
+  shuttingDown = true;
   if (heartbeatTimer) clearInterval(heartbeatTimer);
+  if (catalogSseAbort) catalogSseAbort.abort();
   await harnessSrv.stop().catch(() => {});
   process.exit(0);
 };
