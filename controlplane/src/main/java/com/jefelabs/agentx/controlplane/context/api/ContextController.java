@@ -1,10 +1,13 @@
 package com.jefelabs.agentx.controlplane.context.api;
 
+import com.jefelabs.agentx.controlplane.context.api.dto.ChunkDTO;
 import com.jefelabs.agentx.controlplane.context.api.dto.ContextSourceDTO;
 import com.jefelabs.agentx.controlplane.context.api.dto.IngestionJobDTO;
+import com.jefelabs.agentx.controlplane.context.api.dto.QueryRequestDTO;
 import com.jefelabs.agentx.controlplane.context.api.dto.RegisterSourceRequestDTO;
 import com.jefelabs.agentx.controlplane.context.api.mapper.ContextSourceMapper;
 import com.jefelabs.agentx.controlplane.context.service.ContextService;
+import com.jefelabs.agentx.controlplane.context.service.QueryService;
 import com.jefelabs.agentx.controlplane.core.tenancy.TenantContext;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -24,10 +27,12 @@ public class ContextController {
 
     private final ContextService contextService;
     private final ContextSourceMapper mapper;
+    private final QueryService queryService;
 
-    public ContextController(ContextService contextService, ContextSourceMapper mapper) {
+    public ContextController(ContextService contextService, ContextSourceMapper mapper, QueryService queryService) {
         this.contextService = contextService;
         this.mapper = mapper;
+        this.queryService = queryService;
     }
 
     @PostMapping("/sources")
@@ -80,5 +85,26 @@ public class ContextController {
         return contextService.listIngestionsBySource(tenant.orgId(), id, limit).stream()
             .map(mapper::toDTO)
             .toList();
+    }
+
+    /**
+     * Vector-search query — embed text, search Neo4j, return ranked chunks
+     * filtered by access policy. Per prd-context-module.md F7-F12.
+     */
+    @PostMapping("/query")
+    public ResponseEntity<List<ChunkDTO>> query(@RequestBody QueryRequestDTO body) {
+        var tenant = TenantContext.current();
+        try {
+            List<ChunkDTO> hits = queryService.query(
+                tenant.orgId(),
+                body.text(),
+                body.productId(),
+                body.k(),
+                body.sources()
+            );
+            return ResponseEntity.ok(hits);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().build();
+        }
     }
 }

@@ -43,6 +43,13 @@ agentx:
     uri: bolt://localhost:7687
     user: neo4j
     password: controlplane
+  embedder:
+    # OpenAI-compatible /v1 endpoint. Defaults match the compose-provided
+    # huggingface/text-embeddings-inference service. Production overrides
+    # via env (Bedrock proxy, OpenAI direct, hosted TEI, etc.).
+    url: http://localhost:8081
+    model: BAAI/bge-small-en-v1.5
+    dimension: 384
 
 logging:
   level:

@@ -46,20 +46,17 @@ services:
       timeout: 5s
       retries: 5
 
-  # Embedder (HuggingFace TEI) re-enabled at Phase 4 (context module).
-  # The :cpu-latest tag is amd64-only; on Apple Silicon the arm64 variant
-  # is :cpu-1.7-arm64 (or `--platform linux/amd64` with Rosetta).
-  # Commented out for Phase 0 to keep startup fast + arch-portable.
-  #
-  # embedder:
-  #   image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.7
-  #   command: ["--model-id", "BAAI/bge-small-en-v1.5"]
-  #   ports: ["8081:80"]
-  #   healthcheck:
-  #     test: ["CMD-SHELL", "curl -f http://localhost/health || exit 1"]
-  #     interval: 10s
-  #     timeout: 5s
-  #     retries: 5
+  # Embedder (HuggingFace TEI) — Phase 4.2 query path + Phase 4.3 ingestion.
+  # On Apple Silicon use the arm64 variant; cpu-latest is amd64-only.
+  embedder:
+    image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.7
+    command: ["--model-id", "BAAI/bge-small-en-v1.5"]
+    ports: ["8081:80"]
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O- http://localhost/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
 volumes:
   neo4j-data:
