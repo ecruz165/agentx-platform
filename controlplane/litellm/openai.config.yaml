@@ -1,0 +1,27 @@
+# LiteLLM proxy config — OpenAI variant.
+#
+# Mounts to /app/config.yaml in the litellm container. The container
+# exposes an OpenAI-compatible API on port 4000; controlplane + edge-server
+# reach it via http://litellm:4000/v1 (compose service-name DNS).
+#
+# The single declared model is named `embedder` — that's the alias the
+# Spring app sends in its `model:` request field, regardless of which
+# provider is wired underneath. Adding more providers (Anthropic, Gemini,
+# Cohere) is one more entry in `model_list` here, no code change.
+#
+# Tunable via env (with defaults):
+#   OPENAI_EMBED_MODEL=text-embedding-3-small
+#   OPENAI_BASE_URL                  # leave unset for the canonical OpenAI endpoint
+
+model_list:
+  - model_name: embedder
+    litellm_params:
+      model: openai/${OPENAI_EMBED_MODEL:-text-embedding-3-small}
+      api_key: os.environ/OPENAI_API_KEY
+      # api_base honored only if OPENAI_BASE_URL is explicitly set
+      # (allows pointing at Azure OpenAI / OpenRouter / local proxies).
+      api_base: os.environ/OPENAI_BASE_URL
+
+litellm_settings:
+  drop_params: true        # silently strip unsupported params per provider
+  set_verbose: false

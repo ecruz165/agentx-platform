@@ -1,29 +1,64 @@
-# Embedder overlay: OpenAI-hosted embedding API.
-# Cloud-shape variant — no local model runner. Production default.
+# Embedder overlay: OpenAI via the in-compose LiteLLM proxy.
 #
-# Required env (read from a gitignored .env at the workspace root, or
-# set in the parent shell). Compose's `${VAR:?msg}` syntax fails the
-# `up` command up-front if the var is missing.
+# Adds a litellm service (ghcr.io/berriai/litellm:main-stable) that
+# speaks OpenAI's /v1/embeddings shape, mounts a config that routes
+# the alias `embedder` to OpenAI's text-embedding-3-small (or whatever
+# OPENAI_EMBED_MODEL points to). controlplane + edge-server reach it
+# via http://litellm:4000/v1 — same env-var contract as the local
+# Qwen variants, just a different URL.
 #
+# Required env (typically in a gitignored .env at the workspace root):
+#   OPENAI_API_KEY=sk-...
 # Tunable env (with defaults):
-#   OPENAI_BASE_URL=https://api.openai.com/v1
-#   OPENAI_EMBED_MODEL=text-embedding-3-small
-#   OPENAI_EMBED_DIM=1536
+#   OPENAI_BASE_URL                            # default: OpenAI canonical
+#   OPENAI_EMBED_MODEL=text-embedding-3-small  # the actual provider model
+#   OPENAI_EMBED_DIM=1536                      # vector dim for the chosen model
 #
 # Activate:
 #   workspace start --embedder openai
 #   docker compose -f compose.yaml -f compose.openai.yaml up -d
+#
+# To swap to Anthropic / Cohere / Gemini etc, add a new model entry to
+# litellm/openai.config.yaml — no compose changes required.
 
-x-openai-env: &openai-env
-  AGENTX_EMBEDDER_URL: ${OPENAI_BASE_URL:-https://api.openai.com/v1}
-  AGENTX_EMBEDDER_MODEL: ${OPENAI_EMBED_MODEL:-text-embedding-3-small}
+x-cloud-env: &cloud-env
+  AGENTX_EMBEDDER_URL: http://litellm:4000/v1
+  AGENTX_EMBEDDER_MODEL: embedder
   AGENTX_EMBEDDER_DIMENSION: ${OPENAI_EMBED_DIM:-1536}
-  OPENAI_API_KEY: ${OPENAI_API_KEY:?OPENAI_API_KEY is required for the openai embedder variant}
 
 services:
+  litellm:
+    image: ghcr.io/berriai/litellm:main-stable
+    command: ["--config", "/app/config.yaml", "--port", "4000"]
+    environment:
+      OPENAI_API_KEY: ${OPENAI_API_KEY:?OPENAI_API_KEY is required for the openai embedder variant}
+      OPENAI_EMBED_MODEL: ${OPENAI_EMBED_MODEL:-text-embedding-3-small}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
+    volumes:
+      - ./litellm/openai.config.yaml:/app/config.yaml:ro
+    healthcheck:
+      # litellm image ships python3 but neither curl nor wget — use
+      # urllib for a stdlib-only liveness probe.
+      test:
+        - CMD-SHELL
+        - python3 -c "import urllib.request; urllib.request.urlopen('http://localhost:4000/health/liveliness', timeout=3)" || exit 1
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
   controlplane:
     environment:
-      <<: *openai-env
+      <<: *cloud-env
+    depends_on:
+      central-data:
+        condition: service_healthy
+      litellm:
+        condition: service_healthy
+
   edge-server:
     environment:
-      <<: *openai-env
+      <<: *cloud-env
+    depends_on:
+      litellm:
+        condition: service_healthy

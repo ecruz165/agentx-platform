@@ -1,0 +1,27 @@
+# LiteLLM proxy config — AWS Bedrock variant.
+#
+# Mounts to /app/config.yaml in the litellm container. LiteLLM speaks
+# Bedrock's native InvokeModel API natively; no separate proxy needed
+# in front. The container exposes an OpenAI-compatible API on port 4000;
+# controlplane + edge-server reach it via http://litellm:4000/v1
+# (compose service-name DNS).
+#
+# Required env (read from .env or shell):
+#   AWS_REGION                       # e.g. us-east-1
+# AWS auth: standard credential chain (AWS_ACCESS_KEY_ID/SECRET, or
+# instance role, or AWS_PROFILE — env passed through to the container).
+#
+# Tunable via env (with defaults):
+#   BEDROCK_EMBED_MODEL=amazon.titan-embed-text-v2:0
+#                                    # also valid: cohere.embed-english-v3,
+#                                    #             cohere.embed-multilingual-v3
+
+model_list:
+  - model_name: embedder
+    litellm_params:
+      model: bedrock/${BEDROCK_EMBED_MODEL:-amazon.titan-embed-text-v2:0}
+      aws_region_name: os.environ/AWS_REGION
+
+litellm_settings:
+  drop_params: true
+  set_verbose: false
