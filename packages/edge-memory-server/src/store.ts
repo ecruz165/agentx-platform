@@ -144,6 +144,49 @@ export interface MemoryForgetResult {
   deletedIds: string[];
 }
 
+/**
+ * PRD F18 input shape. Either `entryIds` or any of the predicate fields
+ * (scope, key, olderThan) must be set; mixing is allowed (intersection).
+ *
+ * `feedback` is required — caller must positively assert what label to
+ * apply. There is no default. Tagging is a deliberate signal, not a
+ * sweep operation.
+ *
+ * `overwrite: false` (default) skips entries already tagged
+ * positive/negative — the alreadyTagged count surfaces them. `true`
+ * re-tags with the new label (audited by the new feedbackAt timestamp).
+ */
+export interface MemoryTagInput {
+  entryIds?: string[];
+  scope?: MemoryScope;
+  key?: string;
+  olderThan?: string;
+  feedback: 'positive' | 'negative';
+  feedbackSource?: FeedbackSource;
+  overwrite?: boolean;
+}
+
+export interface MemoryTagResult {
+  tagged: number;
+  /** Entries that already had a positive/negative tag and were skipped
+   *  (only when overwrite=false). */
+  alreadyTagged: number;
+  /** Sample of newly-tagged entry ids, capped at 100 for audit. */
+  taggedIds: string[];
+}
+
+/** Reject empty tag input — no implicit "tag everything" mode. */
+export function assertNonEmptyTagInput(t: MemoryTagInput): void {
+  const hasIds = Array.isArray(t.entryIds) && t.entryIds.length > 0;
+  const scopeHasField =
+    t.scope !== undefined && Object.values(t.scope).some((v) => v !== undefined);
+  if (!hasIds && !scopeHasField && t.key === undefined && t.olderThan === undefined) {
+    throw new Error(
+      'tag input must set at least one of: entryIds, key, olderThan, or scope (with at least one scope key)',
+    );
+  }
+}
+
 export interface MemoryStore {
   put(input: MemoryPutInput): Promise<MemoryEntry>;
   query(q: MemoryQuery): Promise<MemoryQueryResult>;
@@ -152,6 +195,10 @@ export interface MemoryStore {
   forget(predicate: MemoryForgetPredicate): Promise<MemoryForgetResult>;
   /** Diagnostic count — total entries across all scopes. Used for /health. */
   size(): Promise<number>;
+  /** PRD F18: feedback-tag entries. Updates provenance.feedback +
+   *  feedbackSource + feedbackAt on every match. Throws on empty
+   *  input via assertNonEmptyTagInput. */
+  tag(input: MemoryTagInput): Promise<MemoryTagResult>;
 }
 
 // ─── InMemoryMemoryStore ──────────────────────────────────────────────────
@@ -253,6 +300,43 @@ export class InMemoryMemoryStore implements MemoryStore {
       }
     }
     return { deleted, deletedIds };
+  }
+
+  async tag(input: MemoryTagInput): Promise<MemoryTagResult> {
+    assertNonEmptyTagInput(input);
+    const idSet = input.entryIds ? new Set(input.entryIds) : null;
+    const overwrite = input.overwrite === true;
+    const feedbackAt = new Date().toISOString();
+    let tagged = 0;
+    let alreadyTagged = 0;
+    const taggedIds: string[] = [];
+
+    for (const [id, entry] of this.entries) {
+      // Match: entry must satisfy idSet (if set) AND every set
+      // predicate field. Mirrors forget's AND semantics.
+      if (idSet && !idSet.has(id)) continue;
+      if (input.key !== undefined && entry.key !== input.key) continue;
+      if (input.olderThan !== undefined && entry.createdAt >= input.olderThan) continue;
+      if (input.scope !== undefined && !scopeMatches(entry.scope, input.scope)) continue;
+
+      const current = entry.provenance.feedback;
+      if (!overwrite && current !== 'unconfirmed') {
+        alreadyTagged++;
+        continue;
+      }
+      this.entries.set(id, {
+        ...entry,
+        provenance: {
+          ...entry.provenance,
+          feedback: input.feedback,
+          ...(input.feedbackSource !== undefined ? { feedbackSource: input.feedbackSource } : {}),
+          feedbackAt,
+        },
+      });
+      tagged++;
+      if (taggedIds.length < 100) taggedIds.push(id);
+    }
+    return { tagged, alreadyTagged, taggedIds };
   }
 }
 

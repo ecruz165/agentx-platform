@@ -373,6 +373,83 @@ describe('edge-memory CLI — error paths', () => {
   });
 });
 
+describe('edge-memory CLI — tag (F18)', () => {
+  const cleanups: Array<() => Promise<void>> = [];
+  afterEach(async () => {
+    for (const c of cleanups.splice(0)) await c();
+  });
+
+  async function startServer(): Promise<string> {
+    const socketPath = join(tmpdir(), `tag-cli-${randomUUID().slice(0, 8)}.sock`);
+    const handle = await startMemoryServer({ socketPath });
+    cleanups.push(async () => {
+      await handle.stop();
+      await rm(socketPath, { force: true });
+    });
+    return socketPath;
+  }
+
+  it('tag --scope --feedback positive — human format reports tagged count', async () => {
+    const socket = await startServer();
+    await runCli(['put', 'plan', '--value', 'A', '--scope', 'jobId:j1'], socket);
+    await runCli(['put', 'plan', '--value', 'B', '--scope', 'jobId:j1'], socket);
+
+    const tag = await runCli(
+      ['tag', '--scope', 'jobId:j1', '--feedback', 'positive', '--source', 'phase-success'],
+      socket,
+    );
+    expect(tag.code).toBe(0);
+    expect(tag.stdout).toMatch(/tagged 2/);
+    expect(tag.stdout).toMatch(/feedback=positive/);
+  });
+
+  it('tag --entry <id> --feedback negative', async () => {
+    const socket = await startServer();
+    const put = await runCli(['put', 'k', '--value', 'A', '--json'], socket);
+    const id = JSON.parse(put.stdout).entry.id as string;
+
+    const tag = await runCli(
+      ['tag', '--entry', id, '--feedback', 'negative', '--source', 'pr-rejected'],
+      socket,
+    );
+    expect(tag.code).toBe(0);
+    expect(tag.stdout).toMatch(/tagged 1/);
+  });
+
+  it('rejects missing --feedback with usage error (exit 2)', async () => {
+    const socket = await startServer();
+    const r = await runCli(['tag', '--key', 'plan'], socket);
+    expect(r.code).toBe(2);
+    expect(r.stderr).toMatch(/--feedback/);
+  });
+
+  it('--json emits machine-readable result', async () => {
+    const socket = await startServer();
+    await runCli(['put', 'plan', '--value', 'A'], socket);
+    const tag = await runCli(['tag', '--key', 'plan', '--feedback', 'positive', '--json'], socket);
+    const body = JSON.parse(tag.stdout);
+    expect(body.tagged).toBe(1);
+    expect(body.alreadyTagged).toBe(0);
+    expect(body.taggedIds).toHaveLength(1);
+  });
+
+  it('--overwrite re-tags already-tagged entries', async () => {
+    const socket = await startServer();
+    await runCli(['put', 'plan', '--value', 'A'], socket);
+    await runCli(['tag', '--key', 'plan', '--feedback', 'positive'], socket);
+
+    const skip = await runCli(['tag', '--key', 'plan', '--feedback', 'negative', '--json'], socket);
+    expect(JSON.parse(skip.stdout).tagged).toBe(0);
+    expect(JSON.parse(skip.stdout).alreadyTagged).toBe(1);
+
+    const force = await runCli(
+      ['tag', '--key', 'plan', '--feedback', 'negative', '--overwrite', '--json'],
+      socket,
+    );
+    expect(JSON.parse(force.stdout).tagged).toBe(1);
+  });
+});
+
 describe('edge-memory CLI — workspace flag (F27)', () => {
   it('--workspace <name> resolves to ~/.harness/workspaces/<name>/run/memory.sock', async () => {
     // We just check the error path — the path doesn't exist, so we

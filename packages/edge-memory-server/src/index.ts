@@ -31,12 +31,14 @@ import {
 import { IdleThrottle, type IdleThrottleOptions } from './idle-throttle.ts';
 import { Metrics, opForPath } from './metrics.ts';
 import {
+  type FeedbackSource,
   InMemoryMemoryStore,
   type MemoryForgetPredicate,
   type MemoryPutInput,
   type MemoryQuery,
   type MemoryScope,
   type MemoryStore,
+  type MemoryTagInput,
 } from './store.ts';
 
 export interface MemoryServerOptions {
@@ -229,6 +231,18 @@ function dispatchV1(
   // is preserved.
   if (req.method === 'POST' && url === '/v1/memory/import') {
     handleImport(req, res, store, audit).catch((e: Error) => serverError(res, e.message));
+    return;
+  }
+
+  // POST /v1/memory/tag — body MemoryTagInput. PRD F18.
+  if (req.method === 'POST' && url === '/v1/memory/tag') {
+    consumeJsonBody(req, (parsed, err) => {
+      if (err) {
+        badRequest(res, err);
+        return;
+      }
+      handleTag(res, store, audit, parsed).catch((e: Error) => serverError(res, e.message));
+    });
     return;
   }
 
@@ -526,6 +540,60 @@ async function handleImport(
 }
 
 /**
+ * PRD F18 — feedback-tag entries. Updates provenance.feedback +
+ * feedbackSource + feedbackAt. Skips already-tagged entries when
+ * overwrite=false (default).
+ */
+async function handleTag(
+  res: ServerResponse,
+  store: MemoryStore,
+  audit: AuditLog,
+  body: unknown,
+): Promise<void> {
+  if (!isObject(body)) {
+    badRequest(res, 'body must be a JSON MemoryTagInput object');
+    return;
+  }
+  const b = body as Record<string, unknown>;
+  if (b.feedback !== 'positive' && b.feedback !== 'negative') {
+    badRequest(res, "body.feedback is required ('positive' | 'negative')");
+    return;
+  }
+  const input: MemoryTagInput = { feedback: b.feedback };
+  if (Array.isArray(b.entryIds) && b.entryIds.every((x) => typeof x === 'string')) {
+    input.entryIds = b.entryIds as string[];
+  }
+  if (typeof b.key === 'string') input.key = b.key;
+  if (typeof b.olderThan === 'string') input.olderThan = b.olderThan;
+  if (isScope(b.scope)) input.scope = b.scope;
+  if (typeof b.feedbackSource === 'string')
+    input.feedbackSource = b.feedbackSource as FeedbackSource;
+  if (b.overwrite === true) input.overwrite = true;
+
+  try {
+    const result = await store.tag(input);
+    if (result.tagged > 0) {
+      await audit.append({
+        op: 'tag',
+        actor: resolveActor(),
+        count: result.tagged,
+        entryIds: result.taggedIds,
+        ...(input.scope ? { scope: input.scope } : {}),
+      });
+    }
+    ok(res, {
+      service: 'memory',
+      method: 'POST',
+      path: '/v1/memory/tag',
+      result,
+      ts: new Date().toISOString(),
+    });
+  } catch (err) {
+    badRequest(res, (err as Error).message);
+  }
+}
+
+/**
  * Read-only audit query. Body is an optional AuditLogQuery; missing
  * fields are wildcards. Newest first; default limit 100.
  */
@@ -539,7 +607,16 @@ async function handleAuditQuery(
     const b = body as Record<string, unknown>;
     if (typeof b.since === 'string') filter.since = b.since;
     if (typeof b.until === 'string') filter.until = b.until;
-    if (b.op === 'put' || b.op === 'forget' || b.op === 'import') {
+    if (
+      b.op === 'put' ||
+      b.op === 'forget' ||
+      b.op === 'import' ||
+      b.op === 'tag' ||
+      b.op === 'consolidate' ||
+      b.op === 'cleanup' ||
+      b.op === 'snapshot' ||
+      b.op === 'restore'
+    ) {
       filter.op = b.op as AuditOp;
     }
     if (typeof b.actor === 'string') filter.actor = b.actor;
@@ -660,6 +737,7 @@ export {
 } from './sqlite-vec-store.ts';
 export {
   assertNonEmptyForgetPredicate,
+  assertNonEmptyTagInput,
   defaultProvenance,
   type FeedbackSource,
   InMemoryMemoryStore,
@@ -672,5 +750,7 @@ export {
   type MemoryQueryResult,
   type MemoryScope,
   type MemoryStore,
+  type MemoryTagInput,
+  type MemoryTagResult,
   matchesForgetPredicate,
 } from './store.ts';

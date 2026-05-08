@@ -32,8 +32,18 @@
 
 import type { MemoryScope } from './store.ts';
 
-/** One audit-loggable operation. */
-export type AuditOp = 'put' | 'forget' | 'import';
+/** One audit-loggable operation. Add new operations here when adding
+ *  new mutating routes (tag, consolidate, cleanup, etc.) — the union
+ *  doubles as the canonical list of "what touches state". */
+export type AuditOp =
+  | 'put'
+  | 'forget'
+  | 'import'
+  | 'tag'
+  | 'consolidate'
+  | 'cleanup'
+  | 'snapshot'
+  | 'restore';
 
 /**
  * One row in the audit log. Server-assigned `id` is monotonic-ish

@@ -152,6 +152,7 @@ Commands:
   export    Stream matching entries as JSONL (one object per line)
   import    Read JSONL from stdin or --in <file>; put each line
   audit     Read the audit log (filter by --op, --since, --until, --scope, --actor)
+  tag       Tag entries positive/negative (--feedback positive|negative; --source ...)
   health    Server health probe
 
 Global flags:
@@ -178,6 +179,9 @@ Examples:
   edge-memory import --in backup.jsonl
   edge-memory audit --op forget --since 2026-05-01T00:00:00Z
   edge-memory audit --scope userId:alice --limit 50
+  edge-memory tag --scope jobId:job_42 --feedback positive --source phase-success
+  edge-memory tag --entry mem_xyz --feedback negative --source pr-rejected
+  edge-memory tag --scope productId:web --feedback positive --overwrite
   edge-memory health --json
 `;
 
@@ -224,6 +228,8 @@ export async function run(io: RunIO): Promise<number> {
         return await cmdImport(parsed, socket, json, stdout, stderr);
       case 'audit':
         return await cmdAudit(parsed, socket, json, stdout);
+      case 'tag':
+        return await cmdTag(parsed, socket, json, stdout, stderr);
       case 'health':
         return await cmdHealth(socket, json, stdout);
       default:
@@ -568,6 +574,42 @@ async function cmdAudit(
     );
   }
   stdout(`${lines.join('\n')}\n`);
+  return 0;
+}
+
+async function cmdTag(
+  parsed: ParsedArgs,
+  socket: string,
+  json: boolean,
+  stdout: (s: string) => void,
+  stderr: (s: string) => void,
+): Promise<number> {
+  const feedback = stringFlag(parsed.flags, 'feedback');
+  if (feedback !== 'positive' && feedback !== 'negative') {
+    stderr('error: --feedback positive|negative is required\n');
+    return 2;
+  }
+  const body: Record<string, unknown> = { feedback };
+  const entry = parsed.flags.entry;
+  if (typeof entry === 'string') body.entryIds = [entry];
+  const key = stringFlag(parsed.flags, 'key');
+  if (key) body.key = key;
+  const olderThan = stringFlag(parsed.flags, 'older-than');
+  if (olderThan) body.olderThan = olderThan;
+  if (Object.keys(parsed.scope).length > 0) body.scope = parsed.scope;
+  const source = stringFlag(parsed.flags, 'source');
+  if (source) body.feedbackSource = source;
+  if (parsed.flags.overwrite === true) body.overwrite = true;
+
+  const r = await udsJson<Record<string, unknown>>(socket, 'POST', '/v1/memory/tag', body);
+  const result = r.body.result as { tagged: number; alreadyTagged: number; taggedIds: string[] };
+  if (json) {
+    stdout(`${JSON.stringify(result)}\n`);
+  } else {
+    stdout(
+      `tagged ${result.tagged} (already-tagged: ${result.alreadyTagged}) feedback=${feedback}\n`,
+    );
+  }
   return 0;
 }
 

@@ -33,6 +33,7 @@ POST /v1/memory/query             body: MemoryQuery (kind: structured | recent |
 POST /v1/memory/forget            body: MemoryForgetPredicate (at least one of key, scope, olderThan)
 POST /v1/memory/export            body: optional MemoryQuery; response: text/plain JSONL of entries
 POST /v1/memory/import            body: text/plain JSONL; response: { imported, errors: [{line, error}] }
+POST /v1/memory/tag               body: MemoryTagInput (PRD F18); response: { tagged, alreadyTagged, taggedIds }
 POST /v1/audit                    body: optional AuditLogQuery; response: { events, count }
 ```
 

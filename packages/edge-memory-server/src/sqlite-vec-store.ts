@@ -26,6 +26,7 @@ import Database, { type Database as SqliteDatabase } from 'better-sqlite3';
 import * as sqliteVec from 'sqlite-vec';
 import {
   assertNonEmptyForgetPredicate,
+  assertNonEmptyTagInput,
   defaultProvenance,
   type MemoryEntry,
   type MemoryForgetPredicate,
@@ -36,6 +37,8 @@ import {
   type MemoryQueryResult,
   type MemoryScope,
   type MemoryStore,
+  type MemoryTagInput,
+  type MemoryTagResult,
 } from './store.ts';
 
 /** Same shape as createHttpEmbedderClient.embed — production wiring is
@@ -356,6 +359,80 @@ export class SqliteVecMemoryStore implements MemoryStore {
 
       return { deleted, deletedIds };
     })();
+    return result;
+  }
+
+  async tag(input: MemoryTagInput): Promise<MemoryTagResult> {
+    if (this.closed) throw new Error('store is closed');
+    assertNonEmptyTagInput(input);
+
+    // Two-step under a transaction: SELECT matching rowids/ids/provenance,
+    // decide which to update (overwrite vs already-tagged), then UPDATE.
+    // The decode-mutate-encode roundtrip on provenance_json is cleaner
+    // than expressing the merge in pure SQL; perf is plenty for our
+    // bulk sizes (PRD targets ≤1k matches in <100ms).
+    const wheres: string[] = [];
+    const params: unknown[] = [];
+    if (input.entryIds && input.entryIds.length > 0) {
+      const placeholders = input.entryIds.map(() => '?').join(',');
+      wheres.push(`id IN (${placeholders})`);
+      params.push(...input.entryIds);
+    }
+    if (input.key !== undefined) {
+      wheres.push('key = ?');
+      params.push(input.key);
+    }
+    if (input.olderThan !== undefined) {
+      wheres.push('created_at < ?');
+      params.push(input.olderThan);
+    }
+    const { whereClause, params: scopeParams } = scopeWhere(input.scope);
+    if (whereClause.length > 0) {
+      wheres.push(whereClause);
+      params.push(...scopeParams);
+    }
+    const whereSql = wheres.length > 0 ? `WHERE ${wheres.join(' AND ')}` : '';
+    const overwrite = input.overwrite === true;
+    const feedbackAt = new Date().toISOString();
+
+    const result = this.db.transaction(() => {
+      const rows = this.db
+        .prepare(`SELECT id, provenance_json, feedback FROM entries ${whereSql}`)
+        .all(...params) as Array<{
+        id: string;
+        provenance_json: string | null;
+        feedback: string | null;
+      }>;
+
+      let tagged = 0;
+      let alreadyTagged = 0;
+      const taggedIds: string[] = [];
+      const update = this.db.prepare(
+        `UPDATE entries SET provenance_json = ?, feedback = ? WHERE id = ?`,
+      );
+
+      for (const row of rows) {
+        const current = row.feedback ?? 'unconfirmed';
+        if (!overwrite && current !== 'unconfirmed') {
+          alreadyTagged++;
+          continue;
+        }
+        const provenance: MemoryProvenance = row.provenance_json
+          ? (JSON.parse(row.provenance_json) as MemoryProvenance)
+          : { feedback: 'unconfirmed' };
+        const next: MemoryProvenance = {
+          ...provenance,
+          feedback: input.feedback,
+          ...(input.feedbackSource !== undefined ? { feedbackSource: input.feedbackSource } : {}),
+          feedbackAt,
+        };
+        update.run(JSON.stringify(next), input.feedback, row.id);
+        tagged++;
+        if (taggedIds.length < 100) taggedIds.push(row.id);
+      }
+      return { tagged, alreadyTagged, taggedIds };
+    })();
+
     return result;
   }
 

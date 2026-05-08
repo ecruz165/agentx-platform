@@ -35,7 +35,8 @@ npm install -g @ecruz165/edge-memory-cli
 | `forget` | Delete entries by predicate. At least one of `--key`, `--older-than`, `--scope`. |
 | `export` | Stream matching entries as JSONL. Optional: `--type`, `--key`, `--scope`, `--out <file>`. |
 | `import` | Read JSONL from stdin or `--in <file>`; put each line. Reports per-line errors. |
-| `audit` | Read the audit log. Optional: `--op put\|forget\|import`, `--since/--until <iso>`, `--actor`, `--scope`, `--limit`. |
+| `audit` | Read the audit log. Optional: `--op put\|forget\|import\|tag\|...`, `--since/--until <iso>`, `--actor`, `--scope`, `--limit`. |
+| `tag` | Apply feedback to entries (PRD F18). Required: `--feedback positive\|negative`. Predicate: any of `--entry <id>`, `--key`, `--scope`, `--older-than`. Optional: `--source <FeedbackSource>`, `--overwrite`. |
 | `health` | Probe the daemon for state + backend + entry count. |
 
 Run `edge-memory --help` for the canonical list.

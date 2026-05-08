@@ -234,6 +234,102 @@ describe('InMemoryMemoryStore — forget', () => {
   });
 });
 
+describe('InMemoryMemoryStore — tag (PRD F18)', () => {
+  it('rejects empty tag input (no entryIds, no predicate)', async () => {
+    const store = new InMemoryMemoryStore();
+    await expect(store.tag({ feedback: 'positive' })).rejects.toThrow(/at least one of/);
+    await expect(store.tag({ feedback: 'positive', scope: {} })).rejects.toThrow(/at least one of/);
+    await expect(store.tag({ feedback: 'positive', entryIds: [] })).rejects.toThrow(
+      /at least one of/,
+    );
+  });
+
+  it('tags by entryIds — applies feedback + feedbackSource + feedbackAt', async () => {
+    const store = new InMemoryMemoryStore();
+    const a = await store.put({ key: 'k', value: 'A' });
+    const b = await store.put({ key: 'k', value: 'B' });
+
+    const r = await store.tag({
+      entryIds: [a.id],
+      feedback: 'positive',
+      feedbackSource: 'pr-merged',
+    });
+    expect(r.tagged).toBe(1);
+    expect(r.alreadyTagged).toBe(0);
+    expect(r.taggedIds).toEqual([a.id]);
+
+    const after = await store.query({ kind: 'structured' });
+    if (after.kind !== 'ok') throw new Error('expected ok');
+    const aPro = after.entries.find((e) => e.id === a.id);
+    const bPro = after.entries.find((e) => e.id === b.id);
+    expect(aPro?.provenance.feedback).toBe('positive');
+    expect(aPro?.provenance.feedbackSource).toBe('pr-merged');
+    expect(aPro?.provenance.feedbackAt).toMatch(/^\d{4}-/);
+    expect(bPro?.provenance.feedback).toBe('unconfirmed'); // untouched
+  });
+
+  it('tags by scope predicate (AND-combined with key/olderThan)', async () => {
+    const store = new InMemoryMemoryStore();
+    await store.put({ key: 'plan', value: 'A', scope: { jobId: 'j1' } });
+    await store.put({ key: 'plan', value: 'B', scope: { jobId: 'j1' } });
+    await store.put({ key: 'note', value: 'C', scope: { jobId: 'j1' } });
+    await store.put({ key: 'plan', value: 'D', scope: { jobId: 'j2' } });
+
+    const r = await store.tag({
+      scope: { jobId: 'j1' },
+      key: 'plan',
+      feedback: 'positive',
+    });
+    // Two entries match jobId:j1 AND key:plan.
+    expect(r.tagged).toBe(2);
+  });
+
+  it('skips already-tagged entries when overwrite=false (default)', async () => {
+    const store = new InMemoryMemoryStore();
+    const a = await store.put({ key: 'k', value: 'A' });
+    await store.tag({ entryIds: [a.id], feedback: 'positive' });
+
+    // Second tag with different feedback — should skip without overwrite.
+    const r = await store.tag({ entryIds: [a.id], feedback: 'negative' });
+    expect(r.tagged).toBe(0);
+    expect(r.alreadyTagged).toBe(1);
+
+    const after = await store.query({ kind: 'structured', key: 'k' });
+    if (after.kind !== 'ok') throw new Error('expected ok');
+    expect(after.entries[0]?.provenance.feedback).toBe('positive'); // preserved
+  });
+
+  it('overwrite=true re-tags already-tagged entries', async () => {
+    const store = new InMemoryMemoryStore();
+    const a = await store.put({ key: 'k', value: 'A' });
+    await store.tag({ entryIds: [a.id], feedback: 'positive' });
+
+    const r = await store.tag({
+      entryIds: [a.id],
+      feedback: 'negative',
+      feedbackSource: 'rollback',
+      overwrite: true,
+    });
+    expect(r.tagged).toBe(1);
+    expect(r.alreadyTagged).toBe(0);
+
+    const after = await store.query({ kind: 'structured', key: 'k' });
+    if (after.kind !== 'ok') throw new Error('expected ok');
+    expect(after.entries[0]?.provenance.feedback).toBe('negative');
+    expect(after.entries[0]?.provenance.feedbackSource).toBe('rollback');
+  });
+
+  it('caps taggedIds sample at 100 (count is authoritative)', async () => {
+    const store = new InMemoryMemoryStore();
+    for (let i = 0; i < 150; i++) {
+      await store.put({ key: 'bulk', value: i });
+    }
+    const r = await store.tag({ key: 'bulk', feedback: 'positive' });
+    expect(r.tagged).toBe(150);
+    expect(r.taggedIds.length).toBe(100);
+  });
+});
+
 describe('MemoryEntry — provenance + feedback (PRD F16)', () => {
   it('defaultProvenance — feedback unconfirmed; mirrors jobId/productId from scope', () => {
     expect(defaultProvenance(undefined)).toEqual({ feedback: 'unconfirmed' });

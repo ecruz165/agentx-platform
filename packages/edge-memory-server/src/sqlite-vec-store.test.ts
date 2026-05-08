@@ -394,6 +394,46 @@ describe('SqliteVecMemoryStore — forget', () => {
   });
 });
 
+describe('SqliteVecMemoryStore — tag (PRD F18)', () => {
+  it('tags by entryIds; provenance roundtrips through SQL', async () => {
+    const store = await openTestStore();
+    const a = await store.put({ key: 'k', value: 'A' });
+    const r = await store.tag({
+      entryIds: [a.id],
+      feedback: 'positive',
+      feedbackSource: 'phase-success',
+    });
+    expect(r.tagged).toBe(1);
+    const q = await store.query({ kind: 'structured', key: 'k' });
+    if (q.kind !== 'ok') throw new Error('expected ok');
+    expect(q.entries[0]?.provenance.feedback).toBe('positive');
+    expect(q.entries[0]?.provenance.feedbackSource).toBe('phase-success');
+  });
+
+  it('skips already-tagged unless overwrite=true', async () => {
+    const store = await openTestStore();
+    const a = await store.put({ key: 'k', value: 'A' });
+    await store.tag({ entryIds: [a.id], feedback: 'positive' });
+
+    const skip = await store.tag({ entryIds: [a.id], feedback: 'negative' });
+    expect(skip.tagged).toBe(0);
+    expect(skip.alreadyTagged).toBe(1);
+
+    const force = await store.tag({ entryIds: [a.id], feedback: 'negative', overwrite: true });
+    expect(force.tagged).toBe(1);
+    expect(force.alreadyTagged).toBe(0);
+  });
+
+  it('tag by scope predicate', async () => {
+    const store = await openTestStore();
+    await store.put({ key: 'k', value: 'A', scope: { jobId: 'j1' } });
+    await store.put({ key: 'k', value: 'B', scope: { jobId: 'j2' } });
+
+    const r = await store.tag({ scope: { jobId: 'j1' }, feedback: 'positive' });
+    expect(r.tagged).toBe(1);
+  });
+});
+
 describe('SqliteVecMemoryStore — provenance + feedback (PRD F16)', () => {
   it('default provenance is unconfirmed; round-trips through structured query', async () => {
     const store = await openTestStore();

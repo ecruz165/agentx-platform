@@ -526,6 +526,84 @@ describe('edge-memory-server HTTP routes', () => {
   });
 });
 
+describe('POST /v1/memory/tag (PRD F18)', () => {
+  const cleanups: Array<() => Promise<void>> = [];
+  afterEach(async () => {
+    for (const c of cleanups.splice(0)) await c();
+  });
+
+  it('tags entries; audit logs one event with op=tag and the count', async () => {
+    const socketPath = tmpSocket();
+    const handle = await startMemoryServer({ socketPath });
+    cleanups.push(async () => {
+      await handle.stop();
+      await rm(socketPath, { force: true });
+    });
+
+    await udsJson(socketPath, 'POST', '/v1/memory/put', {
+      key: 'plan',
+      value: 'A',
+      scope: { jobId: 'j1' },
+    });
+    await udsJson(socketPath, 'POST', '/v1/memory/put', {
+      key: 'plan',
+      value: 'B',
+      scope: { jobId: 'j1' },
+    });
+
+    const tag = await udsJson(socketPath, 'POST', '/v1/memory/tag', {
+      scope: { jobId: 'j1' },
+      feedback: 'positive',
+      feedbackSource: 'phase-success',
+    });
+    expect(tag.status).toBe(200);
+    expect(tag.body.result.tagged).toBe(2);
+
+    const audit = await udsJson(socketPath, 'POST', '/v1/audit', { op: 'tag' });
+    expect(audit.body.result.events).toHaveLength(1);
+    const ev = audit.body.result.events[0];
+    expect(ev.op).toBe('tag');
+    expect(ev.count).toBe(2);
+    expect(ev.scope.jobId).toBe('j1');
+  });
+
+  it('rejects body without feedback field', async () => {
+    const socketPath = tmpSocket();
+    const handle = await startMemoryServer({ socketPath });
+    cleanups.push(async () => {
+      await handle.stop();
+      await rm(socketPath, { force: true });
+    });
+    const r = await udsJson(socketPath, 'POST', '/v1/memory/tag', { key: 'plan' });
+    expect(r.status).toBe(400);
+    expect(r.body.error).toMatch(/feedback/);
+  });
+
+  it('skips already-tagged entries; logs event only for newly-tagged', async () => {
+    const socketPath = tmpSocket();
+    const handle = await startMemoryServer({ socketPath });
+    cleanups.push(async () => {
+      await handle.stop();
+      await rm(socketPath, { force: true });
+    });
+
+    await udsJson(socketPath, 'POST', '/v1/memory/put', { key: 'k', value: 'A' });
+    await udsJson(socketPath, 'POST', '/v1/memory/tag', { key: 'k', feedback: 'positive' });
+
+    // Same key, second tag — entry already positive; should be skipped.
+    const second = await udsJson(socketPath, 'POST', '/v1/memory/tag', {
+      key: 'k',
+      feedback: 'negative',
+    });
+    expect(second.body.result.tagged).toBe(0);
+    expect(second.body.result.alreadyTagged).toBe(1);
+
+    // Only one tag audit event should exist (the first one).
+    const audit = await udsJson(socketPath, 'POST', '/v1/audit', { op: 'tag' });
+    expect(audit.body.result.events).toHaveLength(1);
+  });
+});
+
 describe('Idle throttling (PRD F9)', () => {
   const cleanups: Array<() => Promise<void>> = [];
   afterEach(async () => {
