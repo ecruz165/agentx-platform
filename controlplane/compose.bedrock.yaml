@@ -1,0 +1,26 @@
+# Embedder overlay: AWS Bedrock via an OpenAI-compatible proxy.
+# Bedrock's native API isn't OpenAI-compatible; this overlay assumes a
+# proxy gateway is reachable (e.g., aws-samples/bedrock-access-gateway
+# deployed as a Lambda or sidecar). The proxy speaks OpenAI's
+# /v1/embeddings shape and forwards to Bedrock's InvokeModel API.
+#
+# Required env:
+#   BEDROCK_PROXY_URL    — the proxy's base URL, e.g. https://bedrock-proxy.internal/v1
+# Tunable env (with defaults):
+#   BEDROCK_EMBED_MODEL=amazon.titan-embed-text-v2:0   # or cohere.embed-english-v3
+#   BEDROCK_EMBED_DIM=1024
+#   AWS_REGION=us-east-1
+#   AWS_PROFILE=default                                # or set AWS_ACCESS_KEY_ID/SECRET_ACCESS_KEY
+#
+# Activate:
+#   workspace start --embedder bedrock
+#   docker compose -f compose.yaml -f compose.bedrock.yaml up -d
+
+services:
+  controlplane:
+    environment:
+      AGENTX_EMBEDDER_URL: ${BEDROCK_PROXY_URL:?BEDROCK_PROXY_URL is required for the bedrock embedder variant (point at an OpenAI-compatible Bedrock proxy)}
+      AGENTX_EMBEDDER_MODEL: ${BEDROCK_EMBED_MODEL:-amazon.titan-embed-text-v2:0}
+      AGENTX_EMBEDDER_DIMENSION: ${BEDROCK_EMBED_DIM:-1024}
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+      AWS_PROFILE: ${AWS_PROFILE:-default}

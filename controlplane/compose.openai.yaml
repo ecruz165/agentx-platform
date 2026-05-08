@@ -1,0 +1,23 @@
+# Embedder overlay: OpenAI-hosted embedding API.
+# Cloud-shape variant — no local model runner. Production default.
+#
+# Required env (read from a gitignored .env at the workspace root, or
+# set in the parent shell). Compose's `${VAR:?msg}` syntax fails the
+# `up` command up-front if the var is missing.
+#
+# Tunable env (with defaults):
+#   OPENAI_BASE_URL=https://api.openai.com/v1
+#   OPENAI_EMBED_MODEL=text-embedding-3-small
+#   OPENAI_EMBED_DIM=1536
+#
+# Activate:
+#   workspace start --embedder openai
+#   docker compose -f compose.yaml -f compose.openai.yaml up -d
+
+services:
+  controlplane:
+    environment:
+      AGENTX_EMBEDDER_URL: ${OPENAI_BASE_URL:-https://api.openai.com/v1}
+      AGENTX_EMBEDDER_MODEL: ${OPENAI_EMBED_MODEL:-text-embedding-3-small}
+      AGENTX_EMBEDDER_DIMENSION: ${OPENAI_EMBED_DIM:-1536}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:?OPENAI_API_KEY is required for the openai embedder variant}

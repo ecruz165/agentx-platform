@@ -1,0 +1,19 @@
+# Embedder overlay: Qwen3-Embedding 4B via Docker Model Runner.
+# Middle ground; 2560-dim output. ~8GB RAM under FP16.
+#
+# Activate:
+#   workspace start --embedder qwen-4b
+#   docker compose -f compose.yaml -f compose.qwen-4b.yaml up -d
+
+services:
+  controlplane:
+    environment:
+      AGENTX_EMBEDDER_DIMENSION: "2560"
+    models:
+      embedder:
+        endpoint_var: AGENTX_EMBEDDER_URL
+        model_var: AGENTX_EMBEDDER_MODEL
+
+models:
+  embedder:
+    model: ai/qwen3-embedding:4B

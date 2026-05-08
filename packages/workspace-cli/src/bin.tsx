@@ -43,10 +43,12 @@ program
 
 program
   .command('start')
-  .description('boot infra + controlplane + harness/context/memory peer servers')
-  .option('--skip-infra', 'skip docker-compose (assume Postgres/Neo4j/embedder already up)')
-  .option('--skip-controlplane', 'skip the Spring controlplane (run it manually for debug)')
-  .option('--skip-servers', 'skip the TS peer servers (harness/context/memory)')
+  .description('boot the platform via docker compose (central-data + controlplane + embedder overlay)')
+  .option(
+    '--embedder <variant>',
+    'embedder variant: qwen-0.6b | qwen-4b | qwen-8b | openai | bedrock',
+    'qwen-0.6b',
+  )
   .option('--platform-root <dir>', 'override the agentx-platform repo root (env: AGENTX_PLATFORM_ROOT)')
   .action(async (opts) => {
     await runStart(opts);

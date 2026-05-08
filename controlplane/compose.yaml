@@ -59,32 +59,18 @@ services:
       retries: 10
       start_period: 60s
 
-  # Embedder (HuggingFace TEI) — Phase 4.2 query path + Phase 4.3 ingestion.
-  # Stays separate from central-data because TEI is a Rust binary built
-  # against specific runtime libs that don't transplant cleanly onto a
-  # different base. HF TEI only ships amd64 manifests; on Apple Silicon,
-  # platform: linux/amd64 routes through Rosetta. The first-run model
-  # download + Rosetta startup easily exceeds Spring's docker-compose-wait
-  # window (5+ min), so no healthcheck is declared — Spring boots without
-  # waiting; the query path returns 503 until the embedder becomes reachable.
-  embedder:
-    image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.7
-    platform: linux/amd64
-    # Qwen3-Embedding 0.6B — 1024-dim multilingual model. Larger than
-    # bge-small-en-v1.5 (~768MB vs ~130MB on disk) but still tractable
-    # on a laptop CPU. First-run cold start under Rosetta on Apple Silicon
-    # is ~3-5 min for the model download.
-    command: ["--model-id", "Qwen/Qwen3-Embedding-0.6B"]
-    ports: ["8081:80"]
-    # Opt-in via compose profile: only the context query/ingest paths
-    # need this service, and it's heavy (RAM + Rosetta-translated CPU).
-    # Bring it up explicitly when needed:
-    #   docker compose --profile context up -d
-    #   docker compose up -d embedder       # by-name also works
-    # When embedder is down, the controlplane's Phase 4.2 query path
-    # surfaces a 503 instead of vector results; rest of the stack is
-    # unaffected.
-    profiles: ["context"]
+  # Embedder configuration is moved to per-variant overlay files —
+  # compose.qwen-0.6b.yaml, compose.qwen-4b.yaml, compose.qwen-8b.yaml,
+  # compose.openai.yaml, compose.bedrock.yaml. Each adds either a Docker
+  # Model Runner attachment (local Qwen variants) or pure env-var
+  # configuration (OpenAI / Bedrock cloud APIs).
+  #
+  # The base compose.yaml leaves AGENTX_EMBEDDER_URL/MODEL/DIMENSION
+  # unset; the controlplane Spring app boots fine but its query path
+  # surfaces a 503 until an overlay provides the embedder config.
+  #
+  # `workspace start --embedder <variant>` chooses the overlay; default
+  # is `qwen-0.6b` (lightest, fastest dev iteration).
 
   # controlplane — Spring Boot app + bundled web UI (built into Spring's
   # static resources at image-build time). Build context is the repo root
@@ -112,11 +98,8 @@ services:
       AGENTX_NEO4J_URI: bolt://central-data:7687
       AGENTX_NEO4J_USER: neo4j
       AGENTX_NEO4J_PASSWORD: controlplane
-      # TEI listens on port 80 inside the container; compose DNS resolves
-      # `embedder` to the service IP.
-      AGENTX_EMBEDDER_URL: http://embedder:80
-      AGENTX_EMBEDDER_MODEL: Qwen/Qwen3-Embedding-0.6B
-      AGENTX_EMBEDDER_DIMENSION: "1024"
+      # AGENTX_EMBEDDER_URL / AGENTX_EMBEDDER_MODEL / AGENTX_EMBEDDER_DIMENSION
+      # land via per-variant overlay files (see comment above).
       # Disable refresh-poller in container by default (no agentx-load
       # binary baked into the image yet — that's a follow-up).
       AGENTX_CONTEXT_LOADER_REFRESH_POLLER_ENABLED: "false"

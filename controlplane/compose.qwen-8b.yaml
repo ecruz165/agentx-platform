@@ -1,0 +1,20 @@
+# Embedder overlay: Qwen3-Embedding 8B via Docker Model Runner.
+# Heaviest variant; 4096-dim output. ~16GB RAM under FP16. Recommend
+# 32GB+ host. Quality matches/beats text-embedding-3-large on MTEB.
+#
+# Activate:
+#   workspace start --embedder qwen-8b
+#   docker compose -f compose.yaml -f compose.qwen-8b.yaml up -d
+
+services:
+  controlplane:
+    environment:
+      AGENTX_EMBEDDER_DIMENSION: "4096"
+    models:
+      embedder:
+        endpoint_var: AGENTX_EMBEDDER_URL
+        model_var: AGENTX_EMBEDDER_MODEL
+
+models:
+  embedder:
+    model: ai/qwen3-embedding:8B

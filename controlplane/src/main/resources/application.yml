@@ -44,13 +44,15 @@ agentx:
     user: neo4j
     password: controlplane
   embedder:
-    # OpenAI-compatible /v1 endpoint. Defaults match the compose-provided
-    # huggingface/text-embeddings-inference service running Qwen3-Embedding-0.6B
-    # (1024-dim, multilingual). Production overrides via env (Bedrock proxy,
-    # OpenAI direct, hosted TEI, etc.).
+    # OpenAI-compatible /v1 endpoint. In compose, both `url` and `model`
+    # are injected by Docker's Model Runner via the `models:` attachment
+    # in compose.yaml (endpoint_var / model_var). The defaults below
+    # match the compose-attached model (Qwen3-Embedding 8B, 4096-dim).
+    # Production overrides via env (Bedrock proxy, OpenAI direct,
+    # hosted TEI, etc.).
     url: http://localhost:8081
-    model: Qwen/Qwen3-Embedding-0.6B
-    dimension: 1024
+    model: ai/qwen3-embedding:8B
+    dimension: 4096
   context-loader:
     # Comma-separated argv prefix for the agentx-load CLI subprocess. In dev,
     # this runs the TS source via Bun from the workspace root. In prod, the

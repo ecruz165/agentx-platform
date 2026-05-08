@@ -1,0 +1,19 @@
+# Embedder overlay: Qwen3-Embedding 0.6B-F16 via Docker Model Runner.
+# Lightest variant; 1024-dim output. Recommended dev default.
+#
+# Activate:
+#   workspace start --embedder qwen-0.6b      # via the workspace CLI
+#   docker compose -f compose.yaml -f compose.qwen-0.6b.yaml up -d
+
+services:
+  controlplane:
+    environment:
+      AGENTX_EMBEDDER_DIMENSION: "1024"
+    models:
+      embedder:
+        endpoint_var: AGENTX_EMBEDDER_URL
+        model_var: AGENTX_EMBEDDER_MODEL
+
+models:
+  embedder:
+    model: ai/qwen3-embedding:0.6B-F16
