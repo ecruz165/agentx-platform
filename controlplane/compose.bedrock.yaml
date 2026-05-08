@@ -16,11 +16,17 @@
 #   workspace start --embedder bedrock
 #   docker compose -f compose.yaml -f compose.bedrock.yaml up -d
 
+x-bedrock-env: &bedrock-env
+  AGENTX_EMBEDDER_URL: ${BEDROCK_PROXY_URL:?BEDROCK_PROXY_URL is required for the bedrock embedder variant (point at an OpenAI-compatible Bedrock proxy)}
+  AGENTX_EMBEDDER_MODEL: ${BEDROCK_EMBED_MODEL:-amazon.titan-embed-text-v2:0}
+  AGENTX_EMBEDDER_DIMENSION: ${BEDROCK_EMBED_DIM:-1024}
+  AWS_REGION: ${AWS_REGION:-us-east-1}
+  AWS_PROFILE: ${AWS_PROFILE:-default}
+
 services:
   controlplane:
     environment:
-      AGENTX_EMBEDDER_URL: ${BEDROCK_PROXY_URL:?BEDROCK_PROXY_URL is required for the bedrock embedder variant (point at an OpenAI-compatible Bedrock proxy)}
-      AGENTX_EMBEDDER_MODEL: ${BEDROCK_EMBED_MODEL:-amazon.titan-embed-text-v2:0}
-      AGENTX_EMBEDDER_DIMENSION: ${BEDROCK_EMBED_DIM:-1024}
-      AWS_REGION: ${AWS_REGION:-us-east-1}
-      AWS_PROFILE: ${AWS_PROFILE:-default}
+      <<: *bedrock-env
+  edge-server:
+    environment:
+      <<: *bedrock-env

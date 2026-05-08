@@ -13,6 +13,13 @@ services:
       embedder:
         endpoint_var: AGENTX_EMBEDDER_URL
         model_var: AGENTX_EMBEDDER_MODEL
+  edge-server:
+    environment:
+      AGENTX_EMBEDDER_DIMENSION: "1024"
+    models:
+      embedder:
+        endpoint_var: AGENTX_EMBEDDER_URL
+        model_var: AGENTX_EMBEDDER_MODEL
 
 models:
   embedder:

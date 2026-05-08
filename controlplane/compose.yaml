@@ -113,6 +113,38 @@ services:
       retries: 10
       start_period: 60s
 
+  # edge-server — per-workspace cache. Bundles a private Neo4j (not exposed
+  # to the host) + edge-context-server + edge-memory-server. The two TS
+  # servers expose UDS sockets in /run/edge, mounted as a shared volume so
+  # the harness-server container can reach them. See controlplane/edge-server/
+  # for the Dockerfile + bun launcher details.
+  edge-server:
+    build:
+      context: ..
+      dockerfile: controlplane/edge-server/Dockerfile
+    image: agentx/edge-server:dev
+    environment:
+      NEO4J_AUTH: neo4j/edgepassword
+      EDGE_NEO4J_URL: bolt://localhost:7687
+      EDGE_NEO4J_USER: neo4j
+      EDGE_NEO4J_PASSWORD: edgepassword
+      # Embedder URL + model are injected by the per-variant overlay
+      # (compose.qwen-*.yaml / compose.openai.yaml / compose.bedrock.yaml).
+      # Without an overlay, edge-context falls back to echo mode.
+    volumes:
+      - edge-neo4j-data:/data
+      - edge-sockets:/run/edge
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - wget -q --spider http://127.0.0.1:7474 && test -S /run/edge/memory.sock && test -S /run/edge/context.sock
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 90s
+
 volumes:
   central-pg-data:
   central-neo4j-data:
+  edge-neo4j-data:
+  edge-sockets:
