@@ -16,6 +16,8 @@ public record JobDaoRow(
     String output,
     String failureReason,
     String currentNodeId,
+    String benchmarkRunId,
+    String benchmarkLabel,
     Instant createdAt,
     Instant startedAt,
     Instant completedAt,

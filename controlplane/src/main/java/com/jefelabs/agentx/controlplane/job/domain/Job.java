@@ -24,6 +24,13 @@ public record Job(
     JsonNode output,
     String failureReason,
     String currentNodeId,
+    /** Benchmark cohort id; null for regular submissions. Set when a job
+     *  is submitted as part of a {@code workspace bench} run so all the
+     *  variants of a comparison can be aggregated together. */
+    String benchmarkRunId,
+    /** Human-readable label for the benchmark variant, e.g.
+     *  {@code "qwen-0.6b run-1"}. Null when not benchmarking. */
+    String benchmarkLabel,
     Instant createdAt,
     Instant startedAt,
     Instant completedAt,

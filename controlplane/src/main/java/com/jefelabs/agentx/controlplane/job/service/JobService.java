@@ -49,6 +49,19 @@ public class JobService {
     public Job submit(String orgId, String createdBy, JobIntent intent) {
         String id = "job-" + UUID.randomUUID();
 
+        // Extract benchmark tags from config if present:
+        //   { "benchmark": { "runId": "abc", "label": "qwen-0.6b run-1" } }
+        // Used by `workspace bench` to group N jobs of one run for compare.
+        String benchmarkRunId = null;
+        String benchmarkLabel = null;
+        if (intent.config() != null && intent.config().has("benchmark")) {
+            JsonNode b = intent.config().get("benchmark");
+            if (b != null && b.isObject()) {
+                if (b.hasNonNull("runId")) benchmarkRunId = b.get("runId").asText();
+                if (b.hasNonNull("label")) benchmarkLabel = b.get("label").asText();
+            }
+        }
+
         JobDao dao = jdbi.onDemand(JobDao.class);
         dao.insert(
             orgId, id,
@@ -57,6 +70,7 @@ public class JobService {
             writeJson(intent.input()),
             intent.set(),
             writeJson(intent.config()),
+            benchmarkRunId, benchmarkLabel,
             createdBy
         );
 
@@ -70,7 +84,13 @@ public class JobService {
     }
 
     public List<Job> listByOrg(String orgId, int limit, int offset) {
-        return jdbi.onDemand(JobDao.class).listByOrg(orgId, limit, offset).stream()
+        return jdbi.onDemand(JobDao.class).listByOrg(orgId, null, limit, offset).stream()
+            .map(this::toDomain)
+            .toList();
+    }
+
+    public List<Job> listByBenchmarkRun(String orgId, String benchmarkRunId, int limit, int offset) {
+        return jdbi.onDemand(JobDao.class).listByOrg(orgId, benchmarkRunId, limit, offset).stream()
             .map(this::toDomain)
             .toList();
     }
@@ -131,6 +151,7 @@ public class JobService {
             readJson(row.input()), row.setName(), readJson(row.config()),
             readJson(row.output()),
             row.failureReason(), row.currentNodeId(),
+            row.benchmarkRunId(), row.benchmarkLabel(),
             row.createdAt(), row.startedAt(), row.completedAt(),
             row.createdBy()
         );

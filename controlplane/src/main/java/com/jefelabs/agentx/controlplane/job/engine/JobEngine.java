@@ -525,6 +525,7 @@ public class JobEngine {
             row.orgId(), row.id(), row.flowId(), row.productId(), row.status(),
             readJson(row.input()), row.setName(), readJson(row.config()), readJson(row.output()),
             row.failureReason(), row.currentNodeId(),
+            row.benchmarkRunId(), row.benchmarkLabel(),
             row.createdAt(), row.startedAt(), row.completedAt(), row.createdBy()
         );
     }

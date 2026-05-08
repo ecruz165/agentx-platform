@@ -50,12 +50,14 @@ public class JobController {
     @GetMapping
     public List<JobDTO> list(
         @RequestParam(defaultValue = "50") int limit,
-        @RequestParam(defaultValue = "0") int offset
+        @RequestParam(defaultValue = "0") int offset,
+        @RequestParam(name = "benchmarkRunId", required = false) String benchmarkRunId
     ) {
         var tenant = TenantContext.current();
-        return jobService.listByOrg(tenant.orgId(), limit, offset).stream()
-            .map(jobMapper::toDTO)
-            .toList();
+        var jobs = (benchmarkRunId != null && !benchmarkRunId.isBlank())
+            ? jobService.listByBenchmarkRun(tenant.orgId(), benchmarkRunId, limit, offset)
+            : jobService.listByOrg(tenant.orgId(), limit, offset);
+        return jobs.stream().map(jobMapper::toDTO).toList();
     }
 
     @PostMapping("/{id}/cancel")
