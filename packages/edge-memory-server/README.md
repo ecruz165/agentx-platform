@@ -27,6 +27,7 @@ src/
 
 ```
 GET  /health                      Liveness + backend state + entry count
+GET  /metrics                     Prometheus exposition (PRD F13)
 POST /v1/memory/put               body: { key, value, scope? }
 POST /v1/memory/query             body: MemoryQuery (kind: structured | recent | similarity | graph)
 POST /v1/memory/forget            body: MemoryForgetPredicate (at least one of key, scope, olderThan)
@@ -145,7 +146,6 @@ per agent invocation).
 Tracked in PRD; not yet implemented:
 
 - Snapshot + restore for session writes (F5)
-- Prometheus `/metrics` (F13)
 - Idle throttling (F9) — drop embedder + close connections after 10min idle
 - OpenAPI 3.1 auto-gen from Zod schemas (F11)
 - **Consolidation API + feedback tagging** (F14-F19) — the entire

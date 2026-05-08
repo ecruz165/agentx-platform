@@ -525,3 +525,78 @@ describe('edge-memory-server HTTP routes', () => {
     expect(r.body.error).toMatch(/invalid JSON/);
   });
 });
+
+describe('GET /metrics — Prometheus exposition (PRD F13)', () => {
+  const cleanups: Array<() => Promise<void>> = [];
+  afterEach(async () => {
+    for (const c of cleanups.splice(0)) await c();
+  });
+
+  it('exposes counters that increment per request', async () => {
+    const socketPath = tmpSocket();
+    const handle = await startMemoryServer({ socketPath });
+    cleanups.push(async () => {
+      await handle.stop();
+      await rm(socketPath, { force: true });
+    });
+
+    await udsJson(socketPath, 'POST', '/v1/memory/put', { key: 'k', value: 'v' });
+    await udsJson(socketPath, 'POST', '/v1/memory/put', { key: 'k2', value: 'v2' });
+    await udsJson(socketPath, 'POST', '/v1/memory/query', { kind: 'recent', limit: 5 });
+
+    const r = await udsText(socketPath, 'GET', '/metrics');
+    expect(r.status).toBe(200);
+    expect(r.body).toContain('# TYPE edge_memory_requests_total counter');
+    expect(r.body).toMatch(/edge_memory_requests_total\{op="put"\} 2/);
+    expect(r.body).toMatch(/edge_memory_requests_total\{op="query"\} 1/);
+    // Histogram buckets present.
+    expect(r.body).toContain('edge_memory_request_duration_seconds_bucket{op="put"');
+    // Entries gauge reflects store size.
+    expect(r.body).toMatch(/edge_memory_entries_total 2/);
+    // Idle gauge default 0.
+    expect(r.body).toContain('edge_memory_idle_state 0');
+  });
+
+  it('counts errors separately on 4xx', async () => {
+    const socketPath = tmpSocket();
+    const handle = await startMemoryServer({ socketPath });
+    cleanups.push(async () => {
+      await handle.stop();
+      await rm(socketPath, { force: true });
+    });
+
+    // forget without predicate → 400.
+    await udsJson(socketPath, 'POST', '/v1/memory/forget', {});
+
+    const r = await udsText(socketPath, 'GET', '/metrics');
+    expect(r.body).toMatch(/edge_memory_requests_total\{op="forget"\} 1/);
+    expect(r.body).toMatch(/edge_memory_errors_total\{op="forget"\} 1/);
+  });
+
+  it('uses content-type=text/plain with version=0.0.4 (Prometheus convention)', async () => {
+    const socketPath = tmpSocket();
+    const handle = await startMemoryServer({ socketPath });
+    cleanups.push(async () => {
+      await handle.stop();
+      await rm(socketPath, { force: true });
+    });
+
+    const r = await new Promise<{ headers: Record<string, string>; body: string }>(
+      (resolve, reject) => {
+        const req = request({ socketPath, path: '/metrics', method: 'GET' }, (res) => {
+          let buf = '';
+          res.on('data', (c) => (buf += c.toString()));
+          res.on('end', () =>
+            resolve({
+              headers: res.headers as Record<string, string>,
+              body: buf,
+            }),
+          );
+        });
+        req.on('error', reject);
+        req.end();
+      },
+    );
+    expect(r.headers['content-type']).toMatch(/text\/plain.*version=0\.0\.4/);
+  });
+});

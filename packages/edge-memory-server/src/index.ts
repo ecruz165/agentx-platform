@@ -28,6 +28,7 @@ import {
   InMemoryAuditLog,
   resolveActor,
 } from './audit.ts';
+import { Metrics, opForPath } from './metrics.ts';
 import {
   InMemoryMemoryStore,
   type MemoryForgetPredicate,
@@ -48,6 +49,10 @@ export interface MemoryServerOptions {
    *  persistence path. Per PRD F12, every put / forget / import is
    *  recorded with timestamp, scope, op, actor, count, entryIds. */
   audit?: AuditLog;
+  /** Process-wide metrics collector. Default: a fresh Metrics. Tests
+   *  may inject one to assert counter/histogram state without parsing
+   *  /metrics output. */
+  metrics?: Metrics;
 }
 
 export interface MemoryServerHandle {
@@ -58,6 +63,8 @@ export interface MemoryServerHandle {
   /** Reference to the audit log for the same reason — tests can
    *  cross-check audit events against the operations they triggered. */
   audit: AuditLog;
+  /** Reference to the metrics collector. */
+  metrics: Metrics;
   stop(): Promise<void>;
 }
 
@@ -69,7 +76,8 @@ export async function startMemoryServer(opts: MemoryServerOptions): Promise<Memo
 
   const store = opts.store ?? new InMemoryMemoryStore();
   const audit = opts.audit ?? new InMemoryAuditLog();
-  const server = createServer((req, res) => route(req, res, store, audit));
+  const metrics = opts.metrics ?? new Metrics();
+  const server = createServer((req, res) => route(req, res, store, audit, metrics));
 
   await new Promise<void>((resolve, reject) => {
     server.once('error', reject);
@@ -81,6 +89,7 @@ export async function startMemoryServer(opts: MemoryServerOptions): Promise<Memo
   return {
     store,
     audit,
+    metrics,
     async stop() {
       await new Promise<void>((resolve) => server.close(() => resolve()));
       await unlink(opts.socketPath).catch(() => {});
@@ -93,8 +102,30 @@ function route(
   res: ServerResponse,
   store: MemoryStore,
   audit: AuditLog,
+  metrics: Metrics,
 ): void {
   const url = (req.url ?? '/').split('?')[0]!.replace(/\/$/, '') || '/';
+  const op = opForPath(url);
+  const start = process.hrtime.bigint();
+
+  // Wrap res.end so every response increments the right counters.
+  // Errors are detected via res.statusCode after the handler runs.
+  const origEnd = res.end.bind(res);
+  // biome-ignore lint/suspicious/noExplicitAny: thin pass-through to Node's overloaded res.end signature
+  (res as any).end = (...args: unknown[]) => {
+    const seconds = Number(process.hrtime.bigint() - start) / 1e9;
+    metrics.observeLatency(op, seconds);
+    metrics.incRequest(op);
+    if (res.statusCode >= 400) metrics.incError(op);
+    return (origEnd as (...a: unknown[]) => ServerResponse)(...args);
+  };
+
+  // GET /metrics — Prometheus exposition. Last-known store size
+  // reflected in the entries gauge for free.
+  if (req.method === 'GET' && url === '/metrics') {
+    handleMetrics(res, store, metrics).catch((err: Error) => serverError(res, err.message));
+    return;
+  }
 
   // GET /health — backend state + size for diagnostic dashboards.
   if (req.method === 'GET' && url === '/health') {
@@ -179,6 +210,19 @@ function route(
   // Fallback echo for unknown paths — preserves v0 contract for early
   // bringup checks and tests that haven't migrated yet.
   echo(req, res, 'memory');
+}
+
+async function handleMetrics(
+  res: ServerResponse,
+  store: MemoryStore,
+  metrics: Metrics,
+): Promise<void> {
+  // Refresh entries gauge on every scrape so dashboards aren't stale
+  // when nothing else hit the store. Cheap for in-memory, ~0.1ms for
+  // SqliteVec.
+  metrics.setEntries(await store.size());
+  res.writeHead(200, { 'content-type': 'text/plain; version=0.0.4; charset=utf-8' });
+  res.end(metrics.render());
 }
 
 async function handleHealth(res: ServerResponse, store: MemoryStore): Promise<void> {
@@ -554,6 +598,7 @@ export {
   matchesAuditFilter,
   resolveActor,
 } from './audit.ts';
+export { type MetricOp, Metrics, opForPath } from './metrics.ts';
 export {
   SqliteAuditLog,
   type SqliteAuditLogOptions,
