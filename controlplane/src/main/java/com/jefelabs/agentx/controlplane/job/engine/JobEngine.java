@@ -17,6 +17,7 @@ import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -93,6 +94,12 @@ public class JobEngine {
             .orElse(null);  // empty flow: trigger with no outgoing edge → succeed immediately
         JsonNode priorOutput = initial.input();
 
+        // BodyRunner instance for compound step kinds (Loop, Fork, etc.); per-job attempt
+        // counter so each body invocation lands in its own job_steps row.
+        Map<String, Integer> bodyAttemptCounter = new HashMap<>();
+        BodyRunner bodyRunner = (bodyId, bodyInput) ->
+            executeBody(initial, flowJson, bodyId, bodyInput, bodyAttemptCounter, stepDao, eventDao);
+
         Job job = initial;
         while (currentNodeId != null) {
             final String nodeId = currentNodeId;  // effectively-final capture for orElseThrow lambda
@@ -116,7 +123,7 @@ public class JobEngine {
 
             StepResult result;
             try {
-                result = handler.execute(new StepContext(job, flowJson, node, currentNodeId, nodeKind, priorOutput));
+                result = handler.execute(new StepContext(job, flowJson, node, currentNodeId, nodeKind, priorOutput, bodyRunner));
             } catch (RuntimeException e) {
                 String reason = "handler threw: " + e.getMessage();
                 log.warn("Job {} step {} handler exception", job.id(), currentNodeId, e);
@@ -160,6 +167,74 @@ public class JobEngine {
         emit(eventDao, job, "job-completed", null, null);
         jobDao.markCompleted(job.orgId(), job.id(), writeJson(priorOutput));
         return jobDao.findById(job.orgId(), job.id()).map(this::reload).orElse(job);
+    }
+
+    // ── BodyRunner: in-line node execution for compound step kinds ────────
+
+    /**
+     * Run a single node as a child execution. Used by Loop (and later Fork +
+     * Map + Call) to invoke other handlers inline. Each invocation creates a
+     * fresh job_steps row with attempt = N for tracing; non-Advance verdicts
+     * propagate to the parent handler as a {@link BodyRunner.BodyExecutionException}.
+     */
+    private JsonNode executeBody(
+        Job job,
+        JsonNode flowJson,
+        String bodyNodeId,
+        JsonNode bodyInput,
+        Map<String, Integer> attemptCounter,
+        JobStepDao stepDao,
+        JobEventDao eventDao
+    ) {
+        JsonNode bodyNode = findNode(flowJson, bodyNodeId)
+            .orElseThrow(() -> new IllegalStateException("body node not found: " + bodyNodeId));
+        String bodyKind = bodyNode.path("kind").asText();
+        StepKindHandler handler = handlersByKind.get(bodyKind);
+        if (handler == null) {
+            throw new IllegalStateException("no handler for body step kind: " + bodyKind);
+        }
+
+        int attempt = attemptCounter.merge(bodyNodeId, 1, Integer::sum);
+        stepDao.startStep(job.orgId(), job.id(), bodyNodeId, attempt, StepStatus.RUNNING, null, writeJson(bodyInput));
+        emit(eventDao, job, "step-started", bodyNodeId, null);
+
+        // Re-bind a BodyRunner for nested compound steps (Loop-of-Loop, etc.)
+        BodyRunner nested = (id, input) -> executeBody(job, flowJson, id, input, attemptCounter, stepDao, eventDao);
+        StepContext bodyCtx = new StepContext(job, flowJson, bodyNode, bodyNodeId, bodyKind, bodyInput, nested);
+
+        StepResult bodyResult;
+        try {
+            bodyResult = handler.execute(bodyCtx);
+        } catch (RuntimeException e) {
+            stepDao.completeStep(job.orgId(), job.id(), bodyNodeId, attempt, StepStatus.FAILED, null, e.getMessage());
+            emit(eventDao, job, "step-failed", bodyNodeId, errorPayload(e.getMessage()));
+            throw e;
+        }
+
+        return switch (bodyResult) {
+            case StepResult.Advance advance -> {
+                stepDao.completeStep(job.orgId(), job.id(), bodyNodeId, attempt,
+                    StepStatus.COMPLETED, writeJson(advance.output()), null);
+                emit(eventDao, job, "step-completed", bodyNodeId, null);
+                yield advance.output();
+            }
+            case StepResult.TerminateSuccess success -> {
+                stepDao.completeStep(job.orgId(), job.id(), bodyNodeId, attempt,
+                    StepStatus.COMPLETED, writeJson(success.output()), null);
+                emit(eventDao, job, "step-completed", bodyNodeId, null);
+                throw new BodyRunner.BodyExecutionException(bodyNodeId, bodyResult,
+                    "body returned TerminateSuccess — parent handler should propagate");
+            }
+            case StepResult.TerminateFailure failure -> {
+                stepDao.completeStep(job.orgId(), job.id(), bodyNodeId, attempt,
+                    StepStatus.FAILED, null, failure.reason());
+                emit(eventDao, job, "step-failed", bodyNodeId, errorPayload(failure.reason()));
+                throw new BodyRunner.BodyExecutionException(bodyNodeId, bodyResult, failure.reason());
+            }
+            case StepResult.Pause pause ->
+                throw new BodyRunner.BodyExecutionException(bodyNodeId, bodyResult,
+                    "body steps cannot Pause in Phase 3c; got: " + pause.reason());
+        };
     }
 
     // ── FlowDef walking helpers ────────────────────────────────────────────
