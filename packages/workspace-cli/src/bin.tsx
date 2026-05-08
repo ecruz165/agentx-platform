@@ -15,6 +15,7 @@
 import { Command } from 'commander';
 import { runSetup } from './setup.ts';
 import { runStart } from './start.ts';
+import { runTmux } from './tmux.ts';
 import { runWeb } from './web.ts';
 
 const program = new Command()
@@ -58,6 +59,15 @@ program
   .option('--no-open', 'print the URL instead of opening the browser')
   .action(async (opts) => {
     await runWeb(opts);
+  });
+
+program
+  .command('tmux')
+  .description('launch the agentx ops dashboard (TUI + server log panes) in tmux')
+  .option('--platform-root <dir>', 'override the agentx-platform repo root (env: AGENTX_PLATFORM_ROOT)')
+  .option('--session <name>', 'tmux session name (default: agentx)')
+  .action(async (opts) => {
+    await runTmux(opts);
   });
 
 await program.parseAsync();
