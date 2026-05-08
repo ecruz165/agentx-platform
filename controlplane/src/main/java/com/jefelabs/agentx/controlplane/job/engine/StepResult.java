@@ -9,8 +9,20 @@ import tools.jackson.databind.JsonNode;
  */
 public sealed interface StepResult {
 
-    /** Step finished cleanly; engine follows outgoing edge(s) to the next node. */
-    record Advance(JsonNode output) implements StepResult {}
+    /**
+     * Step finished cleanly; engine follows an outgoing edge to the next node.
+     *
+     * <p>{@code edgeLabel} is the optional preference among multiple outgoing
+     * edges. {@code ConditionalStepHandler} returns {@code "then"} or
+     * {@code "else"}; engine matches against the edge's {@code label}
+     * field in the FlowDef. {@code null} means "follow the first unlabeled
+     * edge" (the simple sequential case).
+     */
+    record Advance(JsonNode output, String edgeLabel) implements StepResult {
+        public Advance(JsonNode output) {
+            this(output, null);
+        }
+    }
 
     /** Step paused for an external event (Approval, Wait, WaitForEvent — Phase 3e). */
     record Pause(String reason) implements StepResult {}

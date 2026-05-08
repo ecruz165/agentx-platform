@@ -132,7 +132,7 @@ public class JobEngine {
                         StepStatus.COMPLETED, writeJson(advance.output()), null);
                     emit(eventDao, job, "step-completed", currentNodeId, null);
                     priorOutput = advance.output();
-                    currentNodeId = followEdge(flowJson, currentNodeId).orElse(null);
+                    currentNodeId = followEdge(flowJson, currentNodeId, advance.edgeLabel()).orElse(null);
                 }
                 case StepResult.TerminateSuccess success -> {
                     stepDao.completeStep(job.orgId(), job.id(), currentNodeId, 1,
@@ -191,13 +191,31 @@ public class JobEngine {
     }
 
     private Optional<String> followEdge(JsonNode flow, String fromNodeId) {
+        return followEdge(flow, fromNodeId, null);
+    }
+
+    /**
+     * Follow an outgoing edge from {@code fromNodeId}, preferring an edge whose
+     * {@code label} matches {@code preferredLabel}. When {@code preferredLabel}
+     * is null OR no matching label is found, fall back to the first unlabeled
+     * edge. Returns empty when no suitable edge exists (engine treats as the
+     * normal walk-off-end completion).
+     */
+    private Optional<String> followEdge(JsonNode flow, String fromNodeId, String preferredLabel) {
+        String unlabeledTarget = null;
         for (JsonNode edge : flow.path("edges")) {
-            if (fromNodeId.equals(edge.path("source").asText())) {
-                String target = edge.path("target").asText();
-                return target.isEmpty() ? Optional.empty() : Optional.of(target);
+            if (!fromNodeId.equals(edge.path("source").asText())) continue;
+            String label = edge.path("label").asText("");
+            String target = edge.path("target").asText();
+            if (target.isEmpty()) continue;
+            if (preferredLabel != null && preferredLabel.equals(label)) {
+                return Optional.of(target);
+            }
+            if (label.isEmpty() && unlabeledTarget == null) {
+                unlabeledTarget = target;
             }
         }
-        return Optional.empty();
+        return Optional.ofNullable(unlabeledTarget);
     }
 
     // ── persistence helpers ────────────────────────────────────────────────
