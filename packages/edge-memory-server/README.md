@@ -36,6 +36,8 @@ POST /v1/memory/import            body: text/plain JSONL; response: { imported, 
 POST /v1/memory/tag               body: MemoryTagInput (PRD F18); response: { tagged, alreadyTagged, taggedIds }
 POST /v1/memory/consolidate       body: ConsolidateInput (PRD F14/F15); promote feedback-tagged entries from→to scope
 POST /v1/memory/cleanup-unconfirmed  body: { scope }; delete unconfirmed entries (PRD F19; job-end residual cleanup)
+POST /v1/memory/snapshot          body: { scope }; capture entries → { snapshotId, count } (PRD F5)
+POST /v1/memory/restore           body: { snapshotId, mode? }; mode: 'replace' (default) | 'merge'
 POST /v1/audit                    body: optional AuditLogQuery; response: { events, count }
 ```
 
@@ -93,6 +95,9 @@ export MEMORY_SOCKET_PATH=/root/.harness/run/memory.sock
 # First /v1/* call after idle awaits the onWarm hook, then proceeds.
 export MEMORY_IDLE_TIMEOUT_MS=600000               # default 10min
 export MEMORY_IDLE_CHECK_INTERVAL_MS=30000         # default 30s
+
+# Snapshot store (PRD F5) — separate file by default; in-memory if unset.
+export MEMORY_SNAPSHOT_DB_PATH=/var/lib/agentx/memory-snapshots.sqlite
 ```
 
 The embedder env vars are only required when `MEMORY_DB_PATH` is set
@@ -154,7 +159,6 @@ per agent invocation).
 
 Tracked in PRD; not yet implemented:
 
-- Snapshot + restore for session writes (F5)
 - OpenAPI 3.1 auto-gen from Zod schemas (F11)
 - LLM-driven `feedback-summarize` strategy ships with a placeholder
   summarizer (concatenation); production wires Anthropic Messages

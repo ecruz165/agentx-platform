@@ -450,6 +450,58 @@ describe('edge-memory CLI — tag (F18)', () => {
   });
 });
 
+describe('edge-memory CLI — snapshot + restore (F5)', () => {
+  const cleanups: Array<() => Promise<void>> = [];
+  afterEach(async () => {
+    for (const c of cleanups.splice(0)) await c();
+  });
+  async function startServer(): Promise<string> {
+    const socketPath = join(tmpdir(), `snap-cli-${randomUUID().slice(0, 8)}.sock`);
+    const handle = await startMemoryServer({ socketPath });
+    cleanups.push(async () => {
+      await handle.stop();
+      await rm(socketPath, { force: true });
+    });
+    return socketPath;
+  }
+
+  it('snapshot --scope → restore --snapshot round-trips', async () => {
+    const socket = await startServer();
+    await runCli(['put', 'k', '--value', 'A', '--scope', 'sessionId:s1'], socket);
+
+    const snap = await runCli(['snapshot', '--scope', 'sessionId:s1', '--json'], socket);
+    expect(snap.code).toBe(0);
+    const snapshotId = JSON.parse(snap.stdout).snapshotId as string;
+    expect(snapshotId).toMatch(/^snap_/);
+
+    await runCli(['forget', '--scope', 'sessionId:s1'], socket);
+
+    const restore = await runCli(['restore', '--snapshot', snapshotId], socket);
+    expect(restore.code).toBe(0);
+    expect(restore.stdout).toMatch(/restored 1/);
+
+    const after = await runCli(
+      ['query', '--type', 'structured', '--scope', 'sessionId:s1', '--json'],
+      socket,
+    );
+    expect(JSON.parse(after.stdout).entries).toHaveLength(1);
+  });
+
+  it('snapshot rejects missing --scope (exit 2)', async () => {
+    const socket = await startServer();
+    const r = await runCli(['snapshot'], socket);
+    expect(r.code).toBe(2);
+    expect(r.stderr).toMatch(/--scope/);
+  });
+
+  it('restore rejects missing --snapshot (exit 2)', async () => {
+    const socket = await startServer();
+    const r = await runCli(['restore'], socket);
+    expect(r.code).toBe(2);
+    expect(r.stderr).toMatch(/--snapshot/);
+  });
+});
+
 describe('edge-memory CLI — cleanup (F19)', () => {
   const cleanups: Array<() => Promise<void>> = [];
   afterEach(async () => {

@@ -36,9 +36,11 @@ import {
 } from './consolidate.ts';
 import { IdleThrottle, type IdleThrottleOptions } from './idle-throttle.ts';
 import { Metrics, opForPath } from './metrics.ts';
+import { InMemorySnapshotStore, type SnapshotStore } from './snapshot.ts';
 import {
   type FeedbackSource,
   InMemoryMemoryStore,
+  type MemoryEntry,
   type MemoryForgetPredicate,
   type MemoryPutInput,
   type MemoryQuery,
@@ -71,6 +73,10 @@ export interface MemoryServerOptions {
    *  strategy (PRD F15). Default: defaultSummarize (concatenation
    *  placeholder). Production wires an Anthropic Messages client. */
   summarize?: SummarizeFn;
+  /** Snapshot store (PRD F5). Default: a fresh InMemorySnapshotStore.
+   *  Production wires SqliteSnapshotStore for persistence across
+   *  daemon restarts. */
+  snapshots?: SnapshotStore;
 }
 
 export interface MemoryServerHandle {
@@ -85,6 +91,8 @@ export interface MemoryServerHandle {
   metrics: Metrics;
   /** Idle throttle, if enabled. `null` when disabled via `idle: false`. */
   idle: IdleThrottle | null;
+  /** Snapshot store. */
+  snapshots: SnapshotStore;
   stop(): Promise<void>;
 }
 
@@ -100,8 +108,9 @@ export async function startMemoryServer(opts: MemoryServerOptions): Promise<Memo
   const idle: IdleThrottle | null = opts.idle === false ? null : new IdleThrottle(opts.idle ?? {});
   if (idle) idle.start();
   const summarize = opts.summarize;
+  const snapshots = opts.snapshots ?? new InMemorySnapshotStore();
   const server = createServer((req, res) =>
-    route(req, res, store, audit, metrics, idle, summarize),
+    route(req, res, store, audit, metrics, idle, summarize, snapshots),
   );
 
   await new Promise<void>((resolve, reject) => {
@@ -116,6 +125,7 @@ export async function startMemoryServer(opts: MemoryServerOptions): Promise<Memo
     audit,
     metrics,
     idle,
+    snapshots,
     async stop() {
       idle?.stop();
       await new Promise<void>((resolve) => server.close(() => resolve()));
@@ -132,6 +142,7 @@ function route(
   metrics: Metrics,
   idle: IdleThrottle | null,
   summarize: SummarizeFn | undefined,
+  snapshots: SnapshotStore,
 ): void {
   const url = (req.url ?? '/').split('?')[0]!.replace(/\/$/, '') || '/';
   const op = opForPath(url);
@@ -172,12 +183,12 @@ function route(
     if (idle.state === 'idle') {
       idle
         .ensureWarm()
-        .then(() => dispatchV1(req, res, store, audit, url, summarize))
+        .then(() => dispatchV1(req, res, store, audit, url, summarize, snapshots))
         .catch((err: Error) => serverError(res, `warmup failed: ${err.message}`));
       return;
     }
   }
-  dispatchV1(req, res, store, audit, url, summarize);
+  dispatchV1(req, res, store, audit, url, summarize, snapshots);
 }
 
 function dispatchV1(
@@ -187,6 +198,7 @@ function dispatchV1(
   audit: AuditLog,
   url: string,
   summarize: SummarizeFn | undefined,
+  snapshots: SnapshotStore,
 ): void {
   // POST /v1/memory/put — body { key, value, scope? }
   if (req.method === 'POST' && url === '/v1/memory/put') {
@@ -283,6 +295,34 @@ function dispatchV1(
         return;
       }
       handleCleanup(res, store, audit, parsed).catch((e: Error) => serverError(res, e.message));
+    });
+    return;
+  }
+
+  // POST /v1/memory/snapshot — body { scope }. PRD F5.
+  if (req.method === 'POST' && url === '/v1/memory/snapshot') {
+    consumeJsonBody(req, (parsed, err) => {
+      if (err) {
+        badRequest(res, err);
+        return;
+      }
+      handleSnapshot(res, store, audit, snapshots, parsed).catch((e: Error) =>
+        serverError(res, e.message),
+      );
+    });
+    return;
+  }
+
+  // POST /v1/memory/restore — body { snapshotId, mode? }. PRD F5.
+  if (req.method === 'POST' && url === '/v1/memory/restore') {
+    consumeJsonBody(req, (parsed, err) => {
+      if (err) {
+        badRequest(res, err);
+        return;
+      }
+      handleRestore(res, store, audit, snapshots, parsed).catch((e: Error) =>
+        serverError(res, e.message),
+      );
     });
     return;
   }
@@ -635,6 +675,120 @@ async function handleTag(
 }
 
 /**
+ * PRD F5 — snapshot all entries matching `scope` into the SnapshotStore.
+ * Returns the new snapshotId + count. Memory store is NOT modified —
+ * snapshot is a read-only capture.
+ */
+async function handleSnapshot(
+  res: ServerResponse,
+  store: MemoryStore,
+  audit: AuditLog,
+  snapshots: SnapshotStore,
+  body: unknown,
+): Promise<void> {
+  if (!isObject(body)) {
+    badRequest(res, 'body must be a JSON object with { scope }');
+    return;
+  }
+  const b = body as Record<string, unknown>;
+  if (!isScope(b.scope)) {
+    badRequest(res, 'body.scope is required and must be a valid MemoryScope object');
+    return;
+  }
+  const scope = b.scope as MemoryScope;
+  if (!Object.values(scope).some((v) => v !== undefined)) {
+    badRequest(res, 'body.scope must have at least one set field (refusing global snapshot)');
+    return;
+  }
+  // Pull every entry matching the scope. recent + huge limit is the
+  // path that returns all matches; structured-with-no-key works too.
+  const q = await store.query({ kind: 'recent', scope, limit: 100_000 });
+  if (q.kind !== 'ok') {
+    badRequest(res, `snapshot source query unsupported: ${q.reason}`);
+    return;
+  }
+  const snap = await snapshots.save(scope, q.entries);
+  await audit.append({
+    op: 'snapshot',
+    actor: resolveActor(),
+    count: q.entries.length,
+    entryIds: q.entries.slice(0, 100).map((e) => e.id),
+    scope,
+  });
+  ok(res, {
+    service: 'memory',
+    method: 'POST',
+    path: '/v1/memory/snapshot',
+    result: { snapshotId: snap.id, count: q.entries.length, createdAt: snap.createdAt },
+    ts: new Date().toISOString(),
+  });
+}
+
+/**
+ * PRD F5 — restore a snapshot by id. Default mode='replace' wipes the
+ * snapshot's scope first, then re-puts the captured entries; mode='merge'
+ * skips the wipe. Server reissues each entry's id (lossy roundtrip,
+ * same constraint as JSONL import).
+ */
+async function handleRestore(
+  res: ServerResponse,
+  store: MemoryStore,
+  audit: AuditLog,
+  snapshots: SnapshotStore,
+  body: unknown,
+): Promise<void> {
+  if (!isObject(body)) {
+    badRequest(res, 'body must be a JSON object with { snapshotId, mode? }');
+    return;
+  }
+  const b = body as Record<string, unknown>;
+  const snapshotId = b.snapshotId;
+  if (typeof snapshotId !== 'string') {
+    badRequest(res, 'body.snapshotId is required (string)');
+    return;
+  }
+  const mode = b.mode === 'merge' ? 'merge' : 'replace';
+  const snap = await snapshots.load(snapshotId);
+  if (!snap) {
+    res.writeHead(404, { 'content-type': 'application/json' });
+    res.end(JSON.stringify({ ok: false, error: `snapshot not found: ${snapshotId}` }));
+    return;
+  }
+  if (mode === 'replace') {
+    // Wipe the scope before re-applying. Empty result is OK — that
+    // just means the scope was already empty.
+    const hasField = Object.values(snap.scope).some((v) => v !== undefined);
+    if (hasField) {
+      await store.forget({ scope: snap.scope });
+    }
+  }
+  const restoredIds: string[] = [];
+  for (const e of snap.entries as MemoryEntry[]) {
+    const newEntry = await store.put({
+      key: e.key,
+      value: e.value,
+      scope: e.scope,
+      provenance: e.provenance,
+    });
+    if (restoredIds.length < 100) restoredIds.push(newEntry.id);
+  }
+  await audit.append({
+    op: 'restore',
+    actor: resolveActor(),
+    count: snap.entries.length,
+    entryIds: restoredIds,
+    scope: snap.scope,
+  });
+  ok(res, {
+    service: 'memory',
+    method: 'POST',
+    path: '/v1/memory/restore',
+    result: { restored: snap.entries.length, mode, snapshotId },
+    ts: new Date().toISOString(),
+  });
+}
+
+/**
  * PRD F19 — clean up unconfirmed entries within a scope (typically
  * `{jobId}` at session-end). Composes forget with the new
  * feedback='unconfirmed' predicate. Returns the same { deleted,
@@ -894,9 +1048,18 @@ export {
 } from './idle-throttle.ts';
 export { type MetricOp, Metrics, opForPath } from './metrics.ts';
 export {
+  InMemorySnapshotStore,
+  type MemorySnapshot,
+  type SnapshotStore,
+} from './snapshot.ts';
+export {
   SqliteAuditLog,
   type SqliteAuditLogOptions,
 } from './sqlite-audit-log.ts';
+export {
+  SqliteSnapshotStore,
+  type SqliteSnapshotStoreOptions,
+} from './sqlite-snapshot.ts';
 export {
   type EmbedFn,
   SqliteVecMemoryStore,

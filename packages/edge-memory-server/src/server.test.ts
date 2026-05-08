@@ -526,6 +526,126 @@ describe('edge-memory-server HTTP routes', () => {
   });
 });
 
+describe('POST /v1/memory/snapshot + restore (PRD F5)', () => {
+  const cleanups: Array<() => Promise<void>> = [];
+  afterEach(async () => {
+    for (const c of cleanups.splice(0)) await c();
+  });
+
+  it('snapshot → forget → restore (replace) round-trips entries', async () => {
+    const socketPath = tmpSocket();
+    const handle = await startMemoryServer({ socketPath });
+    cleanups.push(async () => {
+      await handle.stop();
+      await rm(socketPath, { force: true });
+    });
+
+    await udsJson(socketPath, 'POST', '/v1/memory/put', {
+      key: 'a',
+      value: 'A',
+      scope: { sessionId: 's1' },
+    });
+    await udsJson(socketPath, 'POST', '/v1/memory/put', {
+      key: 'b',
+      value: 'B',
+      scope: { sessionId: 's1' },
+    });
+
+    const snap = await udsJson(socketPath, 'POST', '/v1/memory/snapshot', {
+      scope: { sessionId: 's1' },
+    });
+    expect(snap.body.result.count).toBe(2);
+    const snapshotId = snap.body.result.snapshotId;
+    expect(snapshotId).toMatch(/^snap_/);
+
+    // Wipe.
+    await udsJson(socketPath, 'POST', '/v1/memory/forget', {
+      scope: { sessionId: 's1' },
+    });
+    const after = await udsJson(socketPath, 'POST', '/v1/memory/query', {
+      kind: 'recent',
+      scope: { sessionId: 's1' },
+    });
+    expect(after.body.result.entries).toHaveLength(0);
+
+    // Restore.
+    const restore = await udsJson(socketPath, 'POST', '/v1/memory/restore', { snapshotId });
+    expect(restore.body.result.restored).toBe(2);
+
+    const back = await udsJson(socketPath, 'POST', '/v1/memory/query', {
+      kind: 'recent',
+      scope: { sessionId: 's1' },
+    });
+    expect(back.body.result.entries).toHaveLength(2);
+    const values = (back.body.result.entries as Array<{ value: string }>).map((e) => e.value);
+    expect(values.sort()).toEqual(['A', 'B']);
+  });
+
+  it('restore mode=merge keeps existing entries; default is replace (wipes first)', async () => {
+    const socketPath = tmpSocket();
+    const handle = await startMemoryServer({ socketPath });
+    cleanups.push(async () => {
+      await handle.stop();
+      await rm(socketPath, { force: true });
+    });
+
+    await udsJson(socketPath, 'POST', '/v1/memory/put', {
+      key: 'a',
+      value: 'A',
+      scope: { sessionId: 's1' },
+    });
+    const snap = await udsJson(socketPath, 'POST', '/v1/memory/snapshot', {
+      scope: { sessionId: 's1' },
+    });
+
+    // Add a new entry, then restore in merge mode — both should remain.
+    await udsJson(socketPath, 'POST', '/v1/memory/put', {
+      key: 'b',
+      value: 'B',
+      scope: { sessionId: 's1' },
+    });
+    await udsJson(socketPath, 'POST', '/v1/memory/restore', {
+      snapshotId: snap.body.result.snapshotId,
+      mode: 'merge',
+    });
+
+    const after = await udsJson(socketPath, 'POST', '/v1/memory/query', {
+      kind: 'recent',
+      scope: { sessionId: 's1' },
+    });
+    // Original 'A' + 'B' (added after snapshot) + restored 'A' = 3
+    // entries — merge does not de-dup; restore is a re-put with a
+    // new id. Semantics matches `import` (lossy on identity).
+    expect(after.body.result.entries).toHaveLength(3);
+  });
+
+  it('restore returns 404 for unknown snapshot', async () => {
+    const socketPath = tmpSocket();
+    const handle = await startMemoryServer({ socketPath });
+    cleanups.push(async () => {
+      await handle.stop();
+      await rm(socketPath, { force: true });
+    });
+    const r = await udsJson(socketPath, 'POST', '/v1/memory/restore', {
+      snapshotId: 'snap_nope',
+    });
+    expect(r.status).toBe(404);
+    expect(r.body.error).toMatch(/not found/);
+  });
+
+  it('snapshot rejects empty scope', async () => {
+    const socketPath = tmpSocket();
+    const handle = await startMemoryServer({ socketPath });
+    cleanups.push(async () => {
+      await handle.stop();
+      await rm(socketPath, { force: true });
+    });
+    const r = await udsJson(socketPath, 'POST', '/v1/memory/snapshot', { scope: {} });
+    expect(r.status).toBe(400);
+    expect(r.body.error).toMatch(/scope/);
+  });
+});
+
 describe('POST /v1/memory/cleanup-unconfirmed (PRD F19)', () => {
   const cleanups: Array<() => Promise<void>> = [];
   afterEach(async () => {

@@ -155,6 +155,8 @@ Commands:
   tag       Tag entries positive/negative (--feedback positive|negative; --source ...)
   consolidate  Promote tagged entries from --from <scope> to --to <scope>
   cleanup   Delete unconfirmed entries within --scope (PRD F19; job-end pruning)
+  snapshot  Capture entries matching --scope into a snapshot (PRD F5)
+  restore   Restore a snapshot by --snapshot <id> (mode: --replace [default] or --merge)
   health    Server health probe
 
 Global flags:
@@ -188,6 +190,8 @@ Examples:
   edge-memory consolidate --from jobId:j --to userId:alice --strategy feedback-summarize
   edge-memory consolidate --from jobId:j --to productId:web --feedback-filter positive --keep-source
   edge-memory cleanup --scope jobId:job_42
+  edge-memory snapshot --scope sessionId:abc-123
+  edge-memory restore --snapshot snap_123 --merge
   edge-memory health --json
 `;
 
@@ -240,6 +244,10 @@ export async function run(io: RunIO): Promise<number> {
         return await cmdConsolidate(parsed, socket, json, stdout, stderr);
       case 'cleanup':
         return await cmdCleanup(parsed, socket, json, stdout, stderr);
+      case 'snapshot':
+        return await cmdSnapshot(parsed, socket, json, stdout, stderr);
+      case 'restore':
+        return await cmdRestore(parsed, socket, json, stdout, stderr);
       case 'health':
         return await cmdHealth(socket, json, stdout);
       default:
@@ -715,6 +723,55 @@ async function cmdCleanup(
     stdout(`${JSON.stringify(result)}\n`);
   } else {
     stdout(`cleaned up ${result.deleted} unconfirmed entries\n`);
+  }
+  return 0;
+}
+
+async function cmdSnapshot(
+  parsed: ParsedArgs,
+  socket: string,
+  json: boolean,
+  stdout: (s: string) => void,
+  stderr: (s: string) => void,
+): Promise<number> {
+  if (Object.keys(parsed.scope).length === 0) {
+    stderr('error: --scope is required (e.g., --scope sessionId:abc-123)\n');
+    return 2;
+  }
+  const r = await udsJson<Record<string, unknown>>(socket, 'POST', '/v1/memory/snapshot', {
+    scope: parsed.scope,
+  });
+  const result = r.body.result as { snapshotId: string; count: number; createdAt: string };
+  if (json) {
+    stdout(`${JSON.stringify(result)}\n`);
+  } else {
+    stdout(`snapshot ${result.snapshotId} (${result.count} entries) at ${result.createdAt}\n`);
+  }
+  return 0;
+}
+
+async function cmdRestore(
+  parsed: ParsedArgs,
+  socket: string,
+  json: boolean,
+  stdout: (s: string) => void,
+  stderr: (s: string) => void,
+): Promise<number> {
+  const snapshotId = stringFlag(parsed.flags, 'snapshot');
+  if (!snapshotId) {
+    stderr('error: --snapshot <id> is required\n');
+    return 2;
+  }
+  const mode = parsed.flags.merge === true ? 'merge' : 'replace';
+  const r = await udsJson<Record<string, unknown>>(socket, 'POST', '/v1/memory/restore', {
+    snapshotId,
+    mode,
+  });
+  const result = r.body.result as { restored: number; mode: string; snapshotId: string };
+  if (json) {
+    stdout(`${JSON.stringify(result)}\n`);
+  } else {
+    stdout(`restored ${result.restored} entries from ${result.snapshotId} (mode=${result.mode})\n`);
   }
   return 0;
 }

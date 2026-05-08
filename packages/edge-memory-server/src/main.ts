@@ -29,8 +29,11 @@ import {
   type IdleThrottleOptions,
   InMemoryAuditLog,
   InMemoryMemoryStore,
+  InMemorySnapshotStore,
   type MemoryStore,
+  type SnapshotStore,
   SqliteAuditLog,
+  SqliteSnapshotStore,
   SqliteVecMemoryStore,
   startMemoryServer,
 } from './index.ts';
@@ -39,14 +42,16 @@ const socketPath = process.env.MEMORY_SOCKET_PATH ?? '/root/.harness/run/memory.
 
 const store: MemoryStore = await pickStore();
 const audit: AuditLog = await pickAudit();
+const snapshots: SnapshotStore = await pickSnapshots();
 const idle: IdleThrottleOptions = pickIdleConfig();
 
 console.log(`Starting @ecruz165/edge-memory-server on ${socketPath}…`);
-console.log(`  store:  ${store.constructor.name}`);
-console.log(`  audit:  ${audit.constructor.name}`);
-console.log(`  idle:   ${idle.idleTimeoutMs}ms timeout (PRD F9)`);
+console.log(`  store:     ${store.constructor.name}`);
+console.log(`  audit:     ${audit.constructor.name}`);
+console.log(`  snapshots: ${snapshots.constructor.name}`);
+console.log(`  idle:      ${idle.idleTimeoutMs}ms timeout (PRD F9)`);
 
-const handle = await startMemoryServer({ socketPath, store, audit, idle });
+const handle = await startMemoryServer({ socketPath, store, audit, idle, snapshots });
 console.log(`✓ edge-memory-server listening on ${socketPath}`);
 
 const shutdown = async (signal: string) => {
@@ -102,4 +107,13 @@ function pickIdleConfig(): IdleThrottleOptions {
     idleTimeoutMs: Number(process.env.MEMORY_IDLE_TIMEOUT_MS ?? '600000'),
     checkIntervalMs: Number(process.env.MEMORY_IDLE_CHECK_INTERVAL_MS ?? '30000'),
   };
+}
+
+async function pickSnapshots(): Promise<SnapshotStore> {
+  const path = process.env.MEMORY_SNAPSHOT_DB_PATH;
+  if (!path) {
+    console.log('  (no MEMORY_SNAPSHOT_DB_PATH set; using in-memory snapshot store)');
+    return new InMemorySnapshotStore();
+  }
+  return SqliteSnapshotStore.open({ dbPath: path });
 }
