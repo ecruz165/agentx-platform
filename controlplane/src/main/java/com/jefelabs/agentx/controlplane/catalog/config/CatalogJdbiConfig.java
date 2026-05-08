@@ -2,6 +2,7 @@ package com.jefelabs.agentx.controlplane.catalog.config;
 
 import com.jefelabs.agentx.controlplane.catalog.domain.AdapterId;
 import com.jefelabs.agentx.controlplane.catalog.domain.FlowKind;
+import com.jefelabs.agentx.controlplane.catalog.domain.SkillCategory;
 import jakarta.annotation.PostConstruct;
 import org.jdbi.v3.core.Jdbi;
 import org.jdbi.v3.core.argument.AbstractArgumentFactory;
@@ -55,6 +56,20 @@ public class CatalogJdbiConfig {
         jdbi.registerArgument(new AbstractArgumentFactory<AdapterId>(Types.VARCHAR) {
             @Override
             protected Argument build(AdapterId value, ConfigRegistry config) {
+                return (position, statement, context) ->
+                    statement.setString(position, value != null ? value.dbValue() : null);
+            }
+        });
+
+        // SkillCategory <-> text column ('router' / 'tool' / 'integration' / 'task' / 'workflow')
+        jdbi.registerColumnMapper(SkillCategory.class, (rs, columnNumber, ctx) -> {
+            String value = rs.getString(columnNumber);
+            return value != null ? SkillCategory.fromDbValue(value) : null;
+        });
+
+        jdbi.registerArgument(new AbstractArgumentFactory<SkillCategory>(Types.VARCHAR) {
+            @Override
+            protected Argument build(SkillCategory value, ConfigRegistry config) {
                 return (position, statement, context) ->
                     statement.setString(position, value != null ? value.dbValue() : null);
             }
