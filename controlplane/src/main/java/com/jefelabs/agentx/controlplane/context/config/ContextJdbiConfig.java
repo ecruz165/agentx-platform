@@ -12,7 +12,13 @@ import org.springframework.context.annotation.Configuration;
 
 import java.sql.Types;
 
-/** Context module's JDBI registrations: column mappers + argument factories for the three enums. */
+/**
+ * Context module's JDBI registrations: column mappers + argument factories
+ * for the three enums. Per-enum explicit registration (rather than a
+ * generic helper) — JDBI's argument-factory machinery resolves the
+ * factory's parameterized supertype reflectively, which fails on
+ * method-level type variables.
+ */
 @Configuration
 public class ContextJdbiConfig {
 
@@ -24,25 +30,42 @@ public class ContextJdbiConfig {
 
     @PostConstruct
     void registerContextTypes() {
-        registerEnum(SourceKind.class, SourceKind::fromDbValue, SourceKind::dbValue);
-        registerEnum(RefreshSchedule.class, RefreshSchedule::fromDbValue, RefreshSchedule::dbValue);
-        registerEnum(IngestionStatus.class, IngestionStatus::fromDbValue, IngestionStatus::dbValue);
-    }
-
-    private <E extends Enum<E>> void registerEnum(
-        Class<E> type,
-        java.util.function.Function<String, E> fromDb,
-        java.util.function.Function<E, String> toDb
-    ) {
-        jdbi.registerColumnMapper(type, (rs, columnNumber, ctx) -> {
+        // SourceKind <-> text
+        jdbi.registerColumnMapper(SourceKind.class, (rs, columnNumber, ctx) -> {
             String value = rs.getString(columnNumber);
-            return value != null ? fromDb.apply(value) : null;
+            return value != null ? SourceKind.fromDbValue(value) : null;
         });
-        jdbi.registerArgument(new AbstractArgumentFactory<E>(Types.VARCHAR) {
+        jdbi.registerArgument(new AbstractArgumentFactory<SourceKind>(Types.VARCHAR) {
             @Override
-            protected Argument build(E value, ConfigRegistry config) {
+            protected Argument build(SourceKind value, ConfigRegistry config) {
                 return (position, statement, context) ->
-                    statement.setString(position, value != null ? toDb.apply(value) : null);
+                    statement.setString(position, value != null ? value.dbValue() : null);
+            }
+        });
+
+        // RefreshSchedule <-> text
+        jdbi.registerColumnMapper(RefreshSchedule.class, (rs, columnNumber, ctx) -> {
+            String value = rs.getString(columnNumber);
+            return value != null ? RefreshSchedule.fromDbValue(value) : null;
+        });
+        jdbi.registerArgument(new AbstractArgumentFactory<RefreshSchedule>(Types.VARCHAR) {
+            @Override
+            protected Argument build(RefreshSchedule value, ConfigRegistry config) {
+                return (position, statement, context) ->
+                    statement.setString(position, value != null ? value.dbValue() : null);
+            }
+        });
+
+        // IngestionStatus <-> text
+        jdbi.registerColumnMapper(IngestionStatus.class, (rs, columnNumber, ctx) -> {
+            String value = rs.getString(columnNumber);
+            return value != null ? IngestionStatus.fromDbValue(value) : null;
+        });
+        jdbi.registerArgument(new AbstractArgumentFactory<IngestionStatus>(Types.VARCHAR) {
+            @Override
+            protected Argument build(IngestionStatus value, ConfigRegistry config) {
+                return (position, statement, context) ->
+                    statement.setString(position, value != null ? value.dbValue() : null);
             }
         });
     }
