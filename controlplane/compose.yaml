@@ -113,6 +113,32 @@ services:
       retries: 10
       start_period: 60s
 
+  # harness-server — RPC surface for in-flight job execution. Mounts the
+  # host docker socket (DooD) so it can spawn per-job pipeline-instance
+  # containers via the host's docker daemon. Reaches edge-context +
+  # edge-memory via the shared edge-sockets volume.
+  harness-server:
+    build:
+      context: ..
+      dockerfile: controlplane/harness-server/Dockerfile
+    image: agentx/harness-server:dev
+    environment:
+      HARNESS_SOCKET: /run/harness/harness.sock
+      EDGE_SOCKETS_DIR: /run/edge
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock     # DooD
+      - edge-sockets:/run/edge:ro                     # reach edge-context + edge-memory
+      - harness-sockets:/run/harness                  # own UDS
+    depends_on:
+      edge-server:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "test -S /run/harness/harness.sock"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
   # edge-server — per-workspace cache. Bundles a private Neo4j (not exposed
   # to the host) + edge-context-server + edge-memory-server. The two TS
   # servers expose UDS sockets in /run/edge, mounted as a shared volume so
@@ -148,3 +174,4 @@ volumes:
   central-neo4j-data:
   edge-neo4j-data:
   edge-sockets:
+  harness-sockets:
