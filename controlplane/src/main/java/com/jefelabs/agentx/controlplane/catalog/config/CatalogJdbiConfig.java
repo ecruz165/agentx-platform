@@ -1,6 +1,7 @@
 package com.jefelabs.agentx.controlplane.catalog.config;
 
 import com.jefelabs.agentx.controlplane.catalog.domain.AdapterId;
+import com.jefelabs.agentx.controlplane.catalog.domain.CatalogItemType;
 import com.jefelabs.agentx.controlplane.catalog.domain.FlowKind;
 import com.jefelabs.agentx.controlplane.catalog.domain.SkillCategory;
 import jakarta.annotation.PostConstruct;
@@ -70,6 +71,20 @@ public class CatalogJdbiConfig {
         jdbi.registerArgument(new AbstractArgumentFactory<SkillCategory>(Types.VARCHAR) {
             @Override
             protected Argument build(SkillCategory value, ConfigRegistry config) {
+                return (position, statement, context) ->
+                    statement.setString(position, value != null ? value.dbValue() : null);
+            }
+        });
+
+        // CatalogItemType <-> text column (skill/workflow/prompt/persona/context/template)
+        jdbi.registerColumnMapper(CatalogItemType.class, (rs, columnNumber, ctx) -> {
+            String value = rs.getString(columnNumber);
+            return value != null ? CatalogItemType.fromDbValue(value) : null;
+        });
+
+        jdbi.registerArgument(new AbstractArgumentFactory<CatalogItemType>(Types.VARCHAR) {
+            @Override
+            protected Argument build(CatalogItemType value, ConfigRegistry config) {
                 return (position, statement, context) ->
                     statement.setString(position, value != null ? value.dbValue() : null);
             }

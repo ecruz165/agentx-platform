@@ -1,0 +1,506 @@
+[
+  {
+    "type": "context",
+    "id": "spring-boot/error-handling",
+    "name": "error-handling",
+    "version": "1.0.0",
+    "description": "Spring Boot error handling patterns and best practices",
+    "topic": null,
+    "tags": [
+      "java",
+      "spring-boot",
+      "error-handling"
+    ],
+    "runtime": null,
+    "manifest": {
+      "name": "error-handling",
+      "type": "context",
+      "version": "1.0.0",
+      "description": "Spring Boot error handling patterns and best practices",
+      "tags": [
+        "java",
+        "spring-boot",
+        "error-handling"
+      ],
+      "format": "markdown",
+      "sources": [
+        "content.md"
+      ]
+    }
+  },
+  {
+    "type": "context",
+    "id": "spring-boot/security",
+    "name": "security",
+    "version": "1.0.0",
+    "description": "Spring Security configuration patterns and best practices",
+    "topic": null,
+    "tags": [
+      "java",
+      "spring-boot",
+      "security"
+    ],
+    "runtime": null,
+    "manifest": {
+      "name": "security",
+      "type": "context",
+      "version": "1.0.0",
+      "description": "Spring Security configuration patterns and best practices",
+      "tags": [
+        "java",
+        "spring-boot",
+        "security"
+      ],
+      "format": "markdown",
+      "sources": [
+        "content.md"
+      ]
+    }
+  },
+  {
+    "type": "persona",
+    "id": "senior-java-dev",
+    "name": "senior-java-dev",
+    "version": "1.0.0",
+    "description": "Senior Java developer with Spring Boot expertise",
+    "topic": null,
+    "tags": [
+      "java",
+      "spring-boot",
+      "senior"
+    ],
+    "runtime": null,
+    "manifest": {
+      "name": "senior-java-dev",
+      "type": "persona",
+      "version": "1.0.0",
+      "description": "Senior Java developer with Spring Boot expertise",
+      "tags": [
+        "java",
+        "spring-boot",
+        "senior"
+      ],
+      "expertise": [
+        "Java 17+",
+        "Spring Boot 3.x",
+        "Spring Security",
+        "JUnit 5"
+      ],
+      "tone": "professional",
+      "conventions": [
+        "Use constructor injection over field injection",
+        "Prefer records for DTOs",
+        "Always include proper error handling"
+      ],
+      "context": [
+        "context/spring-boot/error-handling",
+        "context/spring-boot/security"
+      ]
+    }
+  },
+  {
+    "type": "prompt",
+    "id": "java-pr-review",
+    "name": "java-pr-review",
+    "version": "1.1.0",
+    "description": "Java PR review prompt combining persona, context, skills, and workflows",
+    "topic": null,
+    "tags": [
+      "java",
+      "code-review",
+      "pr"
+    ],
+    "runtime": null,
+    "manifest": {
+      "name": "java-pr-review",
+      "type": "prompt",
+      "version": "1.1.0",
+      "description": "Java PR review prompt combining persona, context, skills, and workflows",
+      "tags": [
+        "java",
+        "code-review",
+        "pr"
+      ],
+      "persona": "personas/senior-java-dev",
+      "context": [
+        "context/spring-boot/error-handling",
+        "context/spring-boot/security"
+      ],
+      "skills": [
+        "skills/scm/git/commit-analyzer",
+        "skills/ai/token-counter"
+      ],
+      "workflows": [
+        "workflows/code-review"
+      ],
+      "template": "prompt.hbs"
+    }
+  },
+  {
+    "type": "skill",
+    "id": "ai/token-counter",
+    "name": "token-counter",
+    "version": "1.0.0",
+    "description": "Counts tokens in text using tiktoken for a given model encoding",
+    "topic": "ai",
+    "tags": [
+      "ai",
+      "tokens",
+      "tiktoken"
+    ],
+    "runtime": "go",
+    "manifest": {
+      "name": "token-counter",
+      "type": "skill",
+      "version": "1.0.0",
+      "description": "Counts tokens in text using tiktoken for a given model encoding",
+      "tags": [
+        "ai",
+        "tokens",
+        "tiktoken"
+      ],
+      "runtime": "go",
+      "topic": "ai",
+      "cli_dependencies": [],
+      "inputs": [
+        {
+          "name": "text",
+          "type": "string",
+          "required": true,
+          "description": "Text to count tokens for"
+        },
+        {
+          "name": "model",
+          "type": "string",
+          "required": false,
+          "default": "gpt-4",
+          "description": "Model name to determine encoding (e.g. gpt-4, gpt-3.5-turbo)"
+        }
+      ],
+      "outputs": {
+        "format": "json"
+      },
+      "registry": {
+        "tokens": [],
+        "config": {
+          "default_model": "gpt-4"
+        },
+        "state": [
+          "last-run.json"
+        ]
+      }
+    }
+  },
+  {
+    "type": "skill",
+    "id": "cloud/aws/ssm-lookup",
+    "name": "ssm-lookup",
+    "version": "1.0.0",
+    "description": "Looks up AWS SSM Parameter Store values with caching",
+    "topic": "cloud",
+    "tags": [
+      "aws",
+      "ssm",
+      "cloud",
+      "parameters"
+    ],
+    "runtime": "node",
+    "manifest": {
+      "name": "ssm-lookup",
+      "type": "skill",
+      "version": "1.0.0",
+      "description": "Looks up AWS SSM Parameter Store values with caching",
+      "tags": [
+        "aws",
+        "ssm",
+        "cloud",
+        "parameters"
+      ],
+      "runtime": "node",
+      "topic": "cloud",
+      "vendor": "aws",
+      "cli_dependencies": [
+        {
+          "name": "aws",
+          "min_version": "2.0.0"
+        }
+      ],
+      "inputs": [
+        {
+          "name": "param-name",
+          "type": "string",
+          "required": true,
+          "description": "SSM parameter name or path to look up"
+        },
+        {
+          "name": "decrypt",
+          "type": "boolean",
+          "required": false,
+          "default": true,
+          "description": "Whether to decrypt SecureString parameters"
+        }
+      ],
+      "outputs": {
+        "format": "json"
+      },
+      "registry": {
+        "tokens": [
+          {
+            "name": "SSM_ROLE_ARN",
+            "required": true,
+            "description": "IAM role ARN to assume for SSM access"
+          },
+          {
+            "name": "AWS_REGION",
+            "required": false,
+            "default": "us-east-1",
+            "description": "AWS region for SSM calls"
+          }
+        ],
+        "config": {
+          "cache_ttl": 300,
+          "max_results": 10
+        },
+        "state": [
+          "cache.json",
+          "last-run.json"
+        ]
+      }
+    }
+  },
+  {
+    "type": "skill",
+    "id": "scm/git/commit-analyzer",
+    "name": "commit-analyzer",
+    "version": "1.0.0",
+    "description": "Analyzes git commit history for patterns and issues",
+    "topic": "scm",
+    "tags": [
+      "git",
+      "scm",
+      "analysis"
+    ],
+    "runtime": "node",
+    "manifest": {
+      "name": "commit-analyzer",
+      "type": "skill",
+      "version": "1.0.0",
+      "description": "Analyzes git commit history for patterns and issues",
+      "tags": [
+        "git",
+        "scm",
+        "analysis"
+      ],
+      "runtime": "node",
+      "topic": "scm",
+      "vendor": "git",
+      "cli_dependencies": [
+        {
+          "name": "git",
+          "min_version": "2.0.0"
+        }
+      ],
+      "inputs": [
+        {
+          "name": "repo-path",
+          "type": "string",
+          "required": true,
+          "description": "Path to the git repository"
+        },
+        {
+          "name": "since",
+          "type": "string",
+          "required": false,
+          "default": "30d",
+          "description": "Time period to analyze"
+        }
+      ],
+      "outputs": {
+        "format": "json"
+      },
+      "registry": {
+        "tokens": [],
+        "config": {
+          "max_commits": 500,
+          "include_merges": false
+        },
+        "state": []
+      }
+    }
+  },
+  {
+    "type": "template",
+    "id": "skill-readme",
+    "name": "skill-readme",
+    "version": "1.0.0",
+    "description": "README template for AgentX skills",
+    "topic": null,
+    "tags": [
+      "documentation",
+      "readme"
+    ],
+    "runtime": null,
+    "manifest": {
+      "name": "skill-readme",
+      "type": "template",
+      "version": "1.0.0",
+      "description": "README template for AgentX skills",
+      "tags": [
+        "documentation",
+        "readme"
+      ],
+      "format": "handlebars",
+      "variables": [
+        {
+          "name": "skill-name",
+          "description": "Name of the skill",
+          "required": true
+        },
+        {
+          "name": "description",
+          "description": "Skill description",
+          "required": true
+        },
+        {
+          "name": "author",
+          "description": "Author name",
+          "required": false,
+          "default": "AgentX"
+        }
+      ]
+    }
+  },
+  {
+    "type": "workflow",
+    "id": "code-review",
+    "name": "code-review",
+    "version": "1.0.0",
+    "description": "Automated code review workflow",
+    "topic": null,
+    "tags": [
+      "code-review",
+      "quality"
+    ],
+    "runtime": "node",
+    "manifest": {
+      "name": "code-review",
+      "type": "workflow",
+      "version": "1.0.0",
+      "description": "Automated code review workflow",
+      "tags": [
+        "code-review",
+        "quality"
+      ],
+      "runtime": "node",
+      "steps": [
+        {
+          "id": "analyze-commits",
+          "skill": "skills/scm/git/commit-analyzer",
+          "inputs": {
+            "repo-path": "{{inputs.repo-path}}"
+          }
+        }
+      ],
+      "inputs": [
+        {
+          "name": "repo-path",
+          "type": "string",
+          "required": true,
+          "description": "Path to repository"
+        }
+      ],
+      "outputs": {
+        "format": "json"
+      }
+    }
+  },
+  {
+    "type": "workflow",
+    "id": "observability/splunk/create-query",
+    "name": "create-query",
+    "version": "1.0.0",
+    "description": "Multi-step workflow that analyzes logs and creates reusable Splunk SPL queries",
+    "topic": null,
+    "tags": [
+      "splunk",
+      "observability",
+      "logs",
+      "spl"
+    ],
+    "runtime": "node",
+    "manifest": {
+      "name": "create-query",
+      "type": "workflow",
+      "version": "1.0.0",
+      "description": "Multi-step workflow that analyzes logs and creates reusable Splunk SPL queries",
+      "tags": [
+        "splunk",
+        "observability",
+        "logs",
+        "spl"
+      ],
+      "runtime": "node",
+      "steps": [
+        {
+          "id": "analyze-logs",
+          "description": "Analyze log pattern to identify key fields and structure",
+          "inputs": {
+            "log-pattern": "{{inputs.log-pattern}}"
+          }
+        },
+        {
+          "id": "create-splunk-query",
+          "description": "Generate SPL query from analysis or load from saved template",
+          "inputs": {
+            "template": "{{inputs.template}}",
+            "index": "{{inputs.index}}"
+          }
+        },
+        {
+          "id": "search-splunk",
+          "description": "Execute the generated SPL query against Splunk",
+          "inputs": {
+            "query": "{{steps.create-splunk-query.outputs.spl}}"
+          }
+        },
+        {
+          "id": "save-query-template",
+          "description": "Offer to save the generated query as a reusable template",
+          "inputs": {
+            "query": "{{steps.create-splunk-query.outputs.spl}}"
+          }
+        }
+      ],
+      "inputs": [
+        {
+          "name": "log-pattern",
+          "type": "string",
+          "required": true,
+          "description": "Description of the log pattern to build a query for"
+        },
+        {
+          "name": "template",
+          "type": "string",
+          "required": false,
+          "description": "Name of a saved template to use instead of generating"
+        },
+        {
+          "name": "index",
+          "type": "string",
+          "required": false,
+          "default": "main",
+          "description": "Splunk index to search"
+        },
+        {
+          "name": "save-as",
+          "type": "string",
+          "required": false,
+          "description": "Save the generated query as a template with this name"
+        }
+      ],
+      "outputs": {
+        "format": "json"
+      }
+    }
+  }
+]
