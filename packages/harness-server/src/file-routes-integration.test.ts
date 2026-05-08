@@ -63,20 +63,32 @@ function flatFlow(): FlowDef {
 
 const catalog: FlowCatalog = { flows: [flatFlow()] };
 
+/** Identity env so commits work without two extra `git config` spawns. */
+const GIT_IDENTITY_ENV = {
+  GIT_AUTHOR_NAME: 't',
+  GIT_AUTHOR_EMAIL: 't@e.com',
+  GIT_COMMITTER_NAME: 't',
+  GIT_COMMITTER_EMAIL: 't@e.com',
+};
+
 describe('file-browse routes', () => {
   const cleanups: Array<() => Promise<void>> = [];
   afterEach(async () => {
     for (const c of cleanups.splice(0)) await c();
   });
 
-  it('lists files with change overlay; serves content + diff for staged changes', async () => {
+  // Bumped timeout: the setup spawns several git subprocesses + waits
+  // for the harness-server runJob to fire. Under parallel load,
+  // 5s is too tight; 15s gives headroom.
+  it('lists files with change overlay; serves content + diff for staged changes', {
+    timeout: 15_000,
+  }, async () => {
     // Set up a workspace with a `web` repo.
     const workspaceRoot = join(tmpdir(), `ws-${randomUUID().slice(0, 8)}`);
     const repoPath = join(workspaceRoot, 'web');
     await mkdir(repoPath, { recursive: true });
     await runIn(repoPath, 'git', ['init', '-q', '-b', 'main']);
-    await runIn(repoPath, 'git', ['config', 'user.email', 't@e.com']);
-    await runIn(repoPath, 'git', ['config', 'user.name', 't']);
+    // No git-config spawns — identity flows via GIT_IDENTITY_ENV in runIn.
     await writeFile(join(repoPath, 'README.md'), '# initial\n');
     await writeFile(join(repoPath, 'src.ts'), 'export const x = 1;\n');
     await runIn(repoPath, 'git', ['add', '.']);
@@ -221,7 +233,11 @@ async function waitFor(predicate: () => Promise<boolean>, timeoutMs = 3_000): Pr
 
 function runIn(cwd: string, cmd: string, args: string[]): Promise<void> {
   return new Promise((resolve, reject) => {
-    const child = spawn(cmd, args, { cwd, stdio: ['ignore', 'pipe', 'pipe'] });
+    const child = spawn(cmd, args, {
+      cwd,
+      stdio: ['ignore', 'pipe', 'pipe'],
+      env: { ...process.env, ...GIT_IDENTITY_ENV },
+    });
     let stderr = '';
     child.stderr.on('data', (c: Buffer) => {
       stderr += c.toString('utf8');

@@ -159,8 +159,7 @@ describe('discoverChangedFiles', () => {
     const repoPath = join(root, 'web');
     await mkdir(repoPath, { recursive: true });
     await runIn(repoPath, 'git', ['init', '-q', '-b', 'main']);
-    await runIn(repoPath, 'git', ['config', 'user.email', 'test@example.com']);
-    await runIn(repoPath, 'git', ['config', 'user.name', 'test']);
+    // Identity via env in runIn — saves two git-config spawns per test.
 
     // Initial commit with two files.
     await writeFile(join(repoPath, 'src.ts'), 'export const x = 1;\n');
@@ -202,8 +201,6 @@ describe('discoverChangedFiles', () => {
     const repoPath = join(root, 'web');
     await mkdir(repoPath, { recursive: true });
     await runIn(repoPath, 'git', ['init', '-q', '-b', 'main']);
-    await runIn(repoPath, 'git', ['config', 'user.email', 't@e.com']);
-    await runIn(repoPath, 'git', ['config', 'user.name', 't']);
     await writeFile(join(repoPath, 'a.ts'), 'a');
     await runIn(repoPath, 'git', ['add', '.']);
     await runIn(repoPath, 'git', ['commit', '-q', '-m', 'init']);
@@ -224,8 +221,6 @@ describe('discoverChangedFiles', () => {
       const p = join(root, repo);
       await mkdir(p, { recursive: true });
       await runIn(p, 'git', ['init', '-q', '-b', 'main']);
-      await runIn(p, 'git', ['config', 'user.email', 't@e.com']);
-      await runIn(p, 'git', ['config', 'user.name', 't']);
       await writeFile(join(p, 'seed'), 'x');
       await runIn(p, 'git', ['add', '.']);
       await runIn(p, 'git', ['commit', '-q', '-m', 'init']);
@@ -249,9 +244,21 @@ async function makeTmpDir(): Promise<string> {
   return path;
 }
 
+/** Identity env so commits work without two extra `git config` spawns. */
+const GIT_IDENTITY_ENV = {
+  GIT_AUTHOR_NAME: 'test',
+  GIT_AUTHOR_EMAIL: 'test@example.com',
+  GIT_COMMITTER_NAME: 'test',
+  GIT_COMMITTER_EMAIL: 'test@example.com',
+};
+
 function runIn(cwd: string, cmd: string, args: string[]): Promise<void> {
   return new Promise((resolve, reject) => {
-    const child = spawn(cmd, args, { cwd, stdio: ['ignore', 'pipe', 'pipe'] });
+    const child = spawn(cmd, args, {
+      cwd,
+      stdio: ['ignore', 'pipe', 'pipe'],
+      env: { ...process.env, ...GIT_IDENTITY_ENV },
+    });
     let stderr = '';
     child.stderr.on('data', (c: Buffer) => {
       stderr += c.toString('utf8');

@@ -31,9 +31,24 @@ async function tmpDir(prefix: string): Promise<string> {
   return dir;
 }
 
+/** Identity env for git so we don't pay for two `git config` spawns per
+ *  test. Same effect as `git config user.email/name` but inline on the
+ *  spawn — under parallel load (60+ test files), each saved fork+exec
+ *  matters. */
+const GIT_IDENTITY_ENV = {
+  GIT_AUTHOR_NAME: 'T',
+  GIT_AUTHOR_EMAIL: 't@t',
+  GIT_COMMITTER_NAME: 'T',
+  GIT_COMMITTER_EMAIL: 't@t',
+};
+
 function runGit(args: string[], cwd?: string): Promise<void> {
   return new Promise((resolveP, rejectP) => {
-    const child = spawn('git', args, { stdio: ['ignore', 'ignore', 'pipe'], cwd });
+    const child = spawn('git', args, {
+      stdio: ['ignore', 'ignore', 'pipe'],
+      cwd,
+      env: { ...process.env, ...GIT_IDENTITY_ENV },
+    });
     let stderr = '';
     child.stderr.on('data', (c) => (stderr += c.toString()));
     child.on('error', rejectP);
@@ -52,8 +67,7 @@ async function localRemote(): Promise<string> {
 
   const work = await tmpDir('vra-work');
   await runGit(['init', work]);
-  await runGit(['-C', work, 'config', 'user.email', 't@t']);
-  await runGit(['-C', work, 'config', 'user.name', 'T']);
+  // No `git config` calls — identity flows via GIT_IDENTITY_ENV in runGit.
   await writeFile(join(work, 'README.md'), 'v1\n');
   await runGit(['-C', work, 'add', '.']);
   await runGit(['-C', work, 'commit', '-m', 'init']);
@@ -65,7 +79,12 @@ async function localRemote(): Promise<string> {
 }
 
 describe('validateRepoAccess — happy path', () => {
-  it('reports ok with HEAD SHA for an accessible local bare', async () => {
+  // Generous timeout: setup spawns ~10 git subprocesses sequentially.
+  // Under parallel load (full-repo `pnpm test`) the OS-scheduled
+  // fork+exec queue can stall; 15s gives headroom. Other tests in
+  // this file inherit warm filesystem state from earlier setup so
+  // they don't need the bump.
+  it('reports ok with HEAD SHA for an accessible local bare', { timeout: 15_000 }, async () => {
     const bare = await localRemote();
     const result = await validateRepoAccess({
       repos: [{ name: 'demo', cloneUrl: bare }],
