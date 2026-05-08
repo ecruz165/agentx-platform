@@ -31,6 +31,16 @@ public record Job(
     /** Human-readable label for the benchmark variant, e.g.
      *  {@code "qwen-0.6b run-1"}. Null when not benchmarking. */
     String benchmarkLabel,
+    /** Quality score in [0, 1] posted by an external scorer
+     *  (rubric runner / LLM-as-judge / manual). Null until scored. */
+    Double evalScore,
+    /** Human-readable explanation of the score (the rubric line that
+     *  failed, the judge's reasoning, the reviewer's note). */
+    String evalRationale,
+    /** What kind of scorer produced this — e.g. {@code "rubric"},
+     *  {@code "llm-judge"}, {@code "manual"}. */
+    String evalJudge,
+    Instant evalScoredAt,
     Instant createdAt,
     Instant startedAt,
     Instant completedAt,

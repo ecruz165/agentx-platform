@@ -108,6 +108,23 @@ public class JobService {
     }
 
     /**
+     * Record a quality score for a job (slice 4 of the eval-harness).
+     * The scorer is external — rubric runner / LLM-as-judge / manual
+     * review — and posts via {@code POST /api/jobs/&#123;id&#125;/score}.
+     * Returns the post-score Job snapshot or empty when the job is
+     * missing.
+     */
+    @Transactional
+    public Optional<Job> recordEvalScore(
+        String orgId, String id,
+        Double score, String rationale, String judge
+    ) {
+        JobDao dao = jdbi.onDemand(JobDao.class);
+        int updated = dao.recordEvalScore(orgId, id, score, rationale, judge);
+        return updated > 0 ? dao.findById(orgId, id).map(this::toDomain) : Optional.empty();
+    }
+
+    /**
      * Deliver an external event payload to a paused {@code wait-for-event}
      * step. Validates the job is RUNNING and currently paused; re-engages
      * the engine via {@link JobEngine#resumeJob(Job, JsonNode)}.
@@ -152,6 +169,7 @@ public class JobService {
             readJson(row.output()),
             row.failureReason(), row.currentNodeId(),
             row.benchmarkRunId(), row.benchmarkLabel(),
+            row.evalScore(), row.evalRationale(), row.evalJudge(), row.evalScoredAt(),
             row.createdAt(), row.startedAt(), row.completedAt(),
             row.createdBy()
         );

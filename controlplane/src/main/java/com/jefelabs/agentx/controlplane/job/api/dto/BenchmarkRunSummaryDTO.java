@@ -23,6 +23,9 @@ public record BenchmarkRunSummaryDTO(
     int cancelled,
     long p50LatencyMs,
     long p95LatencyMs,
-    double successRate
+    double successRate,
+    int scored,
+    Double avgScore,
+    Double p50Score
 ) {
 }

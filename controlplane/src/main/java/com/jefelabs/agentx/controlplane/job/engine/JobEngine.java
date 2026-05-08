@@ -526,6 +526,7 @@ public class JobEngine {
             readJson(row.input()), row.setName(), readJson(row.config()), readJson(row.output()),
             row.failureReason(), row.currentNodeId(),
             row.benchmarkRunId(), row.benchmarkLabel(),
+            row.evalScore(), row.evalRationale(), row.evalJudge(), row.evalScoredAt(),
             row.createdAt(), row.startedAt(), row.completedAt(), row.createdBy()
         );
     }

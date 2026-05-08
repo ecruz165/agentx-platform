@@ -13,7 +13,7 @@
  */
 
 import { Command } from 'commander';
-import { runBenchCompare, runBenchRun, runBenchUpsert } from './bench.ts';
+import { runBenchCompare, runBenchRun, runBenchScore, runBenchUpsert } from './bench.ts';
 import { runBuildWorker } from './build-worker.ts';
 import { runSetup } from './setup.ts';
 import { runStart } from './start.ts';
@@ -90,6 +90,17 @@ bench
   .option('--org <orgId>', 'X-Org-Id tenant (default: dev-org)')
   .action(async (suiteId, opts) => {
     await runBenchRun(suiteId, opts);
+  });
+
+bench
+  .command('score <runId>')
+  .description('walk jobs in a run, evaluate input.expected against output, POST scores')
+  .option('--judge <name>', 'judge label written on each score (default: rubric)')
+  .option('--wait-seconds <n>', 'wait up to N seconds for in-flight jobs to terminate first')
+  .option('--url <url>', 'controlplane base URL (default: http://localhost:8080)')
+  .option('--org <orgId>', 'X-Org-Id tenant (default: dev-org)')
+  .action(async (runId, opts) => {
+    await runBenchScore(runId, opts);
   });
 
 bench

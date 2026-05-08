@@ -46,7 +46,10 @@ public class BenchmarkController {
     }
 
     private static BenchmarkRunSummaryRow emptyRow(String runId) {
-        return new BenchmarkRunSummaryRow(0, 0, 0, 0, 0, runId, 0L, 0L);
+        return new BenchmarkRunSummaryRow(
+            0, 0, 0, 0, 0, runId, 0L, 0L,
+            0, null, null
+        );
     }
 
     private static BenchmarkRunSummaryDTO toDTO(String runId, BenchmarkRunSummaryRow row) {
@@ -57,7 +60,8 @@ public class BenchmarkController {
             runId, row.label(),
             row.total(), row.completed(), row.failed(), row.inFlight(), row.cancelled(),
             row.p50LatencyMs(), row.p95LatencyMs(),
-            successRate
+            successRate,
+            row.scored(), row.avgScore(), row.p50Score()
         );
     }
 }

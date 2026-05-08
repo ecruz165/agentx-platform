@@ -139,6 +139,144 @@ export async function runBenchRun(suiteId: string, opts: RunBenchOptions): Promi
   console.log(`[bench] watch with: workspace bench compare ${result.runId}`);
 }
 
+// ── score: rubric-mode local scorer → POST /api/jobs/{id}/score ─────
+
+interface ScoreBenchOptions extends BenchOptions {
+  judge?: string;
+  waitSeconds?: string;
+}
+
+interface JobRecord {
+  id: string;
+  status: string;
+  output?: unknown;
+  input?: unknown;
+}
+
+/**
+ * Walk the jobs in a benchmark run, evaluate each against the input's
+ * `expected` rubric block, POST a score per job. v1 rubric supports:
+ *
+ *   expected.includes  — array of substrings; ALL must appear in
+ *                        output (or output.text / output.body)
+ *   expected.equals    — JSON deep-equal against output
+ *   expected.regex     — single regex pattern; output must match
+ *
+ * Inputs without an `expected` block score 0 with a "no-rubric"
+ * rationale so the cohort's avgScore reflects rubric coverage.
+ */
+export async function runBenchScore(runId: string, opts: ScoreBenchOptions): Promise<void> {
+  if (!runId) {
+    console.error('error: runId is required');
+    process.exit(2);
+  }
+  const fetcher = makeFetcher(opts);
+  const judge = opts.judge ?? 'rubric';
+
+  const waitSec = opts.waitSeconds ? Number(opts.waitSeconds) : 0;
+  if (waitSec > 0) {
+    console.log(`[bench] waiting up to ${waitSec}s for jobs to terminate…`);
+    const deadline = Date.now() + waitSec * 1000;
+    while (Date.now() < deadline) {
+      const list = await fetcher<JobRecord[]>(
+        'GET',
+        `/api/jobs?benchmarkRunId=${encodeURIComponent(runId)}&limit=500`,
+      );
+      const inFlight = list.filter((j) => isInFlight(j.status)).length;
+      if (inFlight === 0) break;
+      await sleep(2000);
+    }
+  }
+
+  const jobs = await fetcher<JobRecord[]>(
+    'GET',
+    `/api/jobs?benchmarkRunId=${encodeURIComponent(runId)}&limit=500`,
+  );
+  if (jobs.length === 0) {
+    console.log(`[bench] no jobs in ${runId}`);
+    return;
+  }
+
+  let scored = 0;
+  let zero = 0;
+  for (const job of jobs) {
+    const { score, rationale } = scoreJob(job);
+    await fetcher('POST', `/api/jobs/${encodeURIComponent(job.id)}/score`, {
+      score,
+      rationale,
+      judge,
+    });
+    scored += 1;
+    if (score === 0) zero += 1;
+    console.log(`  ${job.id.slice(0, 16)}…  ${score.toFixed(2)}  ${rationale}`);
+  }
+  console.log(`[bench] scored ${scored} job(s) (${scored - zero} passed, ${zero} zero)`);
+}
+
+function scoreJob(job: JobRecord): { score: number; rationale: string } {
+  const input = (job.input ?? {}) as Record<string, unknown>;
+  const expected = input?.expected as Record<string, unknown> | undefined;
+  if (!expected) return { score: 0, rationale: 'no-rubric (input.expected missing)' };
+  const output = job.output;
+  const outputStr = textOf(output);
+
+  if (Array.isArray(expected.includes)) {
+    const missing = (expected.includes as string[]).filter((s) => !outputStr.includes(s));
+    if (missing.length > 0) {
+      return { score: 0, rationale: `missing substrings: ${missing.join(', ').slice(0, 100)}` };
+    }
+  }
+  if (typeof expected.regex === 'string') {
+    const re = new RegExp(expected.regex);
+    if (!re.test(outputStr)) {
+      return { score: 0, rationale: `regex did not match: ${expected.regex}` };
+    }
+  }
+  if (expected.equals !== undefined) {
+    if (!deepEqual(expected.equals, output)) {
+      return { score: 0, rationale: 'equals check failed' };
+    }
+  }
+  return { score: 1, rationale: 'rubric pass' };
+}
+
+function textOf(v: unknown): string {
+  if (v == null) return '';
+  if (typeof v === 'string') return v;
+  if (typeof v === 'object') {
+    const o = v as Record<string, unknown>;
+    if (typeof o.text === 'string') return o.text;
+    if (typeof o.body === 'string') return o.body;
+    return JSON.stringify(v);
+  }
+  return String(v);
+}
+
+function deepEqual(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (a == null || b == null) return false;
+  if (typeof a !== typeof b) return false;
+  if (typeof a !== 'object') return false;
+  const ka = Object.keys(a as object).sort();
+  const kb = Object.keys(b as object).sort();
+  if (ka.length !== kb.length) return false;
+  for (let i = 0; i < ka.length; i++) {
+    if (ka[i] !== kb[i]) return false;
+    if (!deepEqual((a as Record<string, unknown>)[ka[i]!], (b as Record<string, unknown>)[kb[i]!])) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function isInFlight(status: string): boolean {
+  return status === 'queued' || status === 'running' || status === 'cancelling';
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
 // ── compare: GET /api/benchmarks/compare ────────────────────────────
 
 interface CompareBenchOptions extends BenchOptions {}
@@ -154,6 +292,9 @@ interface SummaryRow {
   p50LatencyMs: number;
   p95LatencyMs: number;
   successRate: number;
+  scored: number;
+  avgScore?: number | null;
+  p50Score?: number | null;
 }
 
 export async function runBenchCompare(runIdsCsv: string, opts: CompareBenchOptions): Promise<void> {
@@ -170,7 +311,8 @@ export async function runBenchCompare(runIdsCsv: string, opts: CompareBenchOptio
 
   // Tab-formatted table — short enough to scan, no extra deps.
   const cols = [
-    'runId', 'label', 'total', 'completed', 'failed', 'inFlight', 'p50ms', 'p95ms', 'success',
+    'runId', 'label', 'total', 'completed', 'failed', 'inFlight',
+    'p50ms', 'p95ms', 'success', 'scored', 'avgScore',
   ];
   console.log(cols.join('\t'));
   for (const r of rows) {
@@ -184,6 +326,8 @@ export async function runBenchCompare(runIdsCsv: string, opts: CompareBenchOptio
       r.p50LatencyMs,
       r.p95LatencyMs,
       `${(r.successRate * 100).toFixed(1)}%`,
+      r.scored,
+      r.avgScore != null ? r.avgScore.toFixed(3) : '—',
     ].join('\t'));
   }
 }

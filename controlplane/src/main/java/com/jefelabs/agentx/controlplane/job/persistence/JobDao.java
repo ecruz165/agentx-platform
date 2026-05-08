@@ -44,6 +44,8 @@ public interface JobDao {
                output::jsonb::text AS output,
                failure_reason, current_node_id,
                benchmark_run_id, benchmark_label,
+               eval_score::double precision AS eval_score,
+               eval_rationale, eval_judge, eval_scored_at,
                created_at, started_at, completed_at, created_by
           FROM jobs
          WHERE org_id = :orgId AND id = :id
@@ -58,6 +60,8 @@ public interface JobDao {
                output::jsonb::text AS output,
                failure_reason, current_node_id,
                benchmark_run_id, benchmark_label,
+               eval_score::double precision AS eval_score,
+               eval_rationale, eval_judge, eval_scored_at,
                created_at, started_at, completed_at, created_by
           FROM jobs
          WHERE org_id = :orgId
@@ -100,7 +104,12 @@ public interface JobDao {
                     ORDER BY (completed_at - started_at)
                 ))::bigint * 1000,
                 0
-            ) AS p95_latency_ms
+            ) AS p95_latency_ms,
+            COUNT(*) FILTER (WHERE eval_score IS NOT NULL)::int AS scored,
+            AVG(eval_score)::double precision AS avg_score,
+            percentile_cont(0.5) WITHIN GROUP (
+                ORDER BY eval_score
+            )::double precision AS p50_score
           FROM jobs
          WHERE org_id = :orgId AND benchmark_run_id = :runId
     """)
@@ -150,4 +159,20 @@ public interface JobDao {
          WHERE org_id = :orgId AND id = :id AND status = 'running'
     """)
     int setCurrentNode(@Bind("orgId") String orgId, @Bind("id") String id, @Bind("nodeId") String nodeId);
+
+    @SqlUpdate("""
+        UPDATE jobs SET
+            eval_score      = :score,
+            eval_rationale  = :rationale,
+            eval_judge      = :judge,
+            eval_scored_at  = CURRENT_TIMESTAMP
+         WHERE org_id = :orgId AND id = :id
+    """)
+    int recordEvalScore(
+        @Bind("orgId") String orgId,
+        @Bind("id") String id,
+        @Bind("score") Double score,
+        @Bind("rationale") String rationale,
+        @Bind("judge") String judge
+    );
 }

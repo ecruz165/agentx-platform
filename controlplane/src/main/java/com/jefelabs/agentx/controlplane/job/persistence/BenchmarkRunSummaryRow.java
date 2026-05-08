@@ -14,6 +14,9 @@ public record BenchmarkRunSummaryRow(
     int cancelled,
     String label,
     long p50LatencyMs,
-    long p95LatencyMs
+    long p95LatencyMs,
+    int scored,
+    Double avgScore,
+    Double p50Score
 ) {
 }

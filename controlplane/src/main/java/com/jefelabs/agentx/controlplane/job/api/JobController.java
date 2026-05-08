@@ -2,6 +2,7 @@ package com.jefelabs.agentx.controlplane.job.api;
 
 import com.jefelabs.agentx.controlplane.core.tenancy.TenantContext;
 import com.jefelabs.agentx.controlplane.job.api.dto.JobDTO;
+import com.jefelabs.agentx.controlplane.job.api.dto.ScoreJobRequestDTO;
 import com.jefelabs.agentx.controlplane.job.api.dto.SubmitJobRequestDTO;
 import com.jefelabs.agentx.controlplane.job.api.mapper.JobMapper;
 import com.jefelabs.agentx.controlplane.job.engine.JobEngine;
@@ -64,6 +65,22 @@ public class JobController {
     public ResponseEntity<JobDTO> cancel(@PathVariable String id) {
         var tenant = TenantContext.current();
         return jobService.cancel(tenant.orgId(), id)
+            .map(jobMapper::toDTO)
+            .map(ResponseEntity::ok)
+            .orElseGet(() -> ResponseEntity.notFound().build());
+    }
+
+    /**
+     * Quality-score sink (slice 4). External scorers — rubric runner,
+     * LLM-as-judge, manual review — POST a score in [0, 1] for a job's
+     * output. Aggregated by /api/benchmarks/compare.
+     */
+    @PostMapping("/{id}/score")
+    public ResponseEntity<JobDTO> score(@PathVariable String id, @RequestBody ScoreJobRequestDTO body) {
+        var tenant = TenantContext.current();
+        return jobService.recordEvalScore(
+                tenant.orgId(), id, body.score(), body.rationale(), body.judge()
+            )
             .map(jobMapper::toDTO)
             .map(ResponseEntity::ok)
             .orElseGet(() -> ResponseEntity.notFound().build());
