@@ -22,7 +22,13 @@ import type {
   ContextQueryRequest,
   ContextQueryResult,
   ContextStatsResult,
+  CypherRequest,
+  CypherResult,
   QueryService,
+  RelatedRequest,
+  RelatedResult,
+  TraverseRequest,
+  TraverseResult,
 } from './query.ts';
 
 const tmpSocket = () => join(tmpdir(), `ctx-${randomUUID().slice(0, 8)}.sock`);
@@ -67,11 +73,19 @@ function udsJson(
 class StubQueryService implements QueryService {
   closed = false;
   failNextStats = false;
+  /** Records the last call args for each method, so tests can assert
+   *  that the route correctly forwarded body fields. */
+  lastTraverse?: TraverseRequest;
+  lastRelated?: RelatedRequest;
+  lastCypher?: CypherRequest;
 
   constructor(
     private readonly canned: {
       hits?: ContextQueryResult['hits'];
       stats?: ContextStatsResult;
+      traverse?: TraverseResult;
+      related?: RelatedResult;
+      cypher?: CypherResult;
     } = {},
   ) {}
 
@@ -98,6 +112,49 @@ class StubQueryService implements QueryService {
         edgeCount: 17,
         indexedLabels: ['Symbol', 'Doc'],
         ts: new Date().toISOString(),
+      }
+    );
+  }
+
+  async traverse(req: TraverseRequest): Promise<TraverseResult> {
+    this.lastTraverse = req;
+    return (
+      this.canned.traverse ?? {
+        entity: req.entity,
+        depth: req.depth,
+        nodes: [
+          { nodeId: req.entity, label: 'Function', properties: { name: req.entity }, distance: 0 },
+          { nodeId: 'callee-1', label: 'Function', properties: { name: 'callee-1' }, distance: 1 },
+        ],
+        edges: [{ fromNodeId: req.entity, toNodeId: 'callee-1', type: 'CALLS', properties: {} }],
+        truncated: false,
+      }
+    );
+  }
+
+  async related(req: RelatedRequest): Promise<RelatedResult> {
+    this.lastRelated = req;
+    return (
+      this.canned.related ?? {
+        entity: req.entity,
+        predicate: req.predicate,
+        depth: req.depth,
+        hits: [
+          { nodeId: 'r1', label: 'Doc', properties: { title: 'r1' }, distance: 1 },
+        ],
+        truncated: false,
+      }
+    );
+  }
+
+  async cypher(req: CypherRequest): Promise<CypherResult> {
+    this.lastCypher = req;
+    return (
+      this.canned.cypher ?? {
+        columns: ['n'],
+        rows: [{ n: { _kind: 'node', labels: ['Function'], properties: { name: 'auth' } } }],
+        rowCount: 1,
+        truncated: false,
       }
     );
   }
@@ -275,5 +332,129 @@ describe('edge-context-server — with stub backend', () => {
     await handle.stop();
     await rm(socketPath, { force: true });
     expect(stub.closed).toBe(true);
+  });
+});
+
+describe('edge-context-server — graphrag.* routes', () => {
+  const cleanups: Array<() => Promise<void>> = [];
+  afterEach(async () => {
+    for (const c of cleanups.splice(0)) await c();
+  });
+
+  async function spinUp(stub: StubQueryService) {
+    const socketPath = tmpSocket();
+    const handle = await startContextServer({ socketPath, query: stub });
+    cleanups.push(async () => {
+      await handle.stop();
+      await rm(socketPath, { force: true });
+    });
+    return socketPath;
+  }
+
+  it('POST /v1/traverse forwards args + returns subgraph', async () => {
+    const stub = new StubQueryService();
+    const socketPath = await spinUp(stub);
+
+    const r = await udsJson(socketPath, 'POST', '/v1/traverse', {
+      entity: 'AuthService',
+      depth: 2,
+      productId: 'web',
+      predicates: ['CALLS', 'IMPORTS'],
+    });
+    expect(r.status).toBe(200);
+    expect(r.body.result.entity).toBe('AuthService');
+    expect(r.body.result.depth).toBe(2);
+    expect(r.body.result.nodes).toHaveLength(2);
+    expect(r.body.result.edges).toHaveLength(1);
+    expect(stub.lastTraverse?.predicates).toEqual(['CALLS', 'IMPORTS']);
+    expect(stub.lastTraverse?.productId).toBe('web');
+  });
+
+  it('POST /v1/traverse with missing entity returns 400', async () => {
+    const stub = new StubQueryService();
+    const socketPath = await spinUp(stub);
+    const r = await udsJson(socketPath, 'POST', '/v1/traverse', { depth: 2 });
+    expect(r.status).toBe(400);
+    expect(r.body.error).toMatch(/entity/);
+  });
+
+  it('POST /v1/traverse with missing depth returns 400', async () => {
+    const stub = new StubQueryService();
+    const socketPath = await spinUp(stub);
+    const r = await udsJson(socketPath, 'POST', '/v1/traverse', { entity: 'X' });
+    expect(r.status).toBe(400);
+    expect(r.body.error).toMatch(/depth/);
+  });
+
+  it('POST /v1/related forwards predicate + returns hits', async () => {
+    const stub = new StubQueryService();
+    const socketPath = await spinUp(stub);
+
+    const r = await udsJson(socketPath, 'POST', '/v1/related', {
+      entity: 'UserComponent',
+      predicate: 'MENTIONS',
+      depth: 1,
+    });
+    expect(r.status).toBe(200);
+    expect(r.body.result.predicate).toBe('MENTIONS');
+    expect(r.body.result.hits).toHaveLength(1);
+    expect(stub.lastRelated?.predicate).toBe('MENTIONS');
+  });
+
+  it('POST /v1/related with missing predicate returns 400', async () => {
+    const stub = new StubQueryService();
+    const socketPath = await spinUp(stub);
+    const r = await udsJson(socketPath, 'POST', '/v1/related', { entity: 'X', depth: 1 });
+    expect(r.status).toBe(400);
+    expect(r.body.error).toMatch(/predicate/);
+  });
+
+  it('POST /v1/query (admin Cypher) forwards cypher + params', async () => {
+    const stub = new StubQueryService();
+    const socketPath = await spinUp(stub);
+
+    const r = await udsJson(socketPath, 'POST', '/v1/query', {
+      cypher: 'MATCH (n:Function) WHERE n.name = $name RETURN n',
+      params: { name: 'auth' },
+      limit: 50,
+    });
+    expect(r.status).toBe(200);
+    expect(r.body.result.rowCount).toBe(1);
+    expect(stub.lastCypher?.cypher).toMatch(/MATCH/);
+    expect(stub.lastCypher?.params).toEqual({ name: 'auth' });
+    expect(stub.lastCypher?.limit).toBe(50);
+  });
+
+  it('POST /v1/query with missing cypher returns 400', async () => {
+    const stub = new StubQueryService();
+    const socketPath = await spinUp(stub);
+    const r = await udsJson(socketPath, 'POST', '/v1/query', { params: {} });
+    expect(r.status).toBe(400);
+    expect(r.body.error).toMatch(/cypher/);
+  });
+
+  it('POST /v1/traverse without backend returns 503', async () => {
+    const socketPath = tmpSocket();
+    const handle = await startContextServer({ socketPath });
+    cleanups.push(async () => {
+      await handle.stop();
+      await rm(socketPath, { force: true });
+    });
+    const r = await udsJson(socketPath, 'POST', '/v1/traverse', { entity: 'X', depth: 1 });
+    expect(r.status).toBe(503);
+    expect(r.body.error).toMatch(/backend/);
+  });
+
+  it('POST /v1/traverse propagates backend errors as 500', async () => {
+    class FailingStub extends StubQueryService {
+      override async traverse(): Promise<TraverseResult> {
+        throw new Error('backend exploded');
+      }
+    }
+    const stub = new FailingStub();
+    const socketPath = await spinUp(stub);
+    const r = await udsJson(socketPath, 'POST', '/v1/traverse', { entity: 'X', depth: 1 });
+    expect(r.status).toBe(500);
+    expect(r.body.error).toMatch(/backend exploded/);
   });
 });

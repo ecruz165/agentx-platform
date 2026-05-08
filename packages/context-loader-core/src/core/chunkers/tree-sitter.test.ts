@@ -16,6 +16,15 @@ describe('pickGrammar', () => {
     expect(pickGrammar('app.js')).toBe('javascript');
     expect(pickGrammar('script.mjs')).toBe('javascript');
     expect(pickGrammar('data.py')).toBe('python');
+    // PRD F25 mandates Java; bonus grammars added 2026-05-08.
+    expect(pickGrammar('Main.java')).toBe('java');
+    expect(pickGrammar('main.go')).toBe('go');
+    expect(pickGrammar('lib.rs')).toBe('rust');
+    expect(pickGrammar('Service.cs')).toBe('c-sharp');
+    expect(pickGrammar('foo.cpp')).toBe('cpp');
+    expect(pickGrammar('foo.c')).toBe('c');
+    expect(pickGrammar('foo.rb')).toBe('ruby');
+    expect(pickGrammar('foo.php')).toBe('php');
   });
 
   it('returns null for unknown extensions', () => {
@@ -310,5 +319,71 @@ class Counter:
     const names = out.nodes.map((n) => n.properties.name);
     expect(names).toContain('add');
     expect(names).toContain('Counter');
+  });
+});
+
+describe('chunkCodeFull — Java', () => {
+  it('extracts class + method declarations', async () => {
+    const src = `
+package com.example;
+
+public class Greeter {
+  private final String prefix;
+
+  public Greeter(String prefix) {
+    this.prefix = prefix;
+  }
+
+  public String greet(String name) {
+    return prefix + " " + name;
+  }
+}
+
+interface Renderable {
+  String render();
+}
+`;
+    const out = await chunkCodeFull({
+      relativePath: 'src/Greeter.java',
+      content: src,
+      sourceTypeId: 'code-full',
+      sourceId: 'test',
+    });
+    // v1 chunker doesn't descend into class bodies (Phase D work) —
+    // we get the class + interface, not their methods.
+    const names = out.nodes.map((n) => n.properties.name);
+    expect(names).toContain('Greeter');
+    expect(names).toContain('Renderable');
+  });
+});
+
+describe('chunkCodeFull — Go', () => {
+  it('extracts function + method declarations', async () => {
+    const src = `
+package main
+
+import "fmt"
+
+type Greeter struct {
+  prefix string
+}
+
+func (g Greeter) Greet(name string) string {
+  return g.prefix + " " + name
+}
+
+func main() {
+  fmt.Println("hello")
+}
+`;
+    const out = await chunkCodeFull({
+      relativePath: 'main.go',
+      content: src,
+      sourceTypeId: 'code-full',
+      sourceId: 'test',
+    });
+    const names = out.nodes.map((n) => n.properties.name);
+    expect(names).toContain('main');
+    expect(names).toContain('Greet');
   });
 });

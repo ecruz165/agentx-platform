@@ -1,9 +1,12 @@
 {
-  "name": "@ecruz165/edge-context-server",
+  "name": "@ecruz165/edge-context-cli",
   "version": "0.0.0",
   "private": true,
   "type": "module",
   "main": "src/index.ts",
+  "bin": {
+    "edge-context": "src/bin.ts"
+  },
   "exports": {
     ".": "./src/index.ts"
   },
@@ -13,8 +16,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@ecruz165/context-loader-core": "workspace:*",
-    "neo4j-driver": "^6.0.1",
+    "@ecruz165/edge-context-server": "workspace:*",
     "ws": "^8.18.0"
   },
   "devDependencies": {

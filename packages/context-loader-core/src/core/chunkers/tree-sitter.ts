@@ -93,6 +93,27 @@ const EXT_TO_GRAMMAR: Record<string, string> = {
   '.mjs': 'javascript',
   '.cjs': 'javascript',
   '.py': 'python',
+  // PRD F25 mandates Java + Kotlin support. Java grammar ships with
+  // @vscode/tree-sitter-wasm; Kotlin doesn't (will fall back to
+  // structureless chunking and surface a warning until @vscode adds it
+  // or we switch to a different grammar source).
+  '.java': 'java',
+  // Bonus grammars also shipped by @vscode/tree-sitter-wasm — wire them
+  // up so repos in these languages don't fall back to whole-file
+  // chunking. Each gets minimal "extractable" node types (function +
+  // class equivalents); refinement (interfaces, enums, etc.) is a
+  // per-grammar follow-up.
+  '.go': 'go',
+  '.rs': 'rust',
+  '.rb': 'ruby',
+  '.php': 'php',
+  '.cs': 'c-sharp',
+  '.cpp': 'cpp',
+  '.cc': 'cpp',
+  '.hpp': 'cpp',
+  '.hh': 'cpp',
+  '.c': 'c',
+  '.h': 'c',
 };
 
 /** Per-grammar AST node types we treat as "extractable symbol declarations". */
@@ -115,6 +136,28 @@ const DECLARATION_NODE_TYPES: Record<string, ReadonlySet<string>> = {
   ]),
   javascript: new Set(['function_declaration', 'class_declaration', 'method_definition']),
   python: new Set(['function_definition', 'class_definition']),
+  java: new Set([
+    'method_declaration',
+    'class_declaration',
+    'interface_declaration',
+    'enum_declaration',
+    'record_declaration',
+    'constructor_declaration',
+  ]),
+  go: new Set(['function_declaration', 'method_declaration', 'type_declaration']),
+  rust: new Set(['function_item', 'struct_item', 'enum_item', 'impl_item', 'trait_item']),
+  ruby: new Set(['method', 'class', 'module', 'singleton_method']),
+  php: new Set(['function_definition', 'class_declaration', 'method_declaration']),
+  'c-sharp': new Set([
+    'method_declaration',
+    'class_declaration',
+    'interface_declaration',
+    'struct_declaration',
+    'enum_declaration',
+    'constructor_declaration',
+  ]),
+  cpp: new Set(['function_definition', 'class_specifier', 'struct_specifier', 'namespace_definition']),
+  c: new Set(['function_definition', 'declaration', 'struct_specifier']),
 };
 
 /** Map AST node type → graph node label for our schema. */
