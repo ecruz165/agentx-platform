@@ -124,8 +124,9 @@ edge-memory audit --since 2026-05-01T00:00:00Z --until 2026-05-08T00:00:00Z
 edge-memory audit --scope userId:alice
 edge-memory audit --scope productId:web --scope userId:alice
 
-# By actor (PRD F33 — currently 'uds:local'; v1.x adds real UID)
-edge-memory audit --actor uds:local
+# By actor (PRD F33 — `uds:<uid>` on POSIX from process.getuid;
+# `uds:local` fallback on Windows where getuid is undefined)
+edge-memory audit --actor uds:1000
 
 # Cap result size
 edge-memory audit --limit 10

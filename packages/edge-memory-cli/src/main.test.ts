@@ -242,7 +242,8 @@ describe('edge-memory CLI — happy paths', () => {
     expect(lines).toHaveLength(3);
     expect(lines[0]).toMatch(/forget/);
     expect(lines[0]).toMatch(/count=1/);
-    expect(lines[0]).toMatch(/actor=uds:local/);
+    // PRD F33: actor is uds:<uid> on POSIX, uds:local on Windows.
+    expect(lines[0]).toMatch(/actor=uds:(\d+|local)/);
   });
 
   it('audit --op filters', async () => {

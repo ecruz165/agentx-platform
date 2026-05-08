@@ -25,8 +25,8 @@ import {
   type AuditLog,
   type AuditLogQuery,
   type AuditOp,
-  DEFAULT_ACTOR,
   InMemoryAuditLog,
+  resolveActor,
 } from './audit.ts';
 import {
   InMemoryMemoryStore,
@@ -223,7 +223,7 @@ async function handlePut(
   const entry = await store.put(input);
   await audit.append({
     op: 'put',
-    actor: DEFAULT_ACTOR,
+    actor: resolveActor(),
     count: 1,
     entryIds: [entry.id],
     ...(input.scope ? { scope: input.scope } : {}),
@@ -262,7 +262,7 @@ async function handleForget(
     if (result.deleted > 0) {
       await audit.append({
         op: 'forget',
-        actor: DEFAULT_ACTOR,
+        actor: resolveActor(),
         count: result.deleted,
         entryIds: result.deletedIds,
         ...(predicate.scope ? { scope: predicate.scope } : {}),
@@ -421,7 +421,7 @@ async function handleImport(
   if (imported > 0) {
     await audit.append({
       op: 'import',
-      actor: DEFAULT_ACTOR,
+      actor: resolveActor(),
       count: imported,
       entryIds: importedIds,
     });
@@ -552,6 +552,7 @@ export {
   DEFAULT_ACTOR,
   InMemoryAuditLog,
   matchesAuditFilter,
+  resolveActor,
 } from './audit.ts';
 export {
   SqliteAuditLog,

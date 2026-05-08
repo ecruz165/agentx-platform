@@ -403,7 +403,9 @@ describe('edge-memory-server HTTP routes', () => {
     expect(ev.scope.productId).toBe('web');
     expect(ev.entryIds).toHaveLength(1);
     expect(ev.entryIds[0]).toMatch(/^mem_/);
-    expect(ev.actor).toBe('uds:local'); // PRD F33 placeholder
+    // Per PRD F33: actor is uds:<uid> on POSIX (real running uid),
+    // uds:local on Windows (no getuid).
+    expect(ev.actor).toMatch(/^uds:(\d+|local)$/);
   });
 
   it('forget logs one event with the deleted ids; empty-match forgets do NOT', async () => {

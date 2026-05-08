@@ -11,10 +11,13 @@
  * populated and `count` set — not N events for N entries. Keeps the
  * audit log compact and avoids N-rows-per-op blow-up on large imports.
  *
- * Actor (PRD F33): `uds:<uid>` for local UDS. v1 ships `uds:local`
- * as a placeholder; v1.x adds real UID extraction (Linux SO_PEERCRED,
- * macOS LOCAL_PEERCRED). The field shape is correct so the upgrade
- * is additive.
+ * Actor (PRD F33): `uds:<uid>` for local UDS. The UID comes from
+ * `process.getuid()` — load-bearing under v1's trust model: the socket
+ * is `chmod 0600`, so the only UID that can connect is the one that
+ * owns the file, which is the running process's UID. (When the trust
+ * model loosens — multi-user TCP, etc. — extraction must move to a
+ * peer-creds syscall: SO_PEERCRED on Linux, LOCAL_PEERCRED on macOS.)
+ * On platforms without `getuid` (Windows), falls back to `uds:local`.
  *
  * Storage:
  *   - InMemoryAuditLog — Map-based, tests + dev
@@ -89,11 +92,29 @@ export interface AuditLog {
   size(): Promise<number>;
 }
 
-/** Default actor placeholder when caller didn't supply one. v1.x
- *  upgrades when real UID extraction lands; for now any callers using
- *  the default emit a uniform `uds:local` so query filtering still
- *  works. */
+/** Fallback actor for environments where the running uid can't be
+ *  determined (notably Windows, where Node's `process.getuid` is
+ *  undefined). Production v1 always resolves through `resolveActor()`;
+ *  this is the safety net it falls back to. */
 export const DEFAULT_ACTOR = 'uds:local';
+
+/**
+ * Resolve the connection actor for an audit append. Returns
+ * `uds:<uid>` on POSIX (Linux/macOS), `uds:local` on Windows.
+ *
+ * Load-bearing assumption: the socket is `chmod 0600` so the only
+ * connectable UID is the server's. We don't need a peer-creds syscall
+ * to know the client's UID under that constraint — they're the same
+ * by file-permission invariant. If the deployment model ever permits
+ * multiple UIDs to share a socket, this function must change to use
+ * SO_PEERCRED (Linux) / LOCAL_PEERCRED (macOS) on the connection's
+ * underlying fd.
+ */
+export function resolveActor(): string {
+  const getuid = (process as { getuid?: () => number }).getuid;
+  if (typeof getuid !== 'function') return DEFAULT_ACTOR;
+  return `uds:${getuid()}`;
+}
 
 // ─── InMemoryAuditLog ─────────────────────────────────────────────────────
 

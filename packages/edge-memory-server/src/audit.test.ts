@@ -11,6 +11,7 @@ import {
   DEFAULT_ACTOR,
   InMemoryAuditLog,
   matchesAuditFilter,
+  resolveActor,
 } from './audit.ts';
 
 function makeEvent(overrides: Partial<AuditEvent> = {}): AuditEvent {
@@ -77,6 +78,23 @@ describe('matchesAuditFilter', () => {
   it('events with no scope still match a scope-set filter only when filter scope is empty', () => {
     const ev = makeEvent({ scope: undefined });
     expect(matchesAuditFilter(ev, { scope: { productId: 'web' } })).toBe(false);
+  });
+});
+
+describe('resolveActor', () => {
+  it('returns uds:<uid> on POSIX, uds:local on Windows', () => {
+    const actor = resolveActor();
+    const getuid = (process as { getuid?: () => number }).getuid;
+    if (typeof getuid === 'function') {
+      expect(actor).toBe(`uds:${getuid()}`);
+      expect(actor).toMatch(/^uds:\d+$/);
+    } else {
+      expect(actor).toBe(DEFAULT_ACTOR);
+    }
+  });
+
+  it('is stable across repeated calls', () => {
+    expect(resolveActor()).toBe(resolveActor());
   });
 });
 
