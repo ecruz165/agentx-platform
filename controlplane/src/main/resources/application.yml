@@ -64,6 +64,15 @@ agentx:
     # ProcessBuilder uses working-dir for both cwd and arg resolution.
     command: bun,packages/context-loader-cli/src/bin.ts
     working-dir: ..
+    # Phase 4.4 — scheduled re-ingestion for sources marked daily/weekly.
+    # The poller picks up any source whose last completed ingestion is
+    # older than its cadence AND has no pending/running job in flight.
+    # Override cron + cadence-seconds for tests or staging.
+    refresh-poller:
+      enabled: true
+      cron: "0 0 * * * *"        # every hour, at minute 0
+      daily-seconds: 86400       # 24h
+      weekly-seconds: 604800     # 7d
 
 logging:
   level:
