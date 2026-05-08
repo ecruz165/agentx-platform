@@ -45,6 +45,7 @@ Run `edge-memory --help` for the canonical list.
 | | |
 |---|---|
 | `--socket <path>` | UDS path. Default `~/.harness/run/memory.sock`. Or set `MEMORY_SOCKET_PATH`. |
+| `--workspace <name>` | Use `~/.harness/workspaces/<name>/run/memory.sock`. Mutually exclusive with `--socket`. (PRD F27) |
 | `--scope key:value` | Scope tag. May repeat. Keys: `jobId`, `productId`, `userId`, `sessionId`, `organizationId`, `topic`. |
 | `--json` | Emit JSON instead of human-readable output. |
 | `--help` | Show usage. |

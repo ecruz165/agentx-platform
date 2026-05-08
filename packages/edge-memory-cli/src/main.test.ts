@@ -357,4 +357,36 @@ describe('edge-memory CLI — error paths', () => {
     expect(r.code).toBe(1);
     expect(r.stderr).toMatch(/--value/);
   });
+
+  it('rejects --socket and --workspace together (mutually exclusive)', async () => {
+    let stderr = '';
+    const code = await run({
+      argv: ['health', '--socket', '/tmp/x.sock', '--workspace', 'foo'],
+      env: {},
+      stdout: () => {},
+      stderr: (s) => {
+        stderr += s;
+      },
+    });
+    expect(code).toBe(2);
+    expect(stderr).toMatch(/mutually exclusive/);
+  });
+});
+
+describe('edge-memory CLI — workspace flag (F27)', () => {
+  it('--workspace <name> resolves to ~/.harness/workspaces/<name>/run/memory.sock', async () => {
+    // We just check the error path — the path doesn't exist, so we
+    // get an ENOENT with the expanded path in the error.
+    let stderr = '';
+    const code = await run({
+      argv: ['health', '--workspace', 'mobile-app'],
+      env: { HOME: '/tmp/home-fixture' },
+      stdout: () => {},
+      stderr: (s) => {
+        stderr += s;
+      },
+    });
+    expect(code).toBe(1);
+    expect(stderr).toContain('/tmp/home-fixture/.harness/workspaces/mobile-app/run/memory.sock');
+  });
 });

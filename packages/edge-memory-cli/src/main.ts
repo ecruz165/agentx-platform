@@ -43,6 +43,15 @@ export interface RunIO {
 
 const DEFAULT_SOCKET = '~/.harness/run/memory.sock';
 
+/** PRD F27: socket layout for a non-default workspace. The harness
+ *  installs each workspace under ~/.harness/workspaces/<name>/, with
+ *  the per-workspace memory daemon's socket at run/memory.sock under
+ *  that root. Single-workspace setups don't pay for the indirection;
+ *  --workspace is opt-in. */
+function workspaceSocket(name: string): string {
+  return `~/.harness/workspaces/${name}/run/memory.sock`;
+}
+
 const SCOPE_KEYS: ReadonlyArray<keyof MemoryScope> = [
   'jobId',
   'productId',
@@ -148,6 +157,8 @@ Commands:
 Global flags:
   --socket <path>     UDS path. Default: ${DEFAULT_SOCKET}
                       Or set MEMORY_SOCKET_PATH.
+  --workspace <name>  Use ~/.harness/workspaces/<name>/run/memory.sock
+                      (mutually exclusive with --socket).
   --scope key:value   Scope tag. May repeat. Keys: jobId, productId, userId,
                       sessionId, organizationId, topic.
   --json              Emit JSON instead of human-readable output.
@@ -179,8 +190,20 @@ export async function run(io: RunIO): Promise<number> {
     return parsed.command ? 0 : 2;
   }
 
+  // Socket precedence (highest first): --socket > --workspace > MEMORY_SOCKET_PATH > default.
+  // --workspace and --socket are mutually exclusive (different abstractions
+  // — one names a workspace, the other names a path); both set is a usage error.
+  const explicitSocket =
+    typeof parsed.flags.socket === 'string' ? (parsed.flags.socket as string) : undefined;
+  const workspaceName =
+    typeof parsed.flags.workspace === 'string' ? (parsed.flags.workspace as string) : undefined;
+  if (explicitSocket && workspaceName) {
+    stderr('error: --socket and --workspace are mutually exclusive\n');
+    return 2;
+  }
   const socket = expandHome(
-    (typeof parsed.flags.socket === 'string' ? parsed.flags.socket : undefined) ??
+    explicitSocket ??
+      (workspaceName ? workspaceSocket(workspaceName) : undefined) ??
       env.MEMORY_SOCKET_PATH ??
       DEFAULT_SOCKET,
     env,
