@@ -27,7 +27,12 @@
 
 import { mkdirSync, rmSync } from 'node:fs';
 import { dirname } from 'node:path';
-import { type Catalog, startHarnessServer } from '@ecruz165/harness-server';
+import {
+  type Catalog,
+  type FlowDef,
+  type ProductDef,
+  startHarnessServer,
+} from '@ecruz165/harness-server';
 
 const harnessSocket = process.env.HARNESS_SOCKET ?? '/run/harness/harness.sock';
 mkdirSync(dirname(harnessSocket), { recursive: true });
@@ -39,8 +44,43 @@ try {
   /* not present, fine */
 }
 
-// v1 catalog source: empty. Future: fetch from controlplane on startup.
-const loadCatalog = async (): Promise<Catalog> => ({ flows: [] });
+// Catalog source: HTTP fetch from controlplane. The harness loads once at
+// startup; the controlplane is the source of truth. Future: re-fetch on
+// a periodic schedule or via an SSE catalog-changed stream.
+const controlplaneUrl = (process.env.CONTROLPLANE_URL ?? 'http://controlplane:8080').replace(
+  /\/+$/,
+  '',
+);
+const orgId = process.env.AGENTX_ORG_ID ?? 'dev-org';
+
+async function fetchJson<T>(path: string): Promise<T> {
+  const res = await fetch(`${controlplaneUrl}${path}`, {
+    headers: { 'X-Org-Id': orgId, Accept: 'application/json' },
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`GET ${path} → ${res.status}: ${body.slice(0, 200)}`);
+  }
+  return res.json() as Promise<T>;
+}
+
+const loadCatalog = async (): Promise<Catalog> => {
+  console.log(`[harness-server] loading catalog from ${controlplaneUrl} (orgId=${orgId})…`);
+  // The controlplane's FlowDTO and ProductDTO shapes are JSON-compatible
+  // with harness-core's FlowDef / ProductDef. We trust the wire format
+  // here; a future iteration can add validation via zod.
+  const [flows, products] = await Promise.all([
+    fetchJson<FlowDef[]>('/api/catalog/flows'),
+    fetchJson<ProductDef[]>('/api/catalog/products').catch((err) => {
+      // Products are optional — log and proceed with []. Flows are
+      // required (the harness can't dispatch without them).
+      console.warn(`[harness-server] products fetch failed (proceeding without): ${err.message}`);
+      return [] as ProductDef[];
+    }),
+  ]);
+  console.log(`[harness-server] catalog loaded: ${flows.length} flow(s), ${products.length} product(s)`);
+  return { flows, products };
+};
 
 const harnessSrv = await startHarnessServer({
   socketPath: harnessSocket,
@@ -53,7 +93,7 @@ console.log('[harness-server] ready; SIGTERM to stop');
 
 const shutdown = async () => {
   console.log('[harness-server] shutdown…');
-  await harnessSrv.close().catch(() => {});
+  await harnessSrv.stop().catch(() => {});
   process.exit(0);
 };
 process.on('SIGTERM', shutdown);

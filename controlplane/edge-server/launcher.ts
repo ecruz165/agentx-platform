@@ -73,8 +73,8 @@ console.log('[edge-server] ready; SIGTERM to stop');
 
 const shutdown = async () => {
   console.log('[edge-server] shutdown…');
-  await memorySrv.close().catch(() => {});
-  await contextSrv.close().catch(() => {});
+  await memorySrv.stop().catch(() => {});
+  await contextSrv.stop().catch(() => {});
   process.exit(0);
 };
 process.on('SIGTERM', shutdown);

@@ -116,7 +116,8 @@ services:
   # harness-server — RPC surface for in-flight job execution. Mounts the
   # host docker socket (DooD) so it can spawn per-job pipeline-instance
   # containers via the host's docker daemon. Reaches edge-context +
-  # edge-memory via the shared edge-sockets volume.
+  # edge-memory via the shared edge-sockets volume. Fetches its catalog
+  # from the controlplane on startup (HTTP /api/catalog/flows + /products).
   harness-server:
     build:
       context: ..
@@ -125,12 +126,19 @@ services:
     environment:
       HARNESS_SOCKET: /run/harness/harness.sock
       EDGE_SOCKETS_DIR: /run/edge
+      # Catalog source — the controlplane HTTP API, reached via compose
+      # service-name DNS. AGENTX_ORG_ID picks which tenant's catalog to
+      # load. Phase 7 swaps to a system-token-scoped endpoint.
+      CONTROLPLANE_URL: http://controlplane:8080
+      AGENTX_ORG_ID: ${AGENTX_ORG_ID:-dev-org}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock     # DooD
       - edge-sockets:/run/edge:ro                     # reach edge-context + edge-memory
       - harness-sockets:/run/harness                  # own UDS
     depends_on:
       edge-server:
+        condition: service_healthy
+      controlplane:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "test -S /run/harness/harness.sock"]
