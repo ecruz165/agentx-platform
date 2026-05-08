@@ -1,145 +1,63 @@
 #!/usr/bin/env bun
 /**
- * agentx-workspace — procure a new agentx project from workspace-template/.
+ * `workspace` — control-plane lifecycle CLI for the agentx platform.
  *
- * Modes:
- *   - Non-interactive: all required args present + all repos valid → run
- *     procure() directly.
- *   - Interactive (TUI): any required arg missing OR any repo URL invalid →
- *     launch OpenTUI form prefilled with whatever IS valid; user fills the
- *     rest.
- *   - --no-tui: never launch TUI; fail-fast on missing/invalid input.
+ * Subcommands:
+ *   workspace setup <name>    procure a new project (clone repos + scaffold)
+ *   workspace start           boot infra + controlplane + 3 peer servers
+ *   workspace web             open the browser to the UI (default :5173)
+ *
+ * Setup is one-time scaffolding; start is the daily lifecycle entry point;
+ * web just launches a browser. Each is a no-op against the others — the
+ * user composes them as the situation requires.
  */
 
 import { Command } from 'commander';
-import { procure, specsFromCli } from './procure.ts';
-import { runTui } from './tui.tsx';
-import type { ProcureResult, ProcureSpec } from './types.ts';
+import { runSetup } from './setup.ts';
+import { runStart } from './start.ts';
+import { runWeb } from './web.ts';
 
 const program = new Command()
-  .name('agentx-workspace')
-  .description('Procure a new agentx project folder from workspace-template/')
-  .argument('[name]', 'Product name (positional shorthand for --name)')
-  .option('--name <name>', 'Product name; doubles as workspace dir name + product id')
-  .option('--repos <urls...>', 'Repository clone URLs (HTTPS or SSH). Repeatable; space-separated.')
-  .option('--dest <dir>', 'Destination directory (default: ./workspace-<name>)')
-  .option('--token-env <var>', 'Env var holding a GitHub token for HTTPS clones', 'GITHUB_TOKEN')
-  .option('--no-tui', 'Fail fast on missing/invalid input instead of launching the TUI')
-  .option('--no-clone', 'Skip the eager git clone step (advanced)')
-  .option(
-    '--skills <slugs...>',
-    'skillzkit catalog items to install after procurement (e.g. core:tools:npm)',
-  )
-  .option(
-    '--skillzkit-bin <command>',
-    'Override the skillzkit invocation (default: "npx -y @ecruz165/skillzkit")',
-  )
-  .parse();
+  .name('workspace')
+  .description('agentx — workspace + platform lifecycle CLI')
+  .showHelpAfterError();
 
-const opts = program.opts<{
-  name?: string;
-  repos?: string[];
-  dest?: string;
-  tokenEnv?: string;
-  tui: boolean;
-  clone: boolean;
-  skills?: string[];
-  skillzkitBin?: string;
-}>();
-
-const positionalName = program.args[0];
-const productName = opts.name ?? positionalName;
-
-const { spec, missing, orgUrls } = specsFromCli(
-  productName,
-  opts.repos,
-  opts.dest,
-  opts.tokenEnv,
-  !opts.clone,
-  opts.skills,
-  opts.skillzkitBin,
-);
-
-let finalSpec: ProcureSpec | null = spec;
-
-if (!finalSpec) {
-  if (!opts.tui) {
-    console.error(
-      `error: missing or invalid args` +
-        (missing.length ? ` (missing: ${missing.join(', ')})` : '') +
-        (orgUrls.length
-          ? `\n  org URLs detected (need full repo URLs): ${orgUrls.join(', ')}`
-          : ''),
-    );
-    process.exit(2);
-  }
-
-  finalSpec = await runTui({
-    name: productName,
-    repos: opts.repos,
-    ...(opts.dest ? { dest: opts.dest } : {}),
-    tokenEnv: opts.tokenEnv,
-    noClone: !opts.clone,
+program
+  .command('setup [name]')
+  .description('procure a new agentx project from workspace-template/')
+  .option('--name <name>', 'product name (doubles as workspace dir + product id)')
+  .option('--repos <urls...>', 'repository clone URLs (HTTPS or SSH)')
+  .option('--dest <dir>', 'destination directory (default: ./workspace-<name>)')
+  .option('--token-env <var>', 'env var holding a GitHub token for HTTPS clones', 'GITHUB_TOKEN')
+  .option('--no-tui', 'fail fast on missing/invalid input instead of launching the TUI')
+  .option('--no-clone', 'skip the eager git clone step (advanced)')
+  .option('--skills <slugs...>', 'skillzkit catalog items to install (e.g. core:tools:npm)')
+  .option('--skillzkit-bin <command>', 'override the skillzkit invocation', 'npx -y @ecruz165/skillzkit')
+  .action(async (positionalName: string | undefined, opts) => {
+    await runSetup({
+      ...opts,
+      positionalName,
+    });
   });
 
-  if (!finalSpec) {
-    console.error('aborted');
-    process.exit(1);
-  }
-}
+program
+  .command('start')
+  .description('boot infra + controlplane + harness/context/memory peer servers')
+  .option('--skip-infra', 'skip docker-compose (assume Postgres/Neo4j/embedder already up)')
+  .option('--skip-controlplane', 'skip the Spring controlplane (run it manually for debug)')
+  .option('--skip-servers', 'skip the TS peer servers (harness/context/memory)')
+  .option('--platform-root <dir>', 'override the agentx-platform repo root (env: AGENTX_PLATFORM_ROOT)')
+  .action(async (opts) => {
+    await runStart(opts);
+  });
 
-console.log(`Procuring "${finalSpec.name}" → ${finalSpec.dest}`);
-console.log(`Repos:`);
-for (const r of finalSpec.repos) {
-  console.log(`  - ${r.name}  (${r.cloneUrl})`);
-}
-console.log();
+program
+  .command('web')
+  .description('open the browser to the control-plane UI')
+  .option('--url <url>', 'UI URL (default: http://localhost:5173)')
+  .option('--no-open', 'print the URL instead of opening the browser')
+  .action(async (opts) => {
+    await runWeb(opts);
+  });
 
-let result: ProcureResult;
-try {
-  result = await procure(finalSpec);
-} catch (err) {
-  console.error(`error: ${(err as Error).message}`);
-  process.exit(1);
-}
-
-if (!result.ok) {
-  console.error(`✗ Procurement failed.`);
-  for (const r of result.repos) {
-    if (!r.cloned && r.reason) {
-      console.error(`  ✗ ${r.repo.name}: ${r.reason.split('\n')[0]}`);
-    }
-  }
-  process.exit(1);
-}
-
-console.log(`✓ Procurement complete.`);
-console.log(`  Project:        ${result.projectDir}`);
-console.log(`  VS Code:        code ${result.workspaceFile}`);
-console.log(`  Config:         ${result.configFile}`);
-for (const r of result.repos) {
-  if (r.cloned && r.head) {
-    console.log(`  Cloned ${r.repo.name} @ ${r.head.slice(0, 8)}`);
-  }
-}
-
-if (result.skillsInstalled) {
-  const s = result.skillsInstalled;
-  if (s.exitCode === 0) {
-    console.log(`  Skills:         ✓ installed via skillzkit (${s.requested.length} requested)`);
-  } else {
-    console.log(`  Skills:         ✗ skillzkit install failed (exit ${s.exitCode})`);
-    if (s.output) {
-      const tail = s.output.split('\n').slice(-6).join('\n');
-      console.log(`    └─ output (last 6 lines):`);
-      for (const line of tail.split('\n')) console.log(`       ${line}`);
-    }
-    const binHint = spec?.skillzkitBin ?? 'npx -y @ecruz165/skillzkit';
-    console.log(
-      `    re-run manually: ${binHint} install ${s.requested.join(' ')} --target ${result.projectDir}`,
-    );
-  }
-}
-
-console.log();
-console.log(`Next: cd ${finalSpec.dest} && pnpm dev:servers`);
+await program.parseAsync();

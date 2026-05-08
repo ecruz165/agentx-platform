@@ -5,6 +5,7 @@
   "type": "module",
   "main": "./dist/bin.js",
   "bin": {
+    "workspace": "./dist/bin.js",
     "agentx-workspace": "./dist/bin.js"
   },
   "files": [
