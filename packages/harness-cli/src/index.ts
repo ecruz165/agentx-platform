@@ -66,7 +66,7 @@ async function main() {
     case 'session':
       return handleSession(rest);
     case 'memory':
-      return handleMemory(rest);
+      return memoryDeprecationNotice();
     case 'context':
       return handleContext(rest);
     case 'steering':
@@ -467,32 +467,37 @@ async function handleSession(args: string[]) {
   die('Usage: harness session <show|get|set>');
 }
 
-async function handleMemory(args: string[]) {
-  const session = await readSession();
-  const [verb, ...rest] = args;
-
-  if (verb === 'query') {
-    const [key] = rest;
-    if (!key) die('Usage: harness memory query <key>');
-    const resp = await udsRequest(MEMORY_SOCKET, 'POST', '/v1/memory/query', {
-      key,
-      productId: requireProductId(session),
-    });
-    print(resp.body);
-    return;
-  }
-  if (verb === 'put') {
-    const [key, ...valueParts] = rest;
-    if (!key || valueParts.length === 0) die('Usage: harness memory put <key> <value>');
-    const resp = await udsRequest(MEMORY_SOCKET, 'POST', '/v1/memory/put', {
-      key,
-      value: valueParts.join(' '),
-      productId: requireProductId(session),
-    });
-    print(resp.body);
-    return;
-  }
-  die('Usage: harness memory <query|put>');
+/**
+ * The `harness memory ...` subcommand was removed when memory moved to
+ * its own peer CLI (`@ecruz165/edge-memory-cli`). harness-cli is now
+ * operator/orchestrator only — agent surfaces (memory, context,
+ * steering check) live in their own packages so cold-start stays
+ * tight on every agent invocation. See memory note
+ * `project_per_server_cli_packages.md`.
+ *
+ * This shim exists only so a stale `harness memory ...` invocation
+ * gets a useful error rather than the generic "unknown command"
+ * usage dump. Remove entirely once the deprecation cycle is over
+ * (and any agent / docs / SKILL files have been updated to call
+ * `edge-memory` directly).
+ */
+function memoryDeprecationNotice(): never {
+  console.error(
+    [
+      '`harness memory` was moved to its own peer CLI: `edge-memory`.',
+      '',
+      'Equivalent commands:',
+      '  harness memory query <key>          →  edge-memory query --type structured --key <key>',
+      '  harness memory put <key> <value>    →  edge-memory put <key> --value "<value>"',
+      '',
+      'Install:',
+      '  npm install -g @ecruz165/edge-memory-cli   # or pnpm/yarn equivalent',
+      '',
+      'See `edge-memory --help` for the full subcommand surface',
+      '(query / put / forget / health) plus --scope, --json, etc.',
+    ].join('\n'),
+  );
+  process.exit(2);
 }
 
 /**
@@ -988,8 +993,10 @@ function usage(): void {
       '  harness session <show|get|set> [key] [value]',
       '  harness project <list|show> [id]',
       '  harness submit <pipeline> [--product <id>] [--name "<title>"] [--input <file>|--input-text "<text>"]',
-      '  harness memory <query|put> <key> [value]',
       '  harness steering <check|push|wait> [--job <id>] [--text "..."]',
+      '',
+      '  # Memory operations moved to a peer CLI:',
+      '  edge-memory <query|put|forget|health> ...   # @ecruz165/edge-memory-cli',
       '  harness context query <text>',
       '  harness context load <target> --type <id> --backend <url> --embedder-url <url>',
       "  harness context load --product <id>            # loads all of a product's declared contextSources",
