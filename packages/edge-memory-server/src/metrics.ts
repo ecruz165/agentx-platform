@@ -32,6 +32,7 @@ export type MetricOp =
   | 'cleanup'
   | 'health'
   | 'metrics'
+  | 'openapi'
   | 'other';
 
 interface HistogramState {
@@ -134,6 +135,7 @@ export class Metrics {
 export function opForPath(path: string): MetricOp {
   if (path === '/health') return 'health';
   if (path === '/metrics') return 'metrics';
+  if (path === '/openapi.json') return 'openapi';
   if (path === '/v1/audit') return 'audit';
   if (!path.startsWith('/v1/memory/')) return 'other';
   const tail = path.slice('/v1/memory/'.length);

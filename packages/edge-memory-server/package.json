@@ -15,7 +15,8 @@
   "dependencies": {
     "@ecruz165/context-loader-core": "workspace:*",
     "better-sqlite3": "^11.3.0",
-    "sqlite-vec": "^0.1.6"
+    "sqlite-vec": "^0.1.6",
+    "zod": "^3.25.32"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.11",

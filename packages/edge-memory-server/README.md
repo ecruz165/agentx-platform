@@ -28,6 +28,7 @@ src/
 ```
 GET  /health                      Liveness + backend state + entry count
 GET  /metrics                     Prometheus exposition (PRD F13)
+GET  /openapi.json                OpenAPI 3.1 spec auto-generated from Zod (PRD F11)
 POST /v1/memory/put               body: { key, value, scope? }
 POST /v1/memory/query             body: MemoryQuery (kind: structured | recent | similarity | graph)
 POST /v1/memory/forget            body: MemoryForgetPredicate (at least one of key, scope, olderThan)
@@ -160,7 +161,6 @@ per agent invocation).
 
 Tracked in PRD; not yet implemented:
 
-- OpenAPI 3.1 auto-gen from Zod schemas (F11)
 - LLM-driven `feedback-summarize` strategy ships with a placeholder
   summarizer (concatenation); production wires Anthropic Messages
   client via the `summarize` option on `startMemoryServer`

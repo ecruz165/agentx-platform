@@ -990,6 +990,30 @@ describe('Idle throttling (PRD F9)', () => {
   });
 });
 
+describe('GET /openapi.json (PRD F11)', () => {
+  const cleanups: Array<() => Promise<void>> = [];
+  afterEach(async () => {
+    for (const c of cleanups.splice(0)) await c();
+  });
+
+  it('serves a valid OpenAPI 3.1 spec', async () => {
+    const socketPath = tmpSocket();
+    const handle = await startMemoryServer({ socketPath });
+    cleanups.push(async () => {
+      await handle.stop();
+      await rm(socketPath, { force: true });
+    });
+
+    const r = await udsJson(socketPath, 'GET', '/openapi.json');
+    expect(r.status).toBe(200);
+    expect(r.body.openapi).toBe('3.1.0');
+    expect(r.body.info.title).toBe('edge-memory-server');
+    expect(r.body.paths['/v1/memory/put']).toBeDefined();
+    expect(r.body.paths['/v1/memory/consolidate']).toBeDefined();
+    expect(r.body.components.schemas.MemoryEntry).toBeDefined();
+  });
+});
+
 describe('GET /metrics — Prometheus exposition (PRD F13)', () => {
   const cleanups: Array<() => Promise<void>> = [];
   afterEach(async () => {

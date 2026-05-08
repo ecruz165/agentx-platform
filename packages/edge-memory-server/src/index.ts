@@ -37,6 +37,7 @@ import {
 import { IdleThrottle, type IdleThrottleOptions } from './idle-throttle.ts';
 import { type InspectInput, inspect } from './inspect.ts';
 import { Metrics, opForPath } from './metrics.ts';
+import { buildOpenApiSpec } from './openapi.ts';
 import { InMemorySnapshotStore, type SnapshotStore } from './snapshot.ts';
 import {
   type FeedbackSource,
@@ -165,6 +166,13 @@ function route(
   // (per F9: scrapes shouldn't keep a quiet daemon warm).
   if (req.method === 'GET' && url === '/metrics') {
     handleMetrics(res, store, metrics).catch((err: Error) => serverError(res, err.message));
+    return;
+  }
+
+  // GET /openapi.json — OpenAPI 3.1 spec auto-generated from Zod
+  // schemas (PRD F11). No activity recorded — tooling polls this.
+  if (req.method === 'GET' && url === '/openapi.json') {
+    handleOpenApi(res).catch((err: Error) => serverError(res, err.message));
     return;
   }
 
@@ -356,6 +364,18 @@ function dispatchV1(
   // Fallback echo for unknown paths — preserves v0 contract for early
   // bringup checks and tests that haven't migrated yet.
   echo(req, res, 'memory');
+}
+
+/** PRD F11 — OpenAPI 3.1 spec endpoint. Spec is rebuilt on every
+ *  request (cheap; ~0.5ms for our schema set). Cache headers are
+ *  set so tooling can poll without thrashing. */
+async function handleOpenApi(res: ServerResponse): Promise<void> {
+  const spec = buildOpenApiSpec();
+  res.writeHead(200, {
+    'content-type': 'application/json',
+    'cache-control': 'no-cache',
+  });
+  res.end(JSON.stringify(spec));
 }
 
 async function handleMetrics(
@@ -1092,6 +1112,8 @@ export {
   inspect,
 } from './inspect.ts';
 export { type MetricOp, Metrics, opForPath } from './metrics.ts';
+export { buildOpenApiSpec, zodToJsonSchema } from './openapi.ts';
+export * as schemas from './schemas.ts';
 export {
   InMemorySnapshotStore,
   type MemorySnapshot,

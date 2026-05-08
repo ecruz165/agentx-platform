@@ -211,6 +211,9 @@ importers:
       sqlite-vec:
         specifier: ^0.1.6
         version: 0.1.9
+      zod:
+        specifier: ^3.25.32
+        version: 3.25.76
     devDependencies:
       '@types/better-sqlite3':
         specifier: ^7.6.11
