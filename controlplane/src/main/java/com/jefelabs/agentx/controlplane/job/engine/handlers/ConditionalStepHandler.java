@@ -66,7 +66,16 @@ public class ConditionalStepHandler implements StepKindHandler {
                 if (pattern.isEmpty()) {
                     throw new IllegalArgumentException("output-matches requires non-empty 'pattern'");
                 }
-                String text = prior != null ? prior.toString() : "";
+                // Textual JsonNodes need asText() to strip the JSON quoting; non-text
+                // values (objects, numbers) use the JSON serialization.
+                String text;
+                if (prior == null) {
+                    text = "";
+                } else if (prior.isTextual()) {
+                    text = prior.asText();
+                } else {
+                    text = prior.toString();
+                }
                 try {
                     yield Pattern.compile(pattern).matcher(text).find();
                 } catch (PatternSyntaxException e) {
