@@ -393,3 +393,60 @@ describe('SqliteVecMemoryStore — forget', () => {
     expect(await s2.size()).toBe(0);
   });
 });
+
+describe('SqliteVecMemoryStore — provenance + feedback (PRD F16)', () => {
+  it('default provenance is unconfirmed; round-trips through structured query', async () => {
+    const store = await openTestStore();
+    await store.put({ key: 'k', value: 'v', scope: { jobId: 'job_1', productId: 'web' } });
+    const r = await store.query({ kind: 'structured', key: 'k' });
+    expect(r.kind).toBe('ok');
+    if (r.kind !== 'ok') return;
+    expect(r.entries[0]?.provenance.feedback).toBe('unconfirmed');
+    expect(r.entries[0]?.provenance.originatingJobId).toBe('job_1');
+    expect(r.entries[0]?.provenance.originatingProductId).toBe('web');
+  });
+
+  it('caller-supplied provenance is persisted verbatim', async () => {
+    const store = await openTestStore();
+    await store.put({
+      key: 'k',
+      value: 'v',
+      provenance: {
+        feedback: 'positive',
+        feedbackSource: 'pr-merged',
+        feedbackAt: '2026-05-08T00:00:00.000Z',
+        consolidatedBy: 'rule',
+        consolidatedFrom: { scope: { jobId: 'src' }, entryIds: ['mem_a', 'mem_b'] },
+      },
+    });
+    const r = await store.query({ kind: 'structured', key: 'k' });
+    if (r.kind !== 'ok') throw new Error('expected ok');
+    expect(r.entries[0]?.provenance.feedback).toBe('positive');
+    expect(r.entries[0]?.provenance.feedbackSource).toBe('pr-merged');
+    expect(r.entries[0]?.provenance.consolidatedBy).toBe('rule');
+    expect(r.entries[0]?.provenance.consolidatedFrom?.entryIds).toEqual(['mem_a', 'mem_b']);
+  });
+
+  it('schema migration is idempotent — reopening does not duplicate columns', async () => {
+    const dbPath = tmpDb();
+    const s1 = await SqliteVecMemoryStore.open({
+      dbPath,
+      vectorDim: 4,
+      embed: mockEmbedder(4),
+    });
+    await s1.put({ key: 'k', value: 'v' });
+    await s1.close();
+
+    const s2 = await SqliteVecMemoryStore.open({
+      dbPath,
+      vectorDim: 4,
+      embed: mockEmbedder(4),
+    });
+    cleanups.push(async () => {
+      await s2.close();
+    });
+    const r = await s2.query({ kind: 'structured', key: 'k' });
+    if (r.kind !== 'ok') throw new Error('expected ok');
+    expect(r.entries[0]?.provenance.feedback).toBe('unconfirmed');
+  });
+});

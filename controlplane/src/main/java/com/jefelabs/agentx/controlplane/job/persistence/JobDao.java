@@ -78,4 +78,22 @@ public interface JobDao {
            AND status IN ('queued', 'running')
     """)
     int cancel(@Bind("orgId") String orgId, @Bind("id") String id);
+
+    @SqlUpdate("""
+        UPDATE jobs SET status = 'running', started_at = COALESCE(started_at, CURRENT_TIMESTAMP)
+         WHERE org_id = :orgId AND id = :id AND status = 'queued'
+    """)
+    int markRunning(@Bind("orgId") String orgId, @Bind("id") String id);
+
+    @SqlUpdate("""
+        UPDATE jobs SET status = 'completed', output = :output::jsonb, completed_at = CURRENT_TIMESTAMP
+         WHERE org_id = :orgId AND id = :id AND status NOT IN ('completed', 'failed', 'cancelled')
+    """)
+    int markCompleted(@Bind("orgId") String orgId, @Bind("id") String id, @Bind("output") String output);
+
+    @SqlUpdate("""
+        UPDATE jobs SET status = 'failed', failure_reason = :reason, completed_at = CURRENT_TIMESTAMP
+         WHERE org_id = :orgId AND id = :id AND status NOT IN ('completed', 'failed', 'cancelled')
+    """)
+    int markFailed(@Bind("orgId") String orgId, @Bind("id") String id, @Bind("reason") String reason);
 }

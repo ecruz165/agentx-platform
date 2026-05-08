@@ -33,7 +33,50 @@ export interface MemoryEntry {
   /** Per-PRD F3 scope dimensions. Any subset may be set; entries without
    *  scope are global. */
   scope: MemoryScope;
+  /** Per PRD F16: every entry carries a provenance record so consolidation
+   *  + feedback flows have something to AND-filter against. New writes
+   *  default to `feedback: 'unconfirmed'`; tag/consolidate transitions
+   *  it to positive/negative. */
+  provenance: MemoryProvenance;
 }
+
+/** PRD F16. Default-state for new entries: feedback='unconfirmed',
+ *  originatingJobId/originatingProductId mirrored from scope, no
+ *  consolidation lineage. */
+export interface MemoryProvenance {
+  /** Job that wrote this entry (mirrored from scope.jobId at put time). */
+  originatingJobId?: string;
+  /** Product the writing job ran against (mirrored from scope.productId). */
+  originatingProductId?: string;
+  /** If this entry came from consolidation (F14), which entries fed it. */
+  consolidatedFrom?: { scope: MemoryScope; entryIds: string[] };
+  /** Strategy that produced this entry: 'rule' (verbatim promote),
+   *  'summary' (LLM-distilled), 'manual' (admin lift-and-shift). Unset
+   *  on direct writes (not a consolidation result). */
+  consolidatedBy?: 'rule' | 'summary' | 'manual';
+  /** ISO timestamp of the consolidation that produced this entry. */
+  consolidatedAt?: string;
+  /** Feedback label. `unconfirmed` until tagged; tag/consolidate
+   *  flow transitions it. */
+  feedback: 'positive' | 'negative' | 'unconfirmed';
+  /** What event tagged this entry. Carried through consolidation. */
+  feedbackSource?: FeedbackSource;
+  /** ISO timestamp of the most recent feedback transition. */
+  feedbackAt?: string;
+}
+
+export type FeedbackSource =
+  | 'hitl-approval'
+  | 'hitl-rejection'
+  | 'phase-success'
+  | 'phase-failure'
+  | 'pr-merged'
+  | 'pr-rejected'
+  | 'tests-passed'
+  | 'tests-failed'
+  | 'rollback'
+  | 'manual'
+  | 'agent-self-eval';
 
 /** Scope tags. All optional. */
 export interface MemoryScope {
@@ -50,6 +93,19 @@ export interface MemoryPutInput {
   key: string;
   value: unknown;
   scope?: MemoryScope;
+  /** Optional override of the default provenance. Most callers should
+   *  not set this; consolidation and import are the legitimate uses. */
+  provenance?: MemoryProvenance;
+}
+
+/** Build the default provenance for a fresh write — feedback unconfirmed,
+ *  no consolidation lineage, originating IDs mirrored from scope. */
+export function defaultProvenance(scope: MemoryScope | undefined): MemoryProvenance {
+  return {
+    feedback: 'unconfirmed',
+    ...(scope?.jobId !== undefined ? { originatingJobId: scope.jobId } : {}),
+    ...(scope?.productId !== undefined ? { originatingProductId: scope.productId } : {}),
+  };
 }
 
 /** Discriminated union of query shapes (PRD F4). */
@@ -120,9 +176,26 @@ export class InMemoryMemoryStore implements MemoryStore {
       key: input.key,
       value: input.value,
       scope: input.scope ?? {},
+      provenance: input.provenance ?? defaultProvenance(input.scope),
     };
     this.entries.set(entry.id, entry);
     return entry;
+  }
+
+  /** Test-only access: list all entries (read-only snapshot). Used by
+   *  tag/consolidate flows that need to scan + mutate. */
+  _entries(): IterableIterator<MemoryEntry> {
+    return this.entries.values();
+  }
+
+  /** Test-only mutation: replace an entry's provenance. The tag + */
+  /** consolidate flows use this; declared on the implementation rather */
+  /** than the interface so backends can override with native ops. */
+  _setProvenance(id: string, p: MemoryProvenance): boolean {
+    const e = this.entries.get(id);
+    if (!e) return false;
+    this.entries.set(id, { ...e, provenance: p });
+    return true;
   }
 
   async query(q: MemoryQuery): Promise<MemoryQueryResult> {

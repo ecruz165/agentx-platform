@@ -26,9 +26,11 @@ import Database, { type Database as SqliteDatabase } from 'better-sqlite3';
 import * as sqliteVec from 'sqlite-vec';
 import {
   assertNonEmptyForgetPredicate,
+  defaultProvenance,
   type MemoryEntry,
   type MemoryForgetPredicate,
   type MemoryForgetResult,
+  type MemoryProvenance,
   type MemoryPutInput,
   type MemoryQuery,
   type MemoryQueryResult,
@@ -146,6 +148,22 @@ export class SqliteVecMemoryStore implements MemoryStore {
         embedding float[${this.vectorDim}]
       );`,
     );
+
+    // PRD F16: provenance + feedback per entry. Added via ALTER for
+    // forward-compat with older DB files that predate F16. SQLite has
+    // no `ADD COLUMN IF NOT EXISTS`, so we probe pragma + skip.
+    // Index on `feedback` is the workhorse — F19 cleanup-unconfirmed
+    // and consolidation's feedback filter both query against it
+    // millions of times relative to writes.
+    this.addColumnIfMissing('entries', 'provenance_json', 'TEXT');
+    this.addColumnIfMissing('entries', 'feedback', "TEXT NOT NULL DEFAULT 'unconfirmed'");
+    this.db.exec(`CREATE INDEX IF NOT EXISTS idx_entries_feedback ON entries(feedback);`);
+  }
+
+  private addColumnIfMissing(table: string, column: string, type: string): void {
+    const cols = this.db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>;
+    if (cols.some((c) => c.name === column)) return;
+    this.db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${type}`);
   }
 
   async put(input: MemoryPutInput): Promise<MemoryEntry> {
@@ -168,10 +186,11 @@ export class SqliteVecMemoryStore implements MemoryStore {
       embedding = v;
     }
 
+    const provenance = input.provenance ?? defaultProvenance(scope);
     const insertEntry = this.db.prepare(
       `INSERT INTO entries
-         (id, key, value, created_at, job_id, product_id, user_id, session_id, organization_id, topic, has_embedding)
-       VALUES (@id, @key, @value, @created_at, @job_id, @product_id, @user_id, @session_id, @organization_id, @topic, @has_embedding)`,
+         (id, key, value, created_at, job_id, product_id, user_id, session_id, organization_id, topic, has_embedding, provenance_json, feedback)
+       VALUES (@id, @key, @value, @created_at, @job_id, @product_id, @user_id, @session_id, @organization_id, @topic, @has_embedding, @provenance_json, @feedback)`,
     );
 
     // Wrap entry insert + vec insert in a transaction so failure
@@ -189,6 +208,8 @@ export class SqliteVecMemoryStore implements MemoryStore {
         organization_id: scope.organizationId ?? null,
         topic: scope.topic ?? null,
         has_embedding: embedding ? 1 : 0,
+        provenance_json: JSON.stringify(provenance),
+        feedback: provenance.feedback,
       });
       // better-sqlite3 returns number | bigint. sqlite-vec's vec0
       // requires the rowid binding to be SQLite INTEGER, which means
@@ -214,6 +235,7 @@ export class SqliteVecMemoryStore implements MemoryStore {
       key: input.key,
       value: input.value,
       scope,
+      provenance,
     };
   }
 
@@ -258,7 +280,7 @@ export class SqliteVecMemoryStore implements MemoryStore {
       const { whereClause, params: scopeParams } = scopeWhere(q.scope, 'e.');
       const baseSql = `SELECT e.id, e.key, e.value, e.created_at,
                 e.job_id, e.product_id, e.user_id, e.session_id,
-                e.organization_id, e.topic,
+                e.organization_id, e.topic, e.provenance_json,
                 v.distance
          FROM entries_vec v
          JOIN entries e ON e.rowid = v.rowid
@@ -362,7 +384,7 @@ export class SqliteVecMemoryStore implements MemoryStore {
     }
     let sql = `SELECT id, key, value, created_at,
               job_id, product_id, user_id, session_id,
-              organization_id, topic
+              organization_id, topic, provenance_json
        FROM entries`;
     if (wheres.length > 0) {
       sql += ` WHERE ${wheres.join(' AND ')}`;
@@ -387,6 +409,7 @@ interface DbEntryRow {
   session_id: string | null;
   organization_id: string | null;
   topic: string | null;
+  provenance_json: string | null;
   distance?: number;
 }
 
@@ -398,12 +421,19 @@ function rowToEntry(row: DbEntryRow): MemoryEntry {
   if (row.session_id) scope.sessionId = row.session_id;
   if (row.organization_id) scope.organizationId = row.organization_id;
   if (row.topic) scope.topic = row.topic;
+  // PRD F16: provenance_json is null only on rows written before the
+  // F16 migration (legacy DB files). Reconstruct a default-state
+  // provenance from scope so the wire shape is consistent.
+  const provenance: MemoryProvenance = row.provenance_json
+    ? (JSON.parse(row.provenance_json) as MemoryProvenance)
+    : defaultProvenance(scope);
   return {
     id: row.id,
     createdAt: row.created_at,
     key: row.key,
     value: JSON.parse(row.value),
     scope,
+    provenance,
   };
 }
 

@@ -660,10 +660,13 @@ export {
 } from './sqlite-vec-store.ts';
 export {
   assertNonEmptyForgetPredicate,
+  defaultProvenance,
+  type FeedbackSource,
   InMemoryMemoryStore,
   type MemoryEntry,
   type MemoryForgetPredicate,
   type MemoryForgetResult,
+  type MemoryProvenance,
   type MemoryPutInput,
   type MemoryQuery,
   type MemoryQueryResult,

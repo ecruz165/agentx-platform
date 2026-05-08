@@ -4,7 +4,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { InMemoryMemoryStore, type MemoryStore } from './store.ts';
+import { defaultProvenance, InMemoryMemoryStore, type MemoryStore } from './store.ts';
 
 describe('InMemoryMemoryStore — put + query (structured)', () => {
   it('stores an entry and returns it via structured query by key', async () => {
@@ -231,5 +231,51 @@ describe('InMemoryMemoryStore — forget', () => {
     expect(r.deleted).toBe(150);
     expect(r.deletedIds.length).toBe(100); // sample capped
     expect(await store.size()).toBe(0);
+  });
+});
+
+describe('MemoryEntry — provenance + feedback (PRD F16)', () => {
+  it('defaultProvenance — feedback unconfirmed; mirrors jobId/productId from scope', () => {
+    expect(defaultProvenance(undefined)).toEqual({ feedback: 'unconfirmed' });
+    expect(defaultProvenance({ topic: 'plan' })).toEqual({ feedback: 'unconfirmed' });
+    expect(defaultProvenance({ jobId: 'job_1', productId: 'web' })).toEqual({
+      feedback: 'unconfirmed',
+      originatingJobId: 'job_1',
+      originatingProductId: 'web',
+    });
+  });
+
+  it('put materializes default provenance when none supplied', async () => {
+    const store = new InMemoryMemoryStore();
+    const entry = await store.put({ key: 'k', value: 'v', scope: { jobId: 'job_42' } });
+    expect(entry.provenance.feedback).toBe('unconfirmed');
+    expect(entry.provenance.originatingJobId).toBe('job_42');
+  });
+
+  it('put honors caller-supplied provenance (consolidation path)', async () => {
+    const store = new InMemoryMemoryStore();
+    const entry = await store.put({
+      key: 'k',
+      value: 'v',
+      provenance: {
+        feedback: 'positive',
+        feedbackSource: 'pr-merged',
+        feedbackAt: '2026-05-08T00:00:00.000Z',
+        consolidatedBy: 'rule',
+      },
+    });
+    expect(entry.provenance.feedback).toBe('positive');
+    expect(entry.provenance.feedbackSource).toBe('pr-merged');
+    expect(entry.provenance.consolidatedBy).toBe('rule');
+  });
+
+  it('query returns entries with provenance attached', async () => {
+    const store = new InMemoryMemoryStore();
+    await store.put({ key: 'k', value: 'v', scope: { jobId: 'job_1' } });
+    const r = await store.query({ kind: 'structured', key: 'k' });
+    expect(r.kind).toBe('ok');
+    if (r.kind !== 'ok') return;
+    expect(r.entries[0]?.provenance.feedback).toBe('unconfirmed');
+    expect(r.entries[0]?.provenance.originatingJobId).toBe('job_1');
   });
 });

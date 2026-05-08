@@ -1,6 +1,7 @@
 package com.jefelabs.agentx.controlplane.job.config;
 
 import com.jefelabs.agentx.controlplane.job.domain.JobStatus;
+import com.jefelabs.agentx.controlplane.job.domain.StepStatus;
 import jakarta.annotation.PostConstruct;
 import org.jdbi.v3.core.Jdbi;
 import org.jdbi.v3.core.argument.AbstractArgumentFactory;
@@ -35,6 +36,19 @@ public class JobJdbiConfig {
         jdbi.registerArgument(new AbstractArgumentFactory<JobStatus>(Types.VARCHAR) {
             @Override
             protected Argument build(JobStatus value, ConfigRegistry config) {
+                return (position, statement, context) ->
+                    statement.setString(position, value != null ? value.dbValue() : null);
+            }
+        });
+
+        jdbi.registerColumnMapper(StepStatus.class, (rs, columnNumber, ctx) -> {
+            String value = rs.getString(columnNumber);
+            return value != null ? StepStatus.fromDbValue(value) : null;
+        });
+
+        jdbi.registerArgument(new AbstractArgumentFactory<StepStatus>(Types.VARCHAR) {
+            @Override
+            protected Argument build(StepStatus value, ConfigRegistry config) {
                 return (position, statement, context) ->
                     statement.setString(position, value != null ? value.dbValue() : null);
             }
