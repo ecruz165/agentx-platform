@@ -34,6 +34,7 @@ POST /v1/memory/forget            body: MemoryForgetPredicate (at least one of k
 POST /v1/memory/export            body: optional MemoryQuery; response: text/plain JSONL of entries
 POST /v1/memory/import            body: text/plain JSONL; response: { imported, errors: [{line, error}] }
 POST /v1/memory/tag               body: MemoryTagInput (PRD F18); response: { tagged, alreadyTagged, taggedIds }
+POST /v1/memory/consolidate       body: ConsolidateInput (PRD F14/F15); promote feedback-tagged entries from→to scope
 POST /v1/audit                    body: optional AuditLogQuery; response: { events, count }
 ```
 
@@ -154,9 +155,9 @@ Tracked in PRD; not yet implemented:
 
 - Snapshot + restore for session writes (F5)
 - OpenAPI 3.1 auto-gen from Zod schemas (F11)
-- **Consolidation API + feedback tagging** (F14-F19) — the entire
-  job-scope → product-scope promotion lifecycle, including LLM-driven
-  `feedback-summarize` strategy
+- LLM-driven `feedback-summarize` strategy ships with a placeholder
+  summarizer (concatenation); production wires Anthropic Messages
+  client via the `summarize` option on `startMemoryServer`
 - `inspect` CLI subcommand
 - `--workspace` flag (F27)
 

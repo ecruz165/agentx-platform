@@ -153,6 +153,7 @@ Commands:
   import    Read JSONL from stdin or --in <file>; put each line
   audit     Read the audit log (filter by --op, --since, --until, --scope, --actor)
   tag       Tag entries positive/negative (--feedback positive|negative; --source ...)
+  consolidate  Promote tagged entries from --from <scope> to --to <scope>
   health    Server health probe
 
 Global flags:
@@ -182,6 +183,9 @@ Examples:
   edge-memory tag --scope jobId:job_42 --feedback positive --source phase-success
   edge-memory tag --entry mem_xyz --feedback negative --source pr-rejected
   edge-memory tag --scope productId:web --feedback positive --overwrite
+  edge-memory consolidate --from jobId:job_42 --to productId:web
+  edge-memory consolidate --from jobId:j --to userId:alice --strategy feedback-summarize
+  edge-memory consolidate --from jobId:j --to productId:web --feedback-filter positive --keep-source
   edge-memory health --json
 `;
 
@@ -230,6 +234,8 @@ export async function run(io: RunIO): Promise<number> {
         return await cmdAudit(parsed, socket, json, stdout);
       case 'tag':
         return await cmdTag(parsed, socket, json, stdout, stderr);
+      case 'consolidate':
+        return await cmdConsolidate(parsed, socket, json, stdout, stderr);
       case 'health':
         return await cmdHealth(socket, json, stdout);
       default:
@@ -611,6 +617,74 @@ async function cmdTag(
     );
   }
   return 0;
+}
+
+async function cmdConsolidate(
+  parsed: ParsedArgs,
+  socket: string,
+  json: boolean,
+  stdout: (s: string) => void,
+  stderr: (s: string) => void,
+): Promise<number> {
+  const fromRaw = stringFlag(parsed.flags, 'from');
+  const toRaw = stringFlag(parsed.flags, 'to');
+  if (!fromRaw || !toRaw) {
+    stderr('error: --from <scope> and --to <scope> are required (e.g., jobId:j1, productId:web)\n');
+    return 2;
+  }
+  const fromScope = parseScopeFlag(fromRaw);
+  const toScope = parseScopeFlag(toRaw);
+  if (!fromScope || !toScope) {
+    stderr('error: --from / --to must be in <key>:<value> form (e.g., jobId:j1)\n');
+    return 2;
+  }
+
+  const body: Record<string, unknown> = {
+    from: { scope: fromScope },
+    to: { scope: toScope },
+  };
+  const strategy = stringFlag(parsed.flags, 'strategy');
+  if (strategy) body.strategy = strategy;
+  const topic = stringFlag(parsed.flags, 'topic');
+  if (topic) body.topic = topic;
+  if (parsed.flags['keep-source'] === true) body.keepSource = true;
+  // --feedback-filter accepts comma-separated.
+  const filter = stringFlag(parsed.flags, 'feedback-filter');
+  if (filter) {
+    body.feedbackFilter = filter
+      .split(',')
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
+  }
+
+  const r = await udsJson<Record<string, unknown>>(socket, 'POST', '/v1/memory/consolidate', body);
+  const result = r.body.result as {
+    promoted: number;
+    skipped: number;
+    summarizedFrom?: number;
+    lineageIds: string[];
+    feedbackBreakdown: { positive: number; negative: number };
+  };
+  if (json) {
+    stdout(`${JSON.stringify(result)}\n`);
+  } else {
+    const sum = result.summarizedFrom !== undefined ? ` (from ${result.summarizedFrom})` : '';
+    stdout(
+      `promoted ${result.promoted}${sum}; skipped ${result.skipped}; ` +
+        `+${result.feedbackBreakdown.positive} −${result.feedbackBreakdown.negative}\n`,
+    );
+  }
+  return 0;
+}
+
+/** Parse a single --from / --to value of the form "key:value". */
+function parseScopeFlag(raw: string): MemoryScope | null {
+  const colon = raw.indexOf(':');
+  if (colon <= 0) return null;
+  const key = raw.slice(0, colon) as keyof MemoryScope;
+  const value = raw.slice(colon + 1);
+  if (!SCOPE_KEYS.includes(key)) return null;
+  return { [key]: value } as MemoryScope;
 }
 
 async function cmdHealth(

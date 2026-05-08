@@ -325,6 +325,14 @@ export class SqliteVecMemoryStore implements MemoryStore {
       wheres.push(`created_at < ?`);
       params.push(predicate.olderThan);
     }
+    if (predicate.id !== undefined) {
+      wheres.push(`id = ?`);
+      params.push(predicate.id);
+    }
+    if (predicate.feedback !== undefined) {
+      wheres.push(`feedback = ?`);
+      params.push(predicate.feedback);
+    }
     const { whereClause, params: scopeParams } = scopeWhere(predicate.scope);
     if (whereClause.length > 0) {
       wheres.push(whereClause);

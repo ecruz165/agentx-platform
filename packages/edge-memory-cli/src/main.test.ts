@@ -450,6 +450,68 @@ describe('edge-memory CLI — tag (F18)', () => {
   });
 });
 
+describe('edge-memory CLI — consolidate (F14/F15)', () => {
+  const cleanups: Array<() => Promise<void>> = [];
+  afterEach(async () => {
+    for (const c of cleanups.splice(0)) await c();
+  });
+  async function startServer(): Promise<string> {
+    const socketPath = join(tmpdir(), `consol-${randomUUID().slice(0, 8)}.sock`);
+    const handle = await startMemoryServer({ socketPath });
+    cleanups.push(async () => {
+      await handle.stop();
+      await rm(socketPath, { force: true });
+    });
+    return socketPath;
+  }
+
+  it('consolidate --from --to promotes positive+negative; reports breakdown', async () => {
+    const socket = await startServer();
+    await runCli(['put', 'plan', '--value', 'A', '--scope', 'jobId:j1'], socket);
+    await runCli(['put', 'plan', '--value', 'B', '--scope', 'jobId:j1'], socket);
+    await runCli(['tag', '--scope', 'jobId:j1', '--feedback', 'positive'], socket);
+
+    const r = await runCli(['consolidate', '--from', 'jobId:j1', '--to', 'productId:web'], socket);
+    expect(r.code).toBe(0);
+    expect(r.stdout).toMatch(/promoted 2/);
+    expect(r.stdout).toMatch(/\+2 −0/);
+  });
+
+  it('rejects missing --from / --to with usage error', async () => {
+    const socket = await startServer();
+    const r = await runCli(['consolidate'], socket);
+    expect(r.code).toBe(2);
+    expect(r.stderr).toMatch(/--from/);
+  });
+
+  it('--feedback-filter accepts comma-separated', async () => {
+    const socket = await startServer();
+    await runCli(['put', 'a', '--value', 'A', '--scope', 'jobId:j1'], socket);
+    await runCli(['put', 'b', '--value', 'B', '--scope', 'jobId:j1'], socket);
+    await runCli(['tag', '--key', 'a', '--feedback', 'positive'], socket);
+    await runCli(['tag', '--key', 'b', '--feedback', 'negative'], socket);
+
+    const onlyPos = await runCli(
+      [
+        'consolidate',
+        '--from',
+        'jobId:j1',
+        '--to',
+        'productId:web',
+        '--feedback-filter',
+        'positive',
+        '--keep-source',
+        '--json',
+      ],
+      socket,
+    );
+    expect(onlyPos.code).toBe(0);
+    const result = JSON.parse(onlyPos.stdout);
+    expect(result.promoted).toBe(1);
+    expect(result.feedbackBreakdown).toEqual({ positive: 1, negative: 0 });
+  });
+});
+
 describe('edge-memory CLI — workspace flag (F27)', () => {
   it('--workspace <name> resolves to ~/.harness/workspaces/<name>/run/memory.sock', async () => {
     // We just check the error path — the path doesn't exist, so we

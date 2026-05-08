@@ -28,6 +28,12 @@ import {
   InMemoryAuditLog,
   resolveActor,
 } from './audit.ts';
+import {
+  type ConsolidateInput,
+  type ConsolidateStrategy,
+  consolidate,
+  type SummarizeFn,
+} from './consolidate.ts';
 import { IdleThrottle, type IdleThrottleOptions } from './idle-throttle.ts';
 import { Metrics, opForPath } from './metrics.ts';
 import {
@@ -61,6 +67,10 @@ export interface MemoryServerOptions {
    *  throttling entirely (useful for in-process tests where we don't
    *  want a background timer). */
   idle?: IdleThrottleOptions | false;
+  /** Optional LLM summarizer for `feedback-summarize` consolidation
+   *  strategy (PRD F15). Default: defaultSummarize (concatenation
+   *  placeholder). Production wires an Anthropic Messages client. */
+  summarize?: SummarizeFn;
 }
 
 export interface MemoryServerHandle {
@@ -89,7 +99,10 @@ export async function startMemoryServer(opts: MemoryServerOptions): Promise<Memo
   const metrics = opts.metrics ?? new Metrics();
   const idle: IdleThrottle | null = opts.idle === false ? null : new IdleThrottle(opts.idle ?? {});
   if (idle) idle.start();
-  const server = createServer((req, res) => route(req, res, store, audit, metrics, idle));
+  const summarize = opts.summarize;
+  const server = createServer((req, res) =>
+    route(req, res, store, audit, metrics, idle, summarize),
+  );
 
   await new Promise<void>((resolve, reject) => {
     server.once('error', reject);
@@ -118,6 +131,7 @@ function route(
   audit: AuditLog,
   metrics: Metrics,
   idle: IdleThrottle | null,
+  summarize: SummarizeFn | undefined,
 ): void {
   const url = (req.url ?? '/').split('?')[0]!.replace(/\/$/, '') || '/';
   const op = opForPath(url);
@@ -158,12 +172,12 @@ function route(
     if (idle.state === 'idle') {
       idle
         .ensureWarm()
-        .then(() => dispatchV1(req, res, store, audit, url))
+        .then(() => dispatchV1(req, res, store, audit, url, summarize))
         .catch((err: Error) => serverError(res, `warmup failed: ${err.message}`));
       return;
     }
   }
-  dispatchV1(req, res, store, audit, url);
+  dispatchV1(req, res, store, audit, url, summarize);
 }
 
 function dispatchV1(
@@ -172,6 +186,7 @@ function dispatchV1(
   store: MemoryStore,
   audit: AuditLog,
   url: string,
+  summarize: SummarizeFn | undefined,
 ): void {
   // POST /v1/memory/put — body { key, value, scope? }
   if (req.method === 'POST' && url === '/v1/memory/put') {
@@ -242,6 +257,20 @@ function dispatchV1(
         return;
       }
       handleTag(res, store, audit, parsed).catch((e: Error) => serverError(res, e.message));
+    });
+    return;
+  }
+
+  // POST /v1/memory/consolidate — body ConsolidateInput. PRD F14/F15.
+  if (req.method === 'POST' && url === '/v1/memory/consolidate') {
+    consumeJsonBody(req, (parsed, err) => {
+      if (err) {
+        badRequest(res, err);
+        return;
+      }
+      handleConsolidate(res, store, audit, parsed, summarize).catch((e: Error) =>
+        serverError(res, e.message),
+      );
     });
     return;
   }
@@ -594,6 +623,65 @@ async function handleTag(
 }
 
 /**
+ * PRD F14/F15 — promote feedback-tagged entries from a narrow scope
+ * to a wider one. Pure-orchestration module does the work; this just
+ * marshals the body and shapes the response.
+ */
+async function handleConsolidate(
+  res: ServerResponse,
+  store: MemoryStore,
+  audit: AuditLog,
+  body: unknown,
+  summarize: SummarizeFn | undefined,
+): Promise<void> {
+  if (!isObject(body)) {
+    badRequest(res, 'body must be a JSON ConsolidateInput object');
+    return;
+  }
+  const b = body as Record<string, unknown>;
+  if (!isObject(b.from) || !isObject(b.to)) {
+    badRequest(res, 'body.from and body.to are required (objects with .scope)');
+    return;
+  }
+  const fromScope = (b.from as Record<string, unknown>).scope;
+  const toScope = (b.to as Record<string, unknown>).scope;
+  if (!isScope(fromScope) || !isScope(toScope)) {
+    badRequest(res, 'from.scope and to.scope must be valid MemoryScope objects');
+    return;
+  }
+  const input: ConsolidateInput = {
+    from: { scope: fromScope as MemoryScope },
+    to: { scope: toScope as MemoryScope },
+  };
+  if (
+    b.strategy === 'feedback-required' ||
+    b.strategy === 'feedback-by-topic' ||
+    b.strategy === 'feedback-summarize' ||
+    b.strategy === 'include-all'
+  ) {
+    input.strategy = b.strategy as ConsolidateStrategy;
+  }
+  if (Array.isArray(b.feedbackFilter)) {
+    input.feedbackFilter = b.feedbackFilter as Array<'positive' | 'negative'>;
+  }
+  if (typeof b.topic === 'string') input.topic = b.topic;
+  if (b.keepSource === true) input.keepSource = true;
+
+  try {
+    const result = await consolidate(input, store, audit, { summarize });
+    ok(res, {
+      service: 'memory',
+      method: 'POST',
+      path: '/v1/memory/consolidate',
+      result,
+      ts: new Date().toISOString(),
+    });
+  } catch (err) {
+    badRequest(res, (err as Error).message);
+  }
+}
+
+/**
  * Read-only audit query. Body is an optional AuditLogQuery; missing
  * fields are wildcards. Newest first; default limit 100.
  */
@@ -720,6 +808,15 @@ export {
   matchesAuditFilter,
   resolveActor,
 } from './audit.ts';
+export {
+  type ConsolidateInput,
+  type ConsolidateOptions,
+  type ConsolidateResult,
+  type ConsolidateStrategy,
+  consolidate,
+  defaultSummarize,
+  type SummarizeFn,
+} from './consolidate.ts';
 export {
   type IdleState,
   IdleThrottle,

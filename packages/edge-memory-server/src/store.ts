@@ -134,6 +134,14 @@ export interface MemoryForgetPredicate {
   scope?: MemoryScope;
   key?: string;
   olderThan?: string;
+  /** Exact-id match. Used by consolidation's source-cleanup pass to
+   *  delete just the entries it promoted (not all matching key+scope,
+   *  which would catch unconfirmed siblings — F19's job, not F14's). */
+  id?: string;
+  /** Filter by feedback label. Used by F19 cleanup-unconfirmed: pass
+   *  feedback='unconfirmed' + scope to prune residual unlabeled entries
+   *  at job-end. */
+  feedback?: 'unconfirmed' | 'positive' | 'negative';
 }
 
 export interface MemoryForgetResult {
@@ -368,9 +376,15 @@ function scopeMatches(entryScope: MemoryScope, filter: MemoryScope | undefined):
 export function assertNonEmptyForgetPredicate(p: MemoryForgetPredicate): void {
   const scopeHasField =
     p.scope !== undefined && Object.values(p.scope).some((v) => v !== undefined);
-  if (!scopeHasField && p.key === undefined && p.olderThan === undefined) {
+  if (
+    !scopeHasField &&
+    p.key === undefined &&
+    p.olderThan === undefined &&
+    p.id === undefined &&
+    p.feedback === undefined
+  ) {
     throw new Error(
-      'forget predicate must set at least one of: key, olderThan, or scope (with at least one scope key)',
+      'forget predicate must set at least one of: key, olderThan, id, feedback, or scope (with at least one scope key)',
     );
   }
 }
@@ -386,5 +400,7 @@ export function matchesForgetPredicate(entry: MemoryEntry, p: MemoryForgetPredic
   if (p.scope !== undefined && !scopeMatches(entry.scope, p.scope)) return false;
   if (p.key !== undefined && entry.key !== p.key) return false;
   if (p.olderThan !== undefined && entry.createdAt >= p.olderThan) return false;
+  if (p.id !== undefined && entry.id !== p.id) return false;
+  if (p.feedback !== undefined && entry.provenance.feedback !== p.feedback) return false;
   return true;
 }

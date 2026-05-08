@@ -37,6 +37,7 @@ npm install -g @ecruz165/edge-memory-cli
 | `import` | Read JSONL from stdin or `--in <file>`; put each line. Reports per-line errors. |
 | `audit` | Read the audit log. Optional: `--op put\|forget\|import\|tag\|...`, `--since/--until <iso>`, `--actor`, `--scope`, `--limit`. |
 | `tag` | Apply feedback to entries (PRD F18). Required: `--feedback positive\|negative`. Predicate: any of `--entry <id>`, `--key`, `--scope`, `--older-than`. Optional: `--source <FeedbackSource>`, `--overwrite`. |
+| `consolidate` | Promote feedback-tagged entries from one scope to another (PRD F14/F15). Required: `--from <key>:<value>`, `--to <key>:<value>`. Optional: `--strategy feedback-required\|feedback-by-topic\|feedback-summarize\|include-all`, `--feedback-filter positive,negative`, `--topic <name>`, `--keep-source`. |
 | `health` | Probe the daemon for state + backend + entry count. |
 
 Run `edge-memory --help` for the canonical list.

@@ -526,6 +526,64 @@ describe('edge-memory-server HTTP routes', () => {
   });
 });
 
+describe('POST /v1/memory/consolidate (PRD F14/F15)', () => {
+  const cleanups: Array<() => Promise<void>> = [];
+  afterEach(async () => {
+    for (const c of cleanups.splice(0)) await c();
+  });
+
+  it('promotes feedback-tagged entries from job→product; audit logs op=consolidate', async () => {
+    const socketPath = tmpSocket();
+    const handle = await startMemoryServer({ socketPath });
+    cleanups.push(async () => {
+      await handle.stop();
+      await rm(socketPath, { force: true });
+    });
+
+    await udsJson(socketPath, 'POST', '/v1/memory/put', {
+      key: 'plan',
+      value: 'A',
+      scope: { jobId: 'j1' },
+    });
+    await udsJson(socketPath, 'POST', '/v1/memory/put', {
+      key: 'plan',
+      value: 'B',
+      scope: { jobId: 'j1' },
+    });
+    await udsJson(socketPath, 'POST', '/v1/memory/tag', {
+      scope: { jobId: 'j1' },
+      feedback: 'positive',
+    });
+
+    const r = await udsJson(socketPath, 'POST', '/v1/memory/consolidate', {
+      from: { scope: { jobId: 'j1' } },
+      to: { scope: { productId: 'web' } },
+    });
+    expect(r.status).toBe(200);
+    expect(r.body.result.promoted).toBe(2);
+
+    const audit = await udsJson(socketPath, 'POST', '/v1/audit', { op: 'consolidate' });
+    expect(audit.body.result.events).toHaveLength(1);
+    expect(audit.body.result.events[0].count).toBe(2);
+  });
+
+  it('rejects empty feedbackFilter', async () => {
+    const socketPath = tmpSocket();
+    const handle = await startMemoryServer({ socketPath });
+    cleanups.push(async () => {
+      await handle.stop();
+      await rm(socketPath, { force: true });
+    });
+    const r = await udsJson(socketPath, 'POST', '/v1/memory/consolidate', {
+      from: { scope: { jobId: 'j1' } },
+      to: { scope: { productId: 'web' } },
+      feedbackFilter: [],
+    });
+    expect(r.status).toBe(400);
+    expect(r.body.error).toMatch(/feedbackFilter/);
+  });
+});
+
 describe('POST /v1/memory/tag (PRD F18)', () => {
   const cleanups: Array<() => Promise<void>> = [];
   afterEach(async () => {
