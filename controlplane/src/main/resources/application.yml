@@ -50,6 +50,18 @@ agentx:
     url: http://localhost:8081
     model: BAAI/bge-small-en-v1.5
     dimension: 384
+  context-loader:
+    # Command list for invoking the agentx-load CLI. In dev, this runs
+    # the TS source via Bun from the workspace root. In production, the
+    # multi-stage Dockerfile bundles the static binary at /opt/agentx
+    # (per project_controlplane_bundles_bun memory) — override via
+    # AGENTX_CONTEXT_LOADER_COMMAND env var.
+    command:
+      - bun
+      - ../packages/context-loader-cli/src/bin.ts
+    # Working directory for the subprocess. Bun resolves workspace deps
+    # via the workspace root.
+    working-dir: ..
 
 logging:
   level:

@@ -88,6 +88,20 @@ public class ContextController {
     }
 
     /**
+     * Trigger an ingestion run. Returns the ingestion_jobs record (status=pending);
+     * the agentx-load CLI runs asynchronously on a virtual thread, status updates
+     * as events arrive. Poll {@code GET /sources/{id}/ingestions} for progress.
+     */
+    @PostMapping("/sources/{id}/refresh")
+    public ResponseEntity<IngestionJobDTO> refresh(@PathVariable String id) {
+        var tenant = TenantContext.current();
+        return contextService.triggerIngestion(tenant.orgId(), id)
+            .map(mapper::toDTO)
+            .map(dto -> ResponseEntity.status(HttpStatus.ACCEPTED).body(dto))
+            .orElseGet(() -> ResponseEntity.notFound().build());
+    }
+
+    /**
      * Vector-search query — embed text, search Neo4j, return ranked chunks
      * filtered by access policy. Per prd-context-module.md F7-F12.
      */

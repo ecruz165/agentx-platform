@@ -2,6 +2,8 @@ package com.jefelabs.agentx.controlplane.context.service;
 
 import com.jefelabs.agentx.controlplane.context.domain.ContextSource;
 import com.jefelabs.agentx.controlplane.context.domain.IngestionJob;
+import com.jefelabs.agentx.controlplane.context.domain.IngestionStatus;
+import com.jefelabs.agentx.controlplane.context.integration.AgentxLoadRunner;
 import com.jefelabs.agentx.controlplane.context.persistence.ContextSourceDao;
 import com.jefelabs.agentx.controlplane.context.persistence.ContextSourceDaoRow;
 import com.jefelabs.agentx.controlplane.context.persistence.IngestionJobDao;
@@ -14,6 +16,7 @@ import tools.jackson.databind.ObjectMapper;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 /**
  * Context-source registry. Phase 4.1 ships CRUD only; ingestion subprocess
@@ -24,10 +27,12 @@ public class ContextService {
 
     private final Jdbi jdbi;
     private final ObjectMapper objectMapper;
+    private final AgentxLoadRunner ingestionRunner;
 
-    public ContextService(Jdbi jdbi, ObjectMapper objectMapper) {
+    public ContextService(Jdbi jdbi, ObjectMapper objectMapper, AgentxLoadRunner ingestionRunner) {
         this.jdbi = jdbi;
         this.objectMapper = objectMapper;
+        this.ingestionRunner = ingestionRunner;
     }
 
     @Transactional
@@ -71,6 +76,27 @@ public class ContextService {
                 r.chunkCount(), r.failureReason(),
                 r.createdAt(), r.startedAt(), r.completedAt()))
             .toList();
+    }
+
+    /**
+     * Trigger an ingestion run for a source. Creates an ingestion_jobs row
+     * (status=pending), kicks off the async {@link AgentxLoadRunner}, and
+     * returns the new job record. Caller polls the ingestions list to
+     * observe progress.
+     */
+    public Optional<IngestionJob> triggerIngestion(String orgId, String sourceId) {
+        ContextSource source = findById(orgId, sourceId).orElse(null);
+        if (source == null) return Optional.empty();
+
+        IngestionJobDao dao = jdbi.onDemand(IngestionJobDao.class);
+        UUID ingestionJobId = dao.create(orgId, sourceId, IngestionStatus.PENDING);
+        ingestionRunner.runIngestion(source, ingestionJobId);
+
+        return dao.findById(ingestionJobId).map(r -> new IngestionJob(
+            r.id(), r.orgId(), r.sourceId(), r.status(),
+            r.chunkCount(), r.failureReason(),
+            r.createdAt(), r.startedAt(), r.completedAt()
+        ));
     }
 
     // ── helpers ───────────────────────────────────────────────────────────
