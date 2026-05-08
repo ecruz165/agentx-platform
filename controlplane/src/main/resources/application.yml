@@ -36,6 +36,14 @@ server:
   port: 8080
   # Phase 0 is HTTP-only; HTTPS lands at Phase 7 per prd-control-plane-operational-hardening.md
 
+# Neo4j connection for the context module (Phase 4).
+# Defaults match controlplane/compose.yaml's neo4j service.
+agentx:
+  neo4j:
+    uri: bolt://localhost:7687
+    user: neo4j
+    password: controlplane
+
 logging:
   level:
     root: INFO
