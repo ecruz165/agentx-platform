@@ -47,16 +47,16 @@ services:
       retries: 5
 
   # Embedder (HuggingFace TEI) — Phase 4.2 query path + Phase 4.3 ingestion.
-  # On Apple Silicon use the arm64 variant; cpu-latest is amd64-only.
+  # HF TEI only ships amd64 manifests; on Apple Silicon, platform: linux/amd64
+  # routes through Rosetta. The first-run model download + Rosetta startup
+  # easily exceeds Spring's docker-compose-wait window (5+ min), so no
+  # healthcheck is declared — Spring boots without waiting; the query path
+  # returns 503 until the embedder becomes reachable.
   embedder:
     image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.7
+    platform: linux/amd64
     command: ["--model-id", "BAAI/bge-small-en-v1.5"]
     ports: ["8081:80"]
-    healthcheck:
-      test: ["CMD-SHELL", "wget -q -O- http://localhost/health || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
 
 volumes:
   neo4j-data:
