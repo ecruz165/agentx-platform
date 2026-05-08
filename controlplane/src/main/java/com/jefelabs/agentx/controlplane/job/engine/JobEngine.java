@@ -1,7 +1,9 @@
 package com.jefelabs.agentx.controlplane.job.engine;
 
 import com.jefelabs.agentx.controlplane.catalog.domain.Flow;
+import com.jefelabs.agentx.controlplane.catalog.domain.FlowKind;
 import com.jefelabs.agentx.controlplane.catalog.service.FlowService;
+import com.jefelabs.agentx.controlplane.core.events.JobIntentProducedEvent;
 import com.jefelabs.agentx.controlplane.job.domain.Job;
 import com.jefelabs.agentx.controlplane.job.domain.JobStatus;
 import com.jefelabs.agentx.controlplane.job.domain.StepStatus;
@@ -11,6 +13,7 @@ import com.jefelabs.agentx.controlplane.job.persistence.JobStepDao;
 import org.jdbi.v3.core.Jdbi;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
@@ -46,17 +49,46 @@ public class JobEngine {
     private final Jdbi jdbi;
     private final ObjectMapper objectMapper;
     private final FlowService flowService;
+    private final ApplicationEventPublisher eventPublisher;
     private final Map<String, StepKindHandler> handlersByKind;
 
     public JobEngine(Jdbi jdbi, ObjectMapper objectMapper, FlowService flowService,
+                     ApplicationEventPublisher eventPublisher,
                      List<StepKindHandler> handlers) {
         this.jdbi = jdbi;
         this.objectMapper = objectMapper;
         this.flowService = flowService;
+        this.eventPublisher = eventPublisher;
         this.handlersByKind = handlers.stream()
             .collect(Collectors.toUnmodifiableMap(StepKindHandler::kind, Function.identity()));
         log.info("JobEngine initialized with {} step-kind handlers: {}",
             handlersByKind.size(), handlersByKind.keySet());
+    }
+
+    /**
+     * Wraps {@code jobDao.markCompleted} with the cross-module event
+     * emission (Phase 5.5 hook): when the underlying flow has
+     * {@code kind == 'job-definition'}, publish a
+     * {@link JobIntentProducedEvent} carrying the output as the
+     * resolved JobIntent. The Intent module listens and transitions the
+     * matching session to {@code intent-ready}.
+     *
+     * <p>Falls back to a plain markCompleted when the flow can't be
+     * loaded (e.g., catalog row deleted mid-run) or kind is not
+     * job-definition. The flow lookup fires once per job (terminal),
+     * so the cost is negligible.
+     */
+    private void completeJob(JobDao jobDao, Job job, JsonNode output) {
+        jobDao.markCompleted(job.orgId(), job.id(), writeJson(output));
+        flowService.findById(job.orgId(), job.flowId()).ifPresent(flow -> {
+            if (flow.kind() == FlowKind.JOB_DEFINITION) {
+                eventPublisher.publishEvent(new JobIntentProducedEvent(
+                    job.orgId(), job.id(), job.flowId(), output
+                ));
+                log.debug("Published JobIntentProducedEvent: jobId={} flowId={}",
+                    job.id(), job.flowId());
+            }
+        });
     }
 
     /**
@@ -153,7 +185,7 @@ public class JobEngine {
                         StepStatus.COMPLETED, writeJson(success.output()), null);
                     emit(eventDao, job, "step-completed", currentNodeId, null);
                     emit(eventDao, job, "job-completed", null, null);
-                    jobDao.markCompleted(job.orgId(), job.id(), writeJson(success.output()));
+                    completeJob(jobDao, job, success.output());
                     return jobDao.findById(job.orgId(), job.id()).map(this::reload).orElse(job);
                 }
                 case StepResult.TerminateFailure failure -> {
@@ -175,7 +207,7 @@ public class JobEngine {
 
         // Walked off the end of the graph with no terminal — treat as success with the last output
         emit(eventDao, job, "job-completed", null, null);
-        jobDao.markCompleted(job.orgId(), job.id(), writeJson(priorOutput));
+        completeJob(jobDao, job, priorOutput);
         return jobDao.findById(job.orgId(), job.id()).map(this::reload).orElse(job);
     }
 
@@ -256,7 +288,7 @@ public class JobEngine {
                     StepStatus.COMPLETED, writeJson(success.output()), null);
                 emit(eventDao, job, "step-completed", pausedNodeId, null);
                 emit(eventDao, job, "job-completed", null, null);
-                jobDao.markCompleted(job.orgId(), job.id(), writeJson(success.output()));
+                completeJob(jobDao, job, success.output());
                 return jobDao.findById(job.orgId(), job.id()).map(this::reload).orElse(job);
             }
             case StepResult.TerminateFailure failure -> {
@@ -334,7 +366,7 @@ public class JobEngine {
                         StepStatus.COMPLETED, writeJson(success.output()), null);
                     emit(eventDao, job, "step-completed", nodeId, null);
                     emit(eventDao, job, "job-completed", null, null);
-                    jobDao.markCompleted(job.orgId(), job.id(), writeJson(success.output()));
+                    completeJob(jobDao, job, success.output());
                     return jobDao.findById(job.orgId(), job.id()).map(this::reload).orElse(job);
                 }
                 case StepResult.TerminateFailure failure -> {
@@ -353,7 +385,7 @@ public class JobEngine {
         }
 
         emit(eventDao, job, "job-completed", null, null);
-        jobDao.markCompleted(job.orgId(), job.id(), writeJson(priorOutput));
+        completeJob(jobDao, job, priorOutput);
         return jobDao.findById(job.orgId(), job.id()).map(this::reload).orElse(job);
     }
 

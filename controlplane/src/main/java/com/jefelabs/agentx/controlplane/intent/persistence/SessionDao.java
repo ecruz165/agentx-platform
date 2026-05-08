@@ -90,4 +90,37 @@ public interface SessionDao {
         @Bind("workJobId") String workJobId,
         @Bind("resolvedIntent") String resolvedIntent
     );
+
+    /**
+     * Phase 5.5 — landing zone for the JobIntentProducedEvent listener.
+     * Looks up the session whose intake_job_id matches the completed
+     * job. Returns Optional.empty when no session exists for that job
+     * (e.g., the job was submitted directly via /api/jobs, not through
+     * Intent — the listener no-ops in that case).
+     */
+    @SqlQuery("""
+        SELECT id, org_id, user_id, intake_pipeline_id, intake_job_id,
+               work_job_id, status, resolved_intent::text AS resolved_intent,
+               failure_reason, created_at, last_activity_at
+          FROM intent_sessions
+         WHERE org_id = :orgId AND intake_job_id = :intakeJobId
+    """)
+    Optional<SessionDaoRow> findByIntakeJobId(
+        @Bind("orgId") String orgId,
+        @Bind("intakeJobId") String intakeJobId
+    );
+
+    @SqlUpdate("""
+        UPDATE intent_sessions
+           SET status = 'intent-ready',
+               resolved_intent = :resolvedIntent::jsonb,
+               last_activity_at = NOW()
+         WHERE org_id = :orgId AND id = :id
+           AND status NOT IN ('submitted', 'aborted', 'expired')
+    """)
+    int markIntentReady(
+        @Bind("orgId") String orgId,
+        @Bind("id") UUID id,
+        @Bind("resolvedIntent") String resolvedIntent
+    );
 }
