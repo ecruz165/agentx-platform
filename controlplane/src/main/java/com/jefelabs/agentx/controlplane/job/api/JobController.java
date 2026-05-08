@@ -81,4 +81,40 @@ public class JobController {
             .map(ResponseEntity::ok)
             .orElseGet(() -> ResponseEntity.notFound().build());
     }
+
+    /** Deliver an external event to a paused {@code wait-for-event} step. */
+    @PostMapping("/{id}/events/{eventName}")
+    public ResponseEntity<JobDTO> deliverEvent(
+        @PathVariable String id,
+        @PathVariable String eventName,
+        @RequestBody(required = false) tools.jackson.databind.JsonNode payload
+    ) {
+        var tenant = TenantContext.current();
+        try {
+            return jobService.deliverEvent(tenant.orgId(), id, eventName, payload)
+                .map(jobMapper::toDTO)
+                .map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.notFound().build());
+        } catch (IllegalStateException e) {
+            return ResponseEntity.status(org.springframework.http.HttpStatus.CONFLICT).build();
+        }
+    }
+
+    /** Submit an approval verdict to a paused {@code approval} step. */
+    @PostMapping("/{id}/approvals/{nodeId}")
+    public ResponseEntity<JobDTO> submitApproval(
+        @PathVariable String id,
+        @PathVariable String nodeId,
+        @RequestBody tools.jackson.databind.JsonNode body
+    ) {
+        var tenant = TenantContext.current();
+        try {
+            return jobService.submitApproval(tenant.orgId(), id, nodeId, body)
+                .map(jobMapper::toDTO)
+                .map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.notFound().build());
+        } catch (IllegalStateException e) {
+            return ResponseEntity.status(org.springframework.http.HttpStatus.CONFLICT).build();
+        }
+    }
 }

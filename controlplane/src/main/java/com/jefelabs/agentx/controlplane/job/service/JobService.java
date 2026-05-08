@@ -3,6 +3,7 @@ package com.jefelabs.agentx.controlplane.job.service;
 import com.jefelabs.agentx.controlplane.core.types.JobIntent;
 import com.jefelabs.agentx.controlplane.job.domain.Job;
 import com.jefelabs.agentx.controlplane.job.domain.JobStatus;
+import com.jefelabs.agentx.controlplane.job.engine.JobEngine;
 import com.jefelabs.agentx.controlplane.job.persistence.JobDao;
 import com.jefelabs.agentx.controlplane.job.persistence.JobDaoRow;
 import org.jdbi.v3.core.Jdbi;
@@ -31,10 +32,12 @@ public class JobService {
 
     private final Jdbi jdbi;
     private final ObjectMapper objectMapper;
+    private final JobEngine jobEngine;
 
-    public JobService(Jdbi jdbi, ObjectMapper objectMapper) {
+    public JobService(Jdbi jdbi, ObjectMapper objectMapper, @org.springframework.context.annotation.Lazy JobEngine jobEngine) {
         this.jdbi = jdbi;
         this.objectMapper = objectMapper;
+        this.jobEngine = jobEngine;
     }
 
     /**
@@ -82,6 +85,42 @@ public class JobService {
         JobDao dao = jdbi.onDemand(JobDao.class);
         int updated = dao.cancel(orgId, id);
         return updated > 0 ? dao.findById(orgId, id).map(this::toDomain) : Optional.empty();
+    }
+
+    /**
+     * Deliver an external event payload to a paused {@code wait-for-event}
+     * step. Validates the job is RUNNING and currently paused; re-engages
+     * the engine via {@link JobEngine#resumeJob(Job, JsonNode)}.
+     */
+    public Optional<Job> deliverEvent(String orgId, String jobId, String eventName, JsonNode payload) {
+        Job job = findById(orgId, jobId).orElse(null);
+        if (job == null) return Optional.empty();
+        if (job.status() != JobStatus.RUNNING || job.currentNodeId() == null) {
+            throw new IllegalStateException(
+                "job " + jobId + " is not paused (status=" + job.status() +
+                ", currentNodeId=" + job.currentNodeId() + ")");
+        }
+        return Optional.of(jobEngine.resumeJob(job, payload != null ? payload : objectMapper.nullNode()));
+    }
+
+    /**
+     * Submit an approval verdict to a paused {@code approval} step.
+     * Verdict shape: {@code { "verdict": "approved" | "rejected", "reason"?, "approver"? }}.
+     */
+    public Optional<Job> submitApproval(String orgId, String jobId, String nodeId, JsonNode verdictPayload) {
+        Job job = findById(orgId, jobId).orElse(null);
+        if (job == null) return Optional.empty();
+        if (job.status() != JobStatus.RUNNING || job.currentNodeId() == null) {
+            throw new IllegalStateException(
+                "job " + jobId + " is not paused (status=" + job.status() +
+                ", currentNodeId=" + job.currentNodeId() + ")");
+        }
+        if (!job.currentNodeId().equals(nodeId)) {
+            throw new IllegalStateException(
+                "job " + jobId + " is paused at node " + job.currentNodeId() +
+                ", not " + nodeId);
+        }
+        return Optional.of(jobEngine.resumeJob(job, verdictPayload));
     }
 
     // ── helpers ───────────────────────────────────────────────────────────

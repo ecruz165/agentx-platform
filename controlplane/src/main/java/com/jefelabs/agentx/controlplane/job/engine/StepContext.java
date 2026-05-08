@@ -13,8 +13,12 @@ import tools.jackson.databind.JsonNode;
  *
  * <p>{@code bodyRunner} is the engine collaboration point for compound
  * step kinds (Loop, Fork, Map, Call) that execute other nodes inline.
- * Simple handlers (Agent, Transform, Phase, Conditional, Succeed)
- * ignore it.
+ *
+ * <p>{@code resumeData} is non-null only when this is a resume of a
+ * paused step (Phase 3e: WaitForEvent + Approval). Handlers check for
+ * non-null to distinguish first-invocation from resumption — on first
+ * invocation they typically return Pause; on resume they consume the
+ * resumeData (an event payload, an approval verdict) and return Advance.
  */
 public record StepContext(
     Job job,
@@ -23,6 +27,24 @@ public record StepContext(
     String nodeId,
     String nodeKind,
     JsonNode priorOutput,
-    BodyRunner bodyRunner
+    BodyRunner bodyRunner,
+    JsonNode resumeData
 ) {
+    /** Convenience for first-call (non-resume) construction. */
+    public StepContext(
+        Job job,
+        JsonNode flow,
+        JsonNode node,
+        String nodeId,
+        String nodeKind,
+        JsonNode priorOutput,
+        BodyRunner bodyRunner
+    ) {
+        this(job, flow, node, nodeId, nodeKind, priorOutput, bodyRunner, null);
+    }
+
+    /** True when this invocation is a resume of a previously-paused step. */
+    public boolean isResume() {
+        return resumeData != null;
+    }
 }

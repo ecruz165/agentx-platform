@@ -164,6 +164,9 @@ public class JobEngine {
                     return jobDao.findById(job.orgId(), job.id()).map(this::reload).orElse(job);
                 }
                 case StepResult.Pause pause -> {
+                    // Pause is a real pause: leave the job in RUNNING with current_node_id
+                    // pointing here. Resume API re-engages via resumeJob(...).
+                    jobDao.setCurrentNode(job.orgId(), job.id(), currentNodeId);
                     emit(eventDao, job, "step-paused", currentNodeId, errorPayload(pause.reason()));
                     return jobDao.findById(job.orgId(), job.id()).map(this::reload).orElse(job);
                 }
@@ -171,6 +174,184 @@ public class JobEngine {
         }
 
         // Walked off the end of the graph with no terminal — treat as success with the last output
+        emit(eventDao, job, "job-completed", null, null);
+        jobDao.markCompleted(job.orgId(), job.id(), writeJson(priorOutput));
+        return jobDao.findById(job.orgId(), job.id()).map(this::reload).orElse(job);
+    }
+
+    /**
+     * Resume a paused job at its {@code current_node_id} with delivered
+     * {@code resumeData}. The handler at the paused node sees
+     * {@link StepContext#isResume()} == true + {@link StepContext#resumeData()}
+     * populated, typically returns Advance, and the engine continues the walk.
+     *
+     * <p>Phase 3e MVP only resumes top-level paused nodes (not steps inside
+     * Loop / Fork / Map bodies); a paused approval inside a loop iteration
+     * is undefined behavior in this slice.
+     */
+    public Job resumeJob(Job job, JsonNode resumeData) {
+        if (job.status() != JobStatus.RUNNING) {
+            log.debug("resumeJob: job {} not RUNNING (status={}); skipping", job.id(), job.status());
+            return job;
+        }
+        String pausedNodeId = job.currentNodeId();
+        if (pausedNodeId == null) {
+            log.warn("resumeJob: job {} has no current_node_id; cannot resume", job.id());
+            return job;
+        }
+
+        JobDao jobDao = jdbi.onDemand(JobDao.class);
+        JobStepDao stepDao = jdbi.onDemand(JobStepDao.class);
+        JobEventDao eventDao = jdbi.onDemand(JobEventDao.class);
+
+        Flow flow = flowService.findById(job.orgId(), job.flowId())
+            .orElseThrow(() -> new IllegalStateException(
+                "Flow not found in catalog: " + job.flowId() + " (org=" + job.orgId() + ")"));
+        JsonNode flowJson = buildFlowJson(flow);
+
+        JsonNode pausedNode = findNode(flowJson, pausedNodeId)
+            .orElseThrow(() -> new IllegalStateException("paused node missing from FlowDef: " + pausedNodeId));
+        String pausedKind = pausedNode.path("kind").asText();
+        StepKindHandler handler = handlersByKind.get(pausedKind);
+        if (handler == null) {
+            String reason = "no handler for paused step kind: " + pausedKind;
+            jobDao.markFailed(job.orgId(), job.id(), reason);
+            emit(eventDao, job, "job-failed", pausedNodeId, errorPayload(reason));
+            return jobDao.findById(job.orgId(), job.id()).map(this::reload).orElse(job);
+        }
+
+        emit(eventDao, job, "step-resumed", pausedNodeId, null);
+
+        Map<String, Integer> bodyAttemptCounter = new ConcurrentHashMap<>();
+        BodyRunner bodyRunner = (bodyId, bodyInput) ->
+            executeBody(job, flowJson, bodyId, bodyInput, bodyAttemptCounter, stepDao, eventDao);
+
+        // First invocation: paused-step's handler with resumeData.
+        StepResult firstResult;
+        try {
+            firstResult = handler.execute(new StepContext(
+                job, flowJson, pausedNode, pausedNodeId, pausedKind,
+                /* priorOutput */ null,  // resume doesn't carry the original priorOutput; handler uses resumeData
+                bodyRunner, resumeData
+            ));
+        } catch (RuntimeException e) {
+            stepDao.completeStep(job.orgId(), job.id(), pausedNodeId, 1, StepStatus.FAILED, null, e.getMessage());
+            emit(eventDao, job, "step-failed", pausedNodeId, errorPayload(e.getMessage()));
+            jobDao.markFailed(job.orgId(), job.id(), e.getMessage());
+            return jobDao.findById(job.orgId(), job.id()).map(this::reload).orElse(job);
+        }
+
+        // Handle the first result; if Advance, continue walking from the next node.
+        switch (firstResult) {
+            case StepResult.Advance advance -> {
+                stepDao.completeStep(job.orgId(), job.id(), pausedNodeId, 1,
+                    StepStatus.COMPLETED, writeJson(advance.output()), null);
+                emit(eventDao, job, "step-completed", pausedNodeId, null);
+                jobDao.setCurrentNode(job.orgId(), job.id(), null);
+                String nextNodeId = followEdge(flowJson, pausedNodeId, advance.edgeLabel()).orElse(null);
+                return continueWalk(job, flowJson, nextNodeId, advance.output(), bodyRunner, bodyAttemptCounter, stepDao, eventDao, jobDao);
+            }
+            case StepResult.TerminateSuccess success -> {
+                stepDao.completeStep(job.orgId(), job.id(), pausedNodeId, 1,
+                    StepStatus.COMPLETED, writeJson(success.output()), null);
+                emit(eventDao, job, "step-completed", pausedNodeId, null);
+                emit(eventDao, job, "job-completed", null, null);
+                jobDao.markCompleted(job.orgId(), job.id(), writeJson(success.output()));
+                return jobDao.findById(job.orgId(), job.id()).map(this::reload).orElse(job);
+            }
+            case StepResult.TerminateFailure failure -> {
+                stepDao.completeStep(job.orgId(), job.id(), pausedNodeId, 1,
+                    StepStatus.FAILED, null, failure.reason());
+                emit(eventDao, job, "step-failed", pausedNodeId, errorPayload(failure.reason()));
+                jobDao.markFailed(job.orgId(), job.id(), failure.reason());
+                return jobDao.findById(job.orgId(), job.id()).map(this::reload).orElse(job);
+            }
+            case StepResult.Pause pause -> {
+                // Re-paused (handler decided it needs more data) — just stay paused.
+                emit(eventDao, job, "step-paused", pausedNodeId, errorPayload(pause.reason()));
+                return jobDao.findById(job.orgId(), job.id()).map(this::reload).orElse(job);
+            }
+        }
+    }
+
+    /**
+     * Continue walking the FlowDef from {@code startNodeId} after a resume's
+     * paused-step handler returned Advance. Mirrors the main runJob loop body
+     * but starts at an arbitrary node with arbitrary priorOutput.
+     */
+    private Job continueWalk(
+        Job job,
+        JsonNode flowJson,
+        String startNodeId,
+        JsonNode initialPriorOutput,
+        BodyRunner bodyRunner,
+        Map<String, Integer> bodyAttemptCounter,
+        JobStepDao stepDao,
+        JobEventDao eventDao,
+        JobDao jobDao
+    ) {
+        String currentNodeId = startNodeId;
+        JsonNode priorOutput = initialPriorOutput;
+
+        while (currentNodeId != null) {
+            final String nodeId = currentNodeId;
+            JsonNode node = findNode(flowJson, nodeId)
+                .orElseThrow(() -> new IllegalStateException("Edge points to missing node: " + nodeId));
+            String nodeKind = node.path("kind").asText();
+            StepKindHandler handler = handlersByKind.get(nodeKind);
+            if (handler == null) {
+                String reason = "no handler registered for step kind: " + nodeKind;
+                stepDao.startStep(job.orgId(), job.id(), nodeId, 1, StepStatus.FAILED, null, writeJson(priorOutput));
+                stepDao.completeStep(job.orgId(), job.id(), nodeId, 1, StepStatus.FAILED, null, reason);
+                emit(eventDao, job, "step-failed", nodeId, errorPayload(reason));
+                jobDao.markFailed(job.orgId(), job.id(), reason);
+                return jobDao.findById(job.orgId(), job.id()).map(this::reload).orElse(job);
+            }
+
+            stepDao.startStep(job.orgId(), job.id(), nodeId, 1, StepStatus.RUNNING, null, writeJson(priorOutput));
+            emit(eventDao, job, "step-started", nodeId, null);
+
+            StepResult result;
+            try {
+                result = handler.execute(new StepContext(job, flowJson, node, nodeId, nodeKind, priorOutput, bodyRunner));
+            } catch (RuntimeException e) {
+                stepDao.completeStep(job.orgId(), job.id(), nodeId, 1, StepStatus.FAILED, null, e.getMessage());
+                emit(eventDao, job, "step-failed", nodeId, errorPayload(e.getMessage()));
+                jobDao.markFailed(job.orgId(), job.id(), e.getMessage());
+                return jobDao.findById(job.orgId(), job.id()).map(this::reload).orElse(job);
+            }
+
+            switch (result) {
+                case StepResult.Advance advance -> {
+                    stepDao.completeStep(job.orgId(), job.id(), nodeId, 1,
+                        StepStatus.COMPLETED, writeJson(advance.output()), null);
+                    emit(eventDao, job, "step-completed", nodeId, null);
+                    priorOutput = advance.output();
+                    currentNodeId = followEdge(flowJson, nodeId, advance.edgeLabel()).orElse(null);
+                }
+                case StepResult.TerminateSuccess success -> {
+                    stepDao.completeStep(job.orgId(), job.id(), nodeId, 1,
+                        StepStatus.COMPLETED, writeJson(success.output()), null);
+                    emit(eventDao, job, "step-completed", nodeId, null);
+                    emit(eventDao, job, "job-completed", null, null);
+                    jobDao.markCompleted(job.orgId(), job.id(), writeJson(success.output()));
+                    return jobDao.findById(job.orgId(), job.id()).map(this::reload).orElse(job);
+                }
+                case StepResult.TerminateFailure failure -> {
+                    stepDao.completeStep(job.orgId(), job.id(), nodeId, 1,
+                        StepStatus.FAILED, null, failure.reason());
+                    emit(eventDao, job, "step-failed", nodeId, errorPayload(failure.reason()));
+                    jobDao.markFailed(job.orgId(), job.id(), failure.reason());
+                    return jobDao.findById(job.orgId(), job.id()).map(this::reload).orElse(job);
+                }
+                case StepResult.Pause pause -> {
+                    jobDao.setCurrentNode(job.orgId(), job.id(), nodeId);
+                    emit(eventDao, job, "step-paused", nodeId, errorPayload(pause.reason()));
+                    return jobDao.findById(job.orgId(), job.id()).map(this::reload).orElse(job);
+                }
+            }
+        }
+
         emit(eventDao, job, "job-completed", null, null);
         jobDao.markCompleted(job.orgId(), job.id(), writeJson(priorOutput));
         return jobDao.findById(job.orgId(), job.id()).map(this::reload).orElse(job);

@@ -96,4 +96,10 @@ public interface JobDao {
          WHERE org_id = :orgId AND id = :id AND status NOT IN ('completed', 'failed', 'cancelled')
     """)
     int markFailed(@Bind("orgId") String orgId, @Bind("id") String id, @Bind("reason") String reason);
+
+    @SqlUpdate("""
+        UPDATE jobs SET current_node_id = :nodeId
+         WHERE org_id = :orgId AND id = :id AND status = 'running'
+    """)
+    int setCurrentNode(@Bind("orgId") String orgId, @Bind("id") String id, @Bind("nodeId") String nodeId);
 }
