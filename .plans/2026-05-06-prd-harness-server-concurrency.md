@@ -5,9 +5,9 @@
 **Audience:** future implementer (human or agent) picking this up cold
 **Companion documents:**
 - `2026-04-30-prd-harness-server.md` — current (v0/v1) harness-server design this PRD evolves
-- `2026-05-06-prd-job-state-machine.md` — control-plane consumer that drives concurrent step dispatch
-- `2026-05-06-prd-control-plane-harness-router.md` — routes concurrent work to this harness
-- `2026-05-06-prd-harness-registry.md` — capability/load reporting
+- `2026-05-07-prd-job-module.md` — control-plane consumer (Spring Modulith Job module, formerly "job-state-machine") that drives concurrent step dispatch
+- `2026-05-07-prd-dispatch-module.md` — Spring Modulith Dispatch module (formerly "control-plane-harness-router") that routes concurrent work to this harness
+- `2026-05-07-prd-harness-module.md` — Spring Modulith Harness module (formerly "harness-registry") for capability/load reporting
 
 ---
 

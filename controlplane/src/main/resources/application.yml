@@ -1,0 +1,52 @@
+spring:
+  application:
+    name: controlplane
+
+  # Phase 0: virtual threads (Java 21 LTS) per umbrella PRD D14.
+  # Spring MVC + @Async + RestClient all run on virtual threads.
+  threads:
+    virtual:
+      enabled: true
+
+  # Datasource: defaults match compose.yaml below.
+  # `spring-boot-docker-compose` auto-injects matching values when compose is running locally.
+  datasource:
+    url: jdbc:postgresql://localhost:5432/controlplane
+    username: controlplane
+    password: controlplane
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: validate   # Flyway owns schema; JPA only validates entity ↔ schema agreement
+    open-in-view: false
+    properties:
+      hibernate:
+        jdbc.time_zone: UTC
+        format_sql: false
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+    schemas: public
+
+  # Spring Modulith: persist published events to Postgres (durable in-process eventing).
+  # Phase 0 compromise: Modulith auto-creates its own event_publication table; full
+  # Flyway ownership of this schema is deferred to Phase 1 (per prd-core-module.md F16).
+  modulith:
+    events:
+      jdbc:
+        schema-initialization:
+          enabled: true
+      republish-outstanding-events-on-restart: true
+
+server:
+  port: 8080
+  # Phase 0 is HTTP-only; HTTPS lands at Phase 7 per prd-control-plane-operational-hardening.md
+
+logging:
+  level:
+    root: INFO
+    com.jefelabs.agentx.controlplane: DEBUG
+    org.springframework.modulith: INFO

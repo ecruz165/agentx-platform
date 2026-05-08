@@ -1,14 +1,16 @@
-# IntentService (Spring Modulith module) — PRD
+# Intent Module (Spring Modulith) — PRD
 
 **Status:** Draft (2026-05-07)
 **Owner:** Edwin Cruz
 **Audience:** future implementer (human or agent) picking this up cold
+**Module package:** `com.jefelabs.agentx.controlplane.intent`
 **Companion documents:**
-- `2026-05-06-prd-control-plane.md` — umbrella for the Spring Modulith app
-- `2026-05-06-prd-job-state-machine.md` — JobDefinitionPipelines run via JSM; emits `job-intent-produced` events
-- `2026-05-06-prd-catalog-service.md` — owns pipeline definitions including `kind: 'job-definition'` pipelines
-- `2026-05-06-prd-control-plane-web-ui.md` — chat UI surface that consumes IntentService SSE
-- `2026-05-06-prd-control-plane-harness-router.md` — routes the steps inside JobDefinitionPipelines like any other pipeline
+- `2026-05-07-prd-control-plane.md` — umbrella for the Spring Modulith app
+- `2026-05-07-prd-core-module.md` — scaffolding + shared kernel (open module); `JobIntent` type lives here
+- `2026-05-07-prd-job-module.md` — JobDefinitionPipelines run via JSM; emits `job-intent-produced` events
+- `2026-05-07-prd-catalog-module.md` — owns pipeline definitions including `kind: 'job-definition'` pipelines
+- `2026-05-07-prd-control-plane-web-ui.md` — chat UI surface that consumes Intent SSE
+- `2026-05-07-prd-dispatch-module.md` — routes the steps inside JobDefinitionPipelines like any other pipeline
 
 ---
 

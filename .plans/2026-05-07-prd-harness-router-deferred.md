@@ -1,10 +1,11 @@
-# Harness Router — PRD
+# Harness Router (Deferred standalone-service design) — PRD
 
-**Status:** Deferred (design captured; build when scale triggers fire)
-**Date:** 2026-05-06
+**Status:** Superseded by `2026-05-07-prd-dispatch-module.md` (kept as historical record of the deferred standalone-service design).
+**Date:** 2026-05-06 (last revised 2026-05-07 to mark superseded status)
 **Author:** Edwin Cruz
 **Audience:** Engineering, devops, product reviewers
 **Companion documents:**
+- `2026-05-07-prd-dispatch-module.md` — current Spring Modulith design that absorbs this role; build this instead unless the standalone-service triggers fire
 - `.plans/2026-04-30-prd-workspace-template.md` — workspace + worker DevContainer
 - `.plans/2026-04-30-prd-workspace-cli.md` — workspace CLI
 - Memory: `project_proxy_per_job_architecture` — Model C origin

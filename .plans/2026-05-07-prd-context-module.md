@@ -1,10 +1,12 @@
-# Central ContextServer (Spring Modulith module) — PRD
+# Context Module (Spring Modulith) — PRD
 
-**Status:** Draft (2026-05-06)
+**Status:** Draft (2026-05-07)
 **Owner:** Edwin Cruz
 **Audience:** future implementer (human or agent) picking this up cold
+**Module package:** `com.jefelabs.agentx.controlplane.context`
 **Companion documents:**
-- `2026-05-06-prd-control-plane.md` — umbrella for the Spring Modulith app
+- `2026-05-07-prd-control-plane.md` — umbrella for the Spring Modulith app
+- `2026-05-07-prd-core-module.md` — scaffolding + shared kernel (open module)
 - `2026-05-06-prd-context-schema-package.md` — versioned Cypher migrations (shared with edge)
 - `2026-04-30-prd-edge-context-server.md` — workspace-local sibling (TS data plane)
 - `2026-05-05-prd-context-loader-core.md` — chunker + ingest engine (TS, used by both edge and central via subprocess)

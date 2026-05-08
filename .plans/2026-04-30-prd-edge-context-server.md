@@ -26,7 +26,7 @@ The Edge Context Server is designed to eventually be **primed by a Central Conte
 
 This split keeps queries **fast and offline-capable at the edge** while letting the org maintain a **single source of truth centrally**. v1 of this PRD ships the edge in isolation; the priming protocol and Central Context Server design land in v1.x (see § 9, § 11).
 
-> **Priming protocol — v1.x detail (added 2026-05-07).** Edge consumes per-source sub-graphs from central via NDJSON streaming over `POST /api/context/subgraph/export`. Implementation: edge ingest consumer reads the stream and applies idempotent MERGE statements to local Neo4j; per-source provenance (`sourceId` + `sourceVersion` properties on every node) makes selective refresh possible without disturbing workspace-private data. See `.plans/2026-05-06-prd-central-context-server.md` §6.2a for the central-side endpoint, and `.plans/2026-05-06-prd-context-schema-package.md` for the shared schema requirement that makes this drop-in.
+> **Priming protocol — v1.x detail (added 2026-05-07).** Edge consumes per-source sub-graphs from central via NDJSON streaming over `POST /api/context/subgraph/export`. Implementation: edge ingest consumer reads the stream and applies idempotent MERGE statements to local Neo4j; per-source provenance (`sourceId` + `sourceVersion` properties on every node) makes selective refresh possible without disturbing workspace-private data. See `.plans/2026-05-07-prd-context-module.md` §6.2a for the central-side endpoint (Spring Modulith Context module, formerly "central-context-server"), and `.plans/2026-05-06-prd-context-schema-package.md` for the shared schema requirement that makes this drop-in.
 
 ## 2. Personas served
 

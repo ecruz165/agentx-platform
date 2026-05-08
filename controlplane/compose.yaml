@@ -1,0 +1,60 @@
+# Sibling services for local dev. `spring-boot-docker-compose` auto-starts these on
+# `mvn spring-boot:run` and auto-injects connection details into Spring config.
+#
+# In production, deploy Postgres + Neo4j + embedder as the platform requires
+# (k8s, ECS, RDS, AuraDB) and override datasource/Neo4j URLs via env vars.
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: controlplane
+      POSTGRES_USER: controlplane
+      POSTGRES_PASSWORD: controlplane
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U controlplane -d controlplane"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  neo4j:
+    image: neo4j:5-community
+    environment:
+      NEO4J_AUTH: neo4j/controlplane
+      # Phase 4 (context module) wires this in. Heap kept modest for dev.
+      NEO4J_server_memory_heap_initial__size: 512m
+      NEO4J_server_memory_heap_max__size: 1g
+      NEO4J_server_memory_pagecache_size: 512m
+    ports:
+      - "7474:7474"  # HTTP / Browser UI
+      - "7687:7687"  # Bolt
+    volumes:
+      - neo4j-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:7474 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  embedder:
+    # OpenAI-compatible embedding service. Phase 4 (context module) consumes this.
+    # Default uses HuggingFace TEI; swap for vLLM, LiteLLM, or a hosted endpoint as needed.
+    image: ghcr.io/huggingface/text-embeddings-inference:cpu-latest
+    command:
+      - "--model-id"
+      - "BAAI/bge-small-en-v1.5"
+    ports:
+      - "8081:80"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres-data:
+  neo4j-data:

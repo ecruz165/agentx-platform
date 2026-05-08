@@ -1,11 +1,14 @@
-# Catalog Service (Spring Modulith module) — PRD
+# Catalog Module (Spring Modulith) — PRD
 
-**Status:** Draft (2026-05-06)
+**Status:** Draft (2026-05-07)
 **Owner:** Edwin Cruz
 **Audience:** future implementer (human or agent) picking this up cold
+**Module package:** `com.jefelabs.agentx.controlplane.catalog`
 **Companion documents:**
-- `2026-05-06-prd-control-plane.md` — umbrella for the Spring Modulith app
-- `2026-05-06-prd-job-state-machine.md` — consumer of catalog (reads pipelines + agents at job start)
+- `2026-05-07-prd-control-plane.md` — umbrella for the Spring Modulith app
+- `2026-05-07-prd-core-module.md` — scaffolding + shared kernel (open module)
+- `2026-05-07-prd-job-module.md` — consumer of catalog (reads pipelines + agents at job start)
+- `2026-05-07-prd-intent-module.md` — consumer of catalog `kind: 'job-definition'` pipelines
 - `2026-05-06-prd-context-schema-package.md` — schema for context-graph entities
 - `2026-04-30-prd-harness-core.md` — TS-side equivalent types (`Catalog`, `PipelineDef`, `AgentDef`, `ProductDef`)
 - `packages/harness-core/src/catalog.ts` — TS-side implementation (canonical type shapes)

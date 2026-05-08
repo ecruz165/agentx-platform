@@ -1,12 +1,15 @@
 # Control Plane Web UI — PRD
 
-**Status:** Draft (2026-05-06)
+**Status:** Draft (2026-05-07)
 **Owner:** Edwin Cruz
 **Audience:** future implementer (human or agent) picking this up cold
 **Companion documents:**
-- `2026-05-06-prd-control-plane.md` — the Spring app this UI is served from
-- `2026-05-06-prd-catalog-service.md` — catalog API the UI manages
-- `2026-05-06-prd-job-state-machine.md` — job execution the UI monitors
+- `2026-05-07-prd-control-plane.md` — the Spring app this UI is served from
+- `2026-05-07-prd-catalog-module.md` — catalog API the UI manages
+- `2026-05-07-prd-job-module.md` — job execution the UI monitors
+- `2026-05-07-prd-intent-module.md` — IntentService SSE the chat surface consumes
+- `2026-05-07-prd-harness-module.md` — harness fleet view in the operator panel
+- `2026-05-07-prd-dispatch-module.md` — routing-decision audit feed in the operator panel
 
 ---
 

@@ -4,7 +4,7 @@
 **Owner:** Edwin Cruz
 **Audience:** future implementer (human or agent) picking this up cold
 **Companion documents:**
-- `2026-05-06-prd-central-context-server.md` — central consumer (Java)
+- `2026-05-07-prd-context-module.md` — central consumer (Spring Modulith Java module, formerly "central-context-server")
 - `2026-04-30-prd-edge-context-server.md` — edge consumer (TS)
 - `2026-05-05-prd-context-loader-core.md` — owns the chunker + graph data shape
 

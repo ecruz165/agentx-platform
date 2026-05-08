@@ -254,6 +254,11 @@ function safeJson(s: string): unknown {
 }
 
 export {
+  type EmbedFn,
+  SqliteVecMemoryStore,
+  type SqliteVecMemoryStoreOptions,
+} from './sqlite-vec-store.ts';
+export {
   InMemoryMemoryStore,
   type MemoryEntry,
   type MemoryPutInput,

@@ -1,12 +1,14 @@
-# HarnessRegistry (Spring Modulith module) — PRD
+# Harness Module (Spring Modulith) — PRD
 
-**Status:** Draft (2026-05-06)
+**Status:** Draft (2026-05-07)
 **Owner:** Edwin Cruz
 **Audience:** future implementer (human or agent) picking this up cold
+**Module package:** `com.jefelabs.agentx.controlplane.harness`
 **Companion documents:**
-- `2026-05-06-prd-control-plane.md` — umbrella for the Spring Modulith app
-- `2026-05-06-prd-harness-router.md` — primary consumer of the Registry's view
-- `2026-05-06-prd-job-state-machine.md` — dispatches steps to harnesses the registry tracks
+- `2026-05-07-prd-control-plane.md` — umbrella for the Spring Modulith app
+- `2026-05-07-prd-core-module.md` — scaffolding + shared kernel (open module)
+- `2026-05-07-prd-dispatch-module.md` — primary consumer of the Registry's view
+- `2026-05-07-prd-job-module.md` — dispatches steps to harnesses the registry tracks
 - `2026-04-30-prd-harness-server.md` — TS-side that registers itself
 
 ---

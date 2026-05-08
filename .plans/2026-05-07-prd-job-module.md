@@ -1,13 +1,16 @@
-# JobStateMachine (Spring Modulith module) — PRD
+# Job Module (Spring Modulith) — PRD
 
-**Status:** Draft (2026-05-06)
+**Status:** Draft (2026-05-07)
 **Owner:** Edwin Cruz
 **Audience:** future implementer (human or agent) picking this up cold
+**Module package:** `com.jefelabs.agentx.controlplane.job`
 **Companion documents:**
-- `2026-05-06-prd-control-plane.md` — umbrella for the Spring Modulith app
-- `2026-05-06-prd-catalog-service.md` — supplies pipeline definitions consumed by this module
-- `2026-05-06-prd-harness-router.md` — decides which harness runs each step
-- `2026-05-06-prd-harness-registry.md` — what harnesses are available
+- `2026-05-07-prd-control-plane.md` — umbrella for the Spring Modulith app
+- `2026-05-07-prd-core-module.md` — scaffolding + shared kernel (open module); `JobIntent` type lives here
+- `2026-05-07-prd-catalog-module.md` — supplies pipeline definitions consumed by this module
+- `2026-05-07-prd-intent-module.md` — produces `JobIntent` values that this module turns into Jobs
+- `2026-05-07-prd-dispatch-module.md` — decides which harness runs each step
+- `2026-05-07-prd-harness-module.md` — what harnesses are available
 - `2026-04-30-prd-harness-server.md` — TS data plane this module orchestrates
 - `packages/harness-core/src/orchestrator.ts` — TS-side equivalent (`runJob`); v1 still does this in-harness, v2+ shifts orchestration here
 

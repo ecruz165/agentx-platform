@@ -1,23 +1,25 @@
-# Control Plane HarnessRouter Module — PRD
+# Dispatch Module (Spring Modulith) — PRD
 
-**Status:** Draft (2026-05-06)
+**Status:** Draft (2026-05-07)
 **Owner:** Edwin Cruz
 **Audience:** future implementer (human or agent) picking this up cold
+**Module package:** `com.jefelabs.agentx.controlplane.dispatch`
 **Companion documents:**
-- `2026-05-06-prd-control-plane.md` — umbrella for the Spring Modulith app
-- `2026-05-06-prd-harness-registry.md` — supplies the candidate set of harnesses
-- `2026-05-06-prd-job-state-machine.md` — primary consumer of routing decisions
-- `2026-05-06-prd-harness-router.md` — earlier (deferred) standalone-router design; this PRD describes the Spring Modulith module that absorbs that role into the control plane
+- `2026-05-07-prd-control-plane.md` — umbrella for the Spring Modulith app
+- `2026-05-07-prd-core-module.md` — scaffolding + shared kernel (open module)
+- `2026-05-07-prd-harness-module.md` — supplies the candidate set of harnesses
+- `2026-05-07-prd-job-module.md` — primary consumer of routing decisions
+- `2026-05-07-prd-harness-router-deferred.md` — earlier (deferred) standalone-router design; this PRD describes the Spring Modulith module that absorbs that role into the control plane
 
 ---
 
 ## 1. Purpose
 
-The HarnessRouter module is the **scheduling/policy layer** inside the control plane's Spring Modulith. Given (a) a job's pipeline step that needs to execute, (b) the product's tenancy + locality requirements, and (c) the current set of registered harnesses, it answers: *"which specific harness should run this step?"*
+The Dispatch module is the **scheduling, queueing, and policy layer** inside the control plane's Spring Modulith. Given (a) a job's pipeline step that needs to execute, (b) the product's tenancy + locality requirements, and (c) the current set of registered harnesses, it answers: *"which specific harness should run this step?"* — and holds the dispatch queue that bridges the Job module (work to do) and the Harness module (workers available).
 
-It exists because routing is a meaningfully separate concern from registration. Knowing what's available (HarnessRegistry) and deciding what to do with that knowledge (HarnessRouter) have different cadences, different inputs, and different failure modes. Conflating them is the most common mistake in workflow systems.
+The module's primary aggregates are `HarnessRouter` (policy + decision) and the dispatch queue (pending step assignments). It exists because dispatch is a meaningfully separate concern from harness registration: knowing what's available (Harness module) and deciding what to do with that knowledge (Dispatch module) have different cadences, different inputs, and different failure modes. Conflating them is the most common mistake in workflow systems.
 
-This PRD describes the **module within the Spring Boot Modulith control plane**. The earlier `prd-harness-router.md` describes a deferred standalone HTTP/UDS service for the same role; the Spring module supersedes that design — same responsibilities, different deployment shape (in-process module instead of separate service).
+This PRD describes the **module within the Spring Boot Modulith control plane**. The earlier `prd-harness-router-deferred.md` describes a deferred standalone HTTP/UDS service for the same role; the Spring module supersedes that design — same responsibilities, different deployment shape (in-process module instead of separate service).
 
 In v1 the routing logic is intentionally simple — round-robin with capability filtering, plus an "affinity" rule that keeps a job's steps on the same harness when possible (so worktree caches and credential propagation stay warm). v1.x and beyond add policy primitives: locality, fairness, capability-matching, cost-aware, etc.
 
@@ -42,7 +44,7 @@ In v1 the routing logic is intentionally simple — round-robin with capability 
 ## 4. Reference & Provenance
 
 - Pattern: Kubernetes scheduler (filtering + scoring), Argo Workflows worker selection, Temporal task-queue routing.
-- Earlier deferred design: `2026-05-06-prd-harness-router.md` — standalone HTTP/UDS service. Build triggers (warm pool, multi-instance scaling) listed there inform when the Spring module needs the policies described here.
+- Earlier deferred design: `2026-05-07-prd-harness-router-deferred.md` — standalone HTTP/UDS service. Build triggers (warm pool, multi-instance scaling) listed there inform when the Spring module needs the policies described here.
 - v1 routing logic is small enough (~200 lines of Java) that it doesn't need a constraint solver or scheduling library. Just plain decision code with pluggable policies.
 
 ## 5. Personas & user stories
@@ -157,7 +159,8 @@ In v1 the routing logic is intentionally simple — round-robin with capability 
 | D3 | Round-robin baseline for v1 | Simplest fair policy; extend later. | 2026-05-06 |
 | D4 | Pluggable RoutingPolicy interface | Extensibility without core changes. | 2026-05-06 |
 | D5 | Audit log every decision | Debugging + fairness analysis depend on it. | 2026-05-06 |
-| D6 | Routing lives as a Spring Modulith module, not a standalone service | Earlier `prd-harness-router.md` deferred a standalone design. The Spring module absorbs that role with the same responsibilities and lower operational complexity. | 2026-05-06 |
+| D6 | Routing lives as a Spring Modulith module, not a standalone service | Earlier `prd-harness-router-deferred.md` deferred a standalone design. The Spring module absorbs that role with the same responsibilities and lower operational complexity. | 2026-05-06 |
+| D7 | Module renamed from `harnessrouter` → `dispatch` | The module owns routing AND the dispatch queue (per F20-F27); `dispatch` reads more accurately as the bounded context. `HarnessRouter` remains the aggregate-root class name within. | 2026-05-07 |
 
 ## 10. Phased delivery
 

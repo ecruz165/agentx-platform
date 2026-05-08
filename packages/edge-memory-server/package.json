@@ -12,7 +12,13 @@
     "test": "vitest run --passWithNoTests",
     "test:watch": "vitest"
   },
+  "dependencies": {
+    "@ecruz165/context-loader-core": "workspace:*",
+    "better-sqlite3": "^11.3.0",
+    "sqlite-vec": "^0.1.6"
+  },
   "devDependencies": {
+    "@types/better-sqlite3": "^7.6.11",
     "@types/node": "^22.7.0",
     "typescript": "^5.6.0"
   }

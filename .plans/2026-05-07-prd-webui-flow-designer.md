@@ -4,10 +4,10 @@
 **Owner:** Edwin Cruz
 **Audience:** future implementer (human or agent) picking this up cold
 **Companion documents:**
-- `2026-05-06-prd-job-state-machine.md` — JobStateMachine that *executes* flows (now refers to FlowDef instead of the prior PipelineStep tree). Sections covering step-kind taxonomy in that PRD are superseded by this one.
-- `2026-05-06-prd-catalog-service.md` — Catalog module that stores FlowDefs (validator now references this PRD's node + edge rules)
-- `2026-05-06-prd-control-plane.md` — umbrella for the Spring Modulith app
-- `2026-05-07-prd-intent-service.md` — IntentService consumes JobDefinitionFlow output
+- `2026-05-07-prd-job-module.md` — Spring Modulith Job module (formerly "job-state-machine") that *executes* flows. The JobStateMachine class lives within. Refers to FlowDef instead of the prior PipelineStep tree; step-kind taxonomy sections in that PRD are superseded by this one.
+- `2026-05-07-prd-catalog-module.md` — Spring Modulith Catalog module (formerly "catalog-service") that stores FlowDefs (validator now references this PRD's node + edge rules)
+- `2026-05-07-prd-control-plane.md` — umbrella for the Spring Modulith app
+- `2026-05-07-prd-intent-module.md` — Spring Modulith Intent module (formerly "intent-service") consumes JobDefinitionFlow output
 - `packages/harness-core/src/catalog.ts` — canonical implementation of the types in §"Internal type surface"
 
 ---
@@ -321,7 +321,7 @@ Phases are a *one-way convenience*: the loader expands them on read; the canonic
 | Workspace template (`.harness/config/flows.json` with phases shorthand) | ✅ Implemented |
 | Runtime: orchestrator that walks the flow graph, dispatches per-node, applies tags, handles reject edges with attempt counters | ⏳ **Pending** — currently `runJob` walks a flat agent list extracted via `walkAgents`; needs replacement with proper graph executor (mapping to LangGraph StateGraph is the natural target) |
 | LangGraph mapping | ⏳ Pending |
-| Web UI canvas (palette, drag-drop, tags tray, trigger affordance) | ⏳ v1 — see `prd-control-plane-web-ui.md` |
+| Web UI canvas (palette, drag-drop, tags tray, trigger affordance) | ⏳ v1 — see `2026-05-07-prd-control-plane-web-ui.md` |
 | 5 harness-server test suites (registration, coordinator-auto-route, entry-coordinator, orchestrator-integration, load-catalog) | ⏳ Stubbed with `describe.skip`; need fixture rebuild from `pipelines: [{steps:...}]` to flow shape |
 
 ---
