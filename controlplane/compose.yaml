@@ -76,6 +76,15 @@ services:
     # is ~3-5 min for the model download.
     command: ["--model-id", "Qwen/Qwen3-Embedding-0.6B"]
     ports: ["8081:80"]
+    # Opt-in via compose profile: only the context query/ingest paths
+    # need this service, and it's heavy (RAM + Rosetta-translated CPU).
+    # Bring it up explicitly when needed:
+    #   docker compose --profile context up -d
+    #   docker compose up -d embedder       # by-name also works
+    # When embedder is down, the controlplane's Phase 4.2 query path
+    # surfaces a 503 instead of vector results; rest of the stack is
+    # unaffected.
+    profiles: ["context"]
 
   # controlplane — Spring Boot app + bundled web UI (built into Spring's
   # static resources at image-build time). Build context is the repo root
