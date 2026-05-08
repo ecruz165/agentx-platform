@@ -63,9 +63,37 @@ export type MemoryQueryResult =
   | { kind: 'ok'; entries: MemoryEntry[] }
   | { kind: 'unsupported'; reason: string };
 
+/**
+ * Predicate for `forget`. AND-combined: an entry must match every set
+ * field to be deleted. At least one field MUST be set — empty
+ * predicates are rejected so `forget({})` never wipes the entire store
+ * by accident. Per PRD F6 (GDPR-compliant predicate-based delete).
+ *
+ *   - scope: subset-match (same semantics as query scope filter)
+ *   - key: exact match
+ *   - olderThan: ISO timestamp; entries created strictly before this
+ *     are eligible. Useful for "clean up everything before date X."
+ */
+export interface MemoryForgetPredicate {
+  scope?: MemoryScope;
+  key?: string;
+  olderThan?: string;
+}
+
+export interface MemoryForgetResult {
+  deleted: number;
+  /** Audit-friendly: ids of removed entries, in deletion order. Capped
+   *  at 100 to avoid runaway responses on bulk deletes. The `deleted`
+   *  count is authoritative; this is just for log reconciliation. */
+  deletedIds: string[];
+}
+
 export interface MemoryStore {
   put(input: MemoryPutInput): Promise<MemoryEntry>;
   query(q: MemoryQuery): Promise<MemoryQueryResult>;
+  /** GDPR delete. Throws on empty predicate; otherwise removes all
+   *  entries matching ALL set fields and returns a count + sample ids. */
+  forget(predicate: MemoryForgetPredicate): Promise<MemoryForgetResult>;
   /** Diagnostic count — total entries across all scopes. Used for /health. */
   size(): Promise<number>;
 }
@@ -137,6 +165,22 @@ export class InMemoryMemoryStore implements MemoryStore {
   async size(): Promise<number> {
     return this.entries.size;
   }
+
+  async forget(predicate: MemoryForgetPredicate): Promise<MemoryForgetResult> {
+    assertNonEmptyForgetPredicate(predicate);
+    const deletedIds: string[] = [];
+    let deleted = 0;
+    for (const [id, entry] of this.entries) {
+      if (matchesForgetPredicate(entry, predicate)) {
+        this.entries.delete(id);
+        deleted++;
+        // Sample first 100 ids for audit trail; the count is the
+        // authoritative number.
+        if (deletedIds.length < 100) deletedIds.push(id);
+      }
+    }
+    return { deleted, deletedIds };
+  }
 }
 
 /**
@@ -152,5 +196,38 @@ function scopeMatches(entryScope: MemoryScope, filter: MemoryScope | undefined):
     if (filterValue === undefined) continue;
     if (entryScope[key] !== filterValue) return false;
   }
+  return true;
+}
+
+/**
+ * Reject empty `forget` predicates so `forget({})` never wipes the
+ * entire store by accident. At least one of `scope`, `key`, or
+ * `olderThan` must be set; for `scope` to count, it must itself have
+ * at least one defined key.
+ *
+ * Exported so server-side validation can call it directly + return a
+ * 400 before touching the store.
+ */
+export function assertNonEmptyForgetPredicate(p: MemoryForgetPredicate): void {
+  const scopeHasField =
+    p.scope !== undefined && Object.values(p.scope).some((v) => v !== undefined);
+  if (!scopeHasField && p.key === undefined && p.olderThan === undefined) {
+    throw new Error(
+      'forget predicate must set at least one of: key, olderThan, or scope (with at least one scope key)',
+    );
+  }
+}
+
+/**
+ * AND-match for forget. An entry is eligible iff every set field of
+ * the predicate matches.
+ *
+ * Exported for the SqliteVecMemoryStore tests (which exercise their
+ * SQL implementation but cross-check against this reference).
+ */
+export function matchesForgetPredicate(entry: MemoryEntry, p: MemoryForgetPredicate): boolean {
+  if (p.scope !== undefined && !scopeMatches(entry.scope, p.scope)) return false;
+  if (p.key !== undefined && entry.key !== p.key) return false;
+  if (p.olderThan !== undefined && entry.createdAt >= p.olderThan) return false;
   return true;
 }

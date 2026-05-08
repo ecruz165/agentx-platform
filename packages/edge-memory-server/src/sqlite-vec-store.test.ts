@@ -299,3 +299,97 @@ describe('SqliteVecMemoryStore — error paths', () => {
     await expect(store.put({ key: 'k', value: 'v' })).rejects.toThrow(/closed/);
   });
 });
+
+describe('SqliteVecMemoryStore — forget', () => {
+  it('rejects empty predicate', async () => {
+    const store = await openTestStore();
+    await store.put({ key: 'a', value: 'A' });
+    await expect(store.forget({})).rejects.toThrow(/at least one of/);
+    expect(await store.size()).toBe(1);
+  });
+
+  it('deletes by key + cleans up vector rows', async () => {
+    const store = await openTestStore();
+    await store.put({ key: 'plan', value: 'embeddable-1' });
+    await store.put({ key: 'plan', value: 'embeddable-2' });
+    await store.put({ key: 'other', value: 'embeddable-3' });
+
+    const r = await store.forget({ key: 'plan' });
+    expect(r.deleted).toBe(2);
+    expect(await store.size()).toBe(1);
+
+    // Verify the vector rows were also dropped — similarity now finds
+    // only the 'other' entry.
+    const sim = await store.query({ kind: 'similarity', q: 'embeddable-1', topK: 5 });
+    if (sim.kind !== 'ok') throw new Error('expected ok');
+    expect(sim.entries.map((e) => e.value)).toEqual(['embeddable-3']);
+  });
+
+  it('deletes by scope', async () => {
+    const store = await openTestStore();
+    await store.put({ key: 'k', value: 'A', scope: { productId: 'web' } });
+    await store.put({ key: 'k', value: 'B', scope: { productId: 'web' } });
+    await store.put({ key: 'k', value: 'C', scope: { productId: 'api' } });
+
+    const r = await store.forget({ scope: { productId: 'web' } });
+    expect(r.deleted).toBe(2);
+
+    const remaining = await store.query({ kind: 'structured' });
+    if (remaining.kind !== 'ok') throw new Error('expected ok');
+    expect(remaining.entries.map((e) => e.value)).toEqual(['C']);
+  });
+
+  it('deletes by olderThan', async () => {
+    const store = await openTestStore();
+    await store.put({ key: 'a', value: 'old' });
+    await new Promise((r) => setTimeout(r, 10));
+    const cutoff = new Date().toISOString();
+    await new Promise((r) => setTimeout(r, 10));
+    await store.put({ key: 'b', value: 'new' });
+
+    const r = await store.forget({ olderThan: cutoff });
+    expect(r.deleted).toBe(1);
+
+    const remaining = await store.query({ kind: 'structured' });
+    if (remaining.kind !== 'ok') throw new Error('expected ok');
+    expect(remaining.entries.map((e) => e.value)).toEqual(['new']);
+  });
+
+  it('combines fields with AND', async () => {
+    const store = await openTestStore();
+    await store.put({ key: 'plan', value: 'a', scope: { productId: 'web' } });
+    await store.put({ key: 'plan', value: 'b', scope: { productId: 'api' } });
+    await store.put({ key: 'other', value: 'c', scope: { productId: 'web' } });
+
+    const r = await store.forget({ key: 'plan', scope: { productId: 'web' } });
+    expect(r.deleted).toBe(1);
+    expect(await store.size()).toBe(2);
+  });
+
+  it('persists across reopen (deletes commit to disk)', async () => {
+    const dbPath = tmpDb();
+    cleanups.push(async () => {
+      await rm(dbPath, { force: true });
+    });
+
+    const s1 = await SqliteVecMemoryStore.open({
+      dbPath,
+      vectorDim: 4,
+      embed: mockEmbedder(4),
+    });
+    await s1.put({ key: 'plan', value: 'p1' });
+    await s1.put({ key: 'plan', value: 'p2' });
+    await s1.forget({ key: 'plan' });
+    await s1.close();
+
+    const s2 = await SqliteVecMemoryStore.open({
+      dbPath,
+      vectorDim: 4,
+      embed: mockEmbedder(4),
+    });
+    cleanups.push(async () => {
+      await s2.close();
+    });
+    expect(await s2.size()).toBe(0);
+  });
+});

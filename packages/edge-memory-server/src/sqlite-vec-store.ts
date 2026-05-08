@@ -24,13 +24,16 @@ import { mkdir } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import Database, { type Database as SqliteDatabase } from 'better-sqlite3';
 import * as sqliteVec from 'sqlite-vec';
-import type {
-  MemoryEntry,
-  MemoryPutInput,
-  MemoryQuery,
-  MemoryQueryResult,
-  MemoryScope,
-  MemoryStore,
+import {
+  assertNonEmptyForgetPredicate,
+  type MemoryEntry,
+  type MemoryForgetPredicate,
+  type MemoryForgetResult,
+  type MemoryPutInput,
+  type MemoryQuery,
+  type MemoryQueryResult,
+  type MemoryScope,
+  type MemoryStore,
 } from './store.ts';
 
 /** Same shape as createHttpEmbedderClient.embed — production wiring is
@@ -278,6 +281,60 @@ export class SqliteVecMemoryStore implements MemoryStore {
     if (this.closed) return 0;
     const r = this.db.prepare(`SELECT count(*) AS c FROM entries`).get() as { c: number };
     return r.c;
+  }
+
+  async forget(predicate: MemoryForgetPredicate): Promise<MemoryForgetResult> {
+    if (this.closed) throw new Error('store is closed');
+    assertNonEmptyForgetPredicate(predicate);
+
+    // Build the WHERE clause from the predicate. AND-combined with the
+    // scope filter; reuses the same scopeWhere helper as queries so
+    // semantics stay consistent.
+    const wheres: string[] = [];
+    const params: unknown[] = [];
+    if (predicate.key !== undefined) {
+      wheres.push(`key = ?`);
+      params.push(predicate.key);
+    }
+    if (predicate.olderThan !== undefined) {
+      wheres.push(`created_at < ?`);
+      params.push(predicate.olderThan);
+    }
+    const { whereClause, params: scopeParams } = scopeWhere(predicate.scope);
+    if (whereClause.length > 0) {
+      wheres.push(whereClause);
+      params.push(...scopeParams);
+    }
+    const whereSql = wheres.length > 0 ? `WHERE ${wheres.join(' AND ')}` : '';
+
+    // Wrap selection + delete in a transaction. Two-step: SELECT the
+    // rowids first (to capture sample ids + count + drive vec delete),
+    // then DELETE entries + entries_vec rows. Single-shot DELETE
+    // RETURNING isn't available across all SQLite versions we may run.
+    const result = this.db.transaction(() => {
+      const rows = this.db
+        .prepare(`SELECT rowid, id FROM entries ${whereSql}`)
+        .all(...params) as Array<{ rowid: number | bigint; id: string }>;
+
+      const deletedIds = rows.slice(0, 100).map((r) => r.id);
+      const deleted = rows.length;
+
+      if (deleted > 0) {
+        // Delete vector rows by rowid before the entries themselves
+        // (vec0 has no foreign key reference but we keep the order
+        // consistent for clarity). Bulk per-rowid since vec0 doesn't
+        // support `IN (...)` with subquery against a virtual table.
+        const deleteVec = this.db.prepare(`DELETE FROM entries_vec WHERE rowid = ?`);
+        for (const r of rows) {
+          const rowidBig = typeof r.rowid === 'bigint' ? r.rowid : BigInt(r.rowid);
+          deleteVec.run(rowidBig);
+        }
+        this.db.prepare(`DELETE FROM entries ${whereSql}`).run(...params);
+      }
+
+      return { deleted, deletedIds };
+    })();
+    return result;
   }
 
   async close(): Promise<void> {

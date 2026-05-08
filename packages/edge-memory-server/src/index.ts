@@ -23,6 +23,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import { dirname } from 'node:path';
 import {
   InMemoryMemoryStore,
+  type MemoryForgetPredicate,
   type MemoryPutInput,
   type MemoryQuery,
   type MemoryScope,
@@ -103,6 +104,18 @@ function route(req: IncomingMessage, res: ServerResponse, store: MemoryStore): v
     return;
   }
 
+  // POST /v1/memory/forget — body MemoryForgetPredicate { scope?, key?, olderThan? }
+  if (req.method === 'POST' && url === '/v1/memory/forget') {
+    consumeJsonBody(req, (parsed, err) => {
+      if (err) {
+        badRequest(res, err);
+        return;
+      }
+      handleForget(res, store, parsed).catch((e: Error) => serverError(res, e.message));
+    });
+    return;
+  }
+
   // Fallback echo for unknown paths — preserves v0 contract for early
   // bringup checks and tests that haven't migrated yet.
   echo(req, res, 'memory');
@@ -150,6 +163,32 @@ async function handlePut(res: ServerResponse, store: MemoryStore, body: unknown)
     entry,
     ts: new Date().toISOString(),
   });
+}
+
+async function handleForget(res: ServerResponse, store: MemoryStore, body: unknown): Promise<void> {
+  if (!isObject(body)) {
+    badRequest(res, 'body must be a JSON MemoryForgetPredicate object');
+    return;
+  }
+  // Loosely validate shape; the store itself enforces the
+  // "at-least-one-field" rule via assertNonEmptyForgetPredicate.
+  const predicate: MemoryForgetPredicate = {};
+  const b = body as Record<string, unknown>;
+  if (typeof b.key === 'string') predicate.key = b.key;
+  if (typeof b.olderThan === 'string') predicate.olderThan = b.olderThan;
+  if (isScope(b.scope)) predicate.scope = b.scope as MemoryScope;
+  try {
+    const result = await store.forget(predicate);
+    ok(res, {
+      service: 'memory',
+      method: 'POST',
+      path: '/v1/memory/forget',
+      result,
+      ts: new Date().toISOString(),
+    });
+  } catch (err) {
+    badRequest(res, (err as Error).message);
+  }
 }
 
 async function handleQuery(res: ServerResponse, store: MemoryStore, body: unknown): Promise<void> {
@@ -259,11 +298,15 @@ export {
   type SqliteVecMemoryStoreOptions,
 } from './sqlite-vec-store.ts';
 export {
+  assertNonEmptyForgetPredicate,
   InMemoryMemoryStore,
   type MemoryEntry,
+  type MemoryForgetPredicate,
+  type MemoryForgetResult,
   type MemoryPutInput,
   type MemoryQuery,
   type MemoryQueryResult,
   type MemoryScope,
   type MemoryStore,
+  matchesForgetPredicate,
 } from './store.ts';

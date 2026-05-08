@@ -176,6 +176,43 @@ describe('edge-memory-server HTTP routes', () => {
     expect(r.body.error).toMatch(/structured|recent|similarity|graph/);
   });
 
+  it('POST /v1/memory/forget deletes by predicate, returns count + sample ids', async () => {
+    const socketPath = tmpSocket();
+    const handle = await startMemoryServer({ socketPath });
+    cleanups.push(async () => {
+      await handle.stop();
+      await rm(socketPath, { force: true });
+    });
+
+    await udsJson(socketPath, 'POST', '/v1/memory/put', { key: 'plan', value: 'A' });
+    await udsJson(socketPath, 'POST', '/v1/memory/put', { key: 'plan', value: 'B' });
+    await udsJson(socketPath, 'POST', '/v1/memory/put', { key: 'other', value: 'C' });
+
+    const r = await udsJson(socketPath, 'POST', '/v1/memory/forget', { key: 'plan' });
+    expect(r.status).toBe(200);
+    expect(r.body.result.deleted).toBe(2);
+    expect(r.body.result.deletedIds).toHaveLength(2);
+
+    const remaining = await udsJson(socketPath, 'POST', '/v1/memory/query', {
+      kind: 'structured',
+    });
+    expect(remaining.body.result.entries).toHaveLength(1);
+    expect(remaining.body.result.entries[0].value).toBe('C');
+  });
+
+  it('POST /v1/memory/forget rejects empty predicate with 400', async () => {
+    const socketPath = tmpSocket();
+    const handle = await startMemoryServer({ socketPath });
+    cleanups.push(async () => {
+      await handle.stop();
+      await rm(socketPath, { force: true });
+    });
+
+    const r = await udsJson(socketPath, 'POST', '/v1/memory/forget', {});
+    expect(r.status).toBe(400);
+    expect(r.body.error).toMatch(/at least one of/);
+  });
+
   it('invalid JSON body returns 400', async () => {
     const socketPath = tmpSocket();
     const handle = await startMemoryServer({ socketPath });
