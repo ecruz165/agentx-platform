@@ -26,6 +26,7 @@
  */
 
 import { mkdirSync, rmSync } from 'node:fs';
+import { request as httpRequest } from 'node:http';
 import { dirname } from 'node:path';
 import {
   type Catalog,
@@ -33,6 +34,12 @@ import {
   type ProductDef,
   startHarnessServer,
 } from '@ecruz165/harness-server';
+
+interface DispatcherStatus {
+  capacity: number;
+  inFlight: string[];
+  queued: Array<{ jobId: string; enqueuedAt: number; waitingMs: number }>;
+}
 
 const harnessSocket = process.env.HARNESS_SOCKET ?? '/run/harness/harness.sock';
 mkdirSync(dirname(harnessSocket), { recursive: true });
@@ -132,8 +139,53 @@ async function registerWithControlplane(): Promise<void> {
   console.log(`[harness-server] registered with controlplane: harnessId=${data.harnessId}`);
 }
 
+/**
+ * Query the in-process harness-server for its dispatcher snapshot via
+ * its UDS HTTP endpoint. Bun's fetch doesn't yet support unix sockets;
+ * use node:http with socketPath. Returns null if the call fails (the
+ * heartbeat continues without the snapshot in that case).
+ */
+function fetchDispatcherStatus(): Promise<DispatcherStatus | null> {
+  return new Promise((resolve) => {
+    const req = httpRequest(
+      {
+        socketPath: harnessSocket,
+        path: '/v1/dispatcher/status',
+        method: 'GET',
+        timeout: 2000,
+      },
+      (res) => {
+        let body = '';
+        res.on('data', (chunk) => (body += chunk));
+        res.on('end', () => {
+          try {
+            const parsed = JSON.parse(body) as DispatcherStatus & Record<string, unknown>;
+            // The route adds `service` + `ts`; pick out the snapshot fields.
+            resolve({
+              capacity: parsed.capacity,
+              inFlight: parsed.inFlight ?? [],
+              queued: parsed.queued ?? [],
+            });
+          } catch {
+            resolve(null);
+          }
+        });
+      },
+    );
+    req.on('error', () => resolve(null));
+    req.on('timeout', () => {
+      req.destroy();
+      resolve(null);
+    });
+    req.end();
+  });
+}
+
 async function sendHeartbeat(): Promise<void> {
   if (!sessionToken) return;
+  const status = await fetchDispatcherStatus();
+  const currentLoad = status?.inFlight.length ?? 0;
+
   try {
     const res = await fetch(`${controlplaneUrl}/api/registry/heartbeat`, {
       method: 'POST',
@@ -144,8 +196,9 @@ async function sendHeartbeat(): Promise<void> {
       body: JSON.stringify({
         harnessId,
         sessionToken,
-        currentLoad: 0,
+        currentLoad,
         healthOk: true,
+        currentJobs: status,
       }),
     });
     if (!res.ok) {

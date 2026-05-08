@@ -45,6 +45,7 @@ public interface HarnessDao {
         UPDATE harnesses SET
             status            = 'active',
             current_load      = :currentLoad,
+            current_jobs      = :currentJobs::jsonb,
             last_heartbeat_at = CURRENT_TIMESTAMP,
             updated_at        = CURRENT_TIMESTAMP
          WHERE org_id = :orgId AND id = :id
@@ -54,7 +55,8 @@ public interface HarnessDao {
         @Bind("orgId") String orgId,
         @Bind("id") String id,
         @Bind("sessionToken") String sessionToken,
-        @Bind("currentLoad") Integer currentLoad
+        @Bind("currentLoad") Integer currentLoad,
+        @Bind("currentJobs") String currentJobs
     );
 
     @SqlUpdate("""
@@ -67,7 +69,9 @@ public interface HarnessDao {
         SELECT org_id, id, name, version, status, region,
                capabilities::text AS capabilities,
                endpoints::text    AS endpoints,
-               current_load, session_token,
+               current_load,
+               current_jobs::text AS current_jobs,
+               session_token,
                last_heartbeat_at, registered_at, updated_at
           FROM harnesses
          WHERE org_id = :orgId AND id = :id
@@ -78,7 +82,9 @@ public interface HarnessDao {
         SELECT org_id, id, name, version, status, region,
                capabilities::text AS capabilities,
                endpoints::text    AS endpoints,
-               current_load, session_token,
+               current_load,
+               current_jobs::text AS current_jobs,
+               session_token,
                last_heartbeat_at, registered_at, updated_at
           FROM harnesses
          WHERE org_id = :orgId

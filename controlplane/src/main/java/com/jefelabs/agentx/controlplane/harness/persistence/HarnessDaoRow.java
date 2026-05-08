@@ -14,6 +14,7 @@ public record HarnessDaoRow(
     String capabilities,
     String endpoints,
     Integer currentLoad,
+    String currentJobs,
     String sessionToken,
     Instant lastHeartbeatAt,
     Instant registeredAt,

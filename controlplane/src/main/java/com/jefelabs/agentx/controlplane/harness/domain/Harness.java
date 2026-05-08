@@ -24,6 +24,13 @@ public record Harness(
     JsonNode capabilities,
     JsonNode endpoints,
     Integer currentLoad,
+    /**
+     * Snapshot of the harness's in-flight jobs at the most recent
+     * heartbeat. Shape mirrors harness-server's DispatcherState
+     * statusSnapshot: {@code {capacity, inFlight, queued}}. Null until
+     * the harness has reported.
+     */
+    JsonNode currentJobs,
     String sessionToken,
     Instant lastHeartbeatAt,
     Instant registeredAt,

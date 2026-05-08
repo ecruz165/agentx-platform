@@ -76,9 +76,14 @@ public class HarnessService {
     }
 
     @Transactional
-    public Optional<Harness> recordHeartbeat(String orgId, String id, String sessionToken, Integer currentLoad) {
+    public Optional<Harness> recordHeartbeat(
+        String orgId, String id, String sessionToken,
+        Integer currentLoad, JsonNode currentJobs
+    ) {
         HarnessDao dao = jdbi.onDemand(HarnessDao.class);
-        int updated = dao.recordHeartbeat(orgId, id, sessionToken, currentLoad);
+        int updated = dao.recordHeartbeat(
+            orgId, id, sessionToken, currentLoad, writeJson(currentJobs)
+        );
         return updated > 0 ? dao.findById(orgId, id).map(this::toDomain) : Optional.empty();
     }
 
@@ -105,7 +110,8 @@ public class HarnessService {
         return new Harness(
             row.orgId(), row.id(), row.name(), row.version(), row.status(), row.region(),
             readJson(row.capabilities()), readJson(row.endpoints()),
-            row.currentLoad(), row.sessionToken(),
+            row.currentLoad(), readJson(row.currentJobs()),
+            row.sessionToken(),
             row.lastHeartbeatAt(), row.registeredAt(), row.updatedAt()
         );
     }

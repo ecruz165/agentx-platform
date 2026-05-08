@@ -21,6 +21,7 @@ public record HarnessDTO(
     JsonNode capabilities,
     JsonNode endpoints,
     Integer currentLoad,
+    JsonNode currentJobs,
     Instant lastHeartbeatAt,
     Instant registeredAt
 ) {

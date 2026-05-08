@@ -53,7 +53,8 @@ public class HarnessController {
     public ResponseEntity<HarnessDTO> heartbeat(@RequestBody HeartbeatRequestDTO body) {
         var tenant = TenantContext.current();
         return harnessService.recordHeartbeat(
-                tenant.orgId(), body.harnessId(), body.sessionToken(), body.currentLoad()
+                tenant.orgId(), body.harnessId(), body.sessionToken(),
+                body.currentLoad(), body.currentJobs()
             )
             .map(harnessMapper::toDTO)
             .map(ResponseEntity::ok)
