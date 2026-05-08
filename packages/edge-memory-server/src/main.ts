@@ -26,6 +26,7 @@
 
 import {
   type AuditLog,
+  type IdleThrottleOptions,
   InMemoryAuditLog,
   InMemoryMemoryStore,
   type MemoryStore,
@@ -38,12 +39,14 @@ const socketPath = process.env.MEMORY_SOCKET_PATH ?? '/root/.harness/run/memory.
 
 const store: MemoryStore = await pickStore();
 const audit: AuditLog = await pickAudit();
+const idle: IdleThrottleOptions = pickIdleConfig();
 
 console.log(`Starting @ecruz165/edge-memory-server on ${socketPath}…`);
 console.log(`  store:  ${store.constructor.name}`);
 console.log(`  audit:  ${audit.constructor.name}`);
+console.log(`  idle:   ${idle.idleTimeoutMs}ms timeout (PRD F9)`);
 
-const handle = await startMemoryServer({ socketPath, store, audit });
+const handle = await startMemoryServer({ socketPath, store, audit, idle });
 console.log(`✓ edge-memory-server listening on ${socketPath}`);
 
 const shutdown = async (signal: string) => {
@@ -92,4 +95,11 @@ async function pickAudit(): Promise<AuditLog> {
     return new InMemoryAuditLog();
   }
   return SqliteAuditLog.open({ dbPath: auditPath });
+}
+
+function pickIdleConfig(): IdleThrottleOptions {
+  return {
+    idleTimeoutMs: Number(process.env.MEMORY_IDLE_TIMEOUT_MS ?? '600000'),
+    checkIntervalMs: Number(process.env.MEMORY_IDLE_CHECK_INTERVAL_MS ?? '30000'),
+  };
 }

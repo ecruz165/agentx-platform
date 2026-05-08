@@ -526,6 +526,88 @@ describe('edge-memory-server HTTP routes', () => {
   });
 });
 
+describe('Idle throttling (PRD F9)', () => {
+  const cleanups: Array<() => Promise<void>> = [];
+  afterEach(async () => {
+    for (const c of cleanups.splice(0)) await c();
+  });
+
+  it('/health surfaces idle state', async () => {
+    const socketPath = tmpSocket();
+    // Throttle disabled → state always 'warm'.
+    const handle = await startMemoryServer({ socketPath, idle: false });
+    cleanups.push(async () => {
+      await handle.stop();
+      await rm(socketPath, { force: true });
+    });
+    const r = await udsJson(socketPath, 'GET', '/health');
+    expect(r.body.state).toBe('warm');
+  });
+
+  it('/v1/* request after idle awaits onWarm before responding', async () => {
+    const socketPath = tmpSocket();
+    let onWarmCalls = 0;
+    let onIdleCalls = 0;
+    const handle = await startMemoryServer({
+      socketPath,
+      idle: {
+        idleTimeoutMs: 50,
+        checkIntervalMs: 10,
+        onIdle: async () => {
+          onIdleCalls++;
+        },
+        onWarm: async () => {
+          onWarmCalls++;
+        },
+      },
+    });
+    cleanups.push(async () => {
+      await handle.stop();
+      await rm(socketPath, { force: true });
+    });
+
+    // Wait long enough for the throttle to flip to idle.
+    await new Promise((r) => setTimeout(r, 120));
+    expect(handle.idle?.state).toBe('idle');
+    expect(onIdleCalls).toBe(1);
+
+    // First /v1/* request should re-warm.
+    const put = await udsJson(socketPath, 'POST', '/v1/memory/put', { key: 'k', value: 'v' });
+    expect(put.status).toBe(200);
+    expect(handle.idle?.state).toBe('warm');
+    expect(onWarmCalls).toBe(1);
+
+    // /health doesn't tick activity; /v1/* did, so state stays warm
+    // for as long as we keep poking it.
+    await udsJson(socketPath, 'POST', '/v1/memory/put', { key: 'k2', value: 'v2' });
+    expect(handle.idle?.state).toBe('warm');
+    expect(onWarmCalls).toBe(1); // not called again — we stayed warm
+  });
+
+  it('/health and /metrics scrapes do not count as activity', async () => {
+    const socketPath = tmpSocket();
+    const handle = await startMemoryServer({
+      socketPath,
+      idle: { idleTimeoutMs: 80, checkIntervalMs: 10 },
+    });
+    cleanups.push(async () => {
+      await handle.stop();
+      await rm(socketPath, { force: true });
+    });
+
+    // Hit /health + /metrics repeatedly. They should NOT prevent idle
+    // transition.
+    for (let i = 0; i < 5; i++) {
+      await udsJson(socketPath, 'GET', '/health');
+      await udsText(socketPath, 'GET', '/metrics');
+      await new Promise((r) => setTimeout(r, 20));
+    }
+    // Total elapsed > 80ms idleTimeout, no /v1/* traffic.
+    await new Promise((r) => setTimeout(r, 100));
+    expect(handle.idle?.state).toBe('idle');
+  });
+});
+
 describe('GET /metrics — Prometheus exposition (PRD F13)', () => {
   const cleanups: Array<() => Promise<void>> = [];
   afterEach(async () => {

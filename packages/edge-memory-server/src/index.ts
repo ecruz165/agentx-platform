@@ -28,6 +28,7 @@ import {
   InMemoryAuditLog,
   resolveActor,
 } from './audit.ts';
+import { IdleThrottle, type IdleThrottleOptions } from './idle-throttle.ts';
 import { Metrics, opForPath } from './metrics.ts';
 import {
   InMemoryMemoryStore,
@@ -53,6 +54,11 @@ export interface MemoryServerOptions {
    *  may inject one to assert counter/histogram state without parsing
    *  /metrics output. */
   metrics?: Metrics;
+  /** Idle-throttle config (PRD F9). Default: 10min idle timeout, 30s
+   *  check interval, no-op hooks. Pass `idle: false` to disable
+   *  throttling entirely (useful for in-process tests where we don't
+   *  want a background timer). */
+  idle?: IdleThrottleOptions | false;
 }
 
 export interface MemoryServerHandle {
@@ -65,6 +71,8 @@ export interface MemoryServerHandle {
   audit: AuditLog;
   /** Reference to the metrics collector. */
   metrics: Metrics;
+  /** Idle throttle, if enabled. `null` when disabled via `idle: false`. */
+  idle: IdleThrottle | null;
   stop(): Promise<void>;
 }
 
@@ -77,7 +85,9 @@ export async function startMemoryServer(opts: MemoryServerOptions): Promise<Memo
   const store = opts.store ?? new InMemoryMemoryStore();
   const audit = opts.audit ?? new InMemoryAuditLog();
   const metrics = opts.metrics ?? new Metrics();
-  const server = createServer((req, res) => route(req, res, store, audit, metrics));
+  const idle: IdleThrottle | null = opts.idle === false ? null : new IdleThrottle(opts.idle ?? {});
+  if (idle) idle.start();
+  const server = createServer((req, res) => route(req, res, store, audit, metrics, idle));
 
   await new Promise<void>((resolve, reject) => {
     server.once('error', reject);
@@ -90,7 +100,9 @@ export async function startMemoryServer(opts: MemoryServerOptions): Promise<Memo
     store,
     audit,
     metrics,
+    idle,
     async stop() {
+      idle?.stop();
       await new Promise<void>((resolve) => server.close(() => resolve()));
       await unlink(opts.socketPath).catch(() => {});
     },
@@ -103,13 +115,13 @@ function route(
   store: MemoryStore,
   audit: AuditLog,
   metrics: Metrics,
+  idle: IdleThrottle | null,
 ): void {
   const url = (req.url ?? '/').split('?')[0]!.replace(/\/$/, '') || '/';
   const op = opForPath(url);
   const start = process.hrtime.bigint();
 
   // Wrap res.end so every response increments the right counters.
-  // Errors are detected via res.statusCode after the handler runs.
   const origEnd = res.end.bind(res);
   // biome-ignore lint/suspicious/noExplicitAny: thin pass-through to Node's overloaded res.end signature
   (res as any).end = (...args: unknown[]) => {
@@ -117,22 +129,48 @@ function route(
     metrics.observeLatency(op, seconds);
     metrics.incRequest(op);
     if (res.statusCode >= 400) metrics.incError(op);
+    if (idle) metrics.setIdle(idle.state === 'idle');
     return (origEnd as (...a: unknown[]) => ServerResponse)(...args);
   };
 
-  // GET /metrics — Prometheus exposition. Last-known store size
-  // reflected in the entries gauge for free.
+  // GET /metrics — Prometheus exposition. Doesn't count as activity
+  // (per F9: scrapes shouldn't keep a quiet daemon warm).
   if (req.method === 'GET' && url === '/metrics') {
     handleMetrics(res, store, metrics).catch((err: Error) => serverError(res, err.message));
     return;
   }
 
   // GET /health — backend state + size for diagnostic dashboards.
+  // Doesn't count as activity for the same reason as /metrics.
   if (req.method === 'GET' && url === '/health') {
-    handleHealth(res, store).catch((err: Error) => serverError(res, err.message));
+    handleHealth(res, store, idle).catch((err: Error) => serverError(res, err.message));
     return;
   }
 
+  // /v1/* paths: this is real client traffic. Record activity for the
+  // idle throttle, and ensure-warm before handing off to a handler.
+  // ensureWarm is awaited so warmup latency lands in the request, not
+  // the next request.
+  if (idle) {
+    idle.recordActivity();
+    if (idle.state === 'idle') {
+      idle
+        .ensureWarm()
+        .then(() => dispatchV1(req, res, store, audit, url))
+        .catch((err: Error) => serverError(res, `warmup failed: ${err.message}`));
+      return;
+    }
+  }
+  dispatchV1(req, res, store, audit, url);
+}
+
+function dispatchV1(
+  req: IncomingMessage,
+  res: ServerResponse,
+  store: MemoryStore,
+  audit: AuditLog,
+  url: string,
+): void {
   // POST /v1/memory/put — body { key, value, scope? }
   if (req.method === 'POST' && url === '/v1/memory/put') {
     consumeJsonBody(req, (parsed, err) => {
@@ -225,11 +263,18 @@ async function handleMetrics(
   res.end(metrics.render());
 }
 
-async function handleHealth(res: ServerResponse, store: MemoryStore): Promise<void> {
+async function handleHealth(
+  res: ServerResponse,
+  store: MemoryStore,
+  idle: IdleThrottle | null,
+): Promise<void> {
   const size = await store.size();
   ok(res, {
     service: 'memory',
-    state: 'warm',
+    // PRD F8: state is 'warm' | 'idle' (no 'warming' yet — ensureWarm
+    // awaits the transition synchronously, so callers never observe
+    // an in-between state).
+    state: idle?.state ?? 'warm',
     uptimeMs: Date.now() - STARTED_AT,
     backend: store.constructor.name,
     entryCount: size,
@@ -598,6 +643,11 @@ export {
   matchesAuditFilter,
   resolveActor,
 } from './audit.ts';
+export {
+  type IdleState,
+  IdleThrottle,
+  type IdleThrottleOptions,
+} from './idle-throttle.ts';
 export { type MetricOp, Metrics, opForPath } from './metrics.ts';
 export {
   SqliteAuditLog,

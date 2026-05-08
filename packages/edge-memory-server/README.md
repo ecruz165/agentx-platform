@@ -84,6 +84,12 @@ export MEMORY_AUDIT_DB_PATH=/var/lib/agentx/memory-audit.sqlite   # unset → In
 
 # Listen address
 export MEMORY_SOCKET_PATH=/root/.harness/run/memory.sock
+
+# Idle throttling (PRD F9) — daemon transitions warm→idle after this
+# many ms of no /v1/* traffic. /health and /metrics scrapes don't count.
+# First /v1/* call after idle awaits the onWarm hook, then proceeds.
+export MEMORY_IDLE_TIMEOUT_MS=600000               # default 10min
+export MEMORY_IDLE_CHECK_INTERVAL_MS=30000         # default 30s
 ```
 
 The embedder env vars are only required when `MEMORY_DB_PATH` is set
@@ -146,7 +152,6 @@ per agent invocation).
 Tracked in PRD; not yet implemented:
 
 - Snapshot + restore for session writes (F5)
-- Idle throttling (F9) — drop embedder + close connections after 10min idle
 - OpenAPI 3.1 auto-gen from Zod schemas (F11)
 - **Consolidation API + feedback tagging** (F14-F19) — the entire
   job-scope → product-scope promotion lifecycle, including LLM-driven
