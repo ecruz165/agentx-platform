@@ -13,6 +13,7 @@
  */
 
 import { Command } from 'commander';
+import { runBenchCompare, runBenchRun, runBenchUpsert } from './bench.ts';
 import { runBuildWorker } from './build-worker.ts';
 import { runSetup } from './setup.ts';
 import { runStart } from './start.ts';
@@ -59,6 +60,45 @@ program
   .option('--platform-root <dir>', 'override the agentx-platform repo root (env: AGENTX_PLATFORM_ROOT)')
   .action(async (opts) => {
     await runStart(opts);
+  });
+
+// `workspace bench` — eval-harness wrapper around the controlplane API.
+const bench = program
+  .command('bench')
+  .description('eval-harness: upsert test suites, run them, compare runs');
+
+bench
+  .command('upsert <suiteId>')
+  .description('create or update an eval suite from a JSONL file of inputs')
+  .requiredOption('--inputs <file.jsonl>', 'path to JSONL; one input per line')
+  .option('--name <name>', 'human-readable name (default: suiteId)')
+  .option('--description <text>', 'longer description')
+  .option('--url <url>', 'controlplane base URL (default: http://localhost:8080)')
+  .option('--org <orgId>', 'X-Org-Id tenant (default: dev-org)')
+  .action(async (suiteId, opts) => {
+    await runBenchUpsert(suiteId, opts);
+  });
+
+bench
+  .command('run <suiteId>')
+  .description('submit one job per suite input, tagged with a benchmark runId')
+  .requiredOption('--flow <flowId>', 'flow id to dispatch each input against')
+  .requiredOption('--product <productId>', 'product id (context scope)')
+  .option('--label <label>', 'human-readable variant label, e.g. "qwen-0.6b run-1"')
+  .option('--config <json>', 'JSON string merged into each job\'s config')
+  .option('--url <url>', 'controlplane base URL (default: http://localhost:8080)')
+  .option('--org <orgId>', 'X-Org-Id tenant (default: dev-org)')
+  .action(async (suiteId, opts) => {
+    await runBenchRun(suiteId, opts);
+  });
+
+bench
+  .command('compare <runIds>')
+  .description('side-by-side aggregates for one or more benchmark runIds (comma-separated)')
+  .option('--url <url>', 'controlplane base URL (default: http://localhost:8080)')
+  .option('--org <orgId>', 'X-Org-Id tenant (default: dev-org)')
+  .action(async (runIds, opts) => {
+    await runBenchCompare(runIds, opts);
   });
 
 program
