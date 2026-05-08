@@ -116,6 +116,31 @@ function route(req: IncomingMessage, res: ServerResponse, store: MemoryStore): v
     return;
   }
 
+  // POST /v1/memory/export — body: optional MemoryQuery (defaults to
+  // structured-no-filter). Response: text/plain JSONL, one MemoryEntry
+  // per line. Empty result → empty body (200, zero lines). Useful for
+  // backup-before-forget and migration workflows.
+  if (req.method === 'POST' && url === '/v1/memory/export') {
+    consumeJsonBody(req, (parsed, err) => {
+      if (err) {
+        badRequest(res, err);
+        return;
+      }
+      handleExport(res, store, parsed).catch((e: Error) => serverError(res, e.message));
+    });
+    return;
+  }
+
+  // POST /v1/memory/import — body: text/plain JSONL, one MemoryPutInput
+  // per line. Each line is parsed + put-ed independently; errors don't
+  // halt the run. Response: { imported, errors: [{ line, error }] }.
+  // Roundtrip is lossy on id/createdAt (server reissues both); content
+  // is preserved.
+  if (req.method === 'POST' && url === '/v1/memory/import') {
+    handleImport(req, res, store).catch((e: Error) => serverError(res, e.message));
+    return;
+  }
+
   // Fallback echo for unknown paths — preserves v0 contract for early
   // bringup checks and tests that haven't migrated yet.
   echo(req, res, 'memory');
@@ -211,6 +236,119 @@ async function handleQuery(res: ServerResponse, store: MemoryStore, body: unknow
     method: 'POST',
     path: '/v1/memory/query',
     result,
+    ts: new Date().toISOString(),
+  });
+}
+
+/**
+ * Export entries matching an optional MemoryQuery as JSONL. Each line
+ * is a serialized MemoryEntry. No body / `{}` body → exports
+ * everything via a `kind:'structured'` no-filter query.
+ *
+ * Response Content-Type is `text/plain` (not `application/x-ndjson` —
+ * MIME registries are inconsistent on JSONL/NDJSON; plain text + a
+ * `.jsonl` extension on the destination file is the simplest interop
+ * with curl pipes, jq, and shell tooling).
+ *
+ * Returns 400 on `kind:'similarity' | 'graph'` queries — those don't
+ * have natural "all matching entries" semantics for export.
+ */
+async function handleExport(res: ServerResponse, store: MemoryStore, body: unknown): Promise<void> {
+  const query =
+    isObject(body) && Object.keys(body).length > 0
+      ? (body as MemoryQuery)
+      : { kind: 'structured' as const };
+  if (query.kind === 'similarity' || query.kind === 'graph') {
+    badRequest(res, `cannot export with kind=${query.kind}; use structured or recent`);
+    return;
+  }
+  const result = await store.query(query);
+  if (result.kind === 'unsupported') {
+    badRequest(res, `export query unsupported: ${result.reason}`);
+    return;
+  }
+  res.statusCode = 200;
+  res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+  for (const entry of result.entries) {
+    res.write(`${JSON.stringify(entry)}\n`);
+  }
+  res.end();
+}
+
+/**
+ * Import entries from a JSONL request body. Each non-empty line is
+ * parsed as MemoryPutInput and put-ed independently. Errors are
+ * collected per-line; the run doesn't halt on first failure.
+ *
+ * The roundtrip is intentionally lossy on identity: server reissues
+ * `id` + `createdAt` for every imported entry. Content (key, value,
+ * scope) is preserved verbatim. Document this in caller-facing
+ * surfaces — the audit log should reflect the *import* moment, not
+ * the original write.
+ */
+async function handleImport(
+  req: IncomingMessage,
+  res: ServerResponse,
+  store: MemoryStore,
+): Promise<void> {
+  let body = '';
+  await new Promise<void>((resolve, reject) => {
+    req.on('data', (c) => {
+      body += c.toString();
+    });
+    req.on('end', () => resolve());
+    req.on('error', reject);
+  });
+
+  const lines = body
+    .split('\n')
+    .map((l) => l.trim())
+    .filter((l) => l.length > 0);
+  let imported = 0;
+  const errors: Array<{ line: number; error: string }> = [];
+
+  for (let i = 0; i < lines.length; i++) {
+    const lineNum = i + 1;
+    const raw = lines[i]!;
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(raw);
+    } catch (err) {
+      errors.push({ line: lineNum, error: `invalid JSON: ${(err as Error).message}` });
+      continue;
+    }
+    if (!isObject(parsed)) {
+      errors.push({ line: lineNum, error: 'line must be a JSON object' });
+      continue;
+    }
+    const obj = parsed as Record<string, unknown>;
+    const key = obj.key;
+    const value = obj.value;
+    if (typeof key !== 'string' || key.length === 0) {
+      errors.push({ line: lineNum, error: 'missing or empty `key`' });
+      continue;
+    }
+    if (value === undefined) {
+      errors.push({ line: lineNum, error: 'missing `value`' });
+      continue;
+    }
+    try {
+      await store.put({
+        key,
+        value,
+        ...(isScope(obj.scope) ? { scope: obj.scope as MemoryScope } : {}),
+      });
+      imported++;
+    } catch (err) {
+      errors.push({ line: lineNum, error: (err as Error).message });
+    }
+  }
+
+  ok(res, {
+    service: 'memory',
+    method: 'POST',
+    path: '/v1/memory/import',
+    result: { imported, errors },
     ts: new Date().toISOString(),
   });
 }

@@ -77,3 +77,57 @@ export function udsJson<T = unknown>(
     req.end();
   });
 }
+
+/**
+ * Text-body variant of `udsJson` — for JSONL endpoints where the
+ * payload isn't a single JSON object. Sends `text/plain` Content-Type
+ * with the raw string body; returns the response body as a string.
+ *
+ * Used by `edge-memory export` (response is JSONL) and
+ * `edge-memory import` (request is JSONL).
+ */
+export function udsRequest(
+  socketPath: string,
+  method: 'GET' | 'POST' | 'DELETE' | 'PUT',
+  path: string,
+  body?: string,
+  opts: UdsRequestOptions = {},
+): Promise<{ status: number; body: string }> {
+  return new Promise((resolve, reject) => {
+    const headers: Record<string, string> =
+      body !== undefined ? { 'content-type': 'text/plain' } : {};
+    const req = request(
+      { socketPath, path, method, headers, timeout: opts.timeoutMs ?? 30_000 },
+      (res) => {
+        let buf = '';
+        res.on('data', (c) => (buf += c.toString()));
+        res.on('end', () => {
+          const status = res.statusCode ?? 0;
+          if (status >= 200 && status < 300) {
+            resolve({ status, body: buf });
+          } else {
+            // Try JSON parse for error responses (server uses JSON for errors).
+            let errMsg: string;
+            let parsed: unknown = null;
+            try {
+              parsed = JSON.parse(buf);
+              errMsg =
+                parsed && typeof parsed === 'object' && 'error' in parsed
+                  ? String((parsed as { error: unknown }).error)
+                  : `HTTP ${status}`;
+            } catch {
+              errMsg = buf || `HTTP ${status}`;
+            }
+            reject(new UdsRequestError(errMsg, status, parsed ?? buf));
+          }
+        });
+      },
+    );
+    req.on('error', (err) => reject(err));
+    req.on('timeout', () => {
+      req.destroy(new Error(`request timed out after ${opts.timeoutMs ?? 30_000}ms`));
+    });
+    if (body !== undefined) req.write(body);
+    req.end();
+  });
+}

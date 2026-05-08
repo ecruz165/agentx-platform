@@ -30,7 +30,11 @@ GET  /health                      Liveness + backend state + entry count
 POST /v1/memory/put               body: { key, value, scope? }
 POST /v1/memory/query             body: MemoryQuery (kind: structured | recent | similarity | graph)
 POST /v1/memory/forget            body: MemoryForgetPredicate (at least one of key, scope, olderThan)
+POST /v1/memory/export            body: optional MemoryQuery; response: text/plain JSONL of entries
+POST /v1/memory/import            body: text/plain JSONL; response: { imported, errors: [{line, error}] }
 ```
+
+`export` + `import` are the v1 backup / GDPR / migration surface (PRD F26). Roundtrip is lossy on identity (server reissues `id` + `createdAt` for every imported entry) but lossless on content (key, value, scope preserved). Similarity / graph query kinds are rejected for export — those don't have natural "all matching entries" semantics.
 
 The `kind:'graph'` query type returns `kind:'unsupported'` from the
 v1 backends; defined in the type union so the wire shape matches PRD
@@ -136,10 +140,8 @@ Tracked in PRD; not yet implemented:
 - **Consolidation API + feedback tagging** (F14-F19) — the entire
   job-scope → product-scope promotion lifecycle, including LLM-driven
   `feedback-summarize` strategy
-- CLI subcommands beyond put/query/forget/health: inspect, import,
-  export
+- `inspect` CLI subcommand
 - `--workspace` flag (F27)
-- Bulk import/export JSONL (F26)
 
 ## Tests
 

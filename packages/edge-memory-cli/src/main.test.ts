@@ -8,7 +8,7 @@
  */
 
 import { randomUUID } from 'node:crypto';
-import { rm } from 'node:fs/promises';
+import { rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { startMemoryServer } from '@ecruz165/edge-memory-server';
@@ -136,6 +136,120 @@ describe('edge-memory CLI — happy paths', () => {
     const r = await runCli(['query', '--type', 'similarity', '--q', 'anything'], socket);
     expect(r.code).toBe(0);
     expect(r.stdout).toMatch(/unsupported.*sqlite-vec/);
+  });
+
+  it('export emits JSONL on stdout (one line per entry)', async () => {
+    const socket = await startServer();
+    await runCli(['put', 'a', '--value', 'A', '--scope', 'productId:web'], socket);
+    await runCli(['put', 'b', '--value', 'B', '--scope', 'productId:api'], socket);
+
+    const r = await runCli(['export'], socket);
+    expect(r.code).toBe(0);
+    const lines = r.stdout
+      .trim()
+      .split('\n')
+      .filter((l) => l.length > 0);
+    expect(lines).toHaveLength(2);
+    const parsed = lines.map((l) => JSON.parse(l));
+    expect(parsed.map((e) => e.value).sort()).toEqual(['A', 'B']);
+  });
+
+  it('export with --scope filters entries', async () => {
+    const socket = await startServer();
+    await runCli(['put', 'a', '--value', 'A', '--scope', 'productId:web'], socket);
+    await runCli(['put', 'b', '--value', 'B', '--scope', 'productId:api'], socket);
+
+    const r = await runCli(['export', '--scope', 'productId:web'], socket);
+    expect(r.code).toBe(0);
+    const lines = r.stdout
+      .trim()
+      .split('\n')
+      .filter((l) => l.length > 0);
+    expect(lines).toHaveLength(1);
+    expect(JSON.parse(lines[0]!).value).toBe('A');
+  });
+
+  it('export --out writes to file instead of stdout', async () => {
+    const socket = await startServer();
+    await runCli(['put', 'plan', '--value', 'persisted'], socket);
+    const outPath = join(tmpdir(), `mem-export-${randomUUID().slice(0, 8)}.jsonl`);
+    cleanups.push(async () => {
+      await rm(outPath, { force: true });
+    });
+
+    const r = await runCli(['export', '--out', outPath], socket);
+    expect(r.code).toBe(0);
+    expect(r.stdout).toBe(''); // nothing on stdout when --out is set
+    const { readFile } = await import('node:fs/promises');
+    const content = await readFile(outPath, 'utf8');
+    expect(content).toContain('persisted');
+  });
+
+  it('import --in reads JSONL from file and puts each line', async () => {
+    const socket = await startServer();
+    const inPath = join(tmpdir(), `mem-import-${randomUUID().slice(0, 8)}.jsonl`);
+    const jsonl = [
+      JSON.stringify({ key: 'a', value: 'A' }),
+      JSON.stringify({ key: 'b', value: 'B', scope: { productId: 'web' } }),
+    ].join('\n');
+    await writeFile(inPath, jsonl, 'utf8');
+    cleanups.push(async () => {
+      await rm(inPath, { force: true });
+    });
+
+    const r = await runCli(['import', '--in', inPath], socket);
+    expect(r.code).toBe(0);
+    expect(r.stdout).toMatch(/imported 2 entries/);
+
+    const queried = await runCli(['query', '--type', 'structured', '--json'], socket);
+    const result = JSON.parse(queried.stdout);
+    expect(result.entries).toHaveLength(2);
+  });
+
+  it('import reports per-line errors and exits 1 when any line fails', async () => {
+    const socket = await startServer();
+    const inPath = join(tmpdir(), `mem-import-${randomUUID().slice(0, 8)}.jsonl`);
+    const jsonl = [
+      JSON.stringify({ key: 'a', value: 'A' }),
+      'not-json{',
+      JSON.stringify({ value: 'orphan' }), // missing key
+    ].join('\n');
+    await writeFile(inPath, jsonl, 'utf8');
+    cleanups.push(async () => {
+      await rm(inPath, { force: true });
+    });
+
+    const r = await runCli(['import', '--in', inPath], socket);
+    expect(r.code).toBe(1); // any error → exit 1
+    expect(r.stdout).toMatch(/imported 1 entries/);
+    expect(r.stderr).toMatch(/line 2/);
+    expect(r.stderr).toMatch(/line 3/);
+  });
+
+  it('export → import roundtrip preserves content (ids reissued)', async () => {
+    const socket = await startServer();
+    await runCli(['put', 'plan', '--value', 'A'], socket);
+    await runCli(['put', 'plan', '--value', 'B'], socket);
+
+    const exported = await runCli(['export'], socket);
+    expect(exported.code).toBe(0);
+
+    // Forget then re-import.
+    await runCli(['forget', '--key', 'plan'], socket);
+    const inPath = join(tmpdir(), `mem-roundtrip-${randomUUID().slice(0, 8)}.jsonl`);
+    await writeFile(inPath, exported.stdout, 'utf8');
+    cleanups.push(async () => {
+      await rm(inPath, { force: true });
+    });
+
+    const imp = await runCli(['import', '--in', inPath], socket);
+    expect(imp.code).toBe(0);
+
+    const queried = await runCli(['query', '--type', 'structured', '--json'], socket);
+    const result = JSON.parse(queried.stdout);
+    expect(result.entries).toHaveLength(2);
+    const values = result.entries.map((e: { value: string }) => e.value);
+    expect(values.sort()).toEqual(['A', 'B']);
   });
 });
 

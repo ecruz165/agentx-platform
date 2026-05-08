@@ -24,13 +24,14 @@
  * wires this to process.* and exits with the code.
  */
 
+import { readFile, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import type {
   MemoryForgetResult,
   MemoryQueryResult,
   MemoryScope,
 } from '@ecruz165/edge-memory-server';
-import { UdsRequestError, udsJson } from './uds-client.ts';
+import { UdsRequestError, udsJson, udsRequest } from './uds-client.ts';
 
 export interface RunIO {
   argv: string[];
@@ -138,6 +139,8 @@ Commands:
   put       Store an entry. Positional: <key>; --value <text>
   query     Retrieve entries by query type (--type structured|recent|similarity)
   forget    Delete entries matching a predicate
+  export    Stream matching entries as JSONL (one object per line)
+  import    Read JSONL from stdin or --in <file>; put each line
   health    Server health probe
 
 Global flags:
@@ -156,6 +159,10 @@ Examples:
   edge-memory query --type similarity --q "auth refactor" --top-k 3
   edge-memory forget --scope productId:web
   edge-memory forget --key refactor-plan --older-than 2026-01-01T00:00:00Z
+  edge-memory export --scope productId:web > backup.jsonl
+  edge-memory export --type recent --limit 100 --out recent.jsonl
+  cat backup.jsonl | edge-memory import
+  edge-memory import --in backup.jsonl
   edge-memory health --json
 `;
 
@@ -184,6 +191,10 @@ export async function run(io: RunIO): Promise<number> {
         return await cmdQuery(parsed, socket, json, stdout);
       case 'forget':
         return await cmdForget(parsed, socket, json, stdout);
+      case 'export':
+        return await cmdExport(parsed, socket, stdout);
+      case 'import':
+        return await cmdImport(parsed, socket, json, stdout, stderr);
       case 'health':
         return await cmdHealth(socket, json, stdout);
       default:
@@ -313,6 +324,161 @@ async function cmdForget(
     }
   }
   return 0;
+}
+
+/**
+ * Export matching entries as JSONL. Default destination is stdout
+ * (so `edge-memory export > backup.jsonl` works); --out <file>
+ * writes to disk instead.
+ *
+ * Predicate flags map to the same MemoryQuery shape used by `query`:
+ *   --type structured | recent  (similarity / graph not supported for
+ *                                export — server returns 400)
+ *   --key <key>                 (structured only)
+ *   --limit <n>                 (recent only)
+ *   --scope k:v                 (any)
+ *
+ * No flags → exports everything via structured-no-filter.
+ */
+async function cmdExport(
+  parsed: ParsedArgs,
+  socket: string,
+  stdout: (s: string) => void,
+): Promise<number> {
+  const type = stringFlag(parsed.flags, 'type') ?? 'structured';
+  const body: Record<string, unknown> = { kind: type };
+  if (Object.keys(parsed.scope).length > 0) body.scope = parsed.scope;
+
+  if (type === 'structured') {
+    const key = stringFlag(parsed.flags, 'key');
+    if (key !== undefined) body.key = key;
+  } else if (type === 'recent') {
+    const limit = numberFlag(parsed.flags, 'limit');
+    if (limit != null) body.limit = limit;
+  } else {
+    throw new Error(`export --type ${type} not supported (use structured or recent)`);
+  }
+
+  // Direct request — the response is JSONL (text/plain), not a single
+  // JSON object, so udsJson's parse-on-success path doesn't fit.
+  const lines = await fetchExport(socket, body);
+  const out = stringFlag(parsed.flags, 'out');
+  if (out) {
+    await writeFile(out, lines, 'utf8');
+  } else {
+    stdout(lines);
+  }
+  return 0;
+}
+
+/**
+ * Direct HTTP-over-UDS for export. Sends a JSON request body and
+ * receives a JSONL response body. Bypasses udsJson because the
+ * response isn't a single JSON object.
+ */
+async function fetchExport(socket: string, body: Record<string, unknown>): Promise<string> {
+  const { request } = await import('node:http');
+  return new Promise((resolve, reject) => {
+    const req = request(
+      {
+        socketPath: socket,
+        path: '/v1/memory/export',
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        timeout: 30_000,
+      },
+      (res) => {
+        let buf = '';
+        res.on('data', (c) => {
+          buf += c.toString();
+        });
+        res.on('end', () => {
+          const status = res.statusCode ?? 0;
+          if (status >= 200 && status < 300) {
+            resolve(buf);
+          } else {
+            // 4xx/5xx — try to parse as JSON for the error shape.
+            try {
+              const parsed = JSON.parse(buf);
+              const err = parsed?.error ?? `HTTP ${status}`;
+              reject(new UdsRequestError(String(err), status, parsed));
+            } catch {
+              reject(new UdsRequestError(buf || `HTTP ${status}`, status, buf));
+            }
+          }
+        });
+      },
+    );
+    req.on('error', reject);
+    req.on('timeout', () => req.destroy(new Error('export request timed out after 30s')));
+    req.write(JSON.stringify(body));
+    req.end();
+  });
+}
+
+/**
+ * Import JSONL from stdin (default) or --in <file>. Each non-empty
+ * line is parsed as MemoryPutInput on the server side; per-line
+ * errors are collected, the run doesn't halt on first failure.
+ *
+ * Reports `imported: N`; on errors, prints them to stderr (one per
+ * line) and exits 1 if any line failed (so scripts can branch on
+ * exit code).
+ */
+async function cmdImport(
+  parsed: ParsedArgs,
+  socket: string,
+  json: boolean,
+  stdout: (s: string) => void,
+  stderr: (s: string) => void,
+): Promise<number> {
+  const inFile = stringFlag(parsed.flags, 'in');
+  let payload: string;
+  if (inFile) {
+    payload = await readFile(inFile, 'utf8');
+  } else {
+    // Read all of stdin synchronously-via-async — for v1 small
+    // payloads this is fine; streaming would be a follow-up.
+    payload = await readStdin();
+  }
+
+  const r = await udsRequest(socket, 'POST', '/v1/memory/import', payload);
+  let result: { imported: number; errors: Array<{ line: number; error: string }> };
+  try {
+    const parsed = JSON.parse(r.body);
+    result = parsed.result;
+  } catch (err) {
+    throw new Error(`import: server returned non-JSON response: ${(err as Error).message}`);
+  }
+
+  if (json) {
+    stdout(`${JSON.stringify(result)}\n`);
+  } else {
+    stdout(`imported ${result.imported} entries\n`);
+    if (result.errors.length > 0) {
+      stdout(`  ${result.errors.length} errors\n`);
+      for (const e of result.errors.slice(0, 10)) {
+        stderr(`  line ${e.line}: ${e.error}\n`);
+      }
+      if (result.errors.length > 10) {
+        stderr(`  ... and ${result.errors.length - 10} more\n`);
+      }
+    }
+  }
+  return result.errors.length > 0 ? 1 : 0;
+}
+
+/** Read all of stdin into a string. Used by `import` when no --in flag. */
+function readStdin(): Promise<string> {
+  return new Promise((resolve, reject) => {
+    let buf = '';
+    process.stdin.setEncoding('utf8');
+    process.stdin.on('data', (chunk) => {
+      buf += chunk;
+    });
+    process.stdin.on('end', () => resolve(buf));
+    process.stdin.on('error', reject);
+  });
 }
 
 async function cmdHealth(

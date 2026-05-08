@@ -33,6 +33,8 @@ npm install -g @ecruz165/edge-memory-cli
 | `put <key>` | Store an entry. Required: `--value <text>`. Optional: `--scope k:v` (repeatable). |
 | `query` | Retrieve entries. Required: `--type structured \| recent \| similarity \| graph`. |
 | `forget` | Delete entries by predicate. At least one of `--key`, `--older-than`, `--scope`. |
+| `export` | Stream matching entries as JSONL. Optional: `--type`, `--key`, `--scope`, `--out <file>`. |
+| `import` | Read JSONL from stdin or `--in <file>`; put each line. Reports per-line errors. |
 | `health` | Probe the daemon for state + backend + entry count. |
 
 Run `edge-memory --help` for the canonical list.
@@ -70,6 +72,35 @@ unsupported: similarity queries require a vector-capable backend (sqlite-vec); n
 ```
 
 with exit code `0` (the request succeeded, the response is informative).
+
+## export / import — backup, GDPR, migration
+
+```sh
+# Backup before forget
+edge-memory export --scope userId:alice > alice-backup.jsonl
+edge-memory forget --scope userId:alice
+# (later, if needed)
+edge-memory import --in alice-backup.jsonl
+
+# Filtered export
+edge-memory export --type recent --limit 100 --out recent.jsonl
+edge-memory export --scope productId:web --out web-only.jsonl
+
+# Import from stdin via pipe
+cat backup.jsonl | edge-memory import
+```
+
+**Roundtrip is lossy on identity, lossless on content.** The server
+reissues `id` + `createdAt` on every imported entry. The audit log
+reflects the import moment, not the original write — so re-importing
+N times creates N×original entries. If you want to dedupe by content,
+filter the JSONL upstream of `edge-memory import`.
+
+`import` exits with code 1 if any line failed (so scripts can branch
+on it); per-line errors print to stderr.
+
+`export` rejects similarity / graph query kinds with 400 — those don't
+have natural "all matching entries" semantics.
 
 ## forget — predicate semantics
 

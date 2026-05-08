@@ -22,6 +22,37 @@ interface UdsResponse {
   body: any;
 }
 
+/**
+ * Text-payload variant for endpoints where the wire shape isn't a
+ * single JSON object (export response, import request). Sends/receives
+ * raw strings; status code preserved.
+ */
+function udsText(
+  socketPath: string,
+  method: string,
+  path: string,
+  body?: string,
+): Promise<{ status: number; body: string }> {
+  return new Promise((resolve, reject) => {
+    const req = request(
+      {
+        socketPath,
+        path,
+        method,
+        headers: body !== undefined ? { 'content-type': 'application/json' } : {},
+      },
+      (res) => {
+        let buf = '';
+        res.on('data', (c) => (buf += c.toString()));
+        res.on('end', () => resolve({ status: res.statusCode ?? 0, body: buf }));
+      },
+    );
+    req.on('error', reject);
+    if (body !== undefined) req.write(body);
+    req.end();
+  });
+}
+
 function udsJson(
   socketPath: string,
   method: string,
@@ -211,6 +242,143 @@ describe('edge-memory-server HTTP routes', () => {
     const r = await udsJson(socketPath, 'POST', '/v1/memory/forget', {});
     expect(r.status).toBe(400);
     expect(r.body.error).toMatch(/at least one of/);
+  });
+
+  it('POST /v1/memory/export streams matching entries as JSONL', async () => {
+    const socketPath = tmpSocket();
+    const handle = await startMemoryServer({ socketPath });
+    cleanups.push(async () => {
+      await handle.stop();
+      await rm(socketPath, { force: true });
+    });
+
+    await udsJson(socketPath, 'POST', '/v1/memory/put', {
+      key: 'a',
+      value: 'A',
+      scope: { productId: 'web' },
+    });
+    await udsJson(socketPath, 'POST', '/v1/memory/put', {
+      key: 'b',
+      value: 'B',
+      scope: { productId: 'api' },
+    });
+    await udsJson(socketPath, 'POST', '/v1/memory/put', { key: 'c', value: 'C' });
+
+    // Export everything (no body / empty body).
+    const r = await udsText(socketPath, 'POST', '/v1/memory/export', '{}');
+    expect(r.status).toBe(200);
+    const lines = r.body
+      .trim()
+      .split('\n')
+      .filter((l) => l.length > 0);
+    expect(lines).toHaveLength(3);
+    for (const line of lines) {
+      const entry = JSON.parse(line);
+      expect(entry.id).toMatch(/^mem_/);
+      expect(entry.key).toBeTruthy();
+      expect(entry.createdAt).toMatch(/^\d{4}/);
+    }
+
+    // Export with scope filter.
+    const filtered = await udsText(
+      socketPath,
+      'POST',
+      '/v1/memory/export',
+      JSON.stringify({ kind: 'structured', scope: { productId: 'web' } }),
+    );
+    const filteredLines = filtered.body
+      .trim()
+      .split('\n')
+      .filter((l) => l.length > 0);
+    expect(filteredLines).toHaveLength(1);
+    expect(JSON.parse(filteredLines[0]!).value).toBe('A');
+  });
+
+  it('POST /v1/memory/export rejects similarity / graph kinds with 400', async () => {
+    const socketPath = tmpSocket();
+    const handle = await startMemoryServer({ socketPath });
+    cleanups.push(async () => {
+      await handle.stop();
+      await rm(socketPath, { force: true });
+    });
+
+    const r = await udsText(
+      socketPath,
+      'POST',
+      '/v1/memory/export',
+      JSON.stringify({ kind: 'similarity', q: 'x' }),
+    );
+    expect(r.status).toBe(400);
+  });
+
+  it('POST /v1/memory/import parses JSONL, puts each line, reports errors per-line', async () => {
+    const socketPath = tmpSocket();
+    const handle = await startMemoryServer({ socketPath });
+    cleanups.push(async () => {
+      await handle.stop();
+      await rm(socketPath, { force: true });
+    });
+
+    const jsonl = [
+      JSON.stringify({ key: 'plan', value: 'A', scope: { productId: 'web' } }),
+      JSON.stringify({ key: 'plan', value: 'B' }),
+      'not-json{',
+      JSON.stringify({ value: 'orphan' }), // missing key
+      JSON.stringify({ key: 'ok', value: 'C' }),
+    ].join('\n');
+
+    const r = await udsText(socketPath, 'POST', '/v1/memory/import', jsonl);
+    expect(r.status).toBe(200);
+    const body = JSON.parse(r.body);
+    expect(body.result.imported).toBe(3);
+    expect(body.result.errors).toHaveLength(2);
+    expect(body.result.errors[0].line).toBe(3);
+    expect(body.result.errors[0].error).toMatch(/invalid JSON/);
+    expect(body.result.errors[1].line).toBe(4);
+    expect(body.result.errors[1].error).toMatch(/missing or empty `key`/);
+
+    // Confirm via query.
+    const all = await udsJson(socketPath, 'POST', '/v1/memory/query', { kind: 'structured' });
+    expect(all.body.result.entries).toHaveLength(3);
+  });
+
+  it('roundtrip: export then import preserves content (ids reissued)', async () => {
+    const socketPath = tmpSocket();
+    const handle = await startMemoryServer({ socketPath });
+    cleanups.push(async () => {
+      await handle.stop();
+      await rm(socketPath, { force: true });
+    });
+
+    await udsJson(socketPath, 'POST', '/v1/memory/put', { key: 'plan', value: 'A' });
+    await udsJson(socketPath, 'POST', '/v1/memory/put', { key: 'plan', value: 'B' });
+
+    const exported = await udsText(socketPath, 'POST', '/v1/memory/export', '{}');
+    const originalIds = exported.body
+      .trim()
+      .split('\n')
+      .map((l) => JSON.parse(l).id);
+
+    // Wipe + re-import.
+    await udsJson(socketPath, 'POST', '/v1/memory/forget', { key: 'plan' });
+    expect(
+      (await udsJson(socketPath, 'POST', '/v1/memory/query', { kind: 'structured' })).body.result
+        .entries,
+    ).toHaveLength(0);
+
+    const imp = await udsText(socketPath, 'POST', '/v1/memory/import', exported.body);
+    expect(JSON.parse(imp.body).result.imported).toBe(2);
+
+    const reQueried = await udsJson(socketPath, 'POST', '/v1/memory/query', { kind: 'structured' });
+    expect(reQueried.body.result.entries).toHaveLength(2);
+    // Content preserved.
+    const values = reQueried.body.result.entries.map((e: { value: unknown }) => e.value);
+    expect(values.sort()).toEqual(['A', 'B']);
+    // Ids reissued (lossy on identity).
+    const newIds = reQueried.body.result.entries.map((e: { id: string }) => e.id);
+    for (const newId of newIds) {
+      expect(originalIds).not.toContain(newId);
+    }
   });
 
   it('invalid JSON body returns 400', async () => {
