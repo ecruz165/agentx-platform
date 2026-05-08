@@ -164,7 +164,13 @@ Tracked in PRD; not yet implemented:
 - LLM-driven `feedback-summarize` strategy ships with a placeholder
   summarizer (concatenation); production wires Anthropic Messages
   client via the `summarize` option on `startMemoryServer`
-- `--workspace` flag (F27)
+- F17 lifecycle-hook EMITTERS (harness-server's escalation/phase/PR
+  events fire into `/v1/tag`) live in the harness-server package, not
+  here — this server already has the receiver
+- Custom consolidation strategies as `PluginRef` (F15 plug-in surface) —
+  built-in strategies ship; plugin registration is a v1.x add-on
+- ConsolidationStrategy + lifecycle wiring tuned to the LLM client
+  (`feedback-summarize` quality depends on which model is wired)
 
 ## Tests
 
