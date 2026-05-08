@@ -41,6 +41,21 @@ public record Job(
      *  {@code "llm-judge"}, {@code "manual"}. */
     String evalJudge,
     Instant evalScoredAt,
+    /** Story-point estimate set at submission via
+     *  {@code JobIntent.config.estimatedPoints}. Null if the caller
+     *  didn't estimate. */
+    Double estimatedPoints,
+    /** Actual story points reported in the post-job reflection.
+     *  Compared against {@code estimatedPoints} for accuracy metrics. */
+    Double actualPoints,
+    /** Free-text post-job retrospective ("here's what surprised me,
+     *  here's what I'd do differently"). */
+    String reflection,
+    /** Optional structured surprises (JSON array). Each entry is
+     *  caller-shaped; e.g.
+     *  {@code [{kind: 'missing-skill', name: 'aws/cloudformation-diff', why: '…'}]}. */
+    JsonNode surprises,
+    Instant reflectedAt,
     Instant createdAt,
     Instant startedAt,
     Instant completedAt,

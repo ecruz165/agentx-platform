@@ -2,11 +2,13 @@ package com.jefelabs.agentx.controlplane.job.api;
 
 import com.jefelabs.agentx.controlplane.core.tenancy.TenantContext;
 import com.jefelabs.agentx.controlplane.job.api.dto.JobDTO;
+import com.jefelabs.agentx.controlplane.job.api.dto.JobReflectionRequestDTO;
 import com.jefelabs.agentx.controlplane.job.api.dto.ScoreJobRequestDTO;
 import com.jefelabs.agentx.controlplane.job.api.dto.SubmitJobRequestDTO;
 import com.jefelabs.agentx.controlplane.job.api.mapper.JobMapper;
 import com.jefelabs.agentx.controlplane.job.engine.JobEngine;
 import com.jefelabs.agentx.controlplane.job.service.JobService;
+import com.jefelabs.agentx.controlplane.proposals.service.SkillProposalService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -24,11 +26,18 @@ public class JobController {
     private final JobService jobService;
     private final JobMapper jobMapper;
     private final JobEngine jobEngine;
+    private final SkillProposalService skillProposalService;
 
-    public JobController(JobService jobService, JobMapper jobMapper, JobEngine jobEngine) {
+    public JobController(
+        JobService jobService,
+        JobMapper jobMapper,
+        JobEngine jobEngine,
+        SkillProposalService skillProposalService
+    ) {
         this.jobService = jobService;
         this.jobMapper = jobMapper;
         this.jobEngine = jobEngine;
+        this.skillProposalService = skillProposalService;
     }
 
     @PostMapping
@@ -81,6 +90,31 @@ public class JobController {
         return jobService.recordEvalScore(
                 tenant.orgId(), id, body.score(), body.rationale(), body.judge()
             )
+            .map(jobMapper::toDTO)
+            .map(ResponseEntity::ok)
+            .orElseGet(() -> ResponseEntity.notFound().build());
+    }
+
+    /**
+     * Post-job reflection: actual story points + free-text retro +
+     * optional structured surprises. Surprises with
+     * {@code kind: 'missing-skill'} are auto-forwarded into the
+     * skill_proposals queue for admin review (no separate call).
+     */
+    @PostMapping("/{id}/reflection")
+    public ResponseEntity<JobDTO> reflect(
+        @PathVariable String id,
+        @RequestBody JobReflectionRequestDTO body
+    ) {
+        var tenant = TenantContext.current();
+        var updated = jobService.recordReflection(
+            tenant.orgId(), id, body.actualPoints(), body.reflection(), body.surprises()
+        );
+        if (updated.isPresent()) {
+            // Fan out missing-skill surprises into the proposals queue.
+            skillProposalService.createFromSurprises(tenant.orgId(), id, body.surprises());
+        }
+        return updated
             .map(jobMapper::toDTO)
             .map(ResponseEntity::ok)
             .orElseGet(() -> ResponseEntity.notFound().build());

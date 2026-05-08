@@ -527,6 +527,8 @@ public class JobEngine {
             row.failureReason(), row.currentNodeId(),
             row.benchmarkRunId(), row.benchmarkLabel(),
             row.evalScore(), row.evalRationale(), row.evalJudge(), row.evalScoredAt(),
+            row.estimatedPoints(), row.actualPoints(), row.reflection(),
+            readJson(row.surprises()), row.reflectedAt(),
             row.createdAt(), row.startedAt(), row.completedAt(), row.createdBy()
         );
     }

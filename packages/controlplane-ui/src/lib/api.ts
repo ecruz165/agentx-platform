@@ -124,6 +124,43 @@ export const benchmarks = {
     ),
 };
 
+// ── Skill proposals ──────────────────────────────────────────────────
+
+export type ProposalStatus = "proposed" | "approved" | "rejected";
+
+export interface SkillProposal {
+  id: string;
+  sourceJobId?: string;
+  name: string;
+  description?: string;
+  rationale?: string;
+  category?: string;
+  tags: string[];
+  status: ProposalStatus;
+  reviewer?: string;
+  reviewedAt?: string;
+  rejectionReason?: string;
+  catalogItemId?: string;
+  createdAt: string;
+}
+
+export const skillProposals = {
+  list: (status?: ProposalStatus) =>
+    request<SkillProposal[]>(
+      `/api/skill-proposals${status ? `?status=${status}` : ""}`,
+    ),
+  approve: (id: string) =>
+    request<SkillProposal>(`/api/skill-proposals/${id}/approve`, {
+      method: "POST",
+      body: JSON.stringify({}),
+    }),
+  reject: (id: string, reason: string) =>
+    request<SkillProposal>(`/api/skill-proposals/${id}/reject`, {
+      method: "POST",
+      body: JSON.stringify({ reason }),
+    }),
+};
+
 // ── Catalog ───────────────────────────────────────────────────────────
 
 export interface Flow {

@@ -16,10 +16,12 @@ public interface JobDao {
         INSERT INTO jobs (org_id, id, flow_id, product_id, status,
                           input, set_name, config,
                           benchmark_run_id, benchmark_label,
+                          estimated_points,
                           created_by)
         VALUES (:orgId, :id, :flowId, :productId, :status,
                 :input::jsonb, :setName, :config::jsonb,
                 :benchmarkRunId, :benchmarkLabel,
+                :estimatedPoints,
                 :createdBy)
     """)
     void insert(
@@ -33,6 +35,7 @@ public interface JobDao {
         @Bind("config") String config,
         @Bind("benchmarkRunId") String benchmarkRunId,
         @Bind("benchmarkLabel") String benchmarkLabel,
+        @Bind("estimatedPoints") Double estimatedPoints,
         @Bind("createdBy") String createdBy
     );
 
@@ -46,6 +49,11 @@ public interface JobDao {
                benchmark_run_id, benchmark_label,
                eval_score::double precision AS eval_score,
                eval_rationale, eval_judge, eval_scored_at,
+               estimated_points::double precision AS estimated_points,
+               actual_points::double precision    AS actual_points,
+               reflection,
+               surprises::text AS surprises,
+               reflected_at,
                created_at, started_at, completed_at, created_by
           FROM jobs
          WHERE org_id = :orgId AND id = :id
@@ -62,6 +70,11 @@ public interface JobDao {
                benchmark_run_id, benchmark_label,
                eval_score::double precision AS eval_score,
                eval_rationale, eval_judge, eval_scored_at,
+               estimated_points::double precision AS estimated_points,
+               actual_points::double precision    AS actual_points,
+               reflection,
+               surprises::text AS surprises,
+               reflected_at,
                created_at, started_at, completed_at, created_by
           FROM jobs
          WHERE org_id = :orgId
@@ -174,5 +187,21 @@ public interface JobDao {
         @Bind("score") Double score,
         @Bind("rationale") String rationale,
         @Bind("judge") String judge
+    );
+
+    @SqlUpdate("""
+        UPDATE jobs SET
+            actual_points = :actualPoints,
+            reflection    = :reflection,
+            surprises     = :surprises::jsonb,
+            reflected_at  = CURRENT_TIMESTAMP
+         WHERE org_id = :orgId AND id = :id
+    """)
+    int recordReflection(
+        @Bind("orgId") String orgId,
+        @Bind("id") String id,
+        @Bind("actualPoints") Double actualPoints,
+        @Bind("reflection") String reflection,
+        @Bind("surprises") String surprises
     );
 }

@@ -62,6 +62,12 @@ public class JobService {
             }
         }
 
+        // Extract estimatedPoints if present (slice 6 — story-point estimation).
+        Double estimatedPoints = null;
+        if (intent.config() != null && intent.config().hasNonNull("estimatedPoints")) {
+            estimatedPoints = intent.config().get("estimatedPoints").asDouble();
+        }
+
         JobDao dao = jdbi.onDemand(JobDao.class);
         dao.insert(
             orgId, id,
@@ -71,6 +77,7 @@ public class JobService {
             intent.set(),
             writeJson(intent.config()),
             benchmarkRunId, benchmarkLabel,
+            estimatedPoints,
             createdBy
         );
 
@@ -125,6 +132,25 @@ public class JobService {
     }
 
     /**
+     * Record a post-job reflection: actual story points, free-text retro,
+     * optional structured surprises (JSON array). Posted via
+     * {@code POST /api/jobs/&#123;id&#125;/reflection}. Surprises with
+     * {@code kind: 'missing-skill'} are typically forwarded into the
+     * SkillProposal queue by the controller orchestrating the call.
+     */
+    @Transactional
+    public Optional<Job> recordReflection(
+        String orgId, String id,
+        Double actualPoints, String reflection, JsonNode surprises
+    ) {
+        JobDao dao = jdbi.onDemand(JobDao.class);
+        int updated = dao.recordReflection(
+            orgId, id, actualPoints, reflection, writeJson(surprises)
+        );
+        return updated > 0 ? dao.findById(orgId, id).map(this::toDomain) : Optional.empty();
+    }
+
+    /**
      * Deliver an external event payload to a paused {@code wait-for-event}
      * step. Validates the job is RUNNING and currently paused; re-engages
      * the engine via {@link JobEngine#resumeJob(Job, JsonNode)}.
@@ -170,6 +196,8 @@ public class JobService {
             row.failureReason(), row.currentNodeId(),
             row.benchmarkRunId(), row.benchmarkLabel(),
             row.evalScore(), row.evalRationale(), row.evalJudge(), row.evalScoredAt(),
+            row.estimatedPoints(), row.actualPoints(), row.reflection(),
+            readJson(row.surprises()), row.reflectedAt(),
             row.createdAt(), row.startedAt(), row.completedAt(),
             row.createdBy()
         );

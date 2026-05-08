@@ -38,5 +38,6 @@ public class SpaForwardConfig implements WebMvcConfigurer {
         registry.addViewController("/catalog").setViewName("forward:/index.html");
         registry.addViewController("/benchmarks").setViewName("forward:/index.html");
         registry.addViewController("/benchmarks/{runId}").setViewName("forward:/index.html");
+        registry.addViewController("/proposals").setViewName("forward:/index.html");
     }
 }

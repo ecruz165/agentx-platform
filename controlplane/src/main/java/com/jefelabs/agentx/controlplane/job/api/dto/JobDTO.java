@@ -29,6 +29,11 @@ public record JobDTO(
     String evalRationale,
     String evalJudge,
     Instant evalScoredAt,
+    Double estimatedPoints,
+    Double actualPoints,
+    String reflection,
+    JsonNode surprises,
+    Instant reflectedAt,
     Instant createdAt,
     Instant startedAt,
     Instant completedAt
