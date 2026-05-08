@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
   Button,
@@ -133,13 +133,26 @@ function CompareView({ rows }: { rows: BenchmarkRunSummary[] }) {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
         {rows.map((r, idx) => (
           <Card key={r.runId}>
-            <CardHeader className="flex flex-col items-start gap-0">
-              <Code size="sm" className="text-xs">
-                {r.runId.length > 24 ? `${r.runId.slice(0, 24)}…` : r.runId}
-              </Code>
-              <p className="text-sm font-semibold mt-1" style={{ color: colors[idx % colors.length] }}>
-                {r.label ?? "—"}
-              </p>
+            <CardHeader className="flex justify-between items-start gap-2">
+              <div className="flex flex-col items-start gap-0">
+                <Code size="sm" className="text-xs">
+                  {r.runId.length > 24 ? `${r.runId.slice(0, 24)}…` : r.runId}
+                </Code>
+                <p
+                  className="text-sm font-semibold mt-1"
+                  style={{ color: colors[idx % colors.length] }}
+                >
+                  {r.label ?? "—"}
+                </p>
+              </div>
+              <Button
+                as={Link}
+                to={`/benchmarks/${encodeURIComponent(r.runId)}`}
+                size="sm"
+                variant="flat"
+              >
+                View jobs →
+              </Button>
             </CardHeader>
             <Divider />
             <CardBody className="space-y-1 text-sm">

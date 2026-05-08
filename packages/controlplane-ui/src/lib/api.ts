@@ -77,6 +77,12 @@ export interface Job {
   output?: unknown;
   failureReason?: string;
   currentNodeId?: string;
+  benchmarkRunId?: string;
+  benchmarkLabel?: string;
+  evalScore?: number | null;
+  evalRationale?: string;
+  evalJudge?: string;
+  evalScoredAt?: string;
   createdAt: string;
   startedAt?: string;
   completedAt?: string;
@@ -84,6 +90,10 @@ export interface Job {
 
 export const jobs = {
   list: () => request<Job[]>("/api/jobs"),
+  listByBenchmarkRun: (runId: string, limit = 500) =>
+    request<Job[]>(
+      `/api/jobs?benchmarkRunId=${encodeURIComponent(runId)}&limit=${limit}`,
+    ),
   get: (id: string) => request<Job>(`/api/jobs/${id}`),
   start: (id: string) => request<Job>(`/api/jobs/${id}/start`, { method: "POST" }),
   cancel: (id: string) => request<Job>(`/api/jobs/${id}/cancel`, { method: "POST" }),

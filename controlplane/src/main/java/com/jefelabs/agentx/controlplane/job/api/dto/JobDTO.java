@@ -23,6 +23,12 @@ public record JobDTO(
     JsonNode output,
     String failureReason,
     String currentNodeId,
+    String benchmarkRunId,
+    String benchmarkLabel,
+    Double evalScore,
+    String evalRationale,
+    String evalJudge,
+    Instant evalScoredAt,
     Instant createdAt,
     Instant startedAt,
     Instant completedAt
