@@ -12,15 +12,14 @@ import org.jdbi.v3.core.Jdbi;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -65,8 +64,14 @@ public class JobEngine {
      * Returns the post-run snapshot. The Phase 3b walk runs synchronously;
      * Phase 3.x switches to {@code @Async} virtual-threaded execution
      * so submission stays non-blocking.
+     *
+     * <p><b>NOT {@code @Transactional}</b> as of Phase 3c.3 — each DAO call
+     * auto-commits independently so (a) Fork/Map parallel virtual-thread
+     * branches don't fight over the parent's transaction context, and
+     * (b) the audit trail (job_steps + job_events) survives partial-failure
+     * recovery scenarios. JobService.submit's @Transactional handles atomic
+     * job creation; runtime execution is event-streamed semantics.
      */
-    @Transactional
     public Job runJob(Job initial) {
         if (initial.status() != JobStatus.QUEUED && initial.status() != JobStatus.RUNNING) {
             log.debug("Skipping run for job {} in status {}", initial.id(), initial.status());
@@ -96,7 +101,9 @@ public class JobEngine {
 
         // BodyRunner instance for compound step kinds (Loop, Fork, etc.); per-job attempt
         // counter so each body invocation lands in its own job_steps row.
-        Map<String, Integer> bodyAttemptCounter = new HashMap<>();
+        // ConcurrentHashMap because Fork/Map dispatch branches in parallel virtual threads
+        // and share this counter for shared body node ids.
+        Map<String, Integer> bodyAttemptCounter = new ConcurrentHashMap<>();
         BodyRunner bodyRunner = (bodyId, bodyInput) ->
             executeBody(initial, flowJson, bodyId, bodyInput, bodyAttemptCounter, stepDao, eventDao);
 
