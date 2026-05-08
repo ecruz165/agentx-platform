@@ -52,6 +52,22 @@ Run `edge-memory --help` for the canonical list.
 |---|---|
 | `--socket <path>` | UDS path. Default `~/.harness/run/memory.sock`. Or set `MEMORY_SOCKET_PATH`. |
 | `--workspace <name>` | Use `~/.harness/workspaces/<name>/run/memory.sock`. Mutually exclusive with `--socket`. (PRD F27) |
+| `--mode union` | On `query` without explicit `--scope`, union results across the env precedence chain instead of returning only the first hit. (PRD F3a) |
+
+## Implicit scope from env (PRD F3a/F3b)
+
+When `--scope` is not set, the CLI consults the worker's environment
+(`JOB_ID`, `PRODUCT_ID`, `USER_ID`, `SESSION_ID`, `ORG_ID`, `TOPIC`):
+
+- **Writes** (`put`) land in the **narrowest** available scope:
+  `JOB_ID` → `SESSION_ID` → `PRODUCT_ID` → `USER_ID` → `ORG_ID` → `TOPIC`.
+  Explicit `--scope` always wins.
+- **Reads** (`query`) walk **narrow→wide first-hit**:
+  `JOB_ID` → `PRODUCT_ID` → `USER_ID` → `ORG_ID` → `TOPIC`. The first
+  scope with matches returns. `--mode union` merges all hits along the
+  chain. (Note: `SESSION_ID` is NOT in the read chain — it's a write-
+  narrowness key only.)
+- No env vars set → no scope (global).
 | `--scope key:value` | Scope tag. May repeat. Keys: `jobId`, `productId`, `userId`, `sessionId`, `organizationId`, `topic`. |
 | `--json` | Emit JSON instead of human-readable output. |
 | `--help` | Show usage. |

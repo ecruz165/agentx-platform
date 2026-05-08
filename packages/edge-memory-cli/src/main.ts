@@ -32,6 +32,7 @@ import type {
   MemoryQueryResult,
   MemoryScope,
 } from '@ecruz165/edge-memory-server';
+import { narrowestScope, readChain } from './precedence.ts';
 import { UdsRequestError, udsJson, udsRequest } from './uds-client.ts';
 
 export interface RunIO {
@@ -230,9 +231,9 @@ export async function run(io: RunIO): Promise<number> {
   try {
     switch (parsed.command) {
       case 'put':
-        return await cmdPut(parsed, socket, json, stdout);
+        return await cmdPut(parsed, socket, json, stdout, env);
       case 'query':
-        return await cmdQuery(parsed, socket, json, stdout);
+        return await cmdQuery(parsed, socket, json, stdout, env);
       case 'forget':
         return await cmdForget(parsed, socket, json, stdout);
       case 'export':
@@ -287,6 +288,7 @@ async function cmdPut(
   socket: string,
   json: boolean,
   stdout: (s: string) => void,
+  env: Record<string, string | undefined>,
 ): Promise<number> {
   const key = parsed.positionals[0];
   const value = stringFlag(parsed.flags, 'value');
@@ -295,7 +297,13 @@ async function cmdPut(
   if (value === undefined) throw new Error('put requires --value <text>');
 
   const body: Record<string, unknown> = { key, value };
-  if (Object.keys(parsed.scope).length > 0) body.scope = parsed.scope;
+  // PRD F3b — explicit --scope wins; otherwise pick narrowest from env.
+  if (Object.keys(parsed.scope).length > 0) {
+    body.scope = parsed.scope;
+  } else {
+    const fromEnv = narrowestScope(env);
+    if (fromEnv) body.scope = fromEnv;
+  }
 
   const r = await udsJson<{ entry: { id: string; key: string; createdAt: string } }>(
     socket,
@@ -316,33 +324,109 @@ async function cmdQuery(
   socket: string,
   json: boolean,
   stdout: (s: string) => void,
+  env: Record<string, string | undefined>,
 ): Promise<number> {
   const type = stringFlag(parsed.flags, 'type') ?? 'structured';
-  const body: Record<string, unknown> = { kind: type };
-  if (Object.keys(parsed.scope).length > 0) body.scope = parsed.scope;
+  const baseBody: Record<string, unknown> = { kind: type };
 
   if (type === 'structured') {
     const key = stringFlag(parsed.flags, 'key');
-    if (key !== undefined) body.key = key;
+    if (key !== undefined) baseBody.key = key;
   } else if (type === 'recent') {
     const limit = numberFlag(parsed.flags, 'limit');
-    if (limit != null) body.limit = limit;
+    if (limit != null) baseBody.limit = limit;
   } else if (type === 'similarity') {
     const q = stringFlag(parsed.flags, 'q') ?? stringFlag(parsed.flags, 'query');
     if (!q) throw new Error('similarity query requires --q "<text>" or --query "<text>"');
-    body.q = q;
+    baseBody.q = q;
     const topK = numberFlag(parsed.flags, 'top-k') ?? numberFlag(parsed.flags, 'topK');
-    if (topK != null) body.topK = topK;
+    if (topK != null) baseBody.topK = topK;
   } else if (type === 'graph') {
     const from = stringFlag(parsed.flags, 'from');
     if (!from) throw new Error('graph query requires --from <entryId>');
-    body.from = from;
+    baseBody.from = from;
     const depth = numberFlag(parsed.flags, 'depth');
-    if (depth != null) body.depth = depth;
+    if (depth != null) baseBody.depth = depth;
   } else {
     throw new Error(`unknown --type ${type} (expected: structured | recent | similarity | graph)`);
   }
 
+  // PRD F3a — read precedence chain. Explicit --scope wins. Otherwise:
+  //   - default mode (first-hit): walk narrow→wide; first scope with
+  //     entries returns
+  //   - mode=union: query each scope in chain, union the entries
+  //   - graph queries skip the chain entirely (graph is from-based,
+  //     not scope-based)
+  const mode = stringFlag(parsed.flags, 'mode');
+  if (Object.keys(parsed.scope).length > 0 || type === 'graph') {
+    const body = { ...baseBody };
+    if (Object.keys(parsed.scope).length > 0) body.scope = parsed.scope;
+    return runQuery(body, socket, json, stdout);
+  }
+
+  const chain = readChain(env);
+  if (chain.length === 0) {
+    return runQuery(baseBody, socket, json, stdout);
+  }
+
+  if (mode === 'union') {
+    const all: unknown[] = [];
+    let unsupportedReason: string | undefined;
+    for (const scope of chain) {
+      const r = await udsJson<{ result: MemoryQueryResult }>(socket, 'POST', '/v1/memory/query', {
+        ...baseBody,
+        scope,
+      });
+      if (r.body.result.kind === 'unsupported') {
+        unsupportedReason = r.body.result.reason;
+        break;
+      }
+      all.push(...r.body.result.entries);
+    }
+    const merged: MemoryQueryResult =
+      unsupportedReason !== undefined
+        ? { kind: 'unsupported', reason: unsupportedReason }
+        : {
+            kind: 'ok',
+            entries: all as MemoryQueryResult extends { entries: infer E } ? E : never,
+          };
+    if (json) stdout(`${JSON.stringify(merged)}\n`);
+    else stdout(formatQueryResult(merged));
+    return 0;
+  }
+
+  // Default: first-hit. Walk chain, return as soon as a scope has matches.
+  for (const scope of chain) {
+    const r = await udsJson<{ result: MemoryQueryResult }>(socket, 'POST', '/v1/memory/query', {
+      ...baseBody,
+      scope,
+    });
+    if (r.body.result.kind !== 'ok') {
+      // unsupported → surface immediately, can't fall through.
+      if (json) stdout(`${JSON.stringify(r.body.result)}\n`);
+      else stdout(formatQueryResult(r.body.result));
+      return 0;
+    }
+    if (r.body.result.entries.length > 0) {
+      if (json) stdout(`${JSON.stringify(r.body.result)}\n`);
+      else stdout(formatQueryResult(r.body.result));
+      return 0;
+    }
+  }
+
+  // No scope had matches — emit empty ok shape.
+  const empty: MemoryQueryResult = { kind: 'ok', entries: [] };
+  if (json) stdout(`${JSON.stringify(empty)}\n`);
+  else stdout(formatQueryResult(empty));
+  return 0;
+}
+
+async function runQuery(
+  body: Record<string, unknown>,
+  socket: string,
+  json: boolean,
+  stdout: (s: string) => void,
+): Promise<number> {
   const r = await udsJson<{ result: MemoryQueryResult }>(socket, 'POST', '/v1/memory/query', body);
   if (json) {
     stdout(`${JSON.stringify(r.body.result)}\n`);

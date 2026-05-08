@@ -650,6 +650,141 @@ describe('edge-memory CLI — consolidate (F14/F15)', () => {
   });
 });
 
+describe('edge-memory CLI — precedence chains (F3a/F3b)', () => {
+  const cleanups: Array<() => Promise<void>> = [];
+  afterEach(async () => {
+    for (const c of cleanups.splice(0)) await c();
+  });
+
+  async function startServer(): Promise<string> {
+    const socketPath = join(tmpdir(), `prec-${randomUUID().slice(0, 8)}.sock`);
+    const handle = await startMemoryServer({ socketPath });
+    cleanups.push(async () => {
+      await handle.stop();
+      await rm(socketPath, { force: true });
+    });
+    return socketPath;
+  }
+
+  async function runCliWithEnv(
+    argv: string[],
+    socket: string,
+    extraEnv: Record<string, string>,
+  ): Promise<{ code: number; stdout: string; stderr: string }> {
+    let stdout = '';
+    let stderr = '';
+    const code = await run({
+      argv,
+      env: { MEMORY_SOCKET_PATH: socket, HOME: '/tmp', ...extraEnv },
+      stdout: (s) => {
+        stdout += s;
+      },
+      stderr: (s) => {
+        stderr += s;
+      },
+    });
+    return { code, stdout, stderr };
+  }
+
+  it('F3b: put without --scope writes to JOB_ID env when set', async () => {
+    const socket = await startServer();
+    await runCliWithEnv(['put', 'k', '--value', 'A'], socket, { JOB_ID: 'j_42' });
+
+    // Query by jobId scope to verify the entry landed there.
+    const q = await runCliWithEnv(
+      ['query', '--type', 'structured', '--key', 'k', '--scope', 'jobId:j_42', '--json'],
+      socket,
+      {},
+    );
+    expect(JSON.parse(q.stdout).entries).toHaveLength(1);
+  });
+
+  it('F3b: put falls through to SESSION_ID when JOB_ID is unset', async () => {
+    const socket = await startServer();
+    await runCliWithEnv(['put', 'k', '--value', 'A'], socket, { SESSION_ID: 's_1' });
+
+    const q = await runCliWithEnv(
+      ['query', '--type', 'structured', '--scope', 'sessionId:s_1', '--json'],
+      socket,
+      {},
+    );
+    expect(JSON.parse(q.stdout).entries).toHaveLength(1);
+  });
+
+  it('F3b: explicit --scope wins over env', async () => {
+    const socket = await startServer();
+    await runCliWithEnv(['put', 'k', '--value', 'A', '--scope', 'productId:web'], socket, {
+      JOB_ID: 'j_42',
+    });
+
+    // Should be queryable by productId, not by jobId.
+    const byProd = await runCliWithEnv(
+      ['query', '--type', 'structured', '--scope', 'productId:web', '--json'],
+      socket,
+      {},
+    );
+    expect(JSON.parse(byProd.stdout).entries).toHaveLength(1);
+    const byJob = await runCliWithEnv(
+      ['query', '--type', 'structured', '--scope', 'jobId:j_42', '--json'],
+      socket,
+      {},
+    );
+    expect(JSON.parse(byJob.stdout).entries).toHaveLength(0);
+  });
+
+  it('F3a: query without --scope walks chain narrow→wide; first hit wins', async () => {
+    const socket = await startServer();
+    // Plant entry only at productId scope, env says try job first.
+    await runCliWithEnv(
+      ['put', 'shared-note', '--value', 'product-level', '--scope', 'productId:web'],
+      socket,
+      {},
+    );
+
+    // No --scope; env supplies JOB_ID + PRODUCT_ID. job has nothing,
+    // product has the entry → first-hit returns product-level.
+    const q = await runCliWithEnv(
+      ['query', '--type', 'structured', '--key', 'shared-note', '--json'],
+      socket,
+      { JOB_ID: 'j_no_match', PRODUCT_ID: 'web' },
+    );
+    const parsed = JSON.parse(q.stdout);
+    expect(parsed.kind).toBe('ok');
+    expect(parsed.entries).toHaveLength(1);
+    expect(parsed.entries[0].value).toBe('product-level');
+  });
+
+  it('F3a: --mode=union returns hits across all chain scopes', async () => {
+    const socket = await startServer();
+    await runCliWithEnv(['put', 'k', '--value', 'job', '--scope', 'jobId:j1'], socket, {});
+    await runCliWithEnv(['put', 'k', '--value', 'product', '--scope', 'productId:web'], socket, {});
+
+    const q = await runCliWithEnv(
+      ['query', '--type', 'structured', '--key', 'k', '--mode', 'union', '--json'],
+      socket,
+      { JOB_ID: 'j1', PRODUCT_ID: 'web' },
+    );
+    const parsed = JSON.parse(q.stdout);
+    expect(parsed.entries).toHaveLength(2);
+    expect(parsed.entries.map((e: { value: string }) => e.value).sort()).toEqual([
+      'job',
+      'product',
+    ]);
+  });
+
+  it('F3a: query without --scope and without env falls back to no-scope (global)', async () => {
+    const socket = await startServer();
+    await runCliWithEnv(['put', 'k', '--value', 'global'], socket, {});
+
+    const q = await runCliWithEnv(
+      ['query', '--type', 'structured', '--key', 'k', '--json'],
+      socket,
+      {},
+    );
+    expect(JSON.parse(q.stdout).entries).toHaveLength(1);
+  });
+});
+
 describe('edge-memory CLI — workspace flag (F27)', () => {
   it('--workspace <name> resolves to ~/.harness/workspaces/<name>/run/memory.sock', async () => {
     // We just check the error path — the path doesn't exist, so we
