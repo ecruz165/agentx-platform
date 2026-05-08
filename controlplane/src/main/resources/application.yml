@@ -45,11 +45,12 @@ agentx:
     password: controlplane
   embedder:
     # OpenAI-compatible /v1 endpoint. Defaults match the compose-provided
-    # huggingface/text-embeddings-inference service. Production overrides
-    # via env (Bedrock proxy, OpenAI direct, hosted TEI, etc.).
+    # huggingface/text-embeddings-inference service running Qwen3-Embedding-0.6B
+    # (1024-dim, multilingual). Production overrides via env (Bedrock proxy,
+    # OpenAI direct, hosted TEI, etc.).
     url: http://localhost:8081
-    model: BAAI/bge-small-en-v1.5
-    dimension: 384
+    model: Qwen/Qwen3-Embedding-0.6B
+    dimension: 1024
   context-loader:
     # Comma-separated argv prefix for the agentx-load CLI subprocess. In dev,
     # this runs the TS source via Bun from the workspace root. In prod, the

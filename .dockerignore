@@ -1,0 +1,42 @@
+# Keep the build context lean — these all bloat or break Docker builds.
+**/node_modules
+**/dist
+**/build
+**/target
+**/.next
+**/.vite
+**/.turbo
+
+# Java
+**/*.class
+**/.gradle
+**/.mvn/wrapper/maven-wrapper.jar.lck
+
+# IDE / OS
+.idea
+.vscode
+.DS_Store
+
+# Local data
+**/.harness/run
+**/.artifacts
+**/data
+**/postgres-data
+**/neo4j-data
+
+# Git / CI
+.git
+.github
+
+# Logs / scratch
+*.log
+**/coverage
+**/.nyc_output
+
+# Already-built UI dist (we re-build inside the Dockerfile so dev artifacts
+# don't poison the image).
+packages/controlplane-ui/dist
+
+# Playwright artifacts
+.playwright-mcp
+phase6-*.png

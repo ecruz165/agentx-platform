@@ -70,8 +70,56 @@ services:
   embedder:
     image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.7
     platform: linux/amd64
-    command: ["--model-id", "BAAI/bge-small-en-v1.5"]
+    # Qwen3-Embedding 0.6B — 1024-dim multilingual model. Larger than
+    # bge-small-en-v1.5 (~768MB vs ~130MB on disk) but still tractable
+    # on a laptop CPU. First-run cold start under Rosetta on Apple Silicon
+    # is ~3-5 min for the model download.
+    command: ["--model-id", "Qwen/Qwen3-Embedding-0.6B"]
     ports: ["8081:80"]
+
+  # controlplane — Spring Boot app + bundled web UI (built into Spring's
+  # static resources at image-build time). Build context is the repo root
+  # (../) so the UI builder stage can reach packages/controlplane-ui +
+  # the pnpm workspace lockfile. See controlplane/Dockerfile for the
+  # 3-stage build (ui-builder → jar-builder → runtime).
+  controlplane:
+    build:
+      context: ..
+      dockerfile: controlplane/Dockerfile
+    image: agentx/controlplane:dev
+    ports:
+      - "8080:8080"
+    environment:
+      # External Postgres in central-data. The explicit escape hatch is
+      # required (not just SPRING_DATASOURCE_URL) because zonky's
+      # @ConditionalOnMissingBean(DataSource.class) fires before Spring
+      # Boot's DataSourceAutoConfiguration has materialized the bean —
+      # the conditional sees no DataSource yet and starts embedded.
+      AGENTX_EMBEDDED_POSTGRES_ENABLED: "false"
+      SPRING_DATASOURCE_URL: jdbc:postgresql://central-data:5432/controlplane
+      SPRING_DATASOURCE_USERNAME: controlplane
+      SPRING_DATASOURCE_PASSWORD: controlplane
+      # Neo4j in central-data (same container; reachable via compose DNS).
+      AGENTX_NEO4J_URI: bolt://central-data:7687
+      AGENTX_NEO4J_USER: neo4j
+      AGENTX_NEO4J_PASSWORD: controlplane
+      # TEI listens on port 80 inside the container; compose DNS resolves
+      # `embedder` to the service IP.
+      AGENTX_EMBEDDER_URL: http://embedder:80
+      AGENTX_EMBEDDER_MODEL: Qwen/Qwen3-Embedding-0.6B
+      AGENTX_EMBEDDER_DIMENSION: "1024"
+      # Disable refresh-poller in container by default (no agentx-load
+      # binary baked into the image yet — that's a follow-up).
+      AGENTX_CONTEXT_LOADER_REFRESH_POLLER_ENABLED: "false"
+    depends_on:
+      central-data:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:8080/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
 
 volumes:
   central-pg-data:

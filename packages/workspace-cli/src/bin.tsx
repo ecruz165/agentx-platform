@@ -55,7 +55,7 @@ program
 program
   .command('web')
   .description('open the browser to the control-plane UI')
-  .option('--url <url>', 'UI URL (default: http://localhost:5173)')
+  .option('--url <url>', 'UI URL (default: http://localhost:8080 — dockerized controlplane)')
   .option('--no-open', 'print the URL instead of opening the browser')
   .action(async (opts) => {
     await runWeb(opts);

@@ -1,9 +1,9 @@
 /**
  * `workspace web` — open the browser to the control-plane UI.
  *
- * Defaults to the Vite dev server (http://localhost:5173). The user is
- * responsible for running `workspace start` first; if servers are down,
- * the browser will land on a broken page and that's expected.
+ * Defaults to the dockerized controlplane (http://localhost:8080) which
+ * bundles the UI as Spring static resources. For UI dev work against the
+ * Vite dev server instead, pass `--url http://localhost:5173`.
  *
  * Cross-platform via the host's native opener: macOS `open`, Linux
  * `xdg-open`, Windows `start` (via cmd /c). No npm dep.
@@ -16,7 +16,7 @@ export interface WebOptions {
   open?: boolean;
 }
 
-const DEFAULT_URL = 'http://localhost:5173';
+const DEFAULT_URL = 'http://localhost:8080';
 
 export async function runWeb(opts: WebOptions): Promise<void> {
   const url = opts.url ?? DEFAULT_URL;
