@@ -1,16 +1,19 @@
 import { chmod, mkdir, unlink } from 'node:fs/promises';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { dirname } from 'node:path';
-import type { ContextQueryRequest, ContextQueryService } from './query.ts';
+import type { ContextQueryRequest, QueryService } from './query.ts';
 
 export interface ContextServerOptions {
   socketPath: string;
-  /** When provided, /v1/context/query runs real Neo4j vector search
-   *  against the configured backend + embedder. When absent, the
-   *  endpoint falls back to the original echo behavior — useful for
-   *  tests + early bringup before the triad's Neo4j is reachable. */
-  query?: ContextQueryService;
+  /** When provided, /v1/context/query + /v1/stats route to real backend.
+   *  When absent, /v1/context/query falls back to echo behavior, /v1/stats
+   *  reports zero counts, /health reports state='no-backend'. Tests can
+   *  inject a stub QueryService to exercise the route surface without a
+   *  live Neo4j. */
+  query?: QueryService;
 }
+
+const STARTED_AT = Date.now();
 
 export interface ContextServerHandle {
   stop(): Promise<void>;
@@ -55,8 +58,70 @@ export async function startContextServer(opts: ContextServerOptions): Promise<Co
 function route(req: IncomingMessage, res: ServerResponse, opts: ContextServerOptions): void {
   const url = (req.url ?? '/').split('?')[0]!.replace(/\/$/, '') || '/';
 
+  // GET /health — liveness + backend state. When no QueryService is wired,
+  // reports state='no-backend' so monitors can distinguish "running" from
+  // "running with backend." When wired, calls stats() to confirm Neo4j
+  // is actually reachable; failure → state='backend-error' with reason.
   if (req.method === 'GET' && url === '/health') {
-    ok(res, { ok: true, service: 'context', ts: new Date().toISOString() });
+    if (!opts.query) {
+      ok(res, {
+        service: 'context',
+        state: 'no-backend',
+        uptimeMs: Date.now() - STARTED_AT,
+        ts: new Date().toISOString(),
+      });
+      return;
+    }
+    opts.query
+      .stats()
+      .then((stats) =>
+        ok(res, {
+          service: 'context',
+          state: 'warm',
+          uptimeMs: Date.now() - STARTED_AT,
+          backend: 'neo4j',
+          nodeCount: stats.nodeCount,
+          edgeCount: stats.edgeCount,
+          indexedLabels: stats.indexedLabels,
+          ts: new Date().toISOString(),
+        }),
+      )
+      .catch((err: Error) => {
+        // Backend unreachable — server is still alive but reads will
+        // fail. 200 with state='backend-error' (not 503) so /health
+        // distinguishes "process up" from "fully functional"; ops
+        // monitors can branch on state, not status code.
+        ok(res, {
+          service: 'context',
+          state: 'backend-error',
+          uptimeMs: Date.now() - STARTED_AT,
+          backend: 'neo4j',
+          error: err.message,
+          ts: new Date().toISOString(),
+        });
+      });
+    return;
+  }
+
+  // GET /v1/stats — graph metrics. Same data as /health but without the
+  // process-state envelope; intended for graph dashboards that just
+  // want counts. No backend → zero counts (don't 404 — clients should
+  // see a consistent shape even when the graph isn't wired).
+  if (req.method === 'GET' && url === '/v1/stats') {
+    if (!opts.query) {
+      ok(res, {
+        service: 'context',
+        nodeCount: 0,
+        edgeCount: 0,
+        indexedLabels: [],
+        ts: new Date().toISOString(),
+      });
+      return;
+    }
+    opts.query
+      .stats()
+      .then((stats) => ok(res, { service: 'context', ...stats }))
+      .catch((err: Error) => serverError(res, err.message));
     return;
   }
 
@@ -148,5 +213,7 @@ export type {
   ContextQueryRequest,
   ContextQueryResult,
   ContextQueryServiceOptions,
+  ContextStatsResult,
+  QueryService,
 } from './query.ts';
 export { ContextQueryService } from './query.ts';

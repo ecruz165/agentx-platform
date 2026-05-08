@@ -68,9 +68,41 @@ export interface ContextQueryResult {
   searchMs: number;
 }
 
+/** Diagnostic snapshot of the backing graph. Surfaced via /v1/stats for
+ *  monitoring + /health for liveness inspection. Counts are exact when
+ *  cheap (small graphs, sub-second to compute) and may be approximate
+ *  for very large stores in the future. */
+export interface ContextStatsResult {
+  /** Total node count across all labels. */
+  nodeCount: number;
+  /** Total edge count across all relationship types. */
+  edgeCount: number;
+  /** Labels that have a vector index attached — same set used by query
+   *  when no `labels` filter is given. */
+  indexedLabels: string[];
+  /** ISO timestamp the stats were computed at. */
+  ts: string;
+}
+
+/**
+ * Structural interface for the query backend the server sits in front
+ * of. Production wires `ContextQueryService` (real Neo4j); tests can
+ * inject any implementation matching this shape, including pure
+ * in-memory stubs that return canned results.
+ *
+ * Extracted so the server can stay decoupled from neo4j-driver — the
+ * query module imports `neo4j-driver` heavily but a test stub doesn't
+ * need to.
+ */
+export interface QueryService {
+  query(req: ContextQueryRequest): Promise<ContextQueryResult>;
+  stats(): Promise<ContextStatsResult>;
+  close(): Promise<void>;
+}
+
 const SAFE_IDENT = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
-export class ContextQueryService {
+export class ContextQueryService implements QueryService {
   private readonly driver: Driver;
   private readonly database: string;
   private readonly embedder: ReturnType<typeof createHttpEmbedderClient>;
@@ -94,6 +126,30 @@ export class ContextQueryService {
 
   async close(): Promise<void> {
     await this.driver.close();
+  }
+
+  /**
+   * Cheap graph stats for /v1/stats + /health. Runs three small
+   * Cypher queries in a single session — node count, edge count,
+   * indexed-label list. Trivial overhead on small graphs; for
+   * mega-graphs (10M+ nodes), Neo4j's `count()` is approximate
+   * via Estimated Statistics — not bothered with that here.
+   */
+  async stats(): Promise<ContextStatsResult> {
+    const session = this.session();
+    try {
+      const nodeRes = await session.run(`MATCH (n) RETURN count(n) AS c`);
+      const edgeRes = await session.run(`MATCH ()-[r]->() RETURN count(r) AS c`);
+      const indexedLabels = await this.discoverIndexedLabels();
+      return {
+        nodeCount: asNumber(nodeRes.records[0]?.get('c') ?? 0),
+        edgeCount: asNumber(edgeRes.records[0]?.get('c') ?? 0),
+        indexedLabels,
+        ts: new Date().toISOString(),
+      };
+    } finally {
+      await session.close();
+    }
   }
 
   async query(req: ContextQueryRequest): Promise<ContextQueryResult> {
