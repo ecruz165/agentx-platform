@@ -1,5 +1,11 @@
 package com.jefelabs.agentx.controlplane.proposals.integration;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.jefelabs.agentx.controlplane.proposals.api.dto.ComposeRequestDTO;
+import com.jefelabs.agentx.controlplane.proposals.api.dto.ComposeResponseDTO;
 import com.jefelabs.agentx.controlplane.proposals.domain.SkillProposal;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -10,7 +16,10 @@ import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
+import org.springframework.web.client.RestClientResponseException;
 
+import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -48,16 +57,19 @@ public class SkillzkitClient {
     private final RestClient restClient;
     private final String token;
     private final boolean configured;
+    private final ObjectMapper mapper;
 
     public SkillzkitClient(
         @Value("${agentx.skillzkit.url:}") String baseUrl,
-        @Value("${agentx.skillzkit.token:}") String token
+        @Value("${agentx.skillzkit.token:}") String token,
+        ObjectMapper mapper
     ) {
         this.token = token == null ? "" : token;
         this.configured = baseUrl != null && !baseUrl.isBlank();
         this.restClient = configured
             ? RestClient.builder().baseUrl(baseUrl.replaceAll("/+$", "")).build()
             : null;
+        this.mapper = mapper;
         if (configured) {
             log.info("SkillzkitClient configured: url={}", baseUrl);
             if (this.token.isBlank()) {
@@ -256,5 +268,137 @@ public class SkillzkitClient {
         record Fetched(String remoteId, String remoteStatus) implements FetchResult {}
         record Failed(String error) implements FetchResult {}
         record Skipped() implements FetchResult {}
+    }
+
+    // ── compose-from-scratch (controlplane-ui /compose page) ─────────────────
+
+    /**
+     * Submit a compose-from-scratch contribution. Unlike {@link #submit},
+     * this path doesn't translate from a local SkillProposal — it
+     * forwards the caller's {@link ComposeRequestDTO} (already in the
+     * skillzkit wire shape) and returns either:
+     *
+     * <ul>
+     *   <li>{@link ComposeResult.Submitted} — 2xx success; full
+     *       ContributionResponse data.
+     *   <li>{@link ComposeResult.ApiError} — 4xx with parsed envelope
+     *       (code + message + details). Maps to the same HTTP status
+     *       on the controlplane side via the controller.
+     *   <li>{@link ComposeResult.TransportError} — network / 5xx /
+     *       parse failure.
+     *   <li>{@link ComposeResult.Skipped} — skillzkit not configured.
+     * </ul>
+     *
+     * Uses {@code RestClient.exchange} so we can handle non-2xx
+     * bodies without an exception path; the existing {@link #submit}
+     * uses {@code .retrieve().body(...)} which throws on 4xx and
+     * collapses error details into a generic message — fine for the
+     * proposal flow but not for the compose UI which needs structured
+     * findings.
+     */
+    public ComposeResult submitContribution(ComposeRequestDTO req) {
+        if (!configured) {
+            return new ComposeResult.Skipped();
+        }
+        try {
+            return restClient.post()
+                .uri("/api/v1/contributions")
+                .contentType(MediaType.APPLICATION_JSON)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .body(req)
+                .exchange((reqEntity, response) -> parseComposeResponse(response));
+        } catch (RestClientResponseException e) {
+            // Some configurations rethrow before exchange callback runs
+            return parseErrorBody(e.getStatusCode().value(), e.getResponseBodyAsString());
+        } catch (RestClientException e) {
+            log.warn("SkillzkitClient.submitContribution transport failure for slug={}: {}",
+                req.slug(), e.getMessage());
+            return new ComposeResult.TransportError(truncate(e.getMessage(), 500));
+        } catch (RuntimeException e) {
+            log.warn("SkillzkitClient.submitContribution unexpected error for slug={}",
+                req.slug(), e);
+            return new ComposeResult.TransportError(truncate(e.getMessage(), 500));
+        }
+    }
+
+    private ComposeResult parseComposeResponse(
+        org.springframework.http.client.ClientHttpResponse response
+    ) {
+        int status;
+        String body;
+        try {
+            status = response.getStatusCode().value();
+            byte[] bytes = response.getBody().readAllBytes();
+            body = new String(bytes, StandardCharsets.UTF_8);
+        } catch (java.io.IOException e) {
+            return new ComposeResult.TransportError(
+                "Could not read skillzkit response body: " + e.getMessage()
+            );
+        }
+        if (status >= 200 && status < 300) {
+            try {
+                ComposeResponseDTO dto = mapper.readValue(body, ComposeResponseDTO.class);
+                return new ComposeResult.Submitted(dto);
+            } catch (JsonProcessingException e) {
+                return new ComposeResult.TransportError(
+                    "skillzkit returned a 2xx response we could not parse: " + e.getMessage()
+                );
+            }
+        }
+        return parseErrorBody(status, body);
+    }
+
+    private ComposeResult parseErrorBody(int status, String body) {
+        if (body == null || body.isBlank()) {
+            return new ComposeResult.ApiError(
+                status, "internal_error",
+                "skillzkit returned status " + status + " with no body",
+                Map.of()
+            );
+        }
+        try {
+            JsonNode envelope = mapper.readTree(body);
+            String code = envelope.path("code").asText("internal_error");
+            String message = envelope.path("message").asText("skillzkit error");
+            JsonNode detailsNode = envelope.path("details");
+            Map<String, Object> details = detailsNode.isObject()
+                ? mapper.convertValue(detailsNode, new TypeReference<Map<String, Object>>() {})
+                : new HashMap<>();
+            return new ComposeResult.ApiError(status, code, message, details);
+        } catch (JsonProcessingException e) {
+            return new ComposeResult.ApiError(
+                status, "internal_error",
+                "skillzkit returned non-JSON error body (status " + status + ")",
+                Map.of("raw", truncate(body, 500))
+            );
+        }
+    }
+
+    public sealed interface ComposeResult permits
+        ComposeResult.Submitted,
+        ComposeResult.ApiError,
+        ComposeResult.TransportError,
+        ComposeResult.Skipped {
+
+        record Submitted(ComposeResponseDTO response) implements ComposeResult {}
+
+        /** Skillzkit returned a structured 4xx. Carries the envelope's
+         *  code / message / details + the original HTTP status so the
+         *  controller can re-emit the same status without re-mapping. */
+        record ApiError(
+            int httpStatus,
+            String code,
+            String message,
+            Map<String, Object> details
+        ) implements ComposeResult {}
+
+        /** Network failure, 5xx, or response we couldn't parse. The
+         *  controller surfaces this as 502 Bad Gateway with a generic
+         *  envelope. */
+        record TransportError(String message) implements ComposeResult {}
+
+        /** Skillzkit is not configured (agentx.skillzkit.url empty).
+         *  Controller surfaces as 503. */
+        record Skipped() implements ComposeResult {}
     }
 }
