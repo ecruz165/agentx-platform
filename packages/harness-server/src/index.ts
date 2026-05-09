@@ -212,6 +212,22 @@ export interface HarnessServerOptions {
   /** In-container SSH agent socket path. Default `/ssh-agent.sock`. */
   sshAgentContainerPath?: string;
   /**
+   * Path to edge-memory-server's UDS socket. When set, terminal job
+   * states (completed / failed / cancelled) trigger a best-effort
+   * POST to {@code /v1/memory/cleanup-unconfirmed} scoped to the
+   * jobId — closes the F19 lifecycle loop so unconfirmed entries
+   * don't accumulate indefinitely.
+   *
+   * <p>Best-effort means cleanup failures are logged and discarded;
+   * a failed cleanup never blocks a job from terminating. Operators
+   * can run {@code edge-memory cleanup --scope jobId:X} manually as
+   * the fallback.
+   *
+   * <p>Unset (default) → cleanup hook is a no-op. Existing
+   * deployments keep working unchanged; opt-in via this path.
+   */
+  memorySocketPath?: string;
+  /**
    * Maximum number of jobs that may run concurrently on the in-process
    * runJob path. Submissions beyond capacity wait in a FIFO queue;
    * submissions when queue + in-flight ≥ capacity * QUEUE_MULTIPLIER
@@ -334,6 +350,7 @@ export async function startHarnessServer(opts: HarnessServerOptions): Promise<Ha
     workspaceRoot: opts.workspaceRoot ?? process.cwd(),
     ...(opts.forwardSshAgent !== undefined ? { forwardSshAgent: opts.forwardSshAgent } : {}),
     ...(opts.sshAgentContainerPath ? { sshAgentContainerPath: opts.sshAgentContainerPath } : {}),
+    ...(opts.memorySocketPath ? { memorySocketPath: opts.memorySocketPath } : {}),
     broker: opts.broker,
     adapterFactory: opts.adapterFactory,
     resolver: opts.resolver,
@@ -421,6 +438,10 @@ interface ServerCtx {
    *  submissions can override via body.forwardSshAgent. */
   forwardSshAgent?: boolean | string;
   sshAgentContainerPath?: string;
+  /** Path to edge-memory-server's UDS socket. When set, terminal
+   *  job states fire a best-effort cleanup-unconfirmed call. Unset
+   *  → cleanup is a no-op (operator can run the CLI manually). */
+  memorySocketPath?: string;
   broker?: CredentialBroker;
   adapterFactory?: AdapterFactory;
   resolver?: BindingResolver;
@@ -971,7 +992,19 @@ async function handleSubmitJob(
           ...(ctx.sshAgentContainerPath
             ? { sshAgentContainerPath: ctx.sshAgentContainerPath }
             : {}),
-          onStatusChange: (_jid, agentId, status) => onJobTerminal(agentId, status),
+          onStatusChange: (jid, agentId, status) => {
+            onJobTerminal(agentId, status);
+            // Mirror the in-process F19 cleanup hook for the
+            // container path. Terminal job-status (job-level, not
+            // agent-level) → best-effort cleanup-unconfirmed.
+            if (
+              agentId === null &&
+              (status === 'completed' || status === 'failed' || status === 'cancelled') &&
+              ctx.memorySocketPath
+            ) {
+              void cleanupJobMemory(ctx.memorySocketPath, jid).catch(() => {});
+            }
+          },
         });
       });
       return;
@@ -1001,6 +1034,17 @@ async function handleSubmitJob(
             (status === 'completed' || status === 'failed' || status === 'cancelled')
           ) {
             dispatcherOnJobTerminal(ctx, jid);
+            // F19: best-effort cleanup of unconfirmed memory entries
+            // scoped to this job. The endpoint, primitives, and CLI are
+            // all already shipped; this is the missing auto-fire on
+            // job-end. Cleanup failures are swallowed — operators can
+            // always run `edge-memory cleanup --scope jobId:X` as the
+            // fallback.
+            if (ctx.memorySocketPath) {
+              void cleanupJobMemory(ctx.memorySocketPath, jid).catch(() => {
+                // already logged inside cleanupJobMemory
+              });
+            }
           }
         },
         onAwaitingApproval: (jid, request) => {
@@ -1090,6 +1134,12 @@ async function handleResumeJob(
       tokens.detach(jobId);
       ctx.pendingApprovals.delete(jobId);
       ctx.pendingSuspends.delete(jobId);
+      // F19: same cleanup hook as the initial-submission paths. A
+      // resumed job that ultimately completes from this path should
+      // also clean up its unconfirmed memory.
+      if (ctx.memorySocketPath) {
+        void cleanupJobMemory(ctx.memorySocketPath, jobId).catch(() => {});
+      }
     }
   };
   queueMicrotask(() => {
@@ -1876,4 +1926,64 @@ function safeJson(s: string): unknown {
   } catch {
     return s;
   }
+}
+
+/**
+ * Best-effort cleanup of a job's unconfirmed memory entries.
+ *
+ * Closes the F19 lifecycle loop: when a job ends, any memory entries
+ * the agents wrote with the default {@code feedback: 'unconfirmed'}
+ * label that never got tagged (positive/negative) via the consolidation
+ * pipeline are scope-deleted here so they don't accumulate forever.
+ *
+ * Why best-effort: the controlplane's job-completion path is the
+ * source of truth; a memory cleanup failure is a hygiene issue, not
+ * a correctness issue. If this fails (memory server down, UDS path
+ * stale, slow disk), the job still completes cleanly. Operators get
+ * the alternative `edge-memory cleanup --scope jobId:X` CLI as the
+ * manual fallback, and the next successful cleanup catches up.
+ *
+ * Errors are logged at warn level (not error) so they don't trigger
+ * paging — this is recovery-eligible noise, not a control-plane fault.
+ */
+async function cleanupJobMemory(socketPath: string, jobId: string): Promise<void> {
+  // Use node:http with socketPath because Bun's fetch() doesn't
+  // support UDS paths — same constraint the rest of the codebase
+  // works around when crossing UDS boundaries to edge-* servers.
+  const http = await import('node:http');
+  const body = JSON.stringify({ scope: { jobId } });
+
+  await new Promise<void>((resolve) => {
+    const req = http.request(
+      {
+        socketPath,
+        path: '/v1/memory/cleanup-unconfirmed',
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'content-length': Buffer.byteLength(body).toString(),
+        },
+      },
+      (res) => {
+        // Drain so the connection can be reused; we don't actually
+        // need the body content (deletion count goes to logs, not
+        // back through harness-server's bus).
+        res.on('data', () => {});
+        res.on('end', () => {
+          if (res.statusCode && res.statusCode >= 400) {
+            console.warn(
+              `harness-server: F19 memory cleanup for job=${jobId} returned status ${res.statusCode}`,
+            );
+          }
+          resolve();
+        });
+      },
+    );
+    req.on('error', (err) => {
+      console.warn(`harness-server: F19 memory cleanup for job=${jobId} failed: ${err.message}`);
+      resolve();
+    });
+    req.write(body);
+    req.end();
+  });
 }

@@ -294,7 +294,7 @@ describe('makeToolExecutor: http kind', () => {
       kind: 'http',
       method: 'GET',
       endpoint: 'https://example.test/secure',
-      auth: { scheme: 'bearer', credentialId: 'cred-1' },
+      auth: { scheme: 'bearer', credentialId: 'openai' },
     };
     let seenAuth: string | undefined;
     const fetchFn = vi.fn(async (_: string, init: RequestInit) => {
@@ -302,8 +302,16 @@ describe('makeToolExecutor: http kind', () => {
       seenAuth = headers.get('authorization') ?? undefined;
       return new Response('ok', { status: 200 });
     }) as unknown as typeof fetch;
+    // Real CredentialBroker shape: getCredential(provider) → Credential
+    // with .apiKey. The credentialId test value uses 'openai' since
+    // it's a known Provider literal — the v1 constraint documented
+    // on fetchCredential.
     const broker = {
-      getCredential: vi.fn(async (id: string) => `tok-${id}`),
+      getCredential: vi.fn(async (provider: string) => ({
+        provider,
+        apiKey: `tok-${provider}`,
+        source: 'host-file' as const,
+      })),
     } as unknown as ToolExecutorDeps['broker'];
     const ex = makeToolExecutor(toolStep('t', 'api'), {
       toolResolver: staticResolver({ api: def }),
@@ -311,7 +319,7 @@ describe('makeToolExecutor: http kind', () => {
       broker,
     });
     await ex(freshState());
-    expect(seenAuth).toBe('Bearer tok-cred-1');
+    expect(seenAuth).toBe('Bearer tok-openai');
   });
 
   it('returns Timeout when fetch outlasts timeoutMs', async () => {

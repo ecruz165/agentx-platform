@@ -20,7 +20,7 @@
  * same separation we use for agent bindings.
  */
 import { execFile } from 'node:child_process';
-import type { CredentialBroker } from '@ecruz165/agent-auth';
+import type { CredentialBroker, Provider } from '@ecruz165/agent-auth';
 import type {
   CliToolDef,
   Expression,
@@ -449,34 +449,40 @@ async function applyAuthHeaders(
 }
 
 /**
- * Adapt the agent-auth CredentialBroker shape to a single-string
- * lookup. The CredentialBroker's contract returns a credential
- * envelope (provider-shaped); for tool auth we want just the token
- * string, so a shim layer is appropriate. Until the broker grows a
- * dedicated tool-cred path, treat the stringified envelope as the
- * token.
+ * Resolve the API-key string for a tool's auth reference via the
+ * shared CredentialBroker. Calls the canonical
+ * {@code broker.getCredential(provider)} entry point and returns
+ * {@code Credential.apiKey}.
  *
- * This is intentionally narrow — when the broker adds a `getToolToken`
- * call we'll switch to it without touching dispatch logic.
+ * <p>v1 constraint: {@code ToolAuthRef.credentialId} must name a
+ * known {@link import('@ecruz165/agent-auth').Provider} value
+ * ({@code 'anthropic' | 'openai' | 'google' | 'github-copilot' |
+ * 'bedrock' | 'local-qwen'}). Catalog authors who need credentials
+ * for tools outside that list (Stripe, GitHub repo tokens, custom
+ * webhooks) can either:
+ *
+ * <ul>
+ *   <li>extend the agent-auth Provider union when the credential is
+ *       genuinely shared with agent dispatch (rare but valid), or
+ *   <li>wait for the future {@code getToolCredential(id: string)}
+ *       broker extension — same dispatch path, different lookup.
+ * </ul>
+ *
+ * <p>Today's strict-typing-via-cast surfaces unsupported providers
+ * as the broker's own "unknown provider" error rather than an
+ * opaque shim failure — clearer for the operator.
  */
 async function fetchCredential(
   broker: CredentialBroker,
   credentialId: string,
 ): Promise<string> {
-  // The broker may not directly expose getCredential — until that lands
-  // in @ecruz165/agent-auth, we reach through a method we know exists.
-  const b = broker as unknown as {
-    getCredential?: (id: string) => Promise<string | { token: string }>;
-  };
-  if (typeof b.getCredential !== 'function') {
-    throw new Error(
-      `CredentialBroker has no getCredential(...) method — needed for tool auth on credentialId="${credentialId}"`,
-    );
-  }
-  const out = await b.getCredential(credentialId);
-  if (typeof out === 'string') return out;
-  if (out && typeof out === 'object' && typeof out.token === 'string') return out.token;
-  throw new Error(`broker returned non-string credential for "${credentialId}"`);
+  // The catalog typing keeps credentialId open (string), but the
+  // real broker only knows Provider literals. The cast is the
+  // single boundary where the type contract is reconciled; if the
+  // catalog references a non-Provider id, the broker throws and
+  // the caller surfaces it as 'AuthError'.
+  const cred = await broker.getCredential(credentialId as Provider);
+  return cred.apiKey;
 }
 
 // ─── MCP dispatch ────────────────────────────────────────────────────────
