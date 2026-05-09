@@ -45,7 +45,14 @@ export {
   type TaskStep,
   type TaskStepPolicy,
   type TaskStepTags,
+  type CliToolDef,
+  type CompareOp,
+  type HttpToolDef,
+  type McpToolDef,
+  type ToolAuthRef,
   type ToolConfig,
+  type ToolDef,
+  type ToolResolver,
   type TransformConfig,
   type TriggerConfig,
   validateUnifiedCatalog,
@@ -89,4 +96,17 @@ export {
   runJob,
   steerJob,
 } from './orchestrator.ts';
+export { makeScriptExecutor } from './script-executor.ts';
+export {
+  compileNonAgentFlow,
+  type FlowResolver,
+  makeSubflowExecutor,
+  type SubflowCompileDeps,
+  validateSubflowGraph,
+} from './subflow-executor.ts';
+export {
+  makeToolExecutor,
+  type McpResult,
+  type ToolExecutorDeps,
+} from './tool-executor.ts';
 export { TokenAccumulator } from './token-accumulator.ts';

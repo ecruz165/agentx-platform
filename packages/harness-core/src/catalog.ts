@@ -4,22 +4,18 @@ import { join } from 'node:path';
 /**
  * The pipeline catalog declares which pipelines the harness knows about and,
  * for each, the steps that compose it. Per the authority memory, the catalog
- * is admin-owned: clients submit *intent* (a pipeline id + input), they do not
- * design pipelines.
+ * is admin-owned: clients submit *intent* (a pipeline id + input), they do
+ * not design pipelines.
  *
- * Local layout: `.harness/config/pipelines.json` at the workspace root. When
- * the central Spring Modulith Catalog service lands, this loader is replaced
- * by an HTTP/gRPC call behind the same `loadCatalog()` surface.
+ * Local layout: `.harness/config/pipelines.json` at the workspace root.
+ * Production sources the same shape from controlplane (Spring Modulith
+ * Catalog service) over HTTP — `loadCatalog()` is the local-fs path; the
+ * controlplane-fed path lives in harness-server's `load-catalog.ts`.
  *
- * TODO(you): the catalog shape is intentionally minimal — extend with the
- * fields your pipelines actually need. Likely additions:
- *   - per-agent `model` override (today the adapter picks its default)
- *   - per-agent `timeoutMs`, `maxRetries`, `temperature`
- *   - tool/skill bindings (which MCP servers each agent may call)
- *   - `dependsOn: string[]` for fan-in / fan-out within a pipeline
- *   - `inputSchema` / `outputSchema` for inter-agent message contracts
- * Add these as you encounter the need; keeping fields out until they have a
- * concrete consumer prevents catalog-as-config drift.
+ * Canonical Flow shape: see `.plans/flow-designer-spec-v1.0.md`. Runtime
+ * coverage of step kinds / tags / edges / expressions: see the
+ * "RUNTIME COVERAGE MATRIX" comment block at the top of
+ * `orchestrator.ts`.
  */
 export type AdapterId = 'claude-sdk' | 'opencode-cli';
 
@@ -188,17 +184,161 @@ export interface AgentConfig {
 }
 
 /** Deterministic tool/API call. References a tool by id (resolved against
- *  the tool catalog or skillzkit). */
+ *  the tool catalog or skillzkit). The `args` map is merged with the
+ *  ToolDef's own argument template at dispatch time; values may be
+ *  Expressions (jsonpath/literal) for state-driven argument synthesis,
+ *  same evaluator the conditional-edge router uses.
+ *
+ *  Example flow-side reference:
+ *      { id: "lint", kind: "tool", config: {
+ *          toolId: "core:tools:eslint",
+ *          args: { path: { kind: "jsonpath", path: "$.output" } } } } */
 export interface ToolConfig {
   toolId: string;
   args?: Record<string, unknown>;
 }
 
-/** Code execution. */
+// ─── ToolDef (resolver-side definition) ───────────────────────────────────
+//
+// `ToolConfig` (above) is the *flow-side reference* — what a step in the
+// catalog says it wants to invoke. `ToolDef` is the *resolver-side
+// definition* — what the harness actually calls. The link is `toolId`.
+//
+// Resolution flow:
+//   FlowDef → TaskStep(kind:'tool') → ToolConfig.toolId
+//                                        ↓
+//                         RunJobDeps.toolResolver(toolId)
+//                                        ↓
+//                                    ToolDef
+//                                        ↓
+//                         dispatch by kind (cli|http|mcp)
+//
+// ToolDefs are sourced from skillzkit (per memory
+// `project_skillzkit_is_skill_source_of_truth`); controlplane caches
+// them in its catalog table; harness-server pulls the cache and exposes
+// the lookup via `RunJobDeps.toolResolver`.
+
+/**
+ * Discriminated union of tool dispatch kinds. The runtime executor
+ * (`packages/harness-core/src/tool-executor.ts`) reads `kind` to pick
+ * the dispatch path. Each variant carries the minimum the executor
+ * needs — no JS-runtime config, no per-call sugar that belongs in the
+ * resolver.
+ */
+export type ToolDef = CliToolDef | HttpToolDef | McpToolDef;
+
+/** Local-CLI tool. Spawned via execFile (no shell, no string-
+ *  interpolated args). Stdout becomes `state.output` on success;
+ *  non-zero exit → error edge unless the code is in `allowExitCodes`. */
+export interface CliToolDef {
+  id: string;
+  kind: 'cli';
+  /** Absolute path or a binary on PATH. The executor does NOT search
+   *  alternate paths beyond the worker's PATH. */
+  cmd: string;
+  /** Argument template. Each entry is either a string literal (passed
+   *  through as-is) or a name reference of the form `{{argName}}`. The
+   *  named values come from the merge of ToolConfig.args + state via
+   *  Expression resolution. Missing names cause a config-time failure
+   *  rather than a silent empty arg. */
+  args?: readonly string[];
+  /** Working directory. Default: the worker's cwd. */
+  cwd?: string;
+  /** Environment overlay merged on top of the worker's environment. */
+  env?: Readonly<Record<string, string>>;
+  /** Hard timeout. Default 30s. SIGTERM on expiry, SIGKILL after 5s. */
+  timeoutMs?: number;
+  /** Exit codes treated as success (besides 0). Useful for tools where
+   *  non-zero indicates a non-error condition (e.g., `grep` exits 1
+   *  when no match). Default: `[0]`. */
+  allowExitCodes?: readonly number[];
+}
+
+/** REST/JSON HTTP tool. Args are URL-templated + body-templated; auth
+ *  comes from the existing CredentialBroker. Response body becomes
+ *  `state.output`; non-2xx status → error edge. */
+export interface HttpToolDef {
+  id: string;
+  kind: 'http';
+  method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
+  /** Endpoint URL. May contain `{{argName}}` placeholders that resolve
+   *  against the args map. */
+  endpoint: string;
+  /** Request body template. Top-level keys are passed verbatim except
+   *  where the value is `{ kind: 'jsonpath', path: '$....' }` — those
+   *  resolve against state. Ignored on GET/DELETE. */
+  bodyTemplate?: Record<string, unknown>;
+  /** Static headers merged into the request. Auth headers are added
+   *  separately via `auth`. */
+  headers?: Readonly<Record<string, string>>;
+  /** Optional auth reference. The runtime resolves this through the
+   *  CredentialBroker the same way agent bindings do — a single auth
+   *  surface for the whole platform. */
+  auth?: ToolAuthRef;
+  /** Hard timeout. Default 30s. */
+  timeoutMs?: number;
+}
+
+/** MCP (Model Context Protocol) tool. The runtime spawns the MCP
+ *  server (stdio transport) per call — connection pooling is v2 — and
+ *  invokes `toolName` with the resolved args. Result content becomes
+ *  `state.output`; MCP error → error edge. */
+export interface McpToolDef {
+  id: string;
+  kind: 'mcp';
+  /** Either a command-line for stdio MCP servers (`["npx", "-y",
+   *  "@modelcontextprotocol/server-filesystem", "/path"]`) or an HTTP
+   *  URL for SSE transport. The executor picks transport based on
+   *  whether the value looks like a URL. */
+  server: string | readonly string[];
+  /** Tool name to invoke on the MCP server. */
+  toolName: string;
+  /** Optional auth reference (used for HTTP-transport MCP servers
+   *  needing a bearer token). */
+  auth?: ToolAuthRef;
+  /** Hard timeout for the call. Default 60s (higher than CLI/HTTP
+   *  because MCP startup includes server initialization). */
+  timeoutMs?: number;
+}
+
+/** Reference to a credential the broker can fulfill. Mirrors the
+ *  shape used by agent bindings — same broker, same audit trail. */
+export interface ToolAuthRef {
+  /** Auth scheme. `bearer` injects `Authorization: Bearer <token>`;
+   *  `header` writes the token to a named header (`name`); `basic`
+   *  composes user:pass. */
+  scheme: 'bearer' | 'header' | 'basic';
+  /** Credential id the broker resolves at dispatch time. */
+  credentialId: string;
+  /** Header name when scheme === 'header'. */
+  name?: string;
+}
+
+/**
+ * Lookup function the runtime calls to resolve a `ToolConfig.toolId`
+ * to its `ToolDef`. Sync because the resolver is expected to be a
+ * cached map populated at job-submission time — async lookups would
+ * race against checkpointer state and complicate retry semantics.
+ *
+ * Returns undefined for unknown ids; the executor surfaces this as an
+ * error-edge-eligible failure (errorName: 'UnknownTool') rather than a
+ * graph-throw, so flows can route around missing tools.
+ */
+export type ToolResolver = (toolId: string) => ToolDef | undefined;
+
+/** Code execution. The script's source body is dropped to a temp file
+ *  and run via the language's interpreter; state.output is piped to
+ *  the script as stdin (UTF-8 string), and the script's stdout becomes
+ *  the new state.output. The full FlowState is also exposed as JSON
+ *  via the `HARNESS_STATE_JSON` environment variable. Non-zero exit
+ *  routes to the node's error edge. */
 export interface ScriptConfig {
   language: 'bash' | 'node' | 'python';
   source: string;
   env?: Record<string, string>;
+  /** Hard timeout for the script run. Default 30s. SIGTERM on expiry,
+   *  SIGKILL after a short grace period if the child ignores SIGTERM. */
+  timeoutMs?: number;
 }
 
 /** Pure data shaping. Evaluates an expression against current flow state. */
@@ -367,15 +507,43 @@ export interface RejectionPayload {
 
 // ─── Expression (predicates + iterable resolution) ───────────────────────
 
+/** Comparison operator for `compare` expressions.
+ *
+ *   ==, != — strict equality / inequality (===, !==).
+ *   <, <=, >, >= — numeric comparison; either side coerces via Number().
+ *                  NaN on either side ⇒ predicate is false.
+ *   in       — membership: rhs MUST resolve to an array; predicate is
+ *              true iff lhs (raw value) is found via strict equality.
+ *              For "string contains substring" use a `tool` or
+ *              `transform` step; this op is collection-only. */
+export type CompareOp = '==' | '!=' | '<' | '<=' | '>' | '>=' | 'in';
+
 /** Generic expression evaluated by the runtime. Tagged-union over evaluators
- *  so we can grow the language additively. */
+ *  so we can grow the language additively.
+ *
+ *  v1 evaluator covers everything except `js`. The boolean composition
+ *  primitives (`compare` / `all` / `any` / `not`) are the deliberate
+ *  alternative to a JS sandbox: most catalog logic only needs simple
+ *  field comparisons + AND/OR/NOT, and these primitives express that
+ *  without bringing a sandbox dependency on board. The `js` kind
+ *  remains in the type so authors can declare future intent, but the
+ *  evaluator throws — there's no in-process JS interpreter wired. */
 export type Expression =
   /** JSONPath against flow state, e.g. `{ kind: 'jsonpath', path: '$.input.repos' }`. */
   | { kind: 'jsonpath'; path: string }
-  /** Sandboxed JS, e.g. `{ kind: 'js', expression: 'ctx.review.score > 0.8' }`. */
+  /** Sandboxed JS, e.g. `{ kind: 'js', expression: 'ctx.review.score > 0.8' }`.
+   *  Evaluator throws — use compare / all / any / not instead. */
   | { kind: 'js'; expression: string }
   /** Constant value. */
-  | { kind: 'literal'; value: unknown };
+  | { kind: 'literal'; value: unknown }
+  /** Binary comparison: lhs op rhs. */
+  | { kind: 'compare'; lhs: Expression; op: CompareOp; rhs: Expression }
+  /** Logical AND over a list of expressions. Short-circuits. */
+  | { kind: 'all'; exprs: readonly Expression[] }
+  /** Logical OR over a list of expressions. Short-circuits. */
+  | { kind: 'any'; exprs: readonly Expression[] }
+  /** Logical NOT of a single expression. */
+  | { kind: 'not'; expr: Expression };
 
 // ─── FlowOutputContract (drives JobIntent emission semantics) ────────────
 
@@ -907,6 +1075,9 @@ function validateNodeConfig(kind: string, config: object, where: string): void {
       if (typeof c.source !== 'string') {
         throw new CatalogError(`${where}.source must be a string`);
       }
+      if (c.timeoutMs !== undefined && (typeof c.timeoutMs !== 'number' || c.timeoutMs <= 0)) {
+        throw new CatalogError(`${where}.timeoutMs must be a positive number when present`);
+      }
       break;
     case 'transform':
       validateExpression(c.expression, `${where}.expression`);
@@ -1100,6 +1271,8 @@ function validateJoinStrategy(value: unknown, where: string): void {
   );
 }
 
+const VALID_COMPARE_OPS = new Set<CompareOp>(['==', '!=', '<', '<=', '>', '>=', 'in']);
+
 function validateExpression(value: unknown, where: string): void {
   if (!value || typeof value !== 'object') {
     throw new CatalogError(`${where} must be an Expression object`);
@@ -1119,9 +1292,34 @@ function validateExpression(value: unknown, where: string): void {
     case 'literal':
       if (!('value' in e)) throw new CatalogError(`${where}.value is required`);
       break;
+    case 'compare':
+      if (typeof e.op !== 'string' || !VALID_COMPARE_OPS.has(e.op as CompareOp)) {
+        throw new CatalogError(
+          `${where}.op must be one of: ${[...VALID_COMPARE_OPS].join(', ')} (got ${JSON.stringify(e.op)})`,
+        );
+      }
+      validateExpression(e.lhs, `${where}.lhs`);
+      validateExpression(e.rhs, `${where}.rhs`);
+      break;
+    case 'all':
+    case 'any':
+      if (!Array.isArray(e.exprs)) {
+        throw new CatalogError(`${where}.exprs must be an array`);
+      }
+      // Empty arrays are allowed: `all([])` is the identity element
+      // for AND (returns true); `any([])` is the identity element for
+      // OR (returns false). Useful as a placeholder during catalog
+      // development.
+      for (const [i, sub] of (e.exprs as unknown[]).entries()) {
+        validateExpression(sub, `${where}.exprs[${i}]`);
+      }
+      break;
+    case 'not':
+      validateExpression(e.expr, `${where}.expr`);
+      break;
     default:
       throw new CatalogError(
-        `${where}.kind must be one of: jsonpath, js, literal (got ${JSON.stringify(e.kind)})`,
+        `${where}.kind must be one of: jsonpath, js, literal, compare, all, any, not (got ${JSON.stringify(e.kind)})`,
       );
   }
 }

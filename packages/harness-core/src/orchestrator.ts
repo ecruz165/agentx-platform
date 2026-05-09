@@ -9,7 +9,7 @@ import {
 } from '@ecruz165/agent-adapter';
 import type { BindingResolver, CredentialBroker, ResolvedBinding } from '@ecruz165/agent-auth';
 import { Command } from '@langchain/langgraph';
-import type { AdapterId } from './catalog.ts';
+import type { AdapterId, ToolResolver } from './catalog.ts';
 import { discoverChangedFiles } from './changed-files.ts';
 import {
   type ApprovalRequest,
@@ -21,6 +21,15 @@ import {
 } from './flow-graph.ts';
 import type { JobRecord, RegisteredAgent } from './job.ts';
 import { bridgeAdapter, type JobBus } from './job-bus.ts';
+import { makeToolExecutor, type McpResult } from './tool-executor.ts';
+import { makeScriptExecutor } from './script-executor.ts';
+import type { FlowDef, McpToolDef } from './catalog.ts';
+import {
+  compileNonAgentFlow,
+  type FlowResolver,
+  makeSubflowExecutor,
+  validateSubflowGraph,
+} from './subflow-executor.ts';
 
 /** Compiled-graph handle cached per-job for resume. Structural so this
  *  module doesn't pin a specific LangGraph type. Exported so callers
@@ -160,6 +169,47 @@ export interface RunJobDeps {
    * with any value (suspend has no meaningful resume payload).
    */
   onSuspend?: (jobId: string, request: SuspendRequest) => void;
+  /**
+   * Resolver for `kind: 'tool'` step references. Maps a TaskStep's
+   * `ToolConfig.toolId` to a `ToolDef` (cli/http/mcp). Returns
+   * undefined for unknown ids — the runtime surfaces that as an
+   * UnknownTool error so flows can route around missing tools.
+   *
+   * Optional. Flows that contain no tool nodes work without it; a
+   * tool node hit without a resolver fails with `errorName:
+   * 'UnknownTool'` and the flow's error edge can catch it.
+   */
+  toolResolver?: ToolResolver;
+  /**
+   * MCP dispatch hook. The runtime calls this when a `kind: 'tool'`
+   * step resolves to a `McpToolDef`. harness-core deliberately does
+   * not pull in `@modelcontextprotocol/sdk` — harness-server (which
+   * already needs it for agent-side MCP) provides the implementation
+   * here. Without it, MCP tools fail with `UnconfiguredMcp`.
+   */
+  mcpInvokeFn?: (def: McpToolDef, args: Record<string, unknown>) => Promise<McpResult>;
+  /**
+   * Test seam: substitute global fetch (e.g., a mock-server). The
+   * tool executor reads from this; agent adapters keep their own
+   * fetch wiring untouched.
+   */
+  fetchFn?: typeof fetch;
+  /**
+   * Resolver for `kind: 'subflow'` step references. Maps a TaskStep's
+   * `SubflowConfig.flowId` to the inner FlowDef. Returns undefined
+   * for unknown ids; validation surfaces missing flowIds at compile
+   * time as a CatalogError (catalog mistake, not user input).
+   *
+   * Optional. Flows containing no subflow nodes work without it; a
+   * subflow node hit without a resolver fails compile rather than
+   * runtime.
+   *
+   * v1 limitation: subflows can NOT contain agent nodes or
+   * Approval/Suspend tags. The validator throws CatalogError at
+   * compile time if any inner flow violates this. Catalog authors
+   * needing HITL gates put them in the parent flow.
+   */
+  flowResolver?: FlowResolver;
 }
 
 /**
@@ -184,13 +234,71 @@ export interface RunJobDeps {
  * router throws, so by the time the throw reaches runJob the side-effects
  * are already applied.
  *
- * NOT yet in scope (follow-up commits):
- *   - Tag semantics (Approval interrupt + resume; Suspend checkpoint;
- *     Loop iteration). Tag wrappers in flow-graph.ts are stubs today.
- *   - tool/script/transform/gate/subflow step kinds (executors throw
- *     'not yet implemented').
- *   - Real expression-language sandbox for `js` predicates (jsonpath +
- *     literal work today).
+ * ─────────────────────────────────────────────────────────────────────
+ *  RUNTIME COVERAGE MATRIX (canonical — keep current with code)
+ * ─────────────────────────────────────────────────────────────────────
+ *
+ * Step kinds:
+ *   ✅ agent    — adapter dispatch via accept-list + per-agent fallback
+ *                 (see makeAgentExecutor below)
+ *   ✅ trigger  — entry node; default-success exec
+ *   ✅ gate     — assertions evaluator → success | reject (flow-graph.ts)
+ *   ✅ transform— pure expression → state.output writer (flow-graph.ts)
+ *   ✅ tool     — cli + http + mcp dispatch (tool-executor.ts)
+ *   ✅ subflow  — composable inner flows (subflow-executor.ts), v1-light:
+ *                 inner CANNOT contain agent / approval / suspend
+ *   ✅ script   — bash | node | python via execFile, stdin↔stdout
+ *                 (script-executor.ts)
+ *
+ * Tags:
+ *   ✅ approval — synthetic interrupt node + Command(resume) on parent
+ *                 flow (flow-graph.ts; banned in subflows in v1)
+ *   ✅ suspend  — timer | event triggers; same propagation pattern as
+ *                 approval (banned in subflows in v1)
+ *   ✅ loop     — sequential | parallel modes, collection | directory
+ *                 sources (flow-graph.ts)
+ *
+ * Edges:
+ *   ✅ sequence    — default forward
+ *   ✅ conditional — Expression-driven; first match wins
+ *   ✅ fallback    — catchall when no other edge fires
+ *   ✅ error       — catches kind:'error' exits; unhandled → router throw
+ *   ✅ reject      — cycles back with attempt counter; onMaxAttempts:
+ *                    'fail' (default, throws) or 'escalate'
+ *
+ * Expressions (used by conditional edges, gates, transforms, loops, tool
+ * args, subflow input):
+ *   ✅ literal       — value passthrough
+ *   ✅ jsonpath      — $.path.into.state (no array indexing / wildcards)
+ *   ✅ compare       — ==/!=/</<=/>/>=/in (strict equality; numeric
+ *                      coercion via Number(); NaN ⇒ false; in is
+ *                      collection-membership only)
+ *   ✅ all / any     — short-circuit AND / OR; vacuous defaults
+ *   ✅ not           — boolean inversion
+ *   ❌ js            — throws; deliberately deferred (compose with
+ *                      compare/all/any/not instead)
+ *
+ * Cross-cutting capabilities:
+ *   ✅ Cooperative cancellation (cancelRequested checked at agent-tick)
+ *   ✅ Operator steering (state.steering channel + system-prompt prefix)
+ *   ✅ Per-job graph cache (deps.graphs Map keyed by jobId)
+ *   ✅ Checkpointer (MemorySaver default; PG/SQLite swappable)
+ *   ✅ Changed-files state channel (merged from agent-tick + surfaced
+ *      in Approval/Suspend payloads)
+ *
+ * ─────────────────────────────────────────────────────────────────────
+ *  EXPLICITLY DEFERRED
+ * ─────────────────────────────────────────────────────────────────────
+ *   - Agents + Approval/Suspend tags inside subflows (banned by
+ *     compile-time validator; v2 unlocks via interrupt-passthrough +
+ *     recursive walkAgents).
+ *   - Sandboxed JS expressions (compare / all / any / not covers
+ *     realistic v1 catalog needs without a vm dependency).
+ *   - Recursive directory walk in Loop (catalog authors compose with
+ *     a `script` step that emits a flat path list, then loop over
+ *     `collection`).
+ *   - Sibling cancellation on parallel-loop halt (NodeExecutor has no
+ *     AbortSignal yet).
  */
 export async function runJob(jobId: string, deps: RunJobDeps): Promise<void> {
   const job = deps.jobs.get(jobId);
@@ -204,29 +312,102 @@ export async function runJob(jobId: string, deps: RunJobDeps): Promise<void> {
   // flow from the registered agents list (legacy JobRecord shape).
   const flow = job.flow ?? linearFlowFromAgents(`__legacy_${jobId}`, job.agents);
 
-  // Build per-node executors. Only kind:'agent' nodes run real work in
-  // this slice; other kinds use the compiler's defaultExecutor (success
-  // no-op) — except tool/script/transform/gate/subflow which intentionally
-  // throw via the explicit executor below so misuse is loud, not silent.
+  // Pre-validate + pre-compile inner subflow targets. Catalog
+  // mistakes (missing flowId, cycles, banned-kind nodes) surface
+  // here as CatalogError, BEFORE any work runs — same fail-fast
+  // discipline the rest of catalog validation follows.
+  //
+  // Throws propagate up: runJob's try/catch around graph.invoke
+  // doesn't cover compile errors (they're not runtime failures —
+  // they're config bugs). The job ends up status='failed' via the
+  // outer caller's error handling.
+  const innerByNodeId =
+    deps.flowResolver && flow.nodes.some((n) => n.kind === 'subflow')
+      ? validateSubflowGraph(flow, deps.flowResolver)
+      : new Map<string, FlowDef>();
+
+  const subflowGraphs = new Map<string, CompiledFlowGraph>();
+  for (const [parentNodeId, innerFlow] of innerByNodeId) {
+    subflowGraphs.set(
+      parentNodeId,
+      compileNonAgentFlow(innerFlow, {
+        flowResolver: deps.flowResolver,
+        toolResolver: deps.toolResolver,
+        broker: deps.broker,
+        fetchFn: deps.fetchFn,
+        mcpInvokeFn: deps.mcpInvokeFn,
+      }),
+    );
+  }
+
+  // Build per-node executors. agent / tool / subflow nodes are
+  // handled here; gate + transform have built-in executors in
+  // flow-graph.ts; trigger uses defaultExecutor (success) since
+  // initial state already carries job.input as `output`. script
+  // remains throw-loud — slice 3 will replace it.
   const executors = new Map<string, NodeExecutor>();
   for (const node of flow.nodes) {
     if (node.kind === 'agent') {
       executors.set(node.id, makeAgentExecutor(node.id, deps, factory, job, jobId));
-    } else if (node.kind === 'tool' || node.kind === 'script' || node.kind === 'subflow') {
-      // Throw loudly — these step kinds are typed in the catalog but the
-      // executor for them is a follow-up. Better to fail fast than to
-      // silently no-op and let the graph terminate with phantom success.
-      // gate + transform are intentionally NOT in this list: flow-graph's
-      // builtinExecutor handles them natively (assertion evaluator + pure
-      // expression-to-output writer).
-      const kind = node.kind;
-      const id = node.id;
-      executors.set(id, async () => {
-        throw new Error(`step kind "${kind}" (node "${id}") not yet implemented`);
-      });
+    } else if (node.kind === 'tool') {
+      // Resolver is required when any tool node is in the flow. Fail
+      // fast at compile time rather than at first-tool-tick — catalog
+      // mistakes shouldn't leak into runtime errors when the graph
+      // structure already tells us this won't work.
+      if (!deps.toolResolver) {
+        const id = node.id;
+        executors.set(id, async () => ({
+          lastExit: {
+            nodeId: id,
+            kind: 'error',
+            errorName: 'UnconfiguredToolResolver',
+            errorMessage: `tool node "${id}" cannot dispatch — RunJobDeps.toolResolver is not set`,
+          },
+        }));
+      } else {
+        executors.set(
+          node.id,
+          makeToolExecutor(node, {
+            toolResolver: deps.toolResolver,
+            broker: deps.broker,
+            fetchFn: deps.fetchFn,
+            mcpInvokeFn: deps.mcpInvokeFn,
+          }),
+        );
+      }
+    } else if (node.kind === 'subflow') {
+      if (!deps.flowResolver) {
+        const id = node.id;
+        executors.set(id, async () => ({
+          lastExit: {
+            nodeId: id,
+            kind: 'error',
+            errorName: 'UnconfiguredFlowResolver',
+            errorMessage: `subflow node "${id}" cannot dispatch — RunJobDeps.flowResolver is not set`,
+          },
+        }));
+        continue;
+      }
+      const innerGraph = subflowGraphs.get(node.id);
+      if (!innerGraph) {
+        // Defensive — validateSubflowGraph above must have produced
+        // an entry for every subflow node it walked. If not, fail
+        // loud rather than silently no-op the step.
+        const id = node.id;
+        executors.set(id, async () => ({
+          lastExit: {
+            nodeId: id,
+            kind: 'error',
+            errorName: 'SubflowMissing',
+            errorMessage: `subflow "${id}" was not pre-compiled — programming error`,
+          },
+        }));
+        continue;
+      }
+      executors.set(node.id, makeSubflowExecutor(node, innerGraph));
+    } else if (node.kind === 'script') {
+      executors.set(node.id, makeScriptExecutor(node));
     }
-    // trigger nodes use defaultExecutor (success) — initial state already
-    // carries job.input as `output`.
   }
 
   const graph = compileFlow({ flow, executors }) as CompiledFlowGraph;

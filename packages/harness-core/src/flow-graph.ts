@@ -1,33 +1,43 @@
 /**
  * Phase 4 runtime — compile a FlowDef into a runnable LangGraph StateGraph.
  *
- * This module is the bridge between the static FlowDef catalog (nodes +
- * edges + tags) and an executable graph. It owns:
+ * Bridge between the static FlowDef catalog (nodes + edges + tags) and
+ * an executable graph. Public surface:
  *
- *   - FlowState — the StateGraph state schema (jobId, output, messages,
- *     attempts, lastExit, rejectionPayload).
- *   - compileFlow(flow, executors) — turn a FlowDef into a compiled graph,
- *     wiring per-edge routing logic and per-tag node wrappers.
- *   - buildRouter — converts a node's outgoing edges into a single
- *     ConditionalEdgeRouter callable that LangGraph attaches via
- *     addConditionalEdges.
- *   - evalExpression — predicate evaluator for conditional edges. Handles
- *     literal + jsonpath today; `js` kind throws (no sandbox wired yet).
- *   - linearFlowFromAgents — synthesize a trigger→agents…→END FlowDef from
- *     a flat agent list. Lets legacy callers (every existing JobRecord
- *     submission today) drive the new graph executor without changing
- *     their fixture shape.
+ *   - FlowState           — StateGraph schema (jobId, output, messages,
+ *                           attempts, lastExit, rejectionPayload,
+ *                           steering, cancelRequested, changedFiles).
+ *   - compileFlow         — FlowDef + per-node executor map → compiled
+ *                           StateGraph with checkpointer attached.
+ *   - buildRouter         — outgoing edges → ConditionalEdgeRouter
+ *                           (precedence: reject → error → conditional →
+ *                           sequence → fallback → END).
+ *   - evalExpression      — predicate evaluator. Supports jsonpath +
+ *                           literal + compare + all + any + not. `js`
+ *                           throws.
+ *   - makeGateExecutor    — built-in for kind:'gate' nodes.
+ *   - makeTransformExecutor — built-in for kind:'transform' nodes.
+ *   - linearFlowFromAgents — synthesize trigger→agents…→END from a
+ *                           flat agent list (legacy compat).
+ *
+ * Loop tag wrapper (loopWrapper, internal): supports sequential +
+ * parallel modes, collection + directory sources. Approval and Suspend
+ * tags are handled via topology rewrite (synthetic interrupt nodes).
  *
  * Concerns deliberately NOT here:
- *   - Adapter dispatch / auth / bus events. The caller (orchestrator.ts)
- *     builds the per-node executor map and passes it in. This file knows
- *     nothing about RunJobDeps.
- *   - JobRecord mutation. Same reason — the wrapping runJob owns side-
- *     effects.
- *   - Per-step-kind logic. The injected executor map encodes which TaskStep
- *     ids run as what; this file just routes.
+ *   - Adapter dispatch / auth / bus events — orchestrator.ts owns these.
+ *   - JobRecord mutation — same.
+ *   - Per-step-kind dispatch for tool / script / subflow — those live
+ *     in tool-executor.ts / script-executor.ts / subflow-executor.ts;
+ *     orchestrator.ts wires them into the executor map this file
+ *     receives.
+ *
+ * Canonical runtime coverage: see RUNTIME COVERAGE MATRIX in
+ * orchestrator.ts.
  */
 
+import { readdir } from 'node:fs/promises';
+import { join as pathJoin } from 'node:path';
 import {
   Annotation,
   type BaseCheckpointSaver,
@@ -394,15 +404,25 @@ export function buildRouter(nodeId: string, out: readonly Edge[]): (state: FlowS
 /**
  * Predicate evaluator for conditional edge expressions.
  *
- *   - literal: returns the value coerced to boolean (truthy check).
- *   - jsonpath: evaluates `$.path.into.state` against current state;
- *     truthy result counts as match. Minimal supported path syntax —
- *     `$.field` and `$.field.subfield`. No array indexing, filters, or
- *     wildcards yet (add as the catalog calls for them).
- *   - js: NOT YET SUPPORTED. Throws. Catalog authors should express
- *     predicates as jsonpath against state, or use literal for boolean
- *     gates. When a real sandbox lands (vm2 / isolated-vm) we'll wire
- *     this to evaluate `expr.expression` in a sandboxed context.
+ *   - literal: value coerced to boolean (truthy check).
+ *   - jsonpath: resolves `$.path.into.state`; truthy result counts as
+ *     match. Minimal path syntax — `$.field` and `$.field.subfield`.
+ *     No array indexing / filters / wildcards yet (add when the
+ *     catalog calls for them).
+ *   - compare: evaluates lhs and rhs to RAW values (via
+ *     resolveExpressionValue) and applies op. ==/!= are strict
+ *     (===/!==). Numeric ops (< <= > >=) coerce both sides via
+ *     Number(); NaN on either side ⇒ false. `in` requires rhs to
+ *     resolve to an array; predicate is true iff lhs ∈ rhs by
+ *     strict equality.
+ *   - all / any: short-circuit AND / OR over the expression list.
+ *     Empty all([]) is true (identity for AND); empty any([]) is
+ *     false (identity for OR).
+ *   - not: inverts the inner predicate.
+ *   - js: NOT supported. Throws with guidance to use compare /
+ *     all / any / not instead. Catalog authors who hit a real wall
+ *     should propose extending the language additively rather than
+ *     reaching for a JS sandbox.
  */
 export function evalExpression(expr: Expression, state: FlowStateT): boolean {
   switch (expr.kind) {
@@ -410,8 +430,71 @@ export function evalExpression(expr: Expression, state: FlowStateT): boolean {
       return Boolean(expr.value);
     case 'jsonpath':
       return Boolean(resolveJsonPath(expr.path, state));
+    case 'compare':
+      return evalCompare(expr.lhs, expr.op, expr.rhs, state);
+    case 'all':
+      // Short-circuit AND. Empty list ⇒ true (vacuous truth: AND of
+      // no clauses holds).
+      for (const sub of expr.exprs) {
+        if (!evalExpression(sub, state)) return false;
+      }
+      return true;
+    case 'any':
+      // Short-circuit OR. Empty list ⇒ false (no clause is satisfied).
+      for (const sub of expr.exprs) {
+        if (evalExpression(sub, state)) return true;
+      }
+      return false;
+    case 'not':
+      return !evalExpression(expr.expr, state);
     case 'js':
-      throw new Error('"js" expression kind is not yet supported — use jsonpath or literal');
+      throw new Error(
+        '"js" expression kind is not yet supported — use compare / all / any / not / jsonpath / literal',
+      );
+  }
+}
+
+/**
+ * Apply a compare op to two evaluated values. Pulled out so both
+ * evalExpression and resolveExpressionValue can share the logic
+ * without re-evaluating the subexpressions.
+ */
+function evalCompare(
+  lhs: Expression,
+  op: import('./catalog.ts').CompareOp,
+  rhs: Expression,
+  state: FlowStateT,
+): boolean {
+  const lhsValue = resolveExpressionValue(lhs, state);
+  const rhsValue = resolveExpressionValue(rhs, state);
+  switch (op) {
+    case '==':
+      return lhsValue === rhsValue;
+    case '!=':
+      return lhsValue !== rhsValue;
+    case '<':
+    case '<=':
+    case '>':
+    case '>=': {
+      const a = Number(lhsValue);
+      const b = Number(rhsValue);
+      // NaN on either side ⇒ comparison is false. Avoids the
+      // surprising "NaN < 5" === false but "NaN >= 5" === false too;
+      // catalog authors who really want number-or-bust should pre-
+      // gate with a `compare lhs == null` check.
+      if (Number.isNaN(a) || Number.isNaN(b)) return false;
+      if (op === '<') return a < b;
+      if (op === '<=') return a <= b;
+      if (op === '>') return a > b;
+      return a >= b; // '>='
+    }
+    case 'in':
+      // rhs MUST resolve to an array. Anything else (string,
+      // object, primitive) returns false. This keeps the op
+      // specifically about collection membership; catalog authors
+      // who want substring containment should compose with a
+      // tool/transform step.
+      return Array.isArray(rhsValue) && rhsValue.includes(lhsValue);
   }
 }
 
@@ -782,69 +865,177 @@ function makeSuspendExecutor(node: SyntheticSuspendNode): NodeExecutor {
  * aggregates outputs. Halts iteration on the first error or reject from
  * the inner.
  *
- * v1 supports `mode: 'sequential'` only — parallel mode requires a
- * cap-aware async pool and is deferred. `source: 'directory'` requires
- * filesystem traversal and is also deferred (catalog authors hit a
- * runtime error if they try it).
+ * Sources:
+ *   - 'collection': tag.path resolves to an array; each element becomes
+ *      the inner's `state.output` (stringified for non-strings).
+ *   - 'directory':  tag.path resolves to a directory string; readdir-ed
+ *      entries become absolute-path items, sorted alphabetically. No
+ *      recursive walk in v1 — catalog authors who need a tree should
+ *      compose with a `script` step that runs `find` and pipes the
+ *      paths back as state.output, then loop over `collection` against
+ *      that.
  *
- * Iterables resolve via the same Expression types used for conditional
- * edges, but here we want the RAW value (an array), not a boolean —
- * see resolveExpressionValue.
+ * Modes:
+ *   - 'sequential': one iteration at a time. Halt on first failure.
+ *   - 'parallel':   chunked async pool with concurrency = tag.concurrency
+ *      ?? 4. Items run in chunks; after each chunk completes, the loop
+ *      checks for a failure delta and short-circuits to the first one.
+ *      Items already running in the failing chunk are awaited (Promise.
+ *      all resolves them; their results are discarded). Subsequent
+ *      chunks are skipped. Trade-off: simpler than a per-slot pool, at
+ *      the cost of one slow item potentially holding up the pool.
+ *
+ * The result aggregates iteration outputs joined by `\n---\n`. Per-
+ * iteration deltas to `attempts` / `changedFiles` are NOT merged across
+ * iterations in v1 — only the LAST iteration's delta survives. Catalog
+ * authors who need cross-iteration accumulation should rely on the
+ * channel reducers (changedFiles uses one) or use a `transform` step
+ * after the loop to project state.
  */
 function loopWrapper(nodeId: string, tag: LoopTag, inner: NodeExecutor): NodeExecutor {
   return async (state) => {
-    if (tag.source === 'directory') {
-      throw new Error(`Loop source: 'directory' is not yet supported (node "${nodeId}")`);
+    const itemsOrError = await resolveLoopItems(tag, state, nodeId);
+    if (!Array.isArray(itemsOrError)) {
+      return { lastExit: itemsOrError };
     }
-    if (tag.mode === 'parallel') {
-      throw new Error(
-        `Loop mode: 'parallel' is not yet supported (node "${nodeId}") — use 'sequential'`,
-      );
-    }
+    const items = itemsOrError;
+    const concurrency = Math.max(1, tag.concurrency ?? 4);
 
+    if (tag.mode === 'parallel') {
+      return runLoopParallel(items, inner, state, nodeId, concurrency);
+    }
+    return runLoopSequential(items, inner, state, nodeId);
+  };
+}
+
+/**
+ * Resolve the iteration source. Returns either the items array or a
+ * NodeExit error so the wrapper can short-circuit. The fs.readdir
+ * failure path produces a distinct errorName ('LoopDirectoryError') so
+ * catalog authors can wire a specific error edge for missing directories.
+ */
+async function resolveLoopItems(
+  tag: LoopTag,
+  state: FlowStateT,
+  nodeId: string,
+): Promise<unknown[] | NodeExit> {
+  if (tag.source === 'collection') {
     const raw = resolveExpressionValue(tag.path, state);
     if (!Array.isArray(raw)) {
       return {
-        lastExit: {
-          nodeId,
-          kind: 'error',
-          errorName: 'LoopPathError',
-          errorMessage: `Loop path did not resolve to an array (got ${typeof raw})`,
-        },
+        nodeId,
+        kind: 'error',
+        errorName: 'LoopPathError',
+        errorMessage: `Loop path did not resolve to an array (got ${typeof raw})`,
       };
     }
+    return raw;
+  }
+  // source: 'directory'
+  const dirPath = resolveExpressionValue(tag.path, state);
+  if (typeof dirPath !== 'string' || dirPath.length === 0) {
+    return {
+      nodeId,
+      kind: 'error',
+      errorName: 'LoopPathError',
+      errorMessage: `Loop directory path did not resolve to a non-empty string (got ${typeof dirPath})`,
+    };
+  }
+  try {
+    const entries = await readdir(dirPath, { withFileTypes: true });
+    // Sorted alphabetical for predictability across runs / OSes —
+    // readdir order is filesystem-defined. Emit absolute paths so
+    // inner steps can stat / read directly without re-resolving.
+    return entries.map((e) => pathJoin(dirPath, e.name)).sort();
+  } catch (err) {
+    return {
+      nodeId,
+      kind: 'error',
+      errorName: 'LoopDirectoryError',
+      errorMessage: `failed to read directory "${dirPath}": ${(err as Error).message}`,
+    };
+  }
+}
 
-    const outputs: string[] = [];
-    let lastDelta: Partial<FlowStateT> = {};
+async function runLoopSequential(
+  items: readonly unknown[],
+  inner: NodeExecutor,
+  state: FlowStateT,
+  nodeId: string,
+): Promise<Partial<FlowStateT>> {
+  const outputs: string[] = [];
+  let lastDelta: Partial<FlowStateT> = {};
 
-    for (const item of raw) {
-      const itemInput = typeof item === 'string' ? item : JSON.stringify(item);
-      const itemState: FlowStateT = { ...state, output: itemInput };
-      const delta = await inner(itemState);
+  for (const item of items) {
+    const delta = await inner(buildItemState(state, item));
+    if (delta.lastExit?.kind === 'error' || delta.lastExit?.kind === 'reject') {
+      return delta;
+    }
+    if (typeof delta.output === 'string') outputs.push(delta.output);
+    lastDelta = delta;
+  }
 
+  return {
+    ...lastDelta,
+    output: outputs.join('\n---\n'),
+    lastExit: { nodeId, kind: 'success' },
+  };
+}
+
+async function runLoopParallel(
+  items: readonly unknown[],
+  inner: NodeExecutor,
+  state: FlowStateT,
+  nodeId: string,
+  concurrency: number,
+): Promise<Partial<FlowStateT>> {
+  const outputs: string[] = [];
+  let lastDelta: Partial<FlowStateT> = {};
+
+  // Process items in chunks of `concurrency`. Each chunk runs in
+  // parallel via Promise.all; we check for failures after the chunk
+  // completes so all in-flight iterations get to finish (sibling
+  // cancellation isn't supported — the inner executor's contract
+  // doesn't expose AbortSignal yet). The first failure in arrival
+  // order halts subsequent chunks.
+  for (let i = 0; i < items.length; i += concurrency) {
+    const chunk = items.slice(i, i + concurrency);
+    const deltas = await Promise.all(
+      chunk.map((item) => inner(buildItemState(state, item))),
+    );
+    for (const delta of deltas) {
       if (delta.lastExit?.kind === 'error' || delta.lastExit?.kind === 'reject') {
-        // Halt on first failure — preserves the per-item error so the
-        // edge router can dispatch.
         return delta;
       }
       if (typeof delta.output === 'string') outputs.push(delta.output);
       lastDelta = delta;
     }
+  }
 
-    return {
-      ...lastDelta,
-      output: outputs.join('\n---\n'),
-      lastExit: { nodeId, kind: 'success' },
-    };
+  return {
+    ...lastDelta,
+    output: outputs.join('\n---\n'),
+    lastExit: { nodeId, kind: 'success' },
   };
 }
 
+function buildItemState(state: FlowStateT, item: unknown): FlowStateT {
+  const itemInput = typeof item === 'string' ? item : JSON.stringify(item);
+  return { ...state, output: itemInput };
+}
+
 /**
- * Resolve an Expression to its raw value (used for Loop iteration). Like
- * evalExpression but returns the value rather than coercing to boolean.
+ * Resolve an Expression to its raw value (used for Loop iteration and
+ * inside `compare` for lhs/rhs). Like evalExpression but returns the
+ * raw value, not a boolean coercion. The boolean composition kinds
+ * (compare / all / any / not) collapse to their boolean result here
+ * — catalog authors using them as raw values get a `true` / `false`,
+ * which matches the conditional-edge semantic and avoids surprising
+ * polymorphism.
  *
  *   - literal → expr.value
  *   - jsonpath → resolved value or undefined
+ *   - compare / all / any / not → the boolean result of evalExpression
  *   - js → throws (no sandbox; same as evalExpression)
  */
 function resolveExpressionValue(expr: Expression, state: FlowStateT): unknown {
@@ -853,6 +1044,11 @@ function resolveExpressionValue(expr: Expression, state: FlowStateT): unknown {
       return expr.value;
     case 'jsonpath':
       return resolveJsonPath(expr.path, state);
+    case 'compare':
+    case 'all':
+    case 'any':
+    case 'not':
+      return evalExpression(expr, state);
     case 'js':
       throw new Error('"js" expression kind is not yet supported');
   }

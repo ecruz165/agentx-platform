@@ -13,7 +13,15 @@
 
 import { Command } from '@langchain/langgraph';
 import { describe, expect, it } from 'vitest';
-import type { ApprovalTag, Edge, FlowDef, LoopTag, SuspendTag, TaskStep } from './catalog.ts';
+import type {
+  ApprovalTag,
+  Edge,
+  Expression,
+  FlowDef,
+  LoopTag,
+  SuspendTag,
+  TaskStep,
+} from './catalog.ts';
 import {
   type ApprovalRequest,
   buildRouter,
@@ -567,6 +575,125 @@ describe('evalExpression', () => {
       /not yet supported/,
     );
   });
+
+  // ── compare ───────────────────────────────────────────────────────────
+
+  describe('kind: compare', () => {
+    it('== / != with strict equality', () => {
+      const lit = (value: unknown): Expression => ({ kind: 'literal', value });
+      expect(
+        evalExpression({ kind: 'compare', lhs: lit(2), op: '==', rhs: lit(2) }, s),
+      ).toBe(true);
+      // Strict — string and number are not equal even if loose-equal would be.
+      expect(
+        evalExpression({ kind: 'compare', lhs: lit(2), op: '==', rhs: lit('2') }, s),
+      ).toBe(false);
+      expect(
+        evalExpression({ kind: 'compare', lhs: lit('a'), op: '!=', rhs: lit('b') }, s),
+      ).toBe(true);
+    });
+
+    it('numeric ops coerce both sides via Number()', () => {
+      const lit = (value: unknown): Expression => ({ kind: 'literal', value });
+      expect(
+        evalExpression({ kind: 'compare', lhs: lit('5'), op: '<', rhs: lit(10) }, s),
+      ).toBe(true);
+      expect(
+        evalExpression({ kind: 'compare', lhs: lit(10), op: '>=', rhs: lit('10') }, s),
+      ).toBe(true);
+    });
+
+    it('numeric ops return false when either side is NaN', () => {
+      const lit = (value: unknown): Expression => ({ kind: 'literal', value });
+      expect(
+        evalExpression({ kind: 'compare', lhs: lit('not-a-num'), op: '<', rhs: lit(5) }, s),
+      ).toBe(false);
+      expect(
+        evalExpression({ kind: 'compare', lhs: lit(5), op: '>', rhs: lit('xyz') }, s),
+      ).toBe(false);
+    });
+
+    it('in op: true iff lhs ∈ rhs (array)', () => {
+      const lit = (value: unknown): Expression => ({ kind: 'literal', value });
+      expect(
+        evalExpression(
+          { kind: 'compare', lhs: lit('claude'), op: 'in', rhs: lit(['gpt', 'claude', 'opus']) },
+          s,
+        ),
+      ).toBe(true);
+      expect(
+        evalExpression(
+          { kind: 'compare', lhs: lit('gemini'), op: 'in', rhs: lit(['gpt', 'claude']) },
+          s,
+        ),
+      ).toBe(false);
+      // rhs not an array → false (not throw)
+      expect(
+        evalExpression(
+          { kind: 'compare', lhs: lit('a'), op: 'in', rhs: lit('abc') },
+          s,
+        ),
+      ).toBe(false);
+    });
+
+    it('compares state-resolved jsonpath against a literal', () => {
+      // attempts.node1 = 2; check it's > 0
+      expect(
+        evalExpression(
+          {
+            kind: 'compare',
+            lhs: { kind: 'jsonpath', path: '$.attempts.node1' },
+            op: '>',
+            rhs: { kind: 'literal', value: 0 },
+          },
+          s,
+        ),
+      ).toBe(true);
+    });
+  });
+
+  // ── all / any / not ───────────────────────────────────────────────────
+
+  describe('kind: all / any / not', () => {
+    const T: Expression = { kind: 'literal', value: true };
+    const F: Expression = { kind: 'literal', value: false };
+
+    it('all([]) returns true (vacuous truth)', () => {
+      expect(evalExpression({ kind: 'all', exprs: [] }, s)).toBe(true);
+    });
+    it('any([]) returns false', () => {
+      expect(evalExpression({ kind: 'any', exprs: [] }, s)).toBe(false);
+    });
+    it('all of trues → true; all with one false → false', () => {
+      expect(evalExpression({ kind: 'all', exprs: [T, T, T] }, s)).toBe(true);
+      expect(evalExpression({ kind: 'all', exprs: [T, F, T] }, s)).toBe(false);
+    });
+    it('any: at least one true → true; all false → false', () => {
+      expect(evalExpression({ kind: 'any', exprs: [F, F, T] }, s)).toBe(true);
+      expect(evalExpression({ kind: 'any', exprs: [F, F, F] }, s)).toBe(false);
+    });
+    it('all short-circuits (later js does not throw)', () => {
+      // Can't directly observe short-circuit without spy, but we can
+      // ensure a guarded js expression after a false guard never
+      // executes (would otherwise throw).
+      const guarded: Expression = {
+        kind: 'all',
+        exprs: [F, { kind: 'js', expression: 'never_evaluated()' }],
+      };
+      expect(evalExpression(guarded, s)).toBe(false);
+    });
+    it('any short-circuits on first true', () => {
+      const guarded: Expression = {
+        kind: 'any',
+        exprs: [T, { kind: 'js', expression: 'never_evaluated()' }],
+      };
+      expect(evalExpression(guarded, s)).toBe(true);
+    });
+    it('not inverts the inner', () => {
+      expect(evalExpression({ kind: 'not', expr: T }, s)).toBe(false);
+      expect(evalExpression({ kind: 'not', expr: F }, s)).toBe(true);
+    });
+  });
 });
 
 // ─── linearFlowFromAgents ────────────────────────────────────────────────
@@ -908,42 +1035,205 @@ describe('compileFlow — Loop tag', () => {
     expect(seenInputs).toEqual(['a', 'b']);
   });
 
-  it('errors on parallel mode (deferred to v1.x)', async () => {
+  it('runs all items in parallel mode and aggregates outputs', async () => {
+    const callTimestamps: Array<{ input: string; startedAt: number }> = [];
     const flow: FlowDef = {
       id: 'loop-parallel',
-      nodes: [trigger('t'), loopAgentNode('per-item', { ...sequentialLoop, mode: 'parallel' })],
+      nodes: [
+        trigger('t'),
+        loopAgentNode('per-item', { ...sequentialLoop, mode: 'parallel', concurrency: 4 }),
+      ],
       edges: [{ from: 't', to: 'per-item', type: 'sequence' }],
     };
-    const executors = new Map<string, NodeExecutor>([['per-item', makeRecorder([], 'per-item')]]);
-    const graph = compileFlow({ flow, executors });
-    await expect(
-      graph.invoke(
-        {
-          ...initialState,
-          output: ['a'] as unknown as string,
+    const executors = new Map<string, NodeExecutor>([
+      [
+        'per-item',
+        async (state) => {
+          callTimestamps.push({ input: state.output, startedAt: Date.now() });
+          // Small delay to make parallelism observable; ordering of
+          // start times is the assertion target, not durations.
+          await new Promise((r) => setTimeout(r, 20));
+          return {
+            output: `done:${state.output}`,
+            lastExit: { nodeId: 'per-item', kind: 'success' },
+          };
         },
-        { configurable: { thread_id: 't' } },
-      ),
-    ).rejects.toThrow(/parallel/);
+      ],
+    ]);
+    const graph = compileFlow({ flow, executors });
+    const result = (await graph.invoke(
+      {
+        ...initialState,
+        output: ['a', 'b', 'c', 'd'] as unknown as string,
+      },
+      { configurable: { thread_id: 't' } },
+    )) as Record<string, unknown>;
+
+    expect(result.output).toBe('done:a\n---\ndone:b\n---\ndone:c\n---\ndone:d');
+    // With concurrency=4, all 4 items start within the same chunk.
+    // Their start times should fall within a small window — far
+    // tighter than the cumulative 4 × 20ms a sequential run would
+    // need.
+    const starts = callTimestamps.map((c) => c.startedAt).sort();
+    const span = (starts.at(-1) ?? 0) - (starts[0] ?? 0);
+    expect(span).toBeLessThan(50);
   });
 
-  it('errors on directory source (deferred)', async () => {
+  it('respects maxConcurrency in parallel mode by chunking', async () => {
+    const inFlight: string[] = [];
+    let peakInFlight = 0;
     const flow: FlowDef = {
-      id: 'loop-dir',
-      nodes: [trigger('t'), loopAgentNode('per-item', { ...sequentialLoop, source: 'directory' })],
+      id: 'loop-parallel-cap',
+      nodes: [
+        trigger('t'),
+        loopAgentNode('per-item', { ...sequentialLoop, mode: 'parallel', concurrency: 2 }),
+      ],
       edges: [{ from: 't', to: 'per-item', type: 'sequence' }],
     };
-    const executors = new Map<string, NodeExecutor>([['per-item', makeRecorder([], 'per-item')]]);
+    const executors = new Map<string, NodeExecutor>([
+      [
+        'per-item',
+        async (state) => {
+          inFlight.push(state.output);
+          peakInFlight = Math.max(peakInFlight, inFlight.length);
+          await new Promise((r) => setTimeout(r, 30));
+          inFlight.splice(inFlight.indexOf(state.output), 1);
+          return {
+            output: `done:${state.output}`,
+            lastExit: { nodeId: 'per-item', kind: 'success' },
+          };
+        },
+      ],
+    ]);
     const graph = compileFlow({ flow, executors });
+    await graph.invoke(
+      {
+        ...initialState,
+        output: ['a', 'b', 'c', 'd'] as unknown as string,
+      },
+      { configurable: { thread_id: 't' } },
+    );
+    // With cap=2, never more than 2 should be in-flight at once.
+    expect(peakInFlight).toBe(2);
+  });
+
+  it('halts parallel iteration on first chunk failure', async () => {
+    const seenInputs: string[] = [];
+    const flow: FlowDef = {
+      id: 'loop-parallel-halt',
+      nodes: [
+        trigger('t'),
+        loopAgentNode('per-item', { ...sequentialLoop, mode: 'parallel', concurrency: 2 }),
+      ],
+      edges: [
+        { from: 't', to: 'per-item', type: 'sequence' },
+        { from: 'per-item', to: 'after', type: 'sequence' },
+      ],
+    };
+    flow.nodes.push({ id: 'after', kind: 'transform', config: { expression: { kind: 'literal', value: 'unreached' } } });
+    const executors = new Map<string, NodeExecutor>([
+      [
+        'per-item',
+        async (state) => {
+          seenInputs.push(state.output);
+          if (state.output === 'b') {
+            return {
+              lastExit: { nodeId: 'per-item', kind: 'error', errorName: 'BadItem', errorMessage: 'b is bad' },
+            };
+          }
+          return { lastExit: { nodeId: 'per-item', kind: 'success' } };
+        },
+      ],
+    ]);
+    const graph = compileFlow({ flow, executors });
+    // Per-item has a sequence edge → 'after', so an error exit is
+    // unhandled and the router throws. We just need to verify the
+    // 3rd/4th items were never seen because the first chunk failed.
     await expect(
       graph.invoke(
         {
           ...initialState,
-          output: ['a'] as unknown as string,
+          output: ['a', 'b', 'c', 'd'] as unknown as string,
         },
         { configurable: { thread_id: 't' } },
       ),
-    ).rejects.toThrow(/directory/);
+    ).rejects.toThrow();
+    // First chunk = ['a','b']; both run before halt detection.
+    // Second chunk would be ['c','d'] but the halt check after
+    // chunk 1 short-circuits before they're scheduled.
+    expect(seenInputs).toEqual(['a', 'b']);
+  });
+
+  it('walks a directory and iterates absolute-path items (sorted)', async () => {
+    // Use the OS tmpdir + a fresh subdir so the test is hermetic.
+    const { mkdtempSync, writeFileSync, rmSync } = await import('node:fs');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const root = mkdtempSync(join(tmpdir(), 'loop-dir-test-'));
+    try {
+      writeFileSync(join(root, 'b.txt'), '');
+      writeFileSync(join(root, 'a.txt'), '');
+      writeFileSync(join(root, 'c.txt'), '');
+
+      const seenInputs: string[] = [];
+      const flow: FlowDef = {
+        id: 'loop-dir',
+        nodes: [
+          trigger('t'),
+          loopAgentNode('per-item', {
+            source: 'directory',
+            path: { kind: 'literal', value: root },
+            mode: 'sequential',
+          }),
+        ],
+        edges: [{ from: 't', to: 'per-item', type: 'sequence' }],
+      };
+      const executors = new Map<string, NodeExecutor>([
+        [
+          'per-item',
+          async (state) => {
+            seenInputs.push(state.output);
+            return { lastExit: { nodeId: 'per-item', kind: 'success' } };
+          },
+        ],
+      ]);
+      const graph = compileFlow({ flow, executors });
+      await graph.invoke(initialState, { configurable: { thread_id: 't' } });
+      // Directory walk emits absolute paths, sorted alphabetically.
+      expect(seenInputs).toEqual([
+        join(root, 'a.txt'),
+        join(root, 'b.txt'),
+        join(root, 'c.txt'),
+      ]);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('returns LoopDirectoryError when the directory cannot be read', async () => {
+    const flow: FlowDef = {
+      id: 'loop-dir-missing',
+      nodes: [
+        trigger('t'),
+        loopAgentNode('per-item', {
+          source: 'directory',
+          path: { kind: 'literal', value: '/nonexistent/path/for/test' },
+          mode: 'sequential',
+        }),
+        { id: 'after', kind: 'transform', config: { expression: { kind: 'literal', value: 'unreached' } } },
+      ],
+      edges: [
+        { from: 't', to: 'per-item', type: 'sequence' },
+        { from: 'per-item', to: 'after', type: 'sequence' },
+      ],
+    };
+    const executors = new Map<string, NodeExecutor>([['per-item', makeRecorder([], 'per-item')]]);
+    const graph = compileFlow({ flow, executors });
+    // No error edge wired → router throws with an unhandled-error
+    // message that includes the loop's errorName.
+    await expect(
+      graph.invoke(initialState, { configurable: { thread_id: 't' } }),
+    ).rejects.toThrow(/LoopDirectoryError|nonexistent/);
   });
 });
 
