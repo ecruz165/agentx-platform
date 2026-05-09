@@ -7,6 +7,7 @@ import CatalogPage from "./pages/Catalog";
 import BenchmarksPage from "./pages/Benchmarks";
 import BenchmarkRunPage from "./pages/BenchmarkRun";
 import ProposalsPage from "./pages/Proposals";
+import ComposePage from "./pages/Compose";
 
 export default function App() {
   return (
@@ -21,6 +22,7 @@ export default function App() {
         <Route path="/benchmarks" element={<BenchmarksPage />} />
         <Route path="/benchmarks/:runId" element={<BenchmarkRunPage />} />
         <Route path="/proposals" element={<ProposalsPage />} />
+        <Route path="/compose" element={<ComposePage />} />
       </Routes>
     </NavShell>
   );

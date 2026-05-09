@@ -11,6 +11,24 @@ const headers: HeadersInit = {
   "X-User-Id": USER_ID,
 };
 
+/**
+ * Structured API error. Subclasses standard Error so callers can do
+ * `instanceof ApiError` to branch on parsed fields. For non-2xx
+ * responses with a JSON body, populates `code` + `details` from the
+ * envelope; for plain-text errors, the body lands in `message` only.
+ */
+export class ApiError extends Error {
+  constructor(
+    public readonly status: number,
+    message: string,
+    public readonly code?: string,
+    public readonly details?: Record<string, unknown>,
+  ) {
+    super(message);
+    this.name = "ApiError";
+  }
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, {
     ...init,
@@ -18,7 +36,22 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   });
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(`${res.status} ${res.statusText}: ${text}`);
+    // Try to parse as a structured error envelope. Skillzkit's API
+    // returns { code, message, details? } on every non-2xx; the
+    // controlplane proxy preserves that shape on validation
+    // failures + author/version conflicts.
+    let envelope: { code?: string; message?: string; details?: Record<string, unknown> } | null = null;
+    try {
+      envelope = JSON.parse(text);
+    } catch {
+      // not JSON — fall through to plain text
+    }
+    throw new ApiError(
+      res.status,
+      envelope?.message ?? `${res.status} ${res.statusText}: ${text}`,
+      envelope?.code,
+      envelope?.details,
+    );
   }
   if (res.status === 204) return undefined as T;
   return res.json() as Promise<T>;
@@ -115,6 +148,12 @@ export interface BenchmarkRunSummary {
   scored: number;
   avgScore?: number | null;
   p50Score?: number | null;
+  /** Number of jobs with both estimated and actual story points. */
+  estimated: number;
+  /** Mean of |actual - estimated| over the {@link estimated} cohort. */
+  meanAbsError?: number | null;
+  /** Mean of (actual - estimated). Positive = under-estimating. */
+  bias?: number | null;
 }
 
 export const benchmarks = {
@@ -127,6 +166,17 @@ export const benchmarks = {
 // ── Skill proposals ──────────────────────────────────────────────────
 
 export type ProposalStatus = "proposed" | "approved" | "rejected";
+
+/** Mirrors skillzkit's ContributionStatus union plus a local-only
+ *  'failed' for transport / 5xx errors. Null = never submitted (e.g.,
+ *  approved before skillzkit was wired). */
+export type RemoteStatus =
+  | "pending"
+  | "reviewing"
+  | "accepted"
+  | "rejected"
+  | "promoted"
+  | "failed";
 
 export interface SkillProposal {
   id: string;
@@ -142,6 +192,13 @@ export interface SkillProposal {
   rejectionReason?: string;
   catalogItemId?: string;
   createdAt: string;
+  /** Skillzkit upstream tracking. Null when skillzkit isn't configured
+   *  or the proposal was approved before skillzkit was wired. */
+  remoteId?: string;
+  remoteStatus?: RemoteStatus;
+  remoteUrl?: string;
+  remoteError?: string;
+  remoteSyncedAt?: string;
 }
 
 export const skillProposals = {
@@ -158,6 +215,11 @@ export const skillProposals = {
     request<SkillProposal>(`/api/skill-proposals/${id}/reject`, {
       method: "POST",
       body: JSON.stringify({ reason }),
+    }),
+  resubmit: (id: string) =>
+    request<SkillProposal>(`/api/skill-proposals/${id}/resubmit`, {
+      method: "POST",
+      body: JSON.stringify({}),
     }),
 };
 
@@ -186,6 +248,115 @@ export const catalog = {
   flows: () => request<Flow[]>("/api/catalog/flows"),
   flow: (id: string) => request<Flow>(`/api/catalog/flows/${id}`),
   products: () => request<Product[]>("/api/catalog/products"),
+};
+
+// ── Compose (author-from-scratch contribution) ──────────────────────
+//
+// Bypasses the proposal flow: a user authors a new skillzkit artifact
+// directly in the controlplane UI and submits it through the
+// controlplane proxy to skillzkit's POST /api/v1/contributions.
+//
+// Backend contract (Spring controlplane endpoint - to be added):
+//
+//   POST /api/skill-proposals/compose
+//     Body: ComposeRequest
+//     Response 201: ComposeResponse - submission accepted by skillzkit
+//     Response 422: { code: "validation_failed", message,
+//                     details: { findings: ReviewFinding[] } }
+//                   - skillzkit's layer-1/2/3 validation rejected the
+//                     bundle. Findings explain what to fix.
+//     Response 403: { code: "author_mismatch",
+//                     details: { ownerAuthorId } }
+//                   - the slug is owned by a different author already.
+//     Response 409: { code: "slug_conflict", details: { version } }
+//                   - this exact (slug, version) was already published.
+//                     Bump the version.
+//
+//   The controlplane proxy fetches the user's skillzkit API key
+//   (associated with their controlplane identity), decrypts it
+//   server-side, and forwards the call to skillzkit. UI never sees
+//   the plaintext API key.
+
+/**
+ * One file in a contribution bundle. Commands and workflows submit a
+ * single-element array; skills submit SKILL.md plus optional companion
+ * files (.py / .sh / .ts / .js / .json / .yaml / .toml).
+ */
+export interface ContributionFile {
+  /** Relative path within the bundle - no leading slash, no `..`. */
+  path: string;
+  /** UTF-8 text content. */
+  content: string;
+}
+
+export type ContributionKind = "command" | "workflow" | "skill";
+
+/**
+ * A single validation finding from skillzkit's three-layer pipeline
+ * (structural / file-bundle / agent-review). Severity drives the
+ * block decision (high blocks; medium/low surface but allow).
+ */
+export interface ReviewFinding {
+  severity: "low" | "medium" | "high";
+  axis: "structural" | "bundle" | "quality" | "tag-fit" | "safety";
+  message: string;
+  /** File within the bundle the finding applies to, when scoped. */
+  fileRef?: string;
+}
+
+export interface ComposeRequest {
+  kind: ContributionKind;
+  /** Slash-command slug (commands/workflows) or skill name. */
+  slug: string;
+  /** Frontmatter parsed from the primary file - keys depend on kind. */
+  frontmatter: Record<string, unknown>;
+  files: ContributionFile[];
+  versionBump?: "major" | "minor" | "patch";
+  changelog?: string;
+}
+
+export interface AuthorIdentity {
+  id: string;
+  displayName: string;
+  email?: string;
+}
+
+export type ContributionStatus =
+  | "pending"
+  | "reviewing"
+  | "accepted"
+  | "rejected"
+  | "promoted";
+
+export interface ComposeResponse {
+  /** Content-addressable id: "<kind>:<slug>@<version>". */
+  id: string;
+  slug: string;
+  kind: ContributionKind;
+  status: ContributionStatus;
+  /** Set when the contribution lands in storage. */
+  version?: string;
+  /** Whether the catalog index points at this version. New
+   *  submissions are stored but NOT promoted - a maintainer or the
+   *  author promotes explicitly. */
+  promoted: boolean;
+  author: AuthorIdentity;
+  findings: ReviewFinding[];
+  createdAt: string;
+}
+
+export const compose = {
+  /**
+   * Submit a new contribution. Throws ApiError with `code` set on
+   * non-2xx responses; callers should branch on `code` to render the
+   * right remediation (validation findings vs author mismatch vs
+   * slug conflict).
+   */
+  submit: (req: ComposeRequest) =>
+    request<ComposeResponse>("/api/skill-proposals/compose", {
+      method: "POST",
+      body: JSON.stringify(req),
+    }),
 };
 
 // ── SSE helper ────────────────────────────────────────────────────────
