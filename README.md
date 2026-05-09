@@ -56,7 +56,6 @@ For MVP-0 host-only: `<workspace>` = the repo root (where you run `pnpm` command
 |---|---|---|
 | `@ecruz165/harness-core` | `prd-harness-core.md` | Phase 1 (Layer 1 type freeze) |
 | `@ecruz165/token-codecs` | `prd-token-codecs-lib.md` | Phase 1 (no TOON in v1) |
-| `@ecruz165/agent-worker` | `prd-agent-worker-lib.md` | Phase 2 (worker model decision) |
 | `@ecruz165/harness-server` | `prd-harness-server.md` | Phase 3 |
 | `@ecruz165/workspace-setup-cli` | `prd-workspace-setup-cli.md` | Phase 5 |
 | `@ecruz165/vscode-extension` | `prd-vscode-extension.md` | deferred per scope cut |

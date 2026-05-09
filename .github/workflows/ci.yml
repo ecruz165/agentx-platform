@@ -1,0 +1,126 @@
+# Continuous Integration — runs on every push to develop and on every
+# pull request targeting develop.
+#
+# Two parallel jobs split by toolchain:
+#
+#   - js: pnpm + Vitest + Biome + TypeScript
+#         Covers every package under packages/ and the controlplane-ui.
+#   - controlplane: Maven + JDK 21
+#         Covers the Spring Boot Modulith controlplane.
+#
+# Linux-only by design. Windows / macOS matrix expansion is a future
+# slice when there's a concrete user need (no developer reports of
+# either platform breaking today, so adding them blind buys little).
+#
+# Concurrency: PR runs auto-cancel earlier in-progress runs from the
+# same PR to keep CI cheap during a typical edit-push-edit cycle.
+# Pushes to develop never cancel each other.
+
+name: CI
+
+on:
+  push:
+    branches: [develop]
+  pull_request:
+    branches: [develop]
+
+concurrency:
+  # github.ref is GitHub-managed: refs/heads/<branch> on push and
+  # refs/pull/<num>/merge on pull_request. Using it (vs head_ref)
+  # keeps the group key away from any user-controllable string —
+  # avoids the well-known github.head_ref shell-injection class.
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  # ── TypeScript stack ──────────────────────────────────────────────────
+  #
+  # Lints + formats (Biome), typechecks (tsc -b across packages), runs
+  # the Vitest suite across all packages. Fast — typical end-to-end is
+  # under 2 minutes on the GH-hosted runner.
+  js:
+    name: js — biome + typecheck + vitest
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        # Pin to the project's packageManager field via corepack — keeps
+        # the runner using the exact pnpm version listed in package.json
+        # rather than whatever is bundled with setup-node.
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        # `--frozen-lockfile` enforces lockfile discipline: any drift
+        # between package.json deps and pnpm-lock.yaml fails the build,
+        # so committers are forced to update the lockfile alongside
+        # dependency changes. This is the standard pattern for
+        # reproducible installs.
+        run: pnpm install --frozen-lockfile
+
+      # Biome (`pnpm check`) intentionally NOT enforced in CI yet — there
+      # is a pre-existing backlog of 90 lint errors + 23 warnings across
+      # the codebase that would turn every PR red. The right sequence is
+      # a dedicated cleanup pass to drive the count to zero, then turn
+      # it on as a required check in a follow-up CI iteration. Locally,
+      # `pnpm check` and `pnpm check:fix` work today; this is purely a
+      # don't-block-the-team decision for the v1 wiring.
+
+      - name: TypeScript typecheck
+        # Recursive across packages — each package owns its own tsconfig
+        # and the root script delegates via `pnpm -r typecheck`.
+        run: pnpm typecheck
+
+      - name: Vitest — run all package suites
+        # `-r test --if-present` recursively runs each package's `test`
+        # script when it exists; pnpm skips packages without one. As
+        # all packages grow tests this becomes a more uniform matrix.
+        run: pnpm -r --if-present test
+
+  # ── Java stack — controlplane ─────────────────────────────────────────
+  #
+  # Spring Boot 4 + Spring Modulith + JDBI + Flyway. Tests include the
+  # ModulithVerificationTest (asserts module-boundary invariants) and
+  # JDBI integration tests against an embedded Postgres.
+  controlplane:
+    name: controlplane — maven test
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: controlplane
+
+    steps:
+      - name: Checkout
+        # Run-script working-directory above doesn't apply to actions;
+        # checkout still drops everything into $GITHUB_WORKSPACE root.
+        uses: actions/checkout@v4
+
+      - name: Setup JDK 21
+        # Temurin is the Adoptium OpenJDK distribution — same one most
+        # production deployments target. Pinning to 21 matches the
+        # <java.version> in controlplane/pom.xml.
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          # Built-in Maven cache: persists ~/.m2/repository keyed off
+          # pom.xml hash. First run is full-download; subsequent runs
+          # restore in seconds.
+          cache: maven
+
+      - name: Maven test
+        # `./mvnw` rather than `mvn` — uses the project's pinned wrapper
+        # version so CI is bit-for-bit reproducible against local dev
+        # runs. -B = batch mode (no interactive prompts); -ntp = no
+        # transfer progress (cleaner logs).
+        run: ./mvnw -B -ntp test
