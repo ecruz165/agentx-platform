@@ -127,6 +127,20 @@ function CompareView({ rows }: { rows: BenchmarkRunSummary[] }) {
     },
   ];
 
+  // Estimation: MAE is always >=0, bias is signed. Both share the
+  // story-point unit so they belong on the same axis.
+  const anyEstimated = rows.some((r) => r.estimated > 0);
+  const estimationChart = [
+    {
+      metric: "MAE (pts)",
+      ...rowsByLabel(rows, (r) => r.meanAbsError ?? 0),
+    },
+    {
+      metric: "bias (pts)",
+      ...rowsByLabel(rows, (r) => r.bias ?? 0),
+    },
+  ];
+
   return (
     <div className="space-y-4">
       {/* Side-by-side cards */}
@@ -169,6 +183,20 @@ function CompareView({ rows }: { rows: BenchmarkRunSummary[] }) {
                 label="avg score"
                 value={r.avgScore != null ? r.avgScore.toFixed(3) : "—"}
               />
+              {r.estimated > 0 && (
+                <>
+                  <Divider className="my-1" />
+                  <Row label="estimated" value={`${r.estimated} / ${r.total}`} />
+                  <Row
+                    label="MAE (pts)"
+                    value={r.meanAbsError != null ? r.meanAbsError.toFixed(2) : "—"}
+                  />
+                  <Row
+                    label="bias (pts)"
+                    value={r.bias != null ? formatBias(r.bias) : "—"}
+                  />
+                </>
+              )}
             </CardBody>
           </Card>
         ))}
@@ -226,6 +254,40 @@ function CompareView({ rows }: { rows: BenchmarkRunSummary[] }) {
         </CardBody>
       </Card>
 
+      {/* Estimation chart — only when there's something to plot. */}
+      {anyEstimated && (
+        <Card>
+          <CardHeader className="flex flex-col gap-1 items-start">
+            <p className="text-md">Estimation accuracy</p>
+            <p className="text-xs text-default-500">
+              <Code size="sm">MAE</Code> = mean(|actual − estimated|) — lower is
+              better. <Code size="sm">bias</Code> = mean(actual − estimated) —
+              positive means consistently under-estimating; negative means
+              over-estimating; near zero means estimates are well-calibrated.
+            </p>
+          </CardHeader>
+          <Divider />
+          <CardBody style={{ height: 280 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={estimationChart}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                <XAxis dataKey="metric" stroke="#9ca3af" />
+                <YAxis stroke="#9ca3af" />
+                <Tooltip contentStyle={{ background: "#1f2937", border: "none" }} />
+                <Legend />
+                {rows.map((r, idx) => (
+                  <Bar
+                    key={r.runId}
+                    dataKey={labelKey(r)}
+                    fill={colors[idx % colors.length]}
+                  />
+                ))}
+              </BarChart>
+            </ResponsiveContainer>
+          </CardBody>
+        </Card>
+      )}
+
       {/* Detail table */}
       <Card>
         <CardHeader>
@@ -246,6 +308,9 @@ function CompareView({ rows }: { rows: BenchmarkRunSummary[] }) {
               <TableColumn>success</TableColumn>
               <TableColumn>scored</TableColumn>
               <TableColumn>avgScore</TableColumn>
+              <TableColumn>est</TableColumn>
+              <TableColumn>MAE</TableColumn>
+              <TableColumn>bias</TableColumn>
             </TableHeader>
             <TableBody>
               {rows.map((r) => (
@@ -263,6 +328,9 @@ function CompareView({ rows }: { rows: BenchmarkRunSummary[] }) {
                   <TableCell>{(r.successRate * 100).toFixed(1)}%</TableCell>
                   <TableCell>{r.scored}</TableCell>
                   <TableCell>{r.avgScore != null ? r.avgScore.toFixed(3) : "—"}</TableCell>
+                  <TableCell>{r.estimated}</TableCell>
+                  <TableCell>{r.meanAbsError != null ? r.meanAbsError.toFixed(2) : "—"}</TableCell>
+                  <TableCell>{r.bias != null ? formatBias(r.bias) : "—"}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -271,6 +339,16 @@ function CompareView({ rows }: { rows: BenchmarkRunSummary[] }) {
       </Card>
     </div>
   );
+}
+
+/**
+ * Format signed bias with an explicit sign so the direction is obvious
+ * at a glance. Negative values already render with "-"; positive get a
+ * leading "+".
+ */
+function formatBias(b: number): string {
+  const r = b.toFixed(2);
+  return b > 0 ? `+${r}` : r;
 }
 
 function Row({ label, value }: { label: string; value: React.ReactNode }) {

@@ -19,6 +19,12 @@ public record SkillProposalDaoRow(
     Instant reviewedAt,
     String rejectionReason,
     String catalogItemId,
-    Instant createdAt
+    Instant createdAt,
+    /** Skillzkit upstream tracking — see SkillProposal javadoc. */
+    String remoteId,
+    String remoteStatus,
+    String remoteUrl,
+    String remoteError,
+    Instant remoteSyncedAt
 ) {
 }

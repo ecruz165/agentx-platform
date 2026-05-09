@@ -77,4 +77,27 @@ public interface CatalogItemDao {
          WHERE org_id = :orgId AND deleted_at IS NULL
     """)
     long countByOrg(@Bind("orgId") String orgId);
+
+    /**
+     * Soft-delete a catalog item — sets {@code deleted_at} so reads
+     * filter it out, but the row stays for audit and so a later upsert
+     * (e.g., agentx-load re-syncing the same id from skillzkit)
+     * resurrects it via the existing {@code deleted_at = NULL} branch
+     * in upsert's ON CONFLICT clause.
+     *
+     * Returns the number of rows affected (0 if no matching row, 1 if
+     * deleted; soft-deleting an already-deleted row also returns 1
+     * since deleted_at gets refreshed — caller can ignore the count).
+     */
+    @SqlUpdate("""
+        UPDATE catalog_items
+           SET deleted_at = CURRENT_TIMESTAMP
+         WHERE org_id = :orgId AND type = :type AND id = :id
+           AND deleted_at IS NULL
+    """)
+    int softDelete(
+        @Bind("orgId") String orgId,
+        @Bind("type") CatalogItemType type,
+        @Bind("id") String id
+    );
 }

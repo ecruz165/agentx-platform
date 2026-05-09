@@ -19,7 +19,7 @@ import {
   Tabs,
   useDisclosure,
 } from "@heroui/react";
-import { ProposalStatus, SkillProposal, skillProposals } from "../lib/api";
+import { ProposalStatus, RemoteStatus, SkillProposal, skillProposals } from "../lib/api";
 
 /**
  * Skill-proposal admin queue. Shows proposals (defaults to status=
@@ -120,6 +120,29 @@ function ProposalCard({ proposal }: { proposal: SkillProposal }) {
     }
   }
 
+  async function resubmit() {
+    setBusy(true);
+    setError(null);
+    try {
+      await skillProposals.resubmit(proposal.id);
+      await qc.invalidateQueries({ queryKey: ["skill-proposals"] });
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // Show resubmit only on approved proposals that have either never
+  // been pushed (remoteStatus == null — likely approved before
+  // skillzkit was wired) or failed transport (remoteStatus === 'failed').
+  // In-flight states (pending/reviewing) and terminal-accepted states
+  // (accepted/promoted/rejected by skillzkit) shouldn't show resubmit:
+  // they're either polling or settled.
+  const canResubmit =
+    proposal.status === "approved" &&
+    (proposal.remoteStatus == null || proposal.remoteStatus === "failed");
+
   return (
     <Card>
       <CardHeader className="flex justify-between items-start gap-2">
@@ -139,6 +162,12 @@ function ProposalCard({ proposal }: { proposal: SkillProposal }) {
               </Chip>
             ))}
             <StatusChip status={proposal.status} />
+            {proposal.status === "approved" && (
+              <SkillzkitChip
+                remoteStatus={proposal.remoteStatus}
+                remoteUrl={proposal.remoteUrl}
+              />
+            )}
           </div>
         </div>
       </CardHeader>
@@ -178,6 +207,12 @@ function ProposalCard({ proposal }: { proposal: SkillProposal }) {
             <p className="text-danger-500">{proposal.rejectionReason}</p>
           </div>
         )}
+        {proposal.status === "approved" && proposal.remoteError && (
+          <div>
+            <span className="text-default-500 text-xs">skillzkit error</span>
+            <p className="text-danger-500 break-words">{proposal.remoteError}</p>
+          </div>
+        )}
         {error && <Code color="danger">{error}</Code>}
 
         {proposal.status === "proposed" && (
@@ -190,6 +225,22 @@ function ProposalCard({ proposal }: { proposal: SkillProposal }) {
               <Button color="danger" variant="flat" onPress={rejectModal.onOpen}>
                 Reject
               </Button>
+            </div>
+          </>
+        )}
+
+        {canResubmit && (
+          <>
+            <Divider />
+            <div className="flex gap-2 items-center">
+              <Button color="primary" variant="flat" onPress={resubmit} isLoading={busy}>
+                Resubmit to skillzkit
+              </Button>
+              <span className="text-xs text-default-500">
+                {proposal.remoteStatus === "failed"
+                  ? "Last submit failed — retry"
+                  : "Approved before skillzkit was wired"}
+              </span>
             </div>
           </>
         )}
@@ -232,4 +283,63 @@ function StatusChip({ status }: { status: ProposalStatus }) {
       {status}
     </Chip>
   );
+}
+
+/**
+ * Skillzkit upstream-submission status. Distinct from the proposal's
+ * own status (the local approve/reject flow). Only meaningful on
+ * approved proposals — the parent gates rendering accordingly.
+ *
+ *   - null            → never submitted (e.g., skillzkit not configured
+ *                       at approve time). Operator sees the resubmit
+ *                       button below.
+ *   - pending         → submitted, awaiting skillzkit's review.
+ *   - reviewing       → skillzkit reviewer engaged.
+ *   - accepted/promoted → terminal success; local draft was dropped.
+ *   - rejected        → skillzkit declined; local draft kept.
+ *   - failed          → transport / 5xx error on submit. Resubmit
+ *                       button below offers retry.
+ */
+function SkillzkitChip({
+  remoteStatus,
+  remoteUrl,
+}: {
+  remoteStatus?: RemoteStatus;
+  remoteUrl?: string;
+}) {
+  if (remoteStatus == null) {
+    return (
+      <Chip size="sm" color="warning" variant="flat">
+        skillzkit: not sent
+      </Chip>
+    );
+  }
+  const tone: "primary" | "success" | "danger" | "warning" =
+    remoteStatus === "accepted" || remoteStatus === "promoted"
+      ? "success"
+      : remoteStatus === "rejected" || remoteStatus === "failed"
+        ? "danger"
+        : remoteStatus === "reviewing"
+          ? "primary"
+          : "warning"; // 'pending'
+  const label = `skillzkit: ${remoteStatus}`;
+
+  // Wrap the chip in a link only when we have a destination. The
+  // remoteUrl is the skillzkit /api/v1/contributions/{id} endpoint —
+  // useful for ops debugging even though it's an API path, not a UI
+  // route. Future: if skillzkit ships a UI per-contribution page,
+  // wire that URL on its side.
+  const chip = (
+    <Chip size="sm" color={tone} variant="flat">
+      {label}
+    </Chip>
+  );
+  if (remoteUrl) {
+    return (
+      <a href={remoteUrl} target="_blank" rel="noreferrer" title={remoteUrl}>
+        {chip}
+      </a>
+    );
+  }
+  return chip;
 }

@@ -21,6 +21,14 @@ public record SkillProposalDTO(
     Instant reviewedAt,
     String rejectionReason,
     String catalogItemId,
-    Instant createdAt
+    Instant createdAt,
+    /** Skillzkit upstream submission state — null if never submitted
+     *  (e.g., approved before skillzkit was wired). See
+     *  {@link com.jefelabs.agentx.controlplane.proposals.domain.SkillProposal}. */
+    String remoteId,
+    String remoteStatus,
+    String remoteUrl,
+    String remoteError,
+    Instant remoteSyncedAt
 ) {
 }

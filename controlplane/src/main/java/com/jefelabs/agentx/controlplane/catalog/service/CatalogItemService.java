@@ -60,6 +60,19 @@ public class CatalogItemService {
         return jdbi.onDemand(CatalogItemDao.class).countByOrg(orgId);
     }
 
+    /**
+     * Soft-delete a catalog item. Used when an upstream source-of-truth
+     * (currently: skillzkit) tells us a draft we seeded locally should
+     * be retired in favor of the canonical version that's about to land
+     * via the next agentx-load sync. The row stays for audit; the next
+     * agentx-load can resurrect it via upsert if skillzkit ships the
+     * same id.
+     */
+    @Transactional
+    public boolean softDelete(String orgId, CatalogItemType type, String id) {
+        return jdbi.onDemand(CatalogItemDao.class).softDelete(orgId, type, id) > 0;
+    }
+
     // ── helpers ───────────────────────────────────────────────────────────
 
     private CatalogItem toDomain(CatalogItemDaoRow row) {

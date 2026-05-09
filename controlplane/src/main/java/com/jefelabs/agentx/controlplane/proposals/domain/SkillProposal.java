@@ -9,6 +9,12 @@ import java.util.UUID;
  * reflection ("I needed a tool for X but didn't have one"). Reviewed
  * by an admin, then either approved (creates a draft entry in
  * {@code catalog_items}) or rejected.
+ *
+ * <p>On approval, controlplane also POSTs the proposal to upstream
+ * skillzkit (per memory {@code project_skillzkit_is_skill_source_of_truth}).
+ * The {@code remote*} fields track that submission's lifecycle: skillzkit
+ * returns a contribution id + status that we mirror here so the admin
+ * UI can show submission state and operators can retry failed sends.
  */
 public record SkillProposal(
     UUID id,
@@ -27,6 +33,20 @@ public record SkillProposal(
     String rejectionReason,
     /** Set when status=approved and a draft was seeded into catalog_items. */
     String catalogItemId,
-    Instant createdAt
+    Instant createdAt,
+    /** Skillzkit's contribution id once submitted. Null until approve fires
+     *  AND the submission succeeded. */
+    String remoteId,
+    /** Mirrors skillzkit's ContributionStatus
+     *  (pending|reviewing|accepted|rejected|promoted) plus a local-only
+     *  'failed' for transport errors. Null = never attempted (skillzkit
+     *  not configured at approve time). */
+    String remoteStatus,
+    /** Skillzkit's status URL for the remote contribution. */
+    String remoteUrl,
+    /** Captured error message when {@code remoteStatus = 'failed'}. */
+    String remoteError,
+    /** Last time the remote status was synced. */
+    Instant remoteSyncedAt
 ) {
 }

@@ -65,11 +65,28 @@ public class SkillProposalController {
             .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
+    /**
+     * Retry a previously-approved proposal's submission to skillzkit.
+     * Used after a transport failure (remote_status='failed') OR for
+     * proposals approved before skillzkit was configured (remote_status
+     * is null). Returns 404 if the proposal isn't approved yet.
+     */
+    @PostMapping("/{id}/resubmit")
+    public ResponseEntity<SkillProposalDTO> resubmit(@PathVariable UUID id) {
+        var tenant = TenantContext.current();
+        return service.resubmitToSkillzkit(tenant.orgId(), id)
+            .map(SkillProposalController::toDTO)
+            .map(ResponseEntity::ok)
+            .orElseGet(() -> ResponseEntity.notFound().build());
+    }
+
     private static SkillProposalDTO toDTO(SkillProposal p) {
         return new SkillProposalDTO(
             p.id(), p.sourceJobId(), p.name(), p.description(), p.rationale(),
             p.category(), p.tags(), p.status(), p.reviewer(), p.reviewedAt(),
-            p.rejectionReason(), p.catalogItemId(), p.createdAt()
+            p.rejectionReason(), p.catalogItemId(), p.createdAt(),
+            p.remoteId(), p.remoteStatus(), p.remoteUrl(),
+            p.remoteError(), p.remoteSyncedAt()
         );
     }
 }

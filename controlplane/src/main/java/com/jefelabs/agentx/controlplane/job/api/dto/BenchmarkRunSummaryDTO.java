@@ -26,6 +26,12 @@ public record BenchmarkRunSummaryDTO(
     double successRate,
     int scored,
     Double avgScore,
-    Double p50Score
+    Double p50Score,
+    /** Count of jobs with both estimated + actual story points set. */
+    int estimated,
+    /** Mean absolute error |actual - estimated| (story points). */
+    Double meanAbsError,
+    /** Mean signed error (actual - estimated). Positive = under-estimating. */
+    Double bias
 ) {
 }

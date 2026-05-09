@@ -122,7 +122,13 @@ public interface JobDao {
             AVG(eval_score)::double precision AS avg_score,
             percentile_cont(0.5) WITHIN GROUP (
                 ORDER BY eval_score
-            )::double precision AS p50_score
+            )::double precision AS p50_score,
+            COUNT(*) FILTER (
+                WHERE estimated_points IS NOT NULL
+                  AND actual_points    IS NOT NULL
+            )::int AS estimated,
+            AVG(ABS(actual_points - estimated_points))::double precision AS mean_abs_error,
+            AVG(actual_points - estimated_points)::double precision      AS bias
           FROM jobs
          WHERE org_id = :orgId AND benchmark_run_id = :runId
     """)

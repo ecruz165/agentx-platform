@@ -17,6 +17,12 @@ public record BenchmarkRunSummaryRow(
     long p95LatencyMs,
     int scored,
     Double avgScore,
-    Double p50Score
+    Double p50Score,
+    /** Count of jobs that have both estimated and actual story points. */
+    int estimated,
+    /** Mean of |actual - estimated| over the {@link #estimated} cohort. */
+    Double meanAbsError,
+    /** Mean of (actual - estimated). Positive = under-estimating. */
+    Double bias
 ) {
 }

@@ -295,6 +295,9 @@ interface SummaryRow {
   scored: number;
   avgScore?: number | null;
   p50Score?: number | null;
+  estimated: number;
+  meanAbsError?: number | null;
+  bias?: number | null;
 }
 
 export async function runBenchCompare(runIdsCsv: string, opts: CompareBenchOptions): Promise<void> {
@@ -310,9 +313,12 @@ export async function runBenchCompare(runIdsCsv: string, opts: CompareBenchOptio
   );
 
   // Tab-formatted table — short enough to scan, no extra deps.
+  // Estimation columns trail at the end so existing scripts that
+  // only consume the first N fields keep working.
   const cols = [
     'runId', 'label', 'total', 'completed', 'failed', 'inFlight',
     'p50ms', 'p95ms', 'success', 'scored', 'avgScore',
+    'est', 'MAE', 'bias',
   ];
   console.log(cols.join('\t'));
   for (const r of rows) {
@@ -328,6 +334,14 @@ export async function runBenchCompare(runIdsCsv: string, opts: CompareBenchOptio
       `${(r.successRate * 100).toFixed(1)}%`,
       r.scored,
       r.avgScore != null ? r.avgScore.toFixed(3) : '—',
+      r.estimated,
+      r.meanAbsError != null ? r.meanAbsError.toFixed(2) : '—',
+      r.bias != null ? formatBias(r.bias) : '—',
     ].join('\t'));
   }
+}
+
+function formatBias(b: number): string {
+  const r = b.toFixed(2);
+  return b > 0 ? `+${r}` : r;
 }
