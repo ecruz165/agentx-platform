@@ -1,0 +1,504 @@
+{
+  "version": 1,
+  "lastUpdated": "2026-05-12T05:40:00Z",
+  "personas": [
+    {
+      "id": "persona-product",
+      "name": "Product",
+      "type": "traditional",
+      "filePath": "product/ux/personas/product.md",
+      "summary": "The product person who decides WHAT gets built — runs research, produces wireframes, and writes feature specs, bundled as 'spec kits' that the Outcome Engineer then implements via flows. Lives upstream of any code.",
+      "traditional": {
+        "role": "Product — owns the 'what'. Generates research, produces wireframes, and authors feature specs, packaged together as spec kits. Hands implementable spec kits downstream to the Outcome Engineer. Does not write production code or configure infrastructure.",
+        "goals": [
+          "Produce clear, well-grounded research, wireframes, and feature specs (spec kits) that an implementer can act on without guessing.",
+          "Keep the chain traceable — research → wireframe → feature spec → the user stories it implies.",
+          "Iterate on a spec quickly when validation surfaces that it didn't land, without losing the rationale.",
+          "See which features are specced, which are in-flight, and where the spec backlog has gaps."
+        ],
+        "frustrations": [
+          "Specs get misinterpreted in implementation; intent is lost in translation.",
+          "No traceability from research to spec to the working feature.",
+          "Wireframes drift from specs (and from what actually ships); the spec kit fragments.",
+          "Hard to package research + wireframes + feature spec into one coherent handed-off artifact instead of scattered docs."
+        ],
+        "context": "Works upstream of code. Produces artifacts (research, .pen wireframes, feature-spec docs) that become inputs to implementation flows. Collaborates with the Outcome Engineer and relies on the Principal Product Engineer's setup. Regulated environment (FERPA/COPPA via SkoolScout) — specs touching user/student data carry compliance constraints that must surface in the spec.",
+        "techProfile": "Strong product/design sensibility; comfortable with structured artifacts, wireframing tools (Pencil/.pen), and reading code/diffs at a review level but not authoring them. Wants the console to make a spec kit feel like one versioned, traceable object."
+      },
+      "screensTouched": ["a 'Specs / Feature Kits' surface", "Intake (feature/spec intake)", "Catalog", "Proposals"],
+      "researchSources": [{ "type": "hypothesis", "summary": "Initial hypothesis from the builder's domain knowledge; no formal user research yet.", "date": "2026-05-12" }],
+      "created": "2026-05-12T04:00:00Z",
+      "lastReviewed": "2026-05-12T04:00:00Z"
+    },
+    {
+      "id": "persona-outcome-engineer",
+      "name": "Outcome Engineer",
+      "type": "traditional",
+      "filePath": "product/ux/personas/outcome-engineer.md",
+      "summary": "Takes product spec kits and turns them into working features — submits them as job requests against flows, watches the implementation run, and validates the features that come back. Owns the submit-and-validate loop.",
+      "traditional": {
+        "role": "Outcome Engineer — owns 'did it actually get built, correctly'. Takes spec kits from Product, submits them as job requests to the appropriate flow, monitors the implementation job, validates the resulting feature against the spec — accept, reject, or send back for another iteration.",
+        "goals": [
+          "Turn a spec kit into a working, validated feature as fast as the loop allows.",
+          "Know quickly whether the agent understood the spec — and where it didn't — without reading every line by hand.",
+          "Validate generated features against explicit, spec-derived criteria (functional, security, regulated-data) and record a clear pass/fail with rationale.",
+          "Iterate efficiently when a feature misses — re-submit with corrections, not start over — and keep an audit trail of attempts."
+        ],
+        "frustrations": [
+          "Hard to tell if the agent understood the spec; failures are discovered late, by hand.",
+          "Validation is manual and tedious — no spec-derived checklist, no diff-in-context view, lots of GitHub tab-switching.",
+          "No clear pass/fail criteria carried from the spec into the review.",
+          "Iterating means re-submitting and waiting, with poor visibility into what changed between attempts."
+        ],
+        "context": "Sits between Product (source of spec kits) and the flows authored by the Principal Product Engineer. Reviews on their own cadence, not real-time. Regulated environment (FERPA/COPPA via SkoolScout): every accept/reject must be attributable and logged.",
+        "techProfile": "Engineer who reads code/diffs fluently and runs tests. Wants diff-centric, annotation-friendly review surfaces with provenance (which spec, which flow, which job, which agent) and spec-derived validation checklists. Comfortable in a dark, dense console."
+      },
+      "screensTouched": ["SubmitJob", "Jobs / Sessions", "Proposals", "Benchmarks / BenchmarkRun", "Catalog"],
+      "researchSources": [{ "type": "hypothesis", "summary": "Initial hypothesis from the builder's domain knowledge; no formal user research yet.", "date": "2026-05-12" }],
+      "created": "2026-05-12T04:00:00Z",
+      "lastReviewed": "2026-05-12T04:00:00Z"
+    },
+    {
+      "id": "persona-principal-product-engineer",
+      "name": "Principal Product Engineer",
+      "type": "traditional",
+      "filePath": "product/ux/personas/principal-product-engineer.md",
+      "summary": "Owns the general setup that makes AgentX run for a product — registers the product and its repos, configures the default context source, and authors the FlowDefs (incl. publish-* PR/merge nodes) that job requests resolve to. The infrastructure layer beneath Product and Outcome Engineer.",
+      "traditional": {
+        "role": "Principal Product Engineer — owns 'general setup'. For each productId: registers it and its existing repos, sets the default context source (what agentx-load feeds the agents), and authors/maintains the FlowDefs job requests run through — including the publish-* nodes that open PRs and merge under the controlplane-issued GitHub App token.",
+        "goals": [
+          "Register a product and its repos quickly and correctly — repos, credentials, context config as one coherent setup, in an obvious order.",
+          "Define a default context source that gives agents the right grounding.",
+          "Author and iterate on Flows that cover the job-request types the product needs, with confidence they're correct before a real job hits them.",
+          "Trust that an incoming job request resolves to the intended flow with the intended context — and see where flow coverage has gaps."
+        ],
+        "frustrations": [
+          "Unclear what 'registering a product' actually requires — repos? credentials? context source? — and in what order.",
+          "Context-source setup is opaque: no easy way to confirm the agent is seeing the right code/docs.",
+          "Composing/editing FlowDefs is fiddly; no good 'does this flow even work?' check short of running a real job.",
+          "Hard to see which flows exist for a product, which job-request types they cover, and where the gaps are."
+        ],
+        "context": "The setup/infrastructure persona. Sets a product up once, then evolves its flows and context config. Senior enough to be trusted with publish/merge flow authoring (Gate-2: controlplane is the credential authority). Regulated environment — flow/context changes should be attributable.",
+        "techProfile": "Senior engineer. Fluent with repos, YAML/config, CI concepts, containers/DevContainers. Wants the console to be a faster, safer path to product + flow configuration than hand-editing files."
+      },
+      "screensTouched": ["Intake (product + repo registration)", "Compose (flow authoring)", "Catalog", "SubmitJob (test a flow)", "Jobs / Sessions", "Proposals"],
+      "researchSources": [{ "type": "hypothesis", "summary": "Initial hypothesis from the builder's domain knowledge; no formal user research yet.", "date": "2026-05-12" }],
+      "created": "2026-05-12T03:50:00Z",
+      "lastReviewed": "2026-05-12T04:00:00Z"
+    }
+  ],
+  "journeys": [
+    {
+      "id": "journey-ppe-register-product",
+      "name": "Register a product",
+      "type": "user-flow",
+      "filePath": "product/ux/journeys/ppe-register-product.md",
+      "summary": "Principal Product Engineer brings a product into AgentX: name + productId, attach existing repos, configure the default context source, activate. The setup prerequisite for any job request.",
+      "personaRefs": ["persona-principal-product-engineer"],
+      "stages": [
+        {
+          "step": 1, "name": "Start product registration",
+          "userActions": ["Open Intake → 'New product'", "Enter product name; choose or accept a productId (slug)"],
+          "systemResponse": "Creates a draft product record; prompts for repos next; shows the setup checklist (repos → context → activate).",
+          "touchpoints": ["Intake screen"],
+          "painPointRefs": ["pain-product-setup-requirements-unclear"]
+        },
+        {
+          "step": 2, "name": "Attach existing repos",
+          "userActions": ["Connect one or more existing repos (org/repo or URL)", "Pick a default branch per repo", "Authorize the GitHub App on the org if not already installed"],
+          "systemResponse": "Validates repo access via the GitHub App; records repos + default branches; surfaces access errors inline.",
+          "touchpoints": ["Intake screen", "GitHub App authorization flow"],
+          "painPointRefs": ["pain-github-app-auth-opaque", "pain-no-repo-access-test"]
+        },
+        {
+          "step": 3, "name": "Configure the default context source",
+          "userActions": ["Define what agentx-load pulls as grounding (paths/globs, docs, prior context)", "Pick a context strategy / scope", "Preview the resolved context (files + token estimate)"],
+          "systemResponse": "Resolves the context source; renders a preview of what would be loaded (file list + token count); warns if over budget.",
+          "touchpoints": ["Intake screen", "Context-source config panel"],
+          "painPointRefs": ["pain-context-source-opaque", "pain-context-budget-unclear"]
+        },
+        {
+          "step": 4, "name": "Confirm & activate the product",
+          "userActions": ["Review the assembled product (name, productId, repos, context source)", "Activate it"],
+          "systemResponse": "Marks the product active; job requests can now target it; prompts 'no flows yet → author a flow' with a link to the author-flow path.",
+          "touchpoints": ["Intake screen → product detail"],
+          "painPointRefs": ["pain-active-product-no-flows"]
+        }
+      ],
+      "created": "2026-05-12T04:20:00Z",
+      "lastReviewed": "2026-05-12T04:20:00Z"
+    },
+    {
+      "id": "journey-ppe-author-flow",
+      "name": "Author a Flow (FlowDef)",
+      "type": "user-flow",
+      "filePath": "product/ux/journeys/ppe-author-flow.md",
+      "summary": "Principal Product Engineer composes a FlowDef to cover a job-request type — pick the type, wire nodes (clone → load-context → run-agent → tests → publish-pr → publish-merge), validate, save & version. Enumerates the flows needed to support job requests via a coverage matrix.",
+      "personaRefs": ["persona-principal-product-engineer"],
+      "stages": [
+        {
+          "step": 1, "name": "Pick a flow to author / job-request type to cover",
+          "userActions": ["Open Compose → 'New flow'; name it", "Choose which job-request type(s) it serves (implement-feature, fix-bug, run-benchmark, generate-spec/research, review-proposal, maintenance/dep-upgrade)", "Review the coverage matrix: which job-request types already have a flow, which don't"],
+          "systemResponse": "Scaffolds an empty flow graph; renders the product's flow-coverage matrix highlighting uncovered job-request types.",
+          "touchpoints": ["Compose screen", "Flow-coverage view"],
+          "painPointRefs": ["pain-flow-coverage-invisible"]
+        },
+        {
+          "step": 2, "name": "Add & wire nodes",
+          "userActions": ["Add nodes: clone-repo → load-context → run-agent → run-tests → publish-pr → publish-merge (+ branches/conditions)", "Wire skills/agents from the Catalog into run-agent", "Set per-node config"],
+          "systemResponse": "Live-validates the graph (disconnected nodes, missing required config, publish-merge without a preceding publish-pr, etc.); flags issues inline on the canvas.",
+          "touchpoints": ["Compose canvas", "Catalog (skill/agent picker)", "Node config panels"],
+          "painPointRefs": ["pain-flow-composition-fiddly"]
+        },
+        {
+          "step": 3, "name": "Validate the flow (dry-run)",
+          "userActions": ["Run a dry-run / validation pass against a sample input (no real agent execution, no real PR)", "Read the per-node pass/fail report"],
+          "systemResponse": "Walks the graph; checks each node would resolve (repo accessible, context loads, skills enabled, GitHub App token available for publish-*); reports pass/fail per node with reasons.",
+          "touchpoints": ["Compose screen → validation panel"],
+          "painPointRefs": ["pain-validation-false-confidence"]
+        },
+        {
+          "step": 4, "name": "Save & version the flow",
+          "userActions": ["Save the FlowDef with a version note", "Optionally mark it as the default flow for a job-request type"],
+          "systemResponse": "Persists the FlowDef; bumps version; updates the coverage matrix; job requests of that type now resolve to it. Shows version history with rollback.",
+          "touchpoints": ["Compose screen", "Flow version history"],
+          "painPointRefs": ["pain-flow-versioning-unclear"]
+        }
+      ],
+      "created": "2026-05-12T04:20:00Z",
+      "lastReviewed": "2026-05-12T04:20:00Z"
+    },
+    {
+      "id": "journey-ppe-test-flow",
+      "name": "Test a flow",
+      "type": "user-flow",
+      "filePath": "product/ux/journeys/ppe-test-flow.md",
+      "summary": "Principal Product Engineer submits a real (sandboxed) job against a newly-authored flow, watches it run node-by-node, inspects the result, and either marks the flow ready or loops back to Compose to fix it.",
+      "personaRefs": ["persona-principal-product-engineer"],
+      "stages": [
+        {
+          "step": 1, "name": "Submit a test job against the flow",
+          "userActions": ["From Compose (or SubmitJob), submit a job request targeting the product + the new flow with a small/sample input", "Choose a sandbox / no-publish mode so publish-* nodes don't create real PRs"],
+          "systemResponse": "Enqueues the job; spins up the agentx-job-<jobId> DevContainer; starts agents per the flow; marks it a test/sandboxed run.",
+          "touchpoints": ["SubmitJob screen", "Compose → 'Test run'"],
+          "painPointRefs": ["pain-test-run-side-effects"]
+        },
+        {
+          "step": 2, "name": "Watch the run",
+          "userActions": ["Open Jobs → the test job → Sessions; watch nodes execute, agent logs stream, worktree changes"],
+          "systemResponse": "Live status per node; current node highlighted on the flow graph; streaming logs; per-worktree changes.",
+          "touchpoints": ["Jobs screen", "Sessions screen", "Job detail"],
+          "painPointRefs": ["pain-job-stuck-or-slow"]
+        },
+        {
+          "step": 3, "name": "Inspect the result",
+          "userActions": ["When the job finishes/fails, inspect the output — proposal (diff), PR (if publish-pr ran), test results, logs", "If a node failed, drill into the failure"],
+          "systemResponse": "Shows produced artifacts, per-node outcomes, failure reasons + retry affordance; a 'which node failed and why' summary.",
+          "touchpoints": ["Jobs → job detail", "Proposals (the generated output)"],
+          "painPointRefs": ["pain-failure-reason-buried"]
+        },
+        {
+          "step": 4, "name": "Decide — flow's good, or iterate",
+          "userActions": ["Either mark the flow validated/ready, or go back to Compose to fix it (loop to 'Author a Flow', step 2)"],
+          "systemResponse": "Records the test outcome against the flow version (input X → result Y, pass/fail).",
+          "touchpoints": ["Compose / flow detail"],
+          "painPointRefs": ["pain-no-flow-test-record"]
+        }
+      ],
+      "created": "2026-05-12T04:20:00Z",
+      "lastReviewed": "2026-05-12T04:20:00Z"
+    },
+    {
+      "id": "journey-product-spec-feature",
+      "name": "Spec a feature (build a spec kit)",
+      "type": "user-flow",
+      "filePath": "product/ux/journeys/product-spec-feature.md",
+      "summary": "Product persona builds a spec kit: frame the feature → generate/attach research → produce wireframes → write the feature spec + acceptance criteria + user stories → package & version. The kit is one versioned object (mirrors product/.pencil-ux.json + .pen + feature-spec doc).",
+      "personaRefs": ["persona-product"],
+      "stages": [
+        { "step": 1, "name": "Frame the feature / start a spec kit",
+          "userActions": ["Open the Specs/Feature-Kits surface → 'New feature kit'", "Name it; write the problem statement / intent; link the persona(s) it serves"],
+          "systemResponse": "Creates a draft spec kit; shows its sections (research → wireframes → feature spec → stories) as a checklist.",
+          "touchpoints": ["Specs / Feature-Kits surface"],
+          "painPointRefs": ["pain-spec-kit-not-one-object"] },
+        { "step": 2, "name": "Generate / attach research",
+          "userActions": ["Run a generate-research job against a brief, OR attach existing research", "Review the research output and link the findings that matter"],
+          "systemResponse": "If generating: submits the job, shows progress, attaches the result to the kit. If attaching: links it. Lets findings be cited from spec sections later.",
+          "touchpoints": ["Specs surface", "SubmitJob (the research-generating flow)", "Jobs (watch it)"],
+          "painPointRefs": ["pain-research-not-traceable-to-spec"] },
+        { "step": 3, "name": "Produce wireframes",
+          "userActions": ["Open Pencil (or a generate-wireframes job) to produce low-fi screens for the feature", "Review; attach the .pen artifacts to the kit; link each wireframe to the spec section it realizes"],
+          "systemResponse": "Links the .pen artifacts to the kit; shows them inline; tracks the wireframe ↔ spec-section mapping.",
+          "touchpoints": ["Specs surface", "Pencil / .pen", "generate-wireframes flow (optional)"],
+          "painPointRefs": ["pain-wireframes-drift-from-spec"] },
+        { "step": 4, "name": "Write the feature spec + acceptance criteria + stories",
+          "userActions": ["Write the feature spec (scope, behavior, constraints incl. regulated-data, out-of-scope)", "Derive the user stories; set acceptance criteria per story (Given/When/Then)"],
+          "systemResponse": "Validates the spec has the required sections; flags missing regulated-data handling if the feature/persona touches user/student data; lists the implied stories.",
+          "touchpoints": ["Specs surface"],
+          "painPointRefs": ["pain-regulated-constraints-forgotten", "pain-spec-structure-not-enforced"] },
+        { "step": 5, "name": "Package & version the spec kit",
+          "userActions": ["Review the assembled kit (research + wireframes + spec + stories)", "Package it; give it a version note; mark it ready to hand off"],
+          "systemResponse": "Bundles into a versioned spec-kit artifact (mirrors product/.pencil-ux.json + .pen + feature-spec doc); marks it available to the Outcome Engineer; shows version history.",
+          "touchpoints": ["Specs surface"],
+          "painPointRefs": ["pain-kit-not-self-contained"] }
+      ],
+      "created": "2026-05-12T04:40:00Z",
+      "lastReviewed": "2026-05-12T04:40:00Z"
+    },
+    {
+      "id": "journey-product-handoff-kit",
+      "name": "Hand off a spec kit to the Outcome Engineer",
+      "type": "user-flow",
+      "filePath": "product/ux/journeys/product-handoff-kit.md",
+      "summary": "Product hands a packaged spec kit to the Outcome Engineer: select the kit + target product/flow → hand off (kit enters the OE's queue with provenance) → track its lifecycle status.",
+      "personaRefs": ["persona-product", "persona-outcome-engineer"],
+      "stages": [
+        { "step": 1, "name": "Select a packaged kit & target",
+          "userActions": ["Pick a ready spec kit", "Identify the product/repo it's for; optionally the suggested flow (implement-feature)"],
+          "systemResponse": "Shows the kit summary + the target product's available flows; confirms the kit is complete and the flow can accept its shape.",
+          "touchpoints": ["Specs surface"],
+          "painPointRefs": ["pain-kit-flow-mismatch"] },
+        { "step": 2, "name": "Hand off",
+          "userActions": ["Hand the kit to the Outcome Engineer (assign / notify / queue)"],
+          "systemResponse": "Records the handoff; the kit appears in the Outcome Engineer's queue with provenance (which spec, version, persona, target product/flow).",
+          "touchpoints": ["Specs surface", "Outcome Engineer's SubmitJob queue"],
+          "painPointRefs": ["pain-ownership-transfer-unclear"] },
+        { "step": 3, "name": "Track status",
+          "userActions": ["Watch the kit's status as the OE submits it, a job runs, a feature comes back"],
+          "systemResponse": "Surfaces the kit's lifecycle state: handed-off → submitted → running → produced → accepted/rejected.",
+          "touchpoints": ["Specs surface"],
+          "painPointRefs": ["pain-lost-visibility-after-handoff"] }
+      ],
+      "created": "2026-05-12T04:40:00Z",
+      "lastReviewed": "2026-05-12T04:40:00Z"
+    },
+    {
+      "id": "journey-product-review-vs-spec",
+      "name": "Review implementation against the spec",
+      "type": "user-flow",
+      "filePath": "product/ux/journeys/product-review-vs-spec.md",
+      "summary": "When a feature comes back, Product reviews it against the originating spec kit: open the produced feature (diff + kit side by side) → assess against the spec's acceptance criteria → decide spec-was-right (back to flow) vs spec-was-wrong (revise the kit, bump version, re-hand-off).",
+      "personaRefs": ["persona-product", "persona-outcome-engineer"],
+      "stages": [
+        { "step": 1, "name": "Open the produced feature",
+          "userActions": ["From the Specs surface (or Proposals), open the feature a flow produced for this kit", "See the diff + the originating kit side by side"],
+          "systemResponse": "Links the proposal/PR to the originating spec kit; shows the spec's acceptance criteria alongside the diff.",
+          "touchpoints": ["Specs surface", "Proposals"],
+          "painPointRefs": ["pain-output-vs-spec-not-side-by-side"] },
+        { "step": 2, "name": "Assess against acceptance criteria",
+          "userActions": ["Walk the spec's acceptance criteria against the implementation", "Mark each met/missed/ambiguous with a note; flag spec ambiguities the implementation surfaced"],
+          "systemResponse": "Renders a spec-derived checklist; records each criterion's status + note.",
+          "touchpoints": ["Proposals", "Specs surface"],
+          "painPointRefs": ["pain-criteria-assessment-improvised"] },
+        { "step": 3, "name": "Decide — spec was right (back to flow) / spec was wrong (revise spec)",
+          "userActions": ["Fork: implementation missed a correct spec → send back to the flow (OE re-submits). Spec was unclear/wrong → revise the spec kit (loop to 'Spec a feature', bump version) and re-hand-off"],
+          "systemResponse": "Records the decision + rationale; routes accordingly; bumps the relevant version (flow re-run vs. kit revision).",
+          "touchpoints": ["Specs surface", "Proposals"],
+          "painPointRefs": ["pain-spec-wrong-vs-impl-wrong-fork-muddy"] }
+      ],
+      "created": "2026-05-12T04:40:00Z",
+      "lastReviewed": "2026-05-12T04:40:00Z"
+    },
+    {
+      "id": "journey-oe-submit-kit",
+      "name": "Submit a spec kit to a flow",
+      "type": "user-flow",
+      "filePath": "product/ux/journeys/oe-submit-kit.md",
+      "summary": "Outcome Engineer takes a handed-off spec kit and submits it as a job request: pick the kit from the queue → choose the flow & configure the run (sandbox vs real, overrides, iteration note) → submit (job links back to the kit version).",
+      "personaRefs": ["persona-outcome-engineer"],
+      "stages": [
+        { "step": 1, "name": "Pick a spec kit from the queue",
+          "userActions": ["Open SubmitJob → 'Queue'; see handed-off spec kits with provenance (spec, version, persona, target product)", "Pick one"],
+          "systemResponse": "Shows the kit's contents (spec, wireframes, acceptance criteria) + the target product's available flows.",
+          "touchpoints": ["SubmitJob screen", "Queue view"],
+          "painPointRefs": ["pain-queue-lacks-context"] },
+        { "step": 2, "name": "Choose the flow & configure the run",
+          "userActions": ["Pick the flow to submit against (defaults to the kit's suggested flow, e.g. implement-feature)", "Set run config: repo/branch, sandbox vs real, model/agent overrides if allowed, iteration note if re-submitting"],
+          "systemResponse": "Validates the kit's shape fits the flow; pre-fills from the kit's suggested flow + the product's defaults; warns on mismatches.",
+          "touchpoints": ["SubmitJob screen", "Flow picker", "Run-config panel"],
+          "painPointRefs": ["pain-kit-flow-mismatch", "pain-run-cost-unestimated"] },
+        { "step": 3, "name": "Submit & confirm",
+          "userActions": ["Submit the job request"],
+          "systemResponse": "Enqueues; resolves the kit + product context + flow into a concrete job; assigns a jobId; spins up agentx-job-<jobId>; links the job to the spec-kit version (provenance). Confirms with a link to watch.",
+          "touchpoints": ["SubmitJob screen → job detail"],
+          "painPointRefs": ["pain-run-cost-unestimated"] }
+      ],
+      "created": "2026-05-12T05:00:00Z",
+      "lastReviewed": "2026-05-12T05:00:00Z"
+    },
+    {
+      "id": "journey-oe-watch-run",
+      "name": "Watch the implementation run",
+      "type": "user-flow",
+      "filePath": "product/ux/journeys/oe-watch-run.md",
+      "summary": "Outcome Engineer monitors a running job: open it (flow graph, current node) → inspect live agent work (Sessions: streaming logs, worktree diffs, agent state) → intervene if needed (stop / retry node / re-submit) → see the outcome summary when it completes. Shares its shape with the Principal Product Engineer's test-flow.",
+      "personaRefs": ["persona-outcome-engineer", "persona-principal-product-engineer"],
+      "stages": [
+        { "step": 1, "name": "Open the running job",
+          "userActions": ["From Jobs (or the submit confirmation), open the job → its flow graph with the current node highlighted"],
+          "systemResponse": "Live node status; the flow graph; elapsed time; current cost/token spend.",
+          "touchpoints": ["Jobs screen", "Job detail"],
+          "painPointRefs": ["pain-job-stuck-or-slow"] },
+        { "step": 2, "name": "Inspect live agent work",
+          "userActions": ["Open Sessions for the job; read streaming agent logs; view worktree changes as they happen; optionally watch multiple agents/worktrees side by side"],
+          "systemResponse": "Streaming logs per agent; per-worktree diff; agent state (thinking / tool-calling / done).",
+          "touchpoints": ["Sessions screen"],
+          "painPointRefs": ["pain-log-firehose", "pain-multi-agent-view-overwhelms"] },
+        { "step": 3, "name": "Intervene if needed",
+          "userActions": ["If a job is stuck/wrong: stop the job, retry a failed node, or adjust & re-submit"],
+          "systemResponse": "Applies the action; records it (who, when, why); for retry, re-runs from the failed node.",
+          "touchpoints": ["Jobs screen → job actions"],
+          "painPointRefs": ["pain-intervention-effects-unclear"] },
+        { "step": 4, "name": "Job completes — see the outcome summary",
+          "userActions": ["When the job finishes/fails, see the outcome summary: produced artifacts (proposal/diff, PR if any), per-node outcomes, total cost/time, 'which node failed and why' if failed"],
+          "systemResponse": "The summary view; links to the produced feature for validation.",
+          "touchpoints": ["Jobs → job detail"],
+          "painPointRefs": ["pain-failure-reason-buried"] }
+      ],
+      "created": "2026-05-12T05:00:00Z",
+      "lastReviewed": "2026-05-12T05:00:00Z"
+    },
+    {
+      "id": "journey-oe-validate-feature",
+      "name": "Validate & decide on the produced feature",
+      "type": "user-flow",
+      "filePath": "product/ux/journeys/oe-validate-feature.md",
+      "summary": "Outcome Engineer validates a produced feature against its spec: open it side by side with the spec kit → review automated checks → walk the acceptance-criteria checklist (with diff-line links) → decide accept / reject→flow / reject→Product / iterate. Decisions are attributable and logged (regulated).",
+      "personaRefs": ["persona-outcome-engineer", "persona-product"],
+      "stages": [
+        { "step": 1, "name": "Open the produced feature against its spec",
+          "userActions": ["From Proposals (or the job outcome), open the produced feature — diff, the originating spec kit (criteria, wireframes), test results, the agent's own summary of what it did"],
+          "systemResponse": "Links proposal ↔ spec-kit version ↔ job; shows the spec-derived acceptance-criteria checklist alongside the diff.",
+          "touchpoints": ["Proposals screen", "Feature/proposal detail"],
+          "painPointRefs": ["pain-output-vs-spec-not-side-by-side"] },
+        { "step": 2, "name": "Run / review automated checks",
+          "userActions": ["Look at the review-proposal flow's output (lint, tests, security scan, spec-coverage); run additional checks if needed"],
+          "systemResponse": "Shows automated-check results inline on the diff; flags spec criteria with no test coverage.",
+          "touchpoints": ["Proposals detail"],
+          "painPointRefs": ["pain-checks-and-review-disconnected"] },
+        { "step": 3, "name": "Walk the acceptance-criteria checklist",
+          "userActions": ["Mark each spec criterion met/missed/ambiguous with a note + the diff line(s) it relates to", "Add code/security findings; flag spec ambiguities"],
+          "systemResponse": "Records each criterion's status; tallies pass/fail; preserves the checklist so Product can add spec-conformance findings to the same one.",
+          "touchpoints": ["Proposals detail", "Shared acceptance-criteria checklist"],
+          "painPointRefs": ["pain-criteria-assessment-improvised", "pain-diffline-criterion-unlinked"] },
+        { "step": 4, "name": "Decide — accept / reject→flow / reject→Product / iterate",
+          "userActions": ["Accept → approve; publish-merge (or manual merge) lands it; kit lifecycle → accepted; audit record written", "Reject→flow → implementation missed a correct spec; send back with corrections; re-submit (loop to oe-submit-kit step 2 with an iteration note)", "Reject→Product → spec was wrong/unclear; route to Product's review-vs-spec / spec revision; kit lifecycle → needs-spec-revision"],
+          "systemResponse": "Records the decision + rationale (attributable, logged — regulated); routes accordingly; updates the kit lifecycle state; writes the audit entry.",
+          "touchpoints": ["Proposals detail", "Decision panel"],
+          "painPointRefs": ["pain-spec-wrong-vs-impl-wrong-fork-muddy", "pain-no-corrections-payload"] }
+      ],
+      "created": "2026-05-12T05:00:00Z",
+      "lastReviewed": "2026-05-12T05:00:00Z"
+    }
+  ],
+  "painPoints": [
+    { "id": "pain-product-setup-requirements-unclear", "description": "Unclear what registering a product requires (repos? credentials? context source?) and in what order.", "severity": "moderate", "frequency": "always", "personaRefs": ["persona-principal-product-engineer"], "journeyRefs": ["journey-ppe-register-product"], "status": "open" },
+    { "id": "pain-github-app-auth-opaque", "description": "GitHub App install/authorization for repo access is opaque — can't tell if the App has access to a given private repo.", "severity": "major", "frequency": "frequently", "personaRefs": ["persona-principal-product-engineer"], "journeyRefs": ["journey-ppe-register-product"], "status": "open" },
+    { "id": "pain-no-repo-access-test", "description": "No way to test repo access before saving the product.", "severity": "moderate", "frequency": "sometimes", "personaRefs": ["persona-principal-product-engineer"], "journeyRefs": ["journey-ppe-register-product"], "status": "open" },
+    { "id": "pain-context-source-opaque", "description": "Can't confirm the agent will actually load the right code/docs — no preview of the resolved context.", "severity": "major", "frequency": "always", "personaRefs": ["persona-principal-product-engineer", "persona-product"], "journeyRefs": ["journey-ppe-register-product"], "status": "open" },
+    { "id": "pain-context-budget-unclear", "description": "Unclear how much context is too much (token budget) when configuring the context source.", "severity": "moderate", "frequency": "sometimes", "personaRefs": ["persona-principal-product-engineer"], "journeyRefs": ["journey-ppe-register-product"], "status": "open" },
+    { "id": "pain-active-product-no-flows", "description": "A product can be activated with zero flows, so job requests against it just fail.", "severity": "moderate", "frequency": "sometimes", "personaRefs": ["persona-principal-product-engineer"], "journeyRefs": ["journey-ppe-register-product"], "status": "open" },
+    { "id": "pain-flow-coverage-invisible", "description": "Hard to see which job-request types have a flow and which don't.", "severity": "major", "frequency": "always", "personaRefs": ["persona-principal-product-engineer"], "journeyRefs": ["journey-ppe-author-flow"], "status": "open" },
+    { "id": "pain-flow-composition-fiddly", "description": "Composing/editing a FlowDef is fiddly; there's no 'does this even work?' check short of a real run.", "severity": "major", "frequency": "frequently", "personaRefs": ["persona-principal-product-engineer"], "journeyRefs": ["journey-ppe-author-flow"], "status": "open" },
+    { "id": "pain-validation-false-confidence", "description": "Flow validation that doesn't actually execute can give false confidence about what 'valid' guarantees.", "severity": "moderate", "frequency": "sometimes", "personaRefs": ["persona-principal-product-engineer"], "journeyRefs": ["journey-ppe-author-flow"], "status": "open" },
+    { "id": "pain-flow-versioning-unclear", "description": "Unclear whether saving overwrote the previous flow version, or how to roll back.", "severity": "moderate", "frequency": "sometimes", "personaRefs": ["persona-principal-product-engineer"], "journeyRefs": ["journey-ppe-author-flow"], "status": "open" },
+    { "id": "pain-test-run-side-effects", "description": "A test run can have real side effects (e.g. open a real PR) — no sandbox/no-publish mode.", "severity": "major", "frequency": "frequently", "personaRefs": ["persona-principal-product-engineer"], "journeyRefs": ["journey-ppe-test-flow"], "status": "open" },
+    { "id": "pain-job-stuck-or-slow", "description": "Can't tell which node a job is on, or whether it's stuck vs. just slow.", "severity": "major", "frequency": "frequently", "personaRefs": ["persona-principal-product-engineer", "persona-outcome-engineer"], "journeyRefs": ["journey-ppe-test-flow"], "status": "open" },
+    { "id": "pain-failure-reason-buried", "description": "Failure reasons are buried in logs; no 'which node failed and why' summary.", "severity": "major", "frequency": "frequently", "personaRefs": ["persona-principal-product-engineer", "persona-outcome-engineer"], "journeyRefs": ["journey-ppe-test-flow"], "status": "open" },
+    { "id": "pain-no-flow-test-record", "description": "No durable record of 'this flow version was tested with input X, produced Y'.", "severity": "moderate", "frequency": "sometimes", "personaRefs": ["persona-principal-product-engineer"], "journeyRefs": ["journey-ppe-test-flow"], "status": "open" },
+    { "id": "pain-spec-kit-not-one-object", "description": "Research, wireframes, and the feature spec are scattered docs, not one packaged, versioned object.", "severity": "major", "frequency": "always", "personaRefs": ["persona-product"], "journeyRefs": ["journey-product-spec-feature"], "status": "open" },
+    { "id": "pain-research-not-traceable-to-spec", "description": "Can't tell which research finding drove which spec decision — no citation link from spec sections to research.", "severity": "major", "frequency": "frequently", "personaRefs": ["persona-product"], "journeyRefs": ["journey-product-spec-feature"], "status": "open" },
+    { "id": "pain-wireframes-drift-from-spec", "description": "Wireframes drift from the spec (and from what ships); no link between a wireframe and the spec section it realizes.", "severity": "major", "frequency": "frequently", "personaRefs": ["persona-product"], "journeyRefs": ["journey-product-spec-feature"], "status": "open" },
+    { "id": "pain-regulated-constraints-forgotten", "description": "Regulated-data handling constraints (FERPA/COPPA) get forgotten until late in the spec.", "severity": "moderate", "frequency": "sometimes", "personaRefs": ["persona-product"], "journeyRefs": ["journey-product-spec-feature"], "status": "open" },
+    { "id": "pain-spec-structure-not-enforced", "description": "No enforced spec structure → specs vary in completeness; implementers get incomplete specs.", "severity": "moderate", "frequency": "sometimes", "personaRefs": ["persona-product"], "journeyRefs": ["journey-product-spec-feature"], "status": "open" },
+    { "id": "pain-kit-not-self-contained", "description": "Hard to tell if a packaged spec kit is complete and self-contained before handing it off.", "severity": "moderate", "frequency": "sometimes", "personaRefs": ["persona-product"], "journeyRefs": ["journey-product-spec-feature"], "status": "open" },
+    { "id": "pain-kit-flow-mismatch", "description": "Unclear which flow a spec kit should go to; the kit's shape and the flow's expectations can mismatch.", "severity": "moderate", "frequency": "sometimes", "personaRefs": ["persona-product", "persona-outcome-engineer"], "journeyRefs": ["journey-product-handoff-kit"], "status": "open" },
+    { "id": "pain-ownership-transfer-unclear", "description": "No clear ownership transfer at handoff — who's responsible for the kit now?", "severity": "minor", "frequency": "sometimes", "personaRefs": ["persona-product", "persona-outcome-engineer"], "journeyRefs": ["journey-product-handoff-kit"], "status": "open" },
+    { "id": "pain-lost-visibility-after-handoff", "description": "Product loses visibility into a spec kit once it leaves their hands (submitted → running → produced).", "severity": "moderate", "frequency": "frequently", "personaRefs": ["persona-product"], "journeyRefs": ["journey-product-handoff-kit"], "status": "open" },
+    { "id": "pain-output-vs-spec-not-side-by-side", "description": "Can't see the produced feature against its spec (acceptance criteria, wireframes) in one place.", "severity": "major", "frequency": "frequently", "personaRefs": ["persona-product", "persona-outcome-engineer"], "journeyRefs": ["journey-product-review-vs-spec"], "status": "open" },
+    { "id": "pain-criteria-assessment-improvised", "description": "Acceptance-criteria assessment is improvised, not a structured spec-derived checklist.", "severity": "moderate", "frequency": "sometimes", "personaRefs": ["persona-product", "persona-outcome-engineer"], "journeyRefs": ["journey-product-review-vs-spec"], "status": "open" },
+    { "id": "pain-spec-wrong-vs-impl-wrong-fork-muddy", "description": "The 'spec was wrong' vs 'implementation was wrong' fork on a rejected feature is muddy — features get misrouted (back to flow vs. back to Product).", "severity": "major", "frequency": "sometimes", "personaRefs": ["persona-product", "persona-outcome-engineer"], "journeyRefs": ["journey-product-review-vs-spec", "journey-oe-validate-feature"], "status": "open" },
+    { "id": "pain-queue-lacks-context", "description": "The submit queue lacks context — priority, what changed since last look, why this kit now.", "severity": "moderate", "frequency": "frequently", "personaRefs": ["persona-outcome-engineer"], "journeyRefs": ["journey-oe-submit-kit"], "status": "open" },
+    { "id": "pain-run-cost-unestimated", "description": "No estimate of how long a job will take or how much it will cost before submitting it.", "severity": "moderate", "frequency": "sometimes", "personaRefs": ["persona-outcome-engineer", "persona-principal-product-engineer"], "journeyRefs": ["journey-oe-submit-kit"], "status": "open" },
+    { "id": "pain-log-firehose", "description": "Agent logs are a firehose — hard to see what the agent decided vs. raw output.", "severity": "major", "frequency": "frequently", "personaRefs": ["persona-outcome-engineer", "persona-principal-product-engineer"], "journeyRefs": ["journey-oe-watch-run"], "status": "open" },
+    { "id": "pain-multi-agent-view-overwhelms", "description": "N agents × M worktrees overwhelms a single watch view.", "severity": "moderate", "frequency": "sometimes", "personaRefs": ["persona-outcome-engineer", "persona-principal-product-engineer"], "journeyRefs": ["journey-oe-watch-run"], "status": "open" },
+    { "id": "pain-intervention-effects-unclear", "description": "Unclear what intervening (stop / retry node / re-submit) will do — re-run everything? destructive?", "severity": "moderate", "frequency": "sometimes", "personaRefs": ["persona-outcome-engineer", "persona-principal-product-engineer"], "journeyRefs": ["journey-oe-watch-run"], "status": "open" },
+    { "id": "pain-checks-and-review-disconnected", "description": "Automated checks (the review-proposal flow) and human review are disconnected — re-checking the same things by hand.", "severity": "moderate", "frequency": "sometimes", "personaRefs": ["persona-outcome-engineer"], "journeyRefs": ["journey-oe-validate-feature"], "status": "open" },
+    { "id": "pain-diffline-criterion-unlinked", "description": "No diff-line ↔ acceptance-criterion linking → review is two disconnected reads (the diff, then the checklist).", "severity": "moderate", "frequency": "frequently", "personaRefs": ["persona-outcome-engineer", "persona-product"], "journeyRefs": ["journey-oe-validate-feature"], "status": "open" },
+    { "id": "pain-no-corrections-payload", "description": "When sending a feature back to a flow, there's no structured 'what corrections' payload → the next run repeats the mistake.", "severity": "major", "frequency": "frequently", "personaRefs": ["persona-outcome-engineer"], "journeyRefs": ["journey-oe-validate-feature"], "status": "open" }
+  ],
+  "stories": [
+    { "id": "story-ppe-register-product", "title": "Register a product in one guided flow", "personaRefs": ["persona-principal-product-engineer"], "narrative": { "role": "Principal Product Engineer", "capability": "register a product with its repos and a default context source in one guided flow", "outcome": "the product is ready to receive job requests without me guessing what's needed or in what order" }, "acceptanceCriteria": [ { "given": "I'm on Intake with no product yet", "when": "I start 'New product'", "then": "I see a setup checklist (name/productId → repos → context source → activate) and can't skip ahead past unmet steps" } ], "addressesPainRefs": ["pain-product-setup-requirements-unclear"], "size": "M", "status": "ready", "tags": ["mvp", "intake"], "journeyRefs": ["journey-ppe-register-product"], "created": "2026-05-12T05:20:00Z", "lastUpdated": "2026-05-12T05:20:00Z" },
+    { "id": "story-ppe-attach-repos", "title": "Attach repos and confirm GitHub App access", "personaRefs": ["persona-principal-product-engineer"], "narrative": { "role": "Principal Product Engineer", "capability": "attach existing repos and confirm the GitHub App actually has access to each", "outcome": "flows can clone and push to them, and I find out about access problems now, not when a job fails" }, "acceptanceCriteria": [ { "given": "I add a private repo the GitHub App isn't installed on", "when": "I try to save it", "then": "I'm shown an inline error and a link to authorize/install the App on that org, and the repo isn't saved as accessible until access is confirmed" }, { "given": "the App has access", "when": "I view the repo in the product", "then": "I see a green 'access confirmed' state and the default branch" } ], "addressesPainRefs": ["pain-github-app-auth-opaque", "pain-no-repo-access-test"], "size": "M", "status": "ready", "tags": ["mvp", "intake"], "journeyRefs": ["journey-ppe-register-product"], "created": "2026-05-12T05:20:00Z", "lastUpdated": "2026-05-12T05:20:00Z" },
+    { "id": "story-ppe-preview-context-source", "title": "Preview what the context source will load", "personaRefs": ["persona-principal-product-engineer"], "narrative": { "role": "Principal Product Engineer", "capability": "preview the file list and token estimate my configured context source would load", "outcome": "I can confirm the agent will see the right grounding before any job runs" }, "acceptanceCriteria": [ { "given": "I've configured a context source (paths/globs, docs)", "when": "I click 'Preview'", "then": "I see the resolved file list and a token estimate, and a warning if it exceeds the budget" } ], "addressesPainRefs": ["pain-context-source-opaque", "pain-context-budget-unclear"], "size": "M", "status": "ready", "tags": ["mvp", "intake"], "journeyRefs": ["journey-ppe-register-product"], "created": "2026-05-12T05:20:00Z", "lastUpdated": "2026-05-12T05:20:00Z" },
+    { "id": "story-ppe-activate-product-warns-no-flows", "title": "Warn (don't block) on activating a product with no flows", "personaRefs": ["persona-principal-product-engineer"], "narrative": { "role": "Principal Product Engineer", "capability": "be warned, not blocked, when I activate a product that has no flows", "outcome": "I don't ship a product whose job requests will all fail, but I can still set it up incrementally" }, "acceptanceCriteria": [ { "given": "a product with zero flows", "when": "I click Activate", "then": "I get a warning ('no flows yet — job requests will fail until you author one') with a link to author a flow, and can proceed anyway" } ], "addressesPainRefs": ["pain-active-product-no-flows"], "size": "S", "status": "draft", "tags": ["intake"], "journeyRefs": ["journey-ppe-register-product"], "created": "2026-05-12T05:20:00Z", "lastUpdated": "2026-05-12T05:20:00Z" },
+    { "id": "story-ppe-flow-coverage-matrix", "title": "See which job-request types have a flow", "personaRefs": ["persona-principal-product-engineer"], "narrative": { "role": "Principal Product Engineer", "capability": "see a coverage matrix of which job-request types my product has flows for and which it doesn't", "outcome": "I can spot and close flow-coverage gaps before a job request hits an uncovered type" }, "acceptanceCriteria": [ { "given": "a product with flows for some job-request types", "when": "I open Compose for the product", "then": "I see a matrix listing all job-request types, which have a flow (and which is default), and which are uncovered" } ], "addressesPainRefs": ["pain-flow-coverage-invisible"], "size": "M", "status": "ready", "tags": ["mvp", "compose"], "journeyRefs": ["journey-ppe-author-flow"], "created": "2026-05-12T05:20:00Z", "lastUpdated": "2026-05-12T05:20:00Z" },
+    { "id": "story-ppe-compose-flow-nodes", "title": "Compose a FlowDef by wiring nodes", "personaRefs": ["persona-principal-product-engineer"], "narrative": { "role": "Principal Product Engineer", "capability": "compose a FlowDef by adding and wiring nodes (clone → load-context → run-agent → run-tests → publish-pr → publish-merge, plus branches) with skills/agents from the Catalog", "outcome": "I can define exactly how a job-request type gets handled" }, "acceptanceCriteria": [ { "given": "a new flow scaffold", "when": "I add nodes and connect them on the canvas", "then": "the flow graph reflects the wiring and each node exposes its required config" }, { "given": "a run-agent node", "when": "I pick skills/agents from the Catalog", "then": "they're attached to the node and the node shows them" } ], "addressesPainRefs": ["pain-flow-composition-fiddly"], "size": "L", "status": "ready", "tags": ["mvp", "compose", "flow-graph-widget"], "journeyRefs": ["journey-ppe-author-flow"], "created": "2026-05-12T05:20:00Z", "lastUpdated": "2026-05-12T05:20:00Z" },
+    { "id": "story-ppe-flow-live-validation", "title": "Live-validate the flow graph while editing", "personaRefs": ["persona-principal-product-engineer"], "narrative": { "role": "Principal Product Engineer", "capability": "have the composer live-validate the flow graph (disconnected nodes, missing required config, publish-merge without a preceding publish-pr)", "outcome": "I catch structural problems while editing instead of at runtime" }, "acceptanceCriteria": [ { "given": "a flow with a publish-merge node and no publish-pr upstream", "when": "the canvas re-validates", "then": "the publish-merge node is flagged inline with the reason, and the flow can't be marked ready until resolved" } ], "addressesPainRefs": ["pain-flow-composition-fiddly"], "size": "M", "status": "ready", "tags": ["mvp", "compose"], "journeyRefs": ["journey-ppe-author-flow"], "created": "2026-05-12T05:20:00Z", "lastUpdated": "2026-05-12T05:20:00Z" },
+    { "id": "story-ppe-flow-dry-run", "title": "Dry-run a flow against a sample input", "personaRefs": ["persona-principal-product-engineer"], "narrative": { "role": "Principal Product Engineer", "capability": "dry-run a flow against a sample input (no real agent execution, no real PR) and get a per-node pass/fail report", "outcome": "I have confidence the flow's wiring resolves before a real job hits it" }, "acceptanceCriteria": [ { "given": "a composed flow and a sample input", "when": "I run 'Dry-run'", "then": "I get a per-node report (repo accessible, context loads, skills enabled, GitHub App token available for publish-*) with pass/fail and reasons" } ], "addressesPainRefs": ["pain-flow-composition-fiddly", "pain-validation-false-confidence"], "size": "M", "status": "draft", "tags": ["compose"], "journeyRefs": ["journey-ppe-author-flow"], "created": "2026-05-12T05:20:00Z", "lastUpdated": "2026-05-12T05:20:00Z" },
+    { "id": "story-ppe-flow-versioning", "title": "Version FlowDefs with history and rollback", "personaRefs": ["persona-principal-product-engineer"], "narrative": { "role": "Principal Product Engineer", "capability": "have every save of a FlowDef bump a version with a note, a history, and rollback", "outcome": "I can change a flow without fear of losing the previous working version" }, "acceptanceCriteria": [ { "given": "an existing flow", "when": "I save changes with a note", "then": "a new version is created, the history shows all versions, and I can roll back to any prior one" } ], "addressesPainRefs": ["pain-flow-versioning-unclear"], "size": "M", "status": "draft", "tags": ["compose"], "journeyRefs": ["journey-ppe-author-flow"], "created": "2026-05-12T05:20:00Z", "lastUpdated": "2026-05-12T05:20:00Z" },
+    { "id": "story-ppe-sandbox-run-mode", "title": "Sandbox / no-publish run mode", "personaRefs": ["persona-principal-product-engineer", "persona-outcome-engineer"], "narrative": { "role": "Principal Product Engineer", "capability": "submit a job in a sandbox / no-publish mode where publish-* nodes don't create real PRs or merges", "outcome": "I can safely test a flow that ends in publish-merge, and iterate without polluting real repos" }, "acceptanceCriteria": [ { "given": "a flow with publish-pr / publish-merge nodes", "when": "I submit a job in sandbox mode", "then": "the publish-* nodes run in dry mode (logged, not executed), and the job/result is clearly marked 'sandbox'" } ], "addressesPainRefs": ["pain-test-run-side-effects"], "size": "M", "status": "ready", "tags": ["mvp", "submitjob", "compose"], "journeyRefs": ["journey-ppe-test-flow", "journey-oe-submit-kit"], "created": "2026-05-12T05:20:00Z", "lastUpdated": "2026-05-12T05:20:00Z" },
+    { "id": "story-ppe-test-flow-and-iterate", "title": "Test a flow and loop back to the composer", "personaRefs": ["persona-principal-product-engineer"], "narrative": { "role": "Principal Product Engineer", "capability": "submit a test job against a flow, watch it, see the result, and jump back to the composer if it's wrong — with the test outcome recorded against the flow version", "outcome": "I can iterate a flow to a known-good 'ready' state" }, "acceptanceCriteria": [ { "given": "a flow under test", "when": "a test job completes", "then": "the outcome (input → result, pass/fail) is recorded against the flow version, and I get a one-click path back to the composer for that version" } ], "addressesPainRefs": ["pain-no-flow-test-record"], "size": "M", "status": "ready", "tags": ["mvp", "compose"], "journeyRefs": ["journey-ppe-test-flow"], "created": "2026-05-12T05:20:00Z", "lastUpdated": "2026-05-12T05:20:00Z" },
+    { "id": "story-job-flow-graph-current-node", "title": "Job flow graph with the current node highlighted", "personaRefs": ["persona-outcome-engineer", "persona-principal-product-engineer"], "narrative": { "role": "Outcome Engineer or Principal Product Engineer", "capability": "see a running job's flow graph with the current node highlighted, per-node status, and elapsed time", "outcome": "I can tell which node the job is on and whether it's stuck or just slow" }, "acceptanceCriteria": [ { "given": "a running job", "when": "I open its detail", "then": "the flow graph shows each node's status (pending/running/done/failed), the current node is highlighted, and per-node elapsed time is visible" } ], "addressesPainRefs": ["pain-job-stuck-or-slow"], "size": "M", "status": "ready", "tags": ["mvp", "jobs", "flow-graph-widget"], "journeyRefs": ["journey-oe-watch-run", "journey-ppe-test-flow"], "created": "2026-05-12T05:20:00Z", "lastUpdated": "2026-05-12T05:20:00Z" },
+    { "id": "story-job-decision-trace-not-firehose", "title": "Sessions: a decision trace above the raw log stream", "personaRefs": ["persona-outcome-engineer", "persona-principal-product-engineer"], "narrative": { "role": "Outcome Engineer or Principal Product Engineer", "capability": "see what the agent decided (a decision trace) surfaced above the raw log stream in Sessions", "outcome": "I can follow the agent's reasoning without drowning in tool-call noise" }, "acceptanceCriteria": [ { "given": "a job with streaming agent logs", "when": "I open Sessions", "then": "I see a collapsible decision trace (agent chose X because Y) at the top, with the raw stream below, and can jump from a trace entry to its log lines" } ], "addressesPainRefs": ["pain-log-firehose"], "size": "L", "status": "draft", "tags": ["sessions"], "journeyRefs": ["journey-oe-watch-run"], "created": "2026-05-12T05:20:00Z", "lastUpdated": "2026-05-12T05:20:00Z" },
+    { "id": "story-job-multi-agent-view", "title": "Manageable N-agent × M-worktree watch view", "personaRefs": ["persona-outcome-engineer", "persona-principal-product-engineer"], "narrative": { "role": "Outcome Engineer or Principal Product Engineer", "capability": "view N agents × M worktrees in a collapsible, focusable layout", "outcome": "I can monitor a multi-agent job without one screen overwhelming me" }, "acceptanceCriteria": [ { "given": "a job with multiple agents and worktrees", "when": "I open Sessions", "then": "agents/worktrees are listed collapsed by default, I can focus one to expand it, and the active one is indicated" } ], "addressesPainRefs": ["pain-multi-agent-view-overwhelms"], "size": "M", "status": "draft", "tags": ["sessions"], "journeyRefs": ["journey-oe-watch-run"], "created": "2026-05-12T05:20:00Z", "lastUpdated": "2026-05-12T05:20:00Z" },
+    { "id": "story-job-intervene-clear-effects", "title": "Job actions state their effects before confirming", "personaRefs": ["persona-outcome-engineer", "persona-principal-product-engineer"], "narrative": { "role": "Outcome Engineer or Principal Product Engineer", "capability": "have job actions (stop / retry node / re-submit) clearly state what they'll do before I confirm", "outcome": "I don't accidentally re-run everything or do something destructive" }, "acceptanceCriteria": [ { "given": "a failed node", "when": "I click 'Retry node'", "then": "the confirm dialog states 'will re-run from <node>, keeping prior nodes' results' (or whatever the actual effect is) before I proceed" } ], "addressesPainRefs": ["pain-intervention-effects-unclear"], "size": "S", "status": "draft", "tags": ["jobs"], "journeyRefs": ["journey-oe-watch-run"], "created": "2026-05-12T05:20:00Z", "lastUpdated": "2026-05-12T05:20:00Z" },
+    { "id": "story-job-failure-summary", "title": "'Which node failed and why' summary on a failed job", "personaRefs": ["persona-outcome-engineer", "persona-principal-product-engineer"], "narrative": { "role": "Outcome Engineer or Principal Product Engineer", "capability": "see a 'which node failed and why' summary on a failed job", "outcome": "I don't have to spelunk logs to find the failure" }, "acceptanceCriteria": [ { "given": "a failed job", "when": "I open its detail", "then": "the top of the page shows the failed node, a one-line cause, and a link to the relevant log lines and a retry action" } ], "addressesPainRefs": ["pain-failure-reason-buried"], "size": "M", "status": "ready", "tags": ["mvp", "jobs"], "journeyRefs": ["journey-oe-watch-run", "journey-ppe-test-flow"], "created": "2026-05-12T05:20:00Z", "lastUpdated": "2026-05-12T05:20:00Z" },
+    { "id": "story-job-cost-time-visibility", "title": "Live and final cost/time/token spend on a job", "personaRefs": ["persona-outcome-engineer", "persona-principal-product-engineer"], "narrative": { "role": "Outcome Engineer or Principal Product Engineer", "capability": "see live and final cost / time / token spend on a job", "outcome": "I can manage spend and notice runaway jobs" }, "acceptanceCriteria": [ { "given": "a running job", "when": "I view its detail", "then": "I see running cost/tokens/elapsed updating live; on completion the final totals are shown" } ], "addressesPainRefs": ["pain-run-cost-unestimated"], "size": "S", "status": "draft", "tags": ["jobs"], "journeyRefs": ["journey-oe-watch-run", "journey-oe-submit-kit"], "created": "2026-05-12T05:20:00Z", "lastUpdated": "2026-05-12T05:20:00Z" },
+    { "id": "story-product-spec-kit-as-object", "title": "A spec kit is one versioned object", "personaRefs": ["persona-product"], "narrative": { "role": "Product", "capability": "build and manage a spec kit as one versioned object bundling research + wireframes + feature spec + user stories", "outcome": "I hand off a coherent artifact instead of scattered docs, and the implementer has everything in one place" }, "acceptanceCriteria": [ { "given": "I create a new feature kit", "when": "I add research, wireframes, a spec, and stories to it", "then": "they're all part of one kit object with a single version, and the kit shows a completeness checklist of its sections" } ], "addressesPainRefs": ["pain-spec-kit-not-one-object"], "size": "L", "status": "ready", "tags": ["mvp", "specs"], "journeyRefs": ["journey-product-spec-feature"], "created": "2026-05-12T05:20:00Z", "lastUpdated": "2026-05-12T05:20:00Z" },
+    { "id": "story-product-research-traceable", "title": "Cite research findings from spec sections", "personaRefs": ["persona-product"], "narrative": { "role": "Product", "capability": "cite research findings from the spec sections that rely on them", "outcome": "anyone can trace which research drove which decision" }, "acceptanceCriteria": [ { "given": "a kit with attached research", "when": "I write a spec section", "then": "I can link one or more research findings to it, and the kit shows the research→decision links" } ], "addressesPainRefs": ["pain-research-not-traceable-to-spec"], "size": "M", "status": "draft", "tags": ["specs"], "journeyRefs": ["journey-product-spec-feature"], "created": "2026-05-12T05:20:00Z", "lastUpdated": "2026-05-12T05:20:00Z" },
+    { "id": "story-product-wireframe-spec-mapping", "title": "Link each wireframe to the spec section it realizes", "personaRefs": ["persona-product"], "narrative": { "role": "Product", "capability": "link each wireframe in a kit to the spec section it realizes", "outcome": "wireframes and spec don't drift apart, and reviewers can check the implementation against the right wireframe" }, "acceptanceCriteria": [ { "given": "a kit with attached .pen wireframes and spec sections", "when": "I associate a wireframe with a section", "then": "the kit shows the wireframe↔section map, and a section without a wireframe (or vice versa) is flagged" } ], "addressesPainRefs": ["pain-wireframes-drift-from-spec"], "size": "M", "status": "draft", "tags": ["specs"], "journeyRefs": ["journey-product-spec-feature"], "created": "2026-05-12T05:20:00Z", "lastUpdated": "2026-05-12T05:20:00Z" },
+    { "id": "story-product-spec-structure-enforced", "title": "Spec editor requires the structural sections", "personaRefs": ["persona-product"], "narrative": { "role": "Product", "capability": "have the spec editor require the structural sections (scope, behavior, regulated-data handling, out-of-scope, acceptance criteria)", "outcome": "every spec I hand off is complete, and regulated-data constraints aren't forgotten" }, "acceptanceCriteria": [ { "given": "a feature whose persona/scope touches user/student data", "when": "I try to package the kit without a regulated-data-handling section", "then": "packaging is blocked with a clear prompt to fill it in" } ], "addressesPainRefs": ["pain-spec-structure-not-enforced", "pain-regulated-constraints-forgotten"], "size": "S", "status": "draft", "tags": ["specs"], "journeyRefs": ["journey-product-spec-feature"], "created": "2026-05-12T05:20:00Z", "lastUpdated": "2026-05-12T05:20:00Z" },
+    { "id": "story-product-package-version-kit", "title": "Package and version a spec kit with a completeness check", "personaRefs": ["persona-product"], "narrative": { "role": "Product", "capability": "package and version a spec kit and have the system check it's self-contained", "outcome": "I hand off something an implementer can act on without coming back for missing pieces" }, "acceptanceCriteria": [ { "given": "a kit with all required sections", "when": "I click Package", "then": "a new kit version is created, marked ready-to-hand-off, with a version note, and any unresolved completeness issues block packaging" } ], "addressesPainRefs": ["pain-kit-not-self-contained"], "size": "M", "status": "draft", "tags": ["specs"], "journeyRefs": ["journey-product-spec-feature"], "created": "2026-05-12T05:20:00Z", "lastUpdated": "2026-05-12T05:20:00Z" },
+    { "id": "story-product-embed-generate-flows", "title": "Run generate-* flows from inside the spec kit", "personaRefs": ["persona-product"], "narrative": { "role": "Product", "capability": "run generate-research / generate-wireframes flows from inside a spec kit and watch them", "outcome": "I can produce parts of the kit with agents without leaving the surface" }, "acceptanceCriteria": [ { "given": "a draft kit", "when": "I run a generate-research job from within it", "then": "I watch the job inline and, on completion, the result is attached to the kit's research section" } ], "addressesPainRefs": [], "size": "M", "status": "draft", "tags": ["specs"], "journeyRefs": ["journey-product-spec-feature"], "created": "2026-05-12T05:20:00Z", "lastUpdated": "2026-05-12T05:20:00Z" },
+    { "id": "story-product-handoff-with-provenance", "title": "Hand off a kit with provenance into the OE queue", "personaRefs": ["persona-product", "persona-outcome-engineer"], "narrative": { "role": "Product", "capability": "hand off a packaged kit to the Outcome Engineer with a target product/flow, landing it in their queue with full provenance", "outcome": "the implementer knows exactly what to build, where, and from which spec version" }, "acceptanceCriteria": [ { "given": "a packaged kit", "when": "I hand it off to a target product (and optionally a suggested flow)", "then": "it appears in the Outcome Engineer's submit queue with provenance (spec id+version, persona, target product/flow), and the system warns if the kit shape doesn't fit the suggested flow" } ], "addressesPainRefs": ["pain-kit-flow-mismatch", "pain-ownership-transfer-unclear"], "size": "M", "status": "ready", "tags": ["mvp", "specs", "submitjob"], "journeyRefs": ["journey-product-handoff-kit"], "created": "2026-05-12T05:20:00Z", "lastUpdated": "2026-05-12T05:20:00Z" },
+    { "id": "story-product-track-kit-lifecycle", "title": "Track a kit's lifecycle after handoff", "personaRefs": ["persona-product"], "narrative": { "role": "Product", "capability": "see a kit's lifecycle state (handed-off → submitted → running → produced → accepted/rejected) after handoff", "outcome": "I don't lose visibility once the kit leaves my hands" }, "acceptanceCriteria": [ { "given": "a handed-off kit", "when": "the Outcome Engineer submits it / a job runs / a feature is produced / a decision is made", "then": "the kit's lifecycle state updates on the Specs surface, with links to the relevant job and produced feature" } ], "addressesPainRefs": ["pain-lost-visibility-after-handoff"], "size": "M", "status": "draft", "tags": ["specs"], "journeyRefs": ["journey-product-handoff-kit"], "created": "2026-05-12T05:20:00Z", "lastUpdated": "2026-05-12T05:20:00Z" },
+    { "id": "story-review-output-vs-spec-side-by-side", "title": "Produced feature shown side by side with its spec", "personaRefs": ["persona-outcome-engineer", "persona-product"], "narrative": { "role": "Outcome Engineer or Product", "capability": "see the produced feature side by side with its spec (acceptance criteria, wireframes) and the diff", "outcome": "I can review conformance in one place instead of tab-switching between the diff and the spec" }, "acceptanceCriteria": [ { "given": "a job has produced a feature for a kit", "when": "I open it in Proposals", "then": "the diff, the originating spec kit (criteria + wireframes), test results, and the agent's summary are shown together, linked (proposal ↔ kit version ↔ job)" } ], "addressesPainRefs": ["pain-output-vs-spec-not-side-by-side"], "size": "M", "status": "ready", "tags": ["mvp", "proposals"], "journeyRefs": ["journey-oe-validate-feature", "journey-product-review-vs-spec"], "created": "2026-05-12T05:20:00Z", "lastUpdated": "2026-05-12T05:20:00Z" },
+    { "id": "story-review-acceptance-criteria-checklist", "title": "Shared, diff-linked acceptance-criteria checklist", "personaRefs": ["persona-outcome-engineer", "persona-product"], "narrative": { "role": "Outcome Engineer or Product", "capability": "walk a spec-derived acceptance-criteria checklist, marking each criterion met/missed/ambiguous with a note and a link to the diff line(s) it relates to, shared across reviewers", "outcome": "review is structured and traceable, not improvised, and the OE's code findings and Product's spec findings live on one artifact" }, "acceptanceCriteria": [ { "given": "a feature under review", "when": "I mark a criterion 'missed' and link it to diff lines", "then": "the checklist records the status, note, and diff link, the overall pass/fail tally updates, and a co-reviewer sees my marks and can add theirs" } ], "addressesPainRefs": ["pain-criteria-assessment-improvised", "pain-diffline-criterion-unlinked"], "size": "L", "status": "ready", "tags": ["mvp", "proposals", "checklist-widget"], "journeyRefs": ["journey-oe-validate-feature", "journey-product-review-vs-spec"], "created": "2026-05-12T05:20:00Z", "lastUpdated": "2026-05-12T05:20:00Z" },
+    { "id": "story-review-automated-checks-prepopulate", "title": "Automated checks pre-populate the review checklist", "personaRefs": ["persona-outcome-engineer"], "narrative": { "role": "Outcome Engineer", "capability": "have the review-proposal flow's automated checks (lint, tests, security, spec-coverage) pre-populate checklist items and show inline on the diff", "outcome": "I don't re-check by hand what the automated pass already verified" }, "acceptanceCriteria": [ { "given": "a feature with a completed review-proposal automated pass", "when": "I open it for review", "then": "automated findings appear as pre-filled checklist items (passing criteria pre-checked, failures flagged) and inline annotations on the diff" } ], "addressesPainRefs": ["pain-checks-and-review-disconnected"], "size": "M", "status": "draft", "tags": ["proposals"], "journeyRefs": ["journey-oe-validate-feature"], "created": "2026-05-12T05:20:00Z", "lastUpdated": "2026-05-12T05:20:00Z" },
+    { "id": "story-review-decision-and-route", "title": "Decide accept / reject→flow / reject→Product with audit", "personaRefs": ["persona-outcome-engineer"], "narrative": { "role": "Outcome Engineer", "capability": "decide accept / reject→flow / reject→Product on a produced feature with an explicit rationale, and have the system route accordingly and write an audit entry", "outcome": "rejected features go to the right place (re-run vs. spec revision) and every decision is attributable" }, "acceptanceCriteria": [ { "given": "a reviewed feature", "when": "I choose 'reject → Product' with a rationale", "then": "the kit lifecycle moves to needs-spec-revision, it's routed to Product's review-vs-spec, and an audit entry records who/when/why" }, { "given": "a reviewed feature", "when": "I choose 'reject → flow'", "then": "it's queued for re-submission to the same flow with the rejection attached, and an audit entry is written" } ], "addressesPainRefs": ["pain-spec-wrong-vs-impl-wrong-fork-muddy"], "size": "M", "status": "ready", "tags": ["mvp", "proposals"], "journeyRefs": ["journey-oe-validate-feature"], "created": "2026-05-12T05:20:00Z", "lastUpdated": "2026-05-12T05:20:00Z" },
+    { "id": "story-review-corrections-payload", "title": "reject→flow carries a structured corrections payload", "personaRefs": ["persona-outcome-engineer"], "narrative": { "role": "Outcome Engineer", "capability": "have a reject→flow carry a structured corrections payload (which criteria failed, which diff lines, what to do instead) that becomes context for the next run", "outcome": "the next iteration converges instead of repeating the same mistake" }, "acceptanceCriteria": [ { "given": "a feature I'm rejecting back to its flow", "when": "I submit the rejection", "then": "the failed criteria, linked diff lines, and my corrective notes are bundled as a corrections payload attached to the re-submission, and the next run's load-context node includes it" } ], "addressesPainRefs": ["pain-no-corrections-payload"], "size": "M", "status": "draft", "tags": ["proposals", "submitjob"], "journeyRefs": ["journey-oe-validate-feature"], "created": "2026-05-12T05:20:00Z", "lastUpdated": "2026-05-12T05:20:00Z" },
+    { "id": "story-accept-publishes-merge", "title": "Accepting a feature authorizes publish-merge", "personaRefs": ["persona-outcome-engineer"], "narrative": { "role": "Outcome Engineer", "capability": "have accepting a feature authorize the publish-merge node (or surface a manual-merge action) under the controlplane-issued GitHub App token", "outcome": "approved features land without me leaving the console, and the merge is gated by an explicit human approval" }, "acceptanceCriteria": [ { "given": "a feature I've accepted whose flow has a publish-merge node", "when": "I confirm 'accept & merge'", "then": "the merge runs under the controlplane GitHub App token, the PR is merged, the audit entry records the approval as the authorizing event, and the kit lifecycle moves to accepted" } ], "addressesPainRefs": [], "size": "M", "status": "ready", "tags": ["mvp", "proposals"], "journeyRefs": ["journey-oe-validate-feature"], "created": "2026-05-12T05:20:00Z", "lastUpdated": "2026-05-12T05:20:00Z" },
+    { "id": "story-oe-submit-from-queue", "title": "Submit a kit from the queue with the right context", "personaRefs": ["persona-outcome-engineer"], "narrative": { "role": "Outcome Engineer", "capability": "pick a handed-off spec kit from a queue (with provenance), choose a flow, configure the run (sandbox/real, overrides, iteration note), and submit", "outcome": "turning a spec into a job is a few clicks with the right kit, flow, and context" }, "acceptanceCriteria": [ { "given": "kits in my queue", "when": "I pick one", "then": "I see its contents (spec, wireframes, criteria) and the target product's available flows, with the suggested flow pre-selected" }, { "given": "a kit + flow selected", "when": "I configure and submit", "then": "a job is created, linked to the kit version, and I get a link to watch it" } ], "addressesPainRefs": ["pain-queue-lacks-context", "pain-kit-flow-mismatch"], "size": "M", "status": "ready", "tags": ["mvp", "submitjob"], "journeyRefs": ["journey-oe-submit-kit"], "created": "2026-05-12T05:20:00Z", "lastUpdated": "2026-05-12T05:20:00Z" },
+    { "id": "story-catalog-browse-and-enable", "title": "Browse the catalog and enable skills for the org", "personaRefs": ["persona-principal-product-engineer", "persona-product", "persona-outcome-engineer"], "narrative": { "role": "any persona", "capability": "browse the catalog of skills/agents/flows and enable skills for my org", "outcome": "I know what's available to wire into flows and submit against, and only enabled skills are usable" }, "acceptanceCriteria": [ { "given": "the catalog", "when": "I browse it", "then": "I see skills/agents/flows with descriptions and enabled/disabled state for my org" }, { "given": "a disabled skill", "when": "I enable it for my org", "then": "it becomes selectable in the Compose node picker; skillzkit remains the upstream source of truth" } ], "addressesPainRefs": [], "size": "M", "status": "ready", "tags": ["mvp", "catalog"], "journeyRefs": ["journey-ppe-author-flow"], "created": "2026-05-12T05:20:00Z", "lastUpdated": "2026-05-12T05:20:00Z" }
+  ],
+  "storyMaps": [
+    {
+      "id": "map-agentx-control-plane-v1",
+      "name": "AgentX Control Plane v1",
+      "filePath": "product/ux/story-maps/agentx-control-plane-v1.md",
+      "anchor": "Operators turn product specs into safely-shipped, validated features via agent flows.",
+      "journeyRefs": ["journey-ppe-register-product", "journey-ppe-author-flow", "journey-ppe-test-flow", "journey-product-spec-feature", "journey-product-handoff-kit", "journey-product-review-vs-spec", "journey-oe-submit-kit", "journey-oe-watch-run", "journey-oe-validate-feature"],
+      "backbone": [
+        { "step": 1, "name": "Set up a product", "screen": "Intake", "description": "Register a product: name/productId, attach repos (GitHub App auth), configure + preview the default context source, activate.", "journeyRefs": ["journey-ppe-register-product"], "storyRefs": ["story-ppe-register-product", "story-ppe-attach-repos", "story-ppe-preview-context-source", "story-ppe-activate-product-warns-no-flows"] },
+        { "step": 2, "name": "Author & test flows", "screen": "Compose", "description": "Author FlowDefs to cover job-request types (coverage matrix, node canvas, live validation, dry-run, versioning); test a flow in sandbox mode and iterate.", "journeyRefs": ["journey-ppe-author-flow", "journey-ppe-test-flow"], "storyRefs": ["story-ppe-flow-coverage-matrix", "story-ppe-compose-flow-nodes", "story-ppe-flow-live-validation", "story-ppe-flow-dry-run", "story-ppe-flow-versioning", "story-ppe-sandbox-run-mode", "story-ppe-test-flow-and-iterate"] },
+        { "step": 3, "name": "Browse & enable skills", "screen": "Catalog", "description": "Browse skills/agents/flows; enable skills for the org (skillzkit is upstream source of truth); pick into Compose nodes.", "journeyRefs": ["journey-ppe-author-flow"], "storyRefs": ["story-catalog-browse-and-enable"] },
+        { "step": 4, "name": "Spec a feature", "screen": "Specs / Feature-Kits", "description": "Build a spec kit (one versioned object): research (citable), wireframes (linked to spec sections), feature spec (structured, regulated-data section), stories; embed generate-* flows; package with a completeness check.", "journeyRefs": ["journey-product-spec-feature"], "storyRefs": ["story-product-spec-kit-as-object", "story-product-research-traceable", "story-product-wireframe-spec-mapping", "story-product-spec-structure-enforced", "story-product-package-version-kit", "story-product-embed-generate-flows"] },
+        { "step": 5, "name": "Hand off a spec kit", "screen": "Specs / Feature-Kits → OE queue", "description": "Hand a packaged kit to the Outcome Engineer with a target product/flow and full provenance; track its lifecycle (handed-off → submitted → running → produced → accepted/rejected).", "journeyRefs": ["journey-product-handoff-kit"], "storyRefs": ["story-product-handoff-with-provenance", "story-product-track-kit-lifecycle"] },
+        { "step": 6, "name": "Submit a job", "screen": "SubmitJob", "description": "Pick a handed-off kit from the queue, choose a flow, configure the run (sandbox/real, overrides, iteration note), submit; the job links to the kit version.", "journeyRefs": ["journey-oe-submit-kit"], "storyRefs": ["story-oe-submit-from-queue"] },
+        { "step": 7, "name": "Watch the run", "screen": "Jobs", "description": "Job flow graph with the current node highlighted, per-node status, cost/time; 'which node failed and why' summary; job actions (stop/retry/re-submit) that state their effects.", "journeyRefs": ["journey-oe-watch-run", "journey-ppe-test-flow"], "storyRefs": ["story-job-flow-graph-current-node", "story-job-failure-summary", "story-job-intervene-clear-effects", "story-job-cost-time-visibility"] },
+        { "step": 8, "name": "Inspect agent work", "screen": "Sessions", "description": "Live agent work: streaming logs, per-worktree diffs, agent state. Depth: a decision trace above the raw firehose; a manageable N-agent × M-worktree view.", "journeyRefs": ["journey-oe-watch-run"], "storyRefs": ["story-job-decision-trace-not-firehose", "story-job-multi-agent-view"] },
+        { "step": 9, "name": "Validate & decide", "screen": "Proposals", "description": "Produced feature side-by-side with its spec (criteria, wireframes) + diff; automated checks pre-populate a shared diff-linked acceptance-criteria checklist; decide accept / reject→flow (with corrections payload) / reject→Product, with an audit entry; accept → publish-merge under the GitHub App token.", "journeyRefs": ["journey-oe-validate-feature", "journey-product-review-vs-spec"], "storyRefs": ["story-review-output-vs-spec-side-by-side", "story-review-acceptance-criteria-checklist", "story-review-automated-checks-prepopulate", "story-review-decision-and-route", "story-review-corrections-payload", "story-accept-publishes-merge"] },
+        { "step": 10, "name": "Benchmark outcomes", "screen": "Benchmarks / BenchmarkRun", "description": "Run agents+configs against benchmark suites; compare scores across runs. Not yet flow-mapped or storied — backbone placeholder, out of v1 scope.", "journeyRefs": [], "storyRefs": [] }
+      ],
+      "slices": [
+        {
+          "name": "v1 — walking skeleton",
+          "description": "Smallest end-to-end pipeline: register a product → author+test a flow → spec a kit → hand off → submit a job → watch it → validate & merge. Thin per screen, complete across the whole loop. (Backbone step 8/Sessions covered by the existing basic streaming view; step 10/Benchmarks out of scope.)",
+          "targetDate": null,
+          "status": "planned",
+          "storyRefs": ["story-ppe-register-product", "story-ppe-attach-repos", "story-ppe-preview-context-source", "story-ppe-flow-coverage-matrix", "story-ppe-compose-flow-nodes", "story-ppe-flow-live-validation", "story-ppe-sandbox-run-mode", "story-ppe-test-flow-and-iterate", "story-catalog-browse-and-enable", "story-product-spec-kit-as-object", "story-product-handoff-with-provenance", "story-oe-submit-from-queue", "story-job-flow-graph-current-node", "story-job-failure-summary", "story-review-output-vs-spec-side-by-side", "story-review-acceptance-criteria-checklist", "story-review-decision-and-route", "story-accept-publishes-merge"]
+        },
+        {
+          "name": "v1.1+ — depth (no new screens)",
+          "description": "Deepen the v1 screens: activation warnings, dry-run, flow versioning, decision-trace + multi-agent Sessions, intervention effect-clarity, cost/time visibility, research traceability, wireframe↔spec mapping, spec structure enforcement, kit packaging completeness, embedded generate-* flows, kit lifecycle tracking, automated-checks pre-population, corrections payload.",
+          "targetDate": null,
+          "status": "planned",
+          "storyRefs": ["story-ppe-activate-product-warns-no-flows", "story-ppe-flow-dry-run", "story-ppe-flow-versioning", "story-job-decision-trace-not-firehose", "story-job-multi-agent-view", "story-job-intervene-clear-effects", "story-job-cost-time-visibility", "story-product-research-traceable", "story-product-wireframe-spec-mapping", "story-product-spec-structure-enforced", "story-product-package-version-kit", "story-product-embed-generate-flows", "story-product-track-kit-lifecycle", "story-review-automated-checks-prepopulate", "story-review-corrections-payload"]
+        }
+      ],
+      "created": "2026-05-12T05:40:00Z",
+      "lastUpdated": "2026-05-12T05:40:00Z"
+    }
+  ]
+}

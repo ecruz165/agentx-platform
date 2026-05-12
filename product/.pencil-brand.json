@@ -1,0 +1,239 @@
+{
+  "version": 1,
+  "brand": {
+    "name": "AgentX",
+    "tagline": "Control plane for agentic workloads",
+    "industry": "Developer infrastructure — AI agent orchestration / control plane",
+    "audience": "Platform operators and developers running, benchmarking, and integrating AI agent workloads — some of which process regulated / student / PII data",
+    "audienceRegulation": {
+      "level": "regulated",
+      "regimes": ["FERPA", "COPPA", "GDPR", "CCPA"],
+      "_note": "SkoolScout context — K-12 / student data flows through agent jobs. Implies: guardian-consent flows in auth/profile templates, stricter a11y baseline (WCAG 2.2 AA min, aim AAA on text), age-appropriate language, data-handling disclosures in legal template, audit-trail surfacing in detail/list templates. Narrow `regimes` if not all apply.",
+      "guardianConsent": true,
+      "a11yTarget": "wcag-2.2-aa-plus"
+    },
+    "tone": ["technical", "precise", "dense", "operator-grade", "low-chrome"]
+  },
+  "colors": {
+    "colorDirection": "monochromatic",
+    "primary": "#0f1e3d",
+    "secondary": "#5e76b0",
+    "tertiary": null,
+    "neutralWarmth": "cool",
+    "statusColors": {
+      "success": "#2f9e6e",
+      "warning": "#c98a2e",
+      "danger": "#c2453f",
+      "info": "#3a72b8"
+    },
+    "colorRamps": {
+      "accent":    { "50": "#eef1f8", "100": "#dde3f1", "200": "#bcc8e2", "300": "#8fa3cd", "400": "#5e76b0", "500": "#3f5694", "600": "#2f4179", "700": "#243461", "800": "#15294f", "900": "#0f1e3d", "950": "#0a142a" },
+      "secondary": { "50": "#f0f3fa", "100": "#e1e7f4", "200": "#c6d1e9", "300": "#a0b2d8", "400": "#7c91c4", "500": "#5e76b0", "600": "#485f97", "700": "#3a4c79", "800": "#2c3a5c", "900": "#1f2a44", "950": "#131a2c" },
+      "neutral":   { "50": "#f6f7f9", "100": "#eceef2", "200": "#d9dce3", "300": "#b9bfcb", "400": "#8b93a3", "500": "#6b7385", "600": "#525a6b", "700": "#3f4654", "800": "#2b313c", "900": "#1c2129", "950": "#11151b" },
+      "success":   { "50": "#ecf7f1", "100": "#d3ecdf", "200": "#a7d9bf", "300": "#74c09c", "400": "#4aa97f", "500": "#2f9e6e", "600": "#267f59", "700": "#1f6648", "800": "#194f39", "900": "#133c2c", "950": "#0b231a" },
+      "warning":   { "50": "#faf4e8", "100": "#f3e6c9", "200": "#e6cd95", "300": "#d9b362", "400": "#cf9f3f", "500": "#c98a2e", "600": "#a36e25", "700": "#82581e", "800": "#654518", "900": "#4c3413", "950": "#2c1e0b" },
+      "danger":    { "50": "#faeceb", "100": "#f3d3d1", "200": "#e6a8a4", "300": "#d77a74", "400": "#cb5852", "500": "#c2453f", "600": "#a23833", "700": "#822d29", "800": "#652420", "900": "#4c1b18", "950": "#2c0f0e" },
+      "info":      { "50": "#ecf2f9", "100": "#d2e0f0", "200": "#a6c2e1", "300": "#739dcd", "400": "#4f80bd", "500": "#3a72b8", "600": "#2f5c94", "700": "#264a77", "800": "#1e3a5c", "900": "#172c45", "950": "#0d1929" }
+    },
+    "darkModePrimaryStop": 500,
+    "themeCss": "packages/design-system/src/theme.css",
+    "a11y": { "dangerTextMinStop": 600, "_note": "danger-500 is fill-only under the regulated AA+ baseline; body error text uses danger-600+." },
+    "selectedAt": "2026-05-12T03:10:00Z",
+    "renderedPen": false,
+    "_note": "Foundation .pen render (product/design/foundations/colors.pen) batched into greenfield Phase 4 (foundation rendering)."
+  },
+  "typography": {
+    "pairing": "single-voice + mono",
+    "fontDisplay": "Inter",
+    "fontBody": "Inter",
+    "fontMono": "JetBrains Mono",
+    "fontVendor": "self-hosted",
+    "fontLicense": "SIL OFL",
+    "fontVariable": true,
+    "subset": ["latin"],
+    "fontFallbacks": {
+      "display": ["system-ui", "-apple-system", "Segoe UI", "sans-serif"],
+      "body": ["system-ui", "-apple-system", "Segoe UI", "sans-serif"],
+      "mono": ["ui-monospace", "SFMono-Regular", "Menlo", "Consolas", "monospace"]
+    },
+    "sources": {
+      "Inter": "https://gwfh.mranftl.com/fonts/inter (variable, latin) — or rsms.me/inter",
+      "JetBrains Mono": "https://www.jetbrains.com/lp/mono/ — or gwfh.mranftl.com/fonts/jetbrains-mono (variable, latin)"
+    },
+    "loadingNote": "Self-host: .woff2 in controlplane-ui/public/fonts/, @font-face in packages/design-system/src/fonts.css (imported before theme.css), preload Inter body weight only; JetBrains Mono loads non-blocking. fonts-select does NOT download files or write @font-face.",
+    "themeCss": "packages/design-system/src/theme.css",
+    "renderedPen": false,
+    "_note": "Type scale (--font-h1 … --font-code-sm) lives in theme.css; refined when foundations/typography.pen renders in Phase 4. UI base size 14px (dense console)."
+  },
+  "icons": {
+    "iconLibrary": "fontawesome",
+    "fontAwesomeFamily": "sharp",
+    "fontAwesomeStyle": "solid",
+    "fontAwesomeLicense": "pro",
+    "_pairing": "Sharp Solid — squared terminals echo Inter's geometry (geometric type + sharp icons = harmony).",
+    "_setup": "FA Pro kit: `npm config set \"@awesome.me:registry\" https://npm.fontawesome.com/` + `//npm.fontawesome.com/:_authToken=$FONTAWESOME_NPM_AUTH_TOKEN`, then `npm i @awesome.me/kit-<id>/icons @fortawesome/react-fontawesome`. Brands family always loaded alongside. Token must be set in dev + CI env, not committed.",
+    "iconSizeTokens": "packages/design-system/src/theme.css (--icon-xs … --icon-2xl)",
+    "iconMap": {
+      "add": { "name": "plus", "family": "sharp", "style": "solid" },
+      "edit": { "name": "pen-to-square", "family": "sharp", "style": "solid" },
+      "delete": { "name": "trash-can", "family": "sharp", "style": "solid" },
+      "duplicate": { "name": "copy", "family": "sharp", "style": "solid" },
+      "save": { "name": "floppy-disk", "family": "sharp", "style": "solid" },
+      "confirm": { "name": "check", "family": "sharp", "style": "solid" },
+      "cancel": { "name": "xmark", "family": "sharp", "style": "solid" },
+      "search": { "name": "magnifying-glass", "family": "sharp", "style": "solid" },
+      "filter": { "name": "filter", "family": "sharp", "style": "solid" },
+      "filter-tune": { "name": "sliders", "family": "sharp", "style": "solid" },
+      "sort": { "name": "arrow-up-arrow-down", "family": "sharp", "style": "solid" },
+      "settings": { "name": "gear", "family": "sharp", "style": "solid" },
+      "more-h": { "name": "ellipsis", "family": "sharp", "style": "solid" },
+      "more-v": { "name": "ellipsis-vertical", "family": "sharp", "style": "solid" },
+      "menu": { "name": "bars", "family": "sharp", "style": "solid" },
+      "close": { "name": "xmark", "family": "sharp", "style": "solid" },
+      "back": { "name": "chevron-left", "family": "sharp", "style": "solid" },
+      "forward": { "name": "chevron-right", "family": "sharp", "style": "solid" },
+      "expand": { "name": "chevron-down", "family": "sharp", "style": "solid" },
+      "collapse": { "name": "chevron-up", "family": "sharp", "style": "solid" },
+      "external": { "name": "arrow-up-right-from-square", "family": "sharp", "style": "solid" },
+      "download": { "name": "download", "family": "sharp", "style": "solid" },
+      "upload": { "name": "upload", "family": "sharp", "style": "solid" },
+      "share": { "name": "share-nodes", "family": "sharp", "style": "solid" },
+      "copy-link": { "name": "link", "family": "sharp", "style": "solid" },
+      "info": { "name": "circle-info", "family": "sharp", "style": "solid" },
+      "success": { "name": "circle-check", "family": "sharp", "style": "solid" },
+      "warning": { "name": "triangle-exclamation", "family": "sharp", "style": "solid" },
+      "danger": { "name": "octagon-exclamation", "family": "sharp", "style": "solid", "_pro": true },
+      "help": { "name": "circle-question", "family": "sharp", "style": "solid" },
+      "user": { "name": "user", "family": "sharp", "style": "solid" },
+      "team": { "name": "users", "family": "sharp", "style": "solid" },
+      "calendar": { "name": "calendar", "family": "sharp", "style": "solid" },
+      "clock": { "name": "clock", "family": "sharp", "style": "solid" },
+      "starred": { "name": "star", "family": "sharp", "style": "solid" },
+      "bookmarked": { "name": "bookmark", "family": "sharp", "style": "solid" },
+      "locked": { "name": "lock", "family": "sharp", "style": "solid" },
+      "unlocked": { "name": "lock-open", "family": "sharp", "style": "solid" },
+      "notification": { "name": "bell", "family": "sharp", "style": "solid" },
+      "inbox": { "name": "inbox", "family": "sharp", "style": "solid" },
+      "send": { "name": "paper-plane", "family": "sharp", "style": "solid" },
+      "attach": { "name": "paperclip", "family": "sharp", "style": "solid" },
+      "image": { "name": "image", "family": "sharp", "style": "solid" },
+      "folder": { "name": "folder", "family": "sharp", "style": "solid" },
+      "file": { "name": "file", "family": "sharp", "style": "solid" },
+      "chart": { "name": "chart-line", "family": "sharp", "style": "solid" },
+      "dashboard": { "name": "gauge", "family": "sharp", "style": "solid" },
+      "logout": { "name": "arrow-right-from-bracket", "family": "sharp", "style": "solid" },
+      "login": { "name": "arrow-right-to-bracket", "family": "sharp", "style": "solid" }
+    },
+    "iconMapDomainExtensions": {
+      "_note": "AgentX-specific actions — extend in foundations:icons / as components need them.",
+      "agent": { "name": "robot", "family": "sharp", "style": "solid" },
+      "job": { "name": "list-check", "family": "sharp", "style": "solid" },
+      "session": { "name": "terminal", "family": "sharp", "style": "solid" },
+      "worktree": { "name": "code-branch", "family": "sharp", "style": "solid" },
+      "container": { "name": "cube", "family": "sharp", "style": "solid" },
+      "benchmark": { "name": "gauge-high", "family": "sharp", "style": "solid" },
+      "run": { "name": "play", "family": "sharp", "style": "solid" },
+      "stop": { "name": "stop", "family": "sharp", "style": "solid" },
+      "retry": { "name": "rotate-right", "family": "sharp", "style": "solid" },
+      "logs": { "name": "rectangle-terminal", "family": "sharp", "style": "solid", "_pro": true },
+      "diff": { "name": "code-compare", "family": "sharp", "style": "solid" },
+      "merge": { "name": "code-merge", "family": "sharp", "style": "solid" },
+      "pull-request": { "name": "code-pull-request", "family": "sharp", "style": "solid" },
+      "proposal": { "name": "file-signature", "family": "sharp", "style": "solid" },
+      "catalog": { "name": "book", "family": "sharp", "style": "solid" }
+    },
+    "brandsIcons": ["github", "gitlab", "google", "microsoft", "apple", "x-twitter", "linkedin-in", "slack", "discord", "figma"],
+    "selectedAt": "2026-05-12T03:30:00Z"
+  },
+  "darkMode": {
+    "supported": true,
+    "default": "dark",
+    "_note": "Dark-first — controlplane-ui index.html ships class=\"dark\"; long-look monitoring views favor dark."
+  },
+  "i18n": {
+    "scripts": ["latin"],
+    "defaultLocale": "en",
+    "_note": "Latin-only for v1 (internal/operator tooling)."
+  },
+  "imagery": {
+    "direction": "Pure Abstract / Icon-Led",
+    "strategy": "pattern + iconography only",
+    "style": "geometric-monochrome",
+    "colorTreatment": "brand-tinted (navy)",
+    "composition": "formal",
+    "representation": "abstract-only",
+    "aiGenAllowed": false,
+    "vendors": [
+      { "name": "Hero Patterns", "license": "MIT", "scope": ["pattern-background"] },
+      { "name": "Font Awesome Pro (Sharp Solid)", "license": "FA Pro kit", "scope": ["empty-state", "error-state", "success-state"] },
+      { "name": "CSS (gradients / geometric SVG)", "license": "n/a", "scope": ["pattern-background", "decorative"] }
+    ],
+    "categoryGuidelines": {
+      "hero": { "type": "user-supplied-screenshot", "placeholder": "geometric SVG / navy gradient", "_note": "operator console has no marketing hero; doc/landing pages use real product screenshots." },
+      "section-break": { "type": "css-rule-or-pattern", "tint": "accent-100", "opacity": 0.05 },
+      "spot-illustration": { "type": "icon-led", "scale": "--icon-2xl", "family": "sharp", "style": "solid", "tint": "accent" },
+      "empty-state": { "type": "icon-led", "layout": "centered icon + title + body + primary action", "backdrop": "Hero Patterns @ ~5% navy" },
+      "error-state": { "type": "icon-led", "layout": "centered icon + title + body + retry/home action", "backdrop": "faint navy gradient" },
+      "avatar-placeholder": { "type": "initials-on-color", "bg": "accent-100", "fg": "accent-700" },
+      "pattern-background": { "vendor": "Hero Patterns", "patternId": "topography|circuit-board", "tint": "accent-50", "opacity": 0.05 },
+      "icon-illustration": { "type": "icon-led", "scale": "--icon-xl|--icon-2xl", "family": "sharp", "style": "solid" },
+      "data-viz-imagery": { "type": "brand-color-fills", "palette": ["accent", "secondary", "success", "warning", "danger", "info"], "_note": "Recharts series colors map to these ramps." }
+    },
+    "assets": {
+      "empty-state": {
+        "no-data": { "type": "icon-led", "icon": "inbox", "tint": "accent-400" },
+        "no-results": { "type": "icon-led", "icon": "magnifying-glass", "tint": "accent-400" },
+        "no-jobs": { "type": "icon-led", "icon": "list-check", "tint": "accent-400" },
+        "no-sessions": { "type": "icon-led", "icon": "terminal", "tint": "accent-400" },
+        "all-done": { "type": "icon-led", "icon": "circle-check", "tint": "success-500" },
+        "first-run": { "type": "icon-led", "icon": "rocket", "tint": "accent-400", "_pro": true }
+      },
+      "error-state": {
+        "page-error": { "type": "icon-led", "icon": "triangle-exclamation", "tint": "danger-500" },
+        "section-error": { "type": "icon-led", "icon": "plug-circle-xmark", "tint": "danger-500", "_pro": true },
+        "404": { "type": "icon-led", "icon": "compass", "tint": "neutral-400" },
+        "500": { "type": "icon-led", "icon": "server", "tint": "danger-500" },
+        "offline": { "type": "icon-led", "icon": "wifi-slash", "tint": "warning-500", "_pro": true },
+        "forbidden": { "type": "icon-led", "icon": "lock", "tint": "neutral-400" }
+      },
+      "loading-state": {
+        "skeleton-pattern": { "type": "css-shimmer", "tokens": ["--color-neutral-100", "--color-neutral-200"], "darkTokens": ["--color-neutral-800", "--color-neutral-700"] },
+        "spinner": { "type": "css-or-heroui-spinner", "color": "--color-primary" }
+      },
+      "success-state": {
+        "completion": { "type": "icon-led", "icon": "circle-check", "tint": "success-500" },
+        "submitted": { "type": "icon-led", "icon": "paper-plane", "tint": "accent-400" }
+      },
+      "hero": {
+        "marketing-default": { "type": "geometric-svg", "placeholder": "/assets/hero-placeholder.svg", "tint": "accent" },
+        "product-screenshot": { "type": "user-supplied-screenshot", "placeholder": "/assets/screenshot-placeholder.svg" }
+      },
+      "pattern-background": {
+        "subtle": { "vendor": "Hero Patterns", "patternId": "topography", "tint": "accent-50", "opacity": 0.05 },
+        "geometric": { "vendor": "Hero Patterns", "patternId": "circuit-board", "tint": "accent-100", "opacity": 0.06 }
+      }
+    },
+    "rightsNotes": [
+      "No model-release issues (abstract-only, no people).",
+      "Hero Patterns: MIT — no attribution required.",
+      "FA Pro icons covered by the Font Awesome Pro kit license (see icons._setup).",
+      "No editorial-context or AI-gen disclosure obligations."
+    ],
+    "_note": "No @theme tokens — imagery is brand-JSON-only. assets.* keys are consumed by patterns/states.pen and the list/detail/dashboard/error-page templates (Phases 7–8). Some icons flagged _pro require the FA Pro kit; document Free fallbacks if license ever downgrades.",
+    "selectedAt": "2026-05-12T03:40:00Z",
+    "renderedPen": false
+  },
+  "meta": {
+    "createdBy": "product:strategy:scaffold (greenfield workflow, Phase 1)",
+    "createdAt": "2026-05-12T02:55:00Z",
+    "framework": "heroui-v3",
+    "targetPackage": "packages/design-system",
+    "consumers": ["packages/controlplane-ui"],
+    "pathMap": {
+      "design/**/*.pen": "product/design/**/*.pen",
+      "src/components/*": "packages/design-system/src/components/*",
+      "src/pages/*": "packages/controlplane-ui/src/pages/*",
+      "app/globals.css @theme": "packages/design-system/src/theme.css"
+    }
+  }
+}

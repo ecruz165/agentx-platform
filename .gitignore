@@ -67,3 +67,4 @@ coverage/
 /workspace-template/.harness/repos/*
 !/workspace-template/.harness/repos/.gitkeep
 /.playwright-mcp
+.claude/
