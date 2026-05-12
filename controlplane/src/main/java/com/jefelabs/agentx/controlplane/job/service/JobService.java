@@ -1,12 +1,17 @@
 package com.jefelabs.agentx.controlplane.job.service;
 
+import com.jefelabs.agentx.controlplane.catalog.domain.FlowKind;
+import com.jefelabs.agentx.controlplane.catalog.service.FlowService;
 import com.jefelabs.agentx.controlplane.core.types.JobIntent;
+import com.jefelabs.agentx.controlplane.dispatch.service.HarnessForwardingService;
 import com.jefelabs.agentx.controlplane.job.domain.Job;
 import com.jefelabs.agentx.controlplane.job.domain.JobStatus;
 import com.jefelabs.agentx.controlplane.job.engine.JobEngine;
 import com.jefelabs.agentx.controlplane.job.persistence.JobDao;
 import com.jefelabs.agentx.controlplane.job.persistence.JobDaoRow;
 import org.jdbi.v3.core.Jdbi;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.core.JacksonException;
@@ -30,14 +35,26 @@ import java.util.UUID;
 @Service
 public class JobService {
 
+    private static final Logger log = LoggerFactory.getLogger(JobService.class);
+
     private final Jdbi jdbi;
     private final ObjectMapper objectMapper;
     private final JobEngine jobEngine;
+    private final FlowService flowService;
+    private final HarnessForwardingService harnessForwardingService;
 
-    public JobService(Jdbi jdbi, ObjectMapper objectMapper, @org.springframework.context.annotation.Lazy JobEngine jobEngine) {
+    public JobService(
+        Jdbi jdbi,
+        ObjectMapper objectMapper,
+        @org.springframework.context.annotation.Lazy JobEngine jobEngine,
+        FlowService flowService,
+        HarnessForwardingService harnessForwardingService
+    ) {
         this.jdbi = jdbi;
         this.objectMapper = objectMapper;
         this.jobEngine = jobEngine;
+        this.flowService = flowService;
+        this.harnessForwardingService = harnessForwardingService;
     }
 
     /**
@@ -80,6 +97,27 @@ public class JobService {
             estimatedPoints,
             createdBy
         );
+
+        // W1 — WORK flows execute on a harness-server; JOB_DEFINITION /
+        // POST_JOB flows stay in the in-process JobEngine (triggered via
+        // POST /api/jobs/{id}/start, or a future @Scheduled poller).
+        // NOTE: the HTTP forward happens inside this @Transactional method
+        // for the MVP — a follow-up should move it to an after-commit hook
+        // so the DB connection isn't held across the call. A dispatch
+        // failure leaves the job QUEUED (don't fail the submit response —
+        // the job IS persisted and can be retried).
+        flowService.findById(orgId, intent.flowId())
+            .filter(f -> f.kind() == FlowKind.WORK)
+            .ifPresent(f -> {
+                try {
+                    String harnessId = harnessForwardingService.forward(
+                        orgId, id, intent.flowId(), intent.productId(), intent.input(), intent.set());
+                    dao.recordDispatch(orgId, id, harnessId);
+                    log.info("job {} (flow={}) dispatched to harness {}", id, intent.flowId(), harnessId);
+                } catch (RuntimeException e) {
+                    log.warn("job {} dispatch to a harness failed (left QUEUED): {}", id, e.getMessage());
+                }
+            });
 
         return dao.findById(orgId, id)
             .map(this::toDomain)

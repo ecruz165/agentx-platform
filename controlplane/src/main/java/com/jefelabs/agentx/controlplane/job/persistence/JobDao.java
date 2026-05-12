@@ -179,6 +179,42 @@ public interface JobDao {
     """)
     int setCurrentNode(@Bind("orgId") String orgId, @Bind("id") String id, @Bind("nodeId") String nodeId);
 
+    /**
+     * Record the harness-server a WORK job was forwarded to (W1).
+     * Unconditional — the job was just inserted QUEUED when this runs.
+     */
+    @SqlUpdate("""
+        UPDATE jobs SET dispatched_to_harness_id = :harnessId
+         WHERE org_id = :orgId AND id = :id
+    """)
+    int recordDispatch(@Bind("orgId") String orgId, @Bind("id") String id, @Bind("harnessId") String harnessId);
+
+    /**
+     * Apply a job-status transition reported back by a harness-server
+     * (W1d). {@code status} is the controlplane vocabulary
+     * (queued|running|completed|failed|cancelling|cancelled) — the
+     * caller maps harness-server's strings before calling. Sets
+     * started_at / completed_at as the target status implies; never
+     * regresses out of a terminal state.
+     */
+    @SqlUpdate("""
+        UPDATE jobs SET
+            status         = :status,
+            failure_reason = COALESCE(:failureReason, failure_reason),
+            started_at     = CASE WHEN :status = 'running' THEN COALESCE(started_at, CURRENT_TIMESTAMP)
+                                  ELSE started_at END,
+            completed_at   = CASE WHEN :status IN ('completed','failed','cancelled') THEN CURRENT_TIMESTAMP
+                                  ELSE completed_at END
+         WHERE org_id = :orgId AND id = :id
+           AND status NOT IN ('completed','failed','cancelled')
+    """)
+    int applyHarnessStatus(
+        @Bind("orgId") String orgId,
+        @Bind("id") String id,
+        @Bind("status") String status,
+        @Bind("failureReason") String failureReason
+    );
+
     @SqlUpdate("""
         UPDATE jobs SET
             eval_score      = :score,
