@@ -24,42 +24,56 @@
 
 ## ▶ NEXT — Web UI MVP
 
-> Goal: through the browser — `workspace setup` → `workspace start` → open the web UI → submit a job → watch the pipeline run → approve → PR merged. HITL is **`approve | reject` only** for the MVP; the full verdict set is the iteration right after (see below). Pulls forward old 4c, 3a–3e, 7a/7b/(subset)7c, 8b–8e.
+> Goal: through the browser — `workspace setup` → `workspace start` → open the web UI → submit an intent → the coordinator routes it to an existing workflow *or* you compose a new one in a guided wizard → the workflow runs on a harness-server → you watch it → approve → PR merged. HITL is **`approve | reject` only** for the MVP; the full verdict set is the iteration right after (see below). ("Workflow" = "pipeline" = `FlowDef` — same thing.) Pulls forward old 4c, 3a–3e, 7a/7b/(`approve|reject` subset of)7c, 8b–8e; adds the coordinator-routing + workflow-composer surfaces.
 
-**W1 — Web-submitted jobs reach a harness-server** *(was Gate 4c)*
-- W1a. controlplane `HarnessRegistry` — harness-servers register on start with a base URL + heartbeats; controlplane tracks liveness
-- W1b. Dispatch path: `POST /api/jobs` → persist the job → forward it to a registered harness-server (its `/v1/jobs`) instead of running it in controlplane's own Java `JobEngine`. (The Java engine stays as a fallback / for job-definition flows; *work* flows go to harness-server.)
-- W1c. Status sync back: harness-server pushes job-status transitions to controlplane (or controlplane polls `/v1/jobs/:id`) so `GET /api/jobs/:id` reflects the harness-server's truth
-- W1d. Smoke: submit via the web UI, observe the container spawn on the harness-server host, observe status flow back to `/api/jobs/:id`
+**W1 — Web-submitted jobs reach a harness-server** *(was Gate 4c — the keystone)*
+- W1a. controlplane `HarnessRegistry` — mostly done already (the `harness` Modulith module + `controlplane/harness-server/launcher.ts` registers + heartbeats every 30s). Remaining: a `@Scheduled` liveness-eviction task (mark stale heartbeats `DISCONNECTED`); a `dispatched_to_harness_id` column on `jobs`.
+- W1b. TCP listener on harness-server — add `port?` to `HarnessServerOptions`/`startHarnessServer` (binds a TCP `node:http` listener alongside the UDS); `launcher.ts` registers `endpoints: { rpc: <uds>, tcp: <http://host:port> }`.
+- W1c. Dispatch path — `POST /api/jobs` reads the resolved flow's `kind`: `WORK` → `HarnessRouter.routeStep` picks a harness → a new `HarnessForwardingService` POSTs the translated job to `{endpoints.tcp}/v1/jobs` → record `dispatched_to_harness_id`. `JOB_DEFINITION`/`POST_JOB` → the existing Java `JobEngine` path (unchanged). Delete `AgentStepHandler`'s mock-execution path.
+- W1d. Status sync back — harness-server's `onStatusChange` (in `launcher.ts`'s fire closure) best-effort POSTs job-level transitions to a new `POST /api/jobs/:id/status` on controlplane (same pattern as the existing `emitApprovalToControlplane`); controlplane maps harness status strings → `JobStatus` (`received`→`queued`; `awaiting-approval`/`suspended`→`running`; `completed`/`failed`/`cancelled` 1:1) and updates the row.
+- W1e. Smoke: submit via the web UI → observe the container spawn on the harness-server host → observe status flow back to `/api/jobs/:id`.
 
-**W2 — Job monitoring in the browser**
-- W2a. `controlplane-ui` `/jobs/:id` detail page — status, current node, pipeline graph (which node is live), token totals
-- W2b. Live event stream — subscribe to the job's SSE (`/api/jobs/:id/events` proxied from harness-server's `/v1/jobs/:id/events`); render the envelope log
-- W2c. When a `publish` node has opened a PR, show the PR link + the `diffSummary`; link each `ChangedFile` to its diff/content view (reuses harness-server's `/v1/jobs/:id/files/...` routes)
+**W2 — Coordinator: route to an existing workflow, or launch the composer** *(new — refines old "intent without a job id")*
+- W2a. Intent submitted with no pipeline → harness-server's `runEntryCoordinator(intent, catalog, model)` classifies: `{ kind: 'existing', pipelineId }` or `{ kind: 'compose' }`. (Currently it 400s on no-match — replace that with the `compose` outcome.)
+- W2b. `existing` outcome → the web UI shows "coordinator picked workflow X" with a confirm step (don't silently route); on confirm the job runs against it (→ W1's dispatch path).
+- W2c. `compose` outcome → harness-server emits a "needs-new-workflow" signal to controlplane (a `PipelineSpecProposed`-shaped event — controlplane's `JobIntentListener` already handles the sibling `PipelineSpecProducedEvent` → session → `pipeline-creation-required`); the web UI opens the composer wizard (W3) seeded with the intent text.
 
-**W3 — Browser HITL (approve / reject only)**
-- W3a. API: list jobs `status in [awaiting-approval, suspended]` — controlplane endpoint backed by the harness-server's `pendingApprovals` (the enriched `ApprovalRequest` arrives via the 2b best-effort POST; controlplane caches it)
-- W3b. API: fetch the `ApprovalRequest` for a job — `prUrl`, `diffSummary`, `changes: ChangedFile[]` rendered as staged file diffs in the UI
-- W3c. Decision endpoint: `POST /api/jobs/:id/approvals/:nodeId` with `{ verdict: 'approve' | 'reject', steering? }` → controlplane forwards `{ decision }` to the owning harness-server's `/v1/jobs/:id/resume` (via the W1a registry lookup). **`approve` and `reject` only for the MVP.**
-- W3d. controlplane-ui `/approvals` page — the queue + the per-job review panel (diff viewer + Approve / Reject buttons; Reject prompts for optional steering text)
-- W3e. Operator dry-run: submit a job whose pipeline has a `merge-pr`-tagged-approval node → it pauses → approve in the browser → PR merges; then again → reject → flow retries
+**W3 — Guided workflow composer wizard** *(new — Composer-MVP)*
+- W3a. Step 1 — Outcome type: pick the workflow's terminal `publish-*` node. `push-and-open-pr` (code → PR) is the only working option for the MVP; `write-to-filesystem` / `upload-to-s3` / `export-to-figma` shown greyed "coming soon".
+- W3b. Step 2 — Steps: build the `FlowDef` (`nodes[]` + `edges[]` — the `agent` / `tool` / `gate` / `transform` / `publish` kinds in `catalog.ts`); the chain ends in the W3a outcome node.
+- W3c. Step 3 — Agents: per `agent` node — model binding (the `accepts` list — per-worker model subscriptions, e.g. `local-qwen:qwen3` for a summarizer, `anthropic:claude-haiku-4-5` for a reviewer), reasoning effort, system prompt.
+- W3d. Step 4 — Skills: per agent — browse + select existing skills (skillzkit), or compose a new one (reuse `controlplane-ui/src/pages/Compose.tsx` + `POST /api/skill-proposals/compose`).
+- W3e. Register: validate the assembled `FlowDef` (`validateUnifiedCatalog`), `POST /api/catalog/flows` — a **new write endpoint** (the controlplane catalog module only has GET today) — returns the new pipeline id.
+- W3f. Continue: re-submit the original intent's job against the now-real pipeline id → flows into W1's dispatch path.
 
-**W4 — Edge services consulted at runtime** *(was Gate 3)*
-- W4a. Worker fetches context from `edge-context-server` on startup; log the query + result shape (scoped by `productId`)
-- W4b. Worker reads/writes `edge-memory-server` during the run; each write tagged with `originatingJobId`
-- W4c. Provenance writes default to `status: unconfirmed`
-- W4d. PR-merge → a `feedbackSource: 'pr-merged'` event flips matching `originatingJobId` provenance entries to `positive` (hook off the `merge-pr` node's success)
-- W4e. Verify: after a merged demo, query `edge-memory-server` — provenance row exists, status transitioned `unconfirmed → positive`
+**W4 — Job monitoring in the browser** *(was W2)*
+- W4a. `controlplane-ui` `/jobs/:id` detail page — status, current node, workflow graph (which node is live), token totals.
+- W4b. Live event stream — subscribe to the job's SSE (`/api/jobs/:id/events` proxied from harness-server's `/v1/jobs/:id/events`); render the envelope log.
+- W4c. When a `publish` node has opened a PR, show the PR link + the `diffSummary`; link each `ChangedFile` to its diff/content view (reuses harness-server's `/v1/jobs/:id/files/...` routes).
 
-**W5 — One-command workspace** *(was Gate 8b–8e)*
-- W5a. `workspace setup --product <p> --repos <r1,r2,...>` — clones repos, writes `harness-workspace.yml` + devcontainer overlays, no Python venv prompts
-- W5b. `workspace start [--embedder qwen-0.6b]` — brings up controlplane + edge servers + harness-server (+ optional Ollama / Docker-Model-Runner embedder overlay) **and the controlplane-ui dev server**; prints the web UI URL
-- W5c. `agent-auth` handles all token acquisition (GitHub via `gh` or device flow, model providers) — zero manual paste
-- W5d. Bundle Playwright browsers in the install step or auto-install on first run — no manual dance
+**W5 — Browser HITL (approve / reject only)** *(was W3)*
+- W5a. API: list jobs `status in [awaiting-approval, suspended]` — controlplane endpoint backed by the harness-server's `pendingApprovals` (the enriched `ApprovalRequest` arrives via the W1d best-effort POST / the existing `emitApprovalToControlplane`; controlplane caches it).
+- W5b. API: fetch the `ApprovalRequest` for a job — `prUrl`, `diffSummary`, `changes: ChangedFile[]` rendered as staged file diffs in the UI.
+- W5c. Decision endpoint: `POST /api/jobs/:id/approvals/:nodeId` with `{ verdict: 'approve' | 'reject', steering? }` → controlplane forwards `{ decision }` to the owning harness-server's `/v1/jobs/:id/resume` (via the W1 registry lookup). **`approve` and `reject` only for the MVP.**
+- W5d. controlplane-ui `/approvals` page — the queue + the per-job review panel (diff viewer + Approve / Reject buttons; Reject prompts for optional steering text).
+- W5e. Operator dry-run: submit a job whose workflow has a `merge-pr`-tagged-approval node → it pauses → approve in the browser → PR merges; then again → reject → flow retries.
 
-**W6 — The MVP demo**
-- W6a. Author a demo pipeline in the catalog: `[trigger] → [agent: implement-change] → [push-and-open-pr] → [merge-pr (tagged approval)]`
-- W6b. Walk it through the browser end-to-end on a low-stakes sandbox repo: `workspace setup` → `workspace start` → open the URL → submit "make change X" → watch the agent run → PR opens → approve → PR merges → `mergeSha` shows on the job detail page. Zero hand-edits, zero terminal commands after `workspace start`.
+**W6 — Edge services consulted at runtime** *(was W4 / old Gate 3)*
+- W6a. Worker fetches context from `edge-context-server` on startup; log the query + result shape (scoped by `productId`).
+- W6b. Worker reads/writes `edge-memory-server` during the run; each write tagged with `originatingJobId`.
+- W6c. Provenance writes default to `status: unconfirmed`.
+- W6d. PR-merge → a `feedbackSource: 'pr-merged'` event flips matching `originatingJobId` provenance entries to `positive` (hook off the `merge-pr` node's success).
+- W6e. Verify: after a merged demo, query `edge-memory-server` — provenance row exists, status transitioned `unconfirmed → positive`.
+
+**W7 — One-command workspace** *(was W5 / old Gate 8b–8e)*
+- W7a. `workspace setup --product <p> --repos <r1,r2,...>` — clones repos, writes `harness-workspace.yml` + devcontainer overlays, no Python venv prompts.
+- W7b. `workspace start [--embedder qwen-0.6b]` — brings up controlplane + edge servers + harness-server (+ optional Ollama / Docker-Model-Runner embedder overlay) **and the controlplane-ui dev server**; prints the web UI URL.
+- W7c. `agent-auth` handles all token acquisition (GitHub via `gh` or device flow, model providers) — zero manual paste.
+- W7d. Bundle Playwright browsers in the install step or auto-install on first run — no manual dance.
+
+**W8 — The MVP demo** *(was W6)*
+- W8a. (For the "existing workflow" path) author a demo `work` workflow in the catalog: `[trigger] → [agent: implement-change] → [push-and-open-pr] → [merge-pr (tagged approval)]`.
+- W8b. Walk it browser-only on a low-stakes sandbox repo: `workspace setup` → `workspace start` → open the URL → submit "make change X" → coordinator routes to the demo workflow (or you compose one in the W3 wizard) → watch the agent run → PR opens → approve in the browser → PR merges → `mergeSha` on the job detail page. Zero hand-edits, zero terminal commands after `workspace start`.
 
 ---
 
@@ -153,7 +167,7 @@
 ---
 
 **Suggested sequencing**
-1. **Web UI MVP (W1 → W2 → W3 → W4 → W5 → W6)** — the critical path now. W1 (dispatch link) is the keystone; the rest can partly parallelize once it lands.
+1. **Web UI MVP (W1 → W2 → W3 → W4 → W5 → W6 → W7 → W8)** — the critical path now. W1 (dispatch link) is the keystone; W2/W4/W5/W6 can partly parallelize once it lands. W3 (the composer wizard) is the biggest single chunk — it can run alongside the others.
 2. **HITL full verdicts (V1 → … → V6)** — the iteration right after the MVP demo passes.
 3. **Gates 4 / 5 / 6** — two-tenant + catalog isolation + no-op rework (6 is the prereq for P2).
 4. **P2** — Singularity iterative-spec pipeline port.
