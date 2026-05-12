@@ -65,6 +65,19 @@ public interface HarnessDao {
     """)
     int markDisconnected(@Bind("orgId") String orgId, @Bind("id") String id);
 
+    /**
+     * W1a — bulk-evict harnesses whose last heartbeat (or, if they
+     * registered but never heartbeated, their registration time) is
+     * older than {@code cutoff}. Cross-org sweep run by
+     * {@code HarnessEvictionTask}. Returns the number evicted.
+     */
+    @SqlUpdate("""
+        UPDATE harnesses SET status = 'disconnected', updated_at = CURRENT_TIMESTAMP
+         WHERE status IN ('active', 'registered', 'unhealthy')
+           AND COALESCE(last_heartbeat_at, registered_at) < :cutoff
+    """)
+    int markStaleDisconnected(@Bind("cutoff") java.time.Instant cutoff);
+
     @SqlQuery("""
         SELECT org_id, id, name, version, status, region,
                capabilities::text AS capabilities,

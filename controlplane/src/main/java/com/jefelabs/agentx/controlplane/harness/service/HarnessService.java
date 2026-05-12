@@ -12,6 +12,8 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
 import java.security.SecureRandom;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Base64;
 import java.util.List;
 import java.util.Optional;
@@ -100,6 +102,19 @@ public class HarnessService {
     @Transactional
     public boolean deregister(String orgId, String id) {
         return jdbi.onDemand(HarnessDao.class).markDisconnected(orgId, id) > 0;
+    }
+
+    /**
+     * W1a — mark every harness whose last heartbeat (or registration
+     * time, if it never heartbeated) is older than {@code staleness} as
+     * DISCONNECTED, so {@code HarnessRouter} stops routing to it. Run on
+     * a fixed schedule by {@code HarnessEvictionTask}. Returns the count
+     * evicted this sweep.
+     */
+    @Transactional
+    public int evictStaleHarnesses(Duration staleness) {
+        Instant cutoff = Instant.now().minus(staleness);
+        return jdbi.onDemand(HarnessDao.class).markStaleDisconnected(cutoff);
     }
 
     public record Registration(String harnessId, String sessionToken, Harness harness) {}
