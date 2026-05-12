@@ -134,5 +134,16 @@ export interface JobRecord {
    * semantics: input numbers are billed-tokens not context-size.
    */
   tokens?: AgentTokens;
+  /**
+   * Gate 2 — GitHub delivery metadata, written by `publish` FlowDef
+   * nodes as their node output flows back into job state:
+   *   - `push-and-open-pr` sets `branchName` + `prUrl`
+   *   - `merge-pr` sets `mergeSha` once the approved PR is merged
+   * Absent for jobs whose flows don't include a `publish` node (e.g.
+   * analysis-only jobs, or flows that deliver via S3/Figma instead).
+   */
+  branchName?: string;
+  prUrl?: string;
+  mergeSha?: string;
   [key: string]: unknown;
 }

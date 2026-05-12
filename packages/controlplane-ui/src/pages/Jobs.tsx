@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { Link } from "react-router-dom";
 import {
   Table,
   TableBody,
@@ -9,6 +10,7 @@ import {
   Spinner,
   Chip,
   Code,
+  Button,
 } from "@heroui/react";
 import { jobs, Job } from "../lib/api";
 
@@ -23,6 +25,12 @@ export default function JobsPage() {
   if (error) return <Code color="danger">{String(error)}</Code>;
 
   return (
+    <div className="flex flex-col gap-4">
+      <div className="flex justify-end">
+        <Button as={Link} to="/jobs/new" color="primary" size="sm">
+          New job
+        </Button>
+      </div>
     <Table aria-label="Jobs">
       <TableHeader>
         <TableColumn>job id</TableColumn>
@@ -51,6 +59,7 @@ export default function JobsPage() {
         ))}
       </TableBody>
     </Table>
+    </div>
   );
 }
 

@@ -3,6 +3,7 @@ import NavShell from "./components/NavShell";
 import IntakePage from "./pages/Intake";
 import SessionsPage from "./pages/Sessions";
 import JobsPage from "./pages/Jobs";
+import SubmitJobPage from "./pages/SubmitJob";
 import CatalogPage from "./pages/Catalog";
 import BenchmarksPage from "./pages/Benchmarks";
 import BenchmarkRunPage from "./pages/BenchmarkRun";
@@ -18,6 +19,7 @@ export default function App() {
         <Route path="/intake/:sessionId" element={<IntakePage />} />
         <Route path="/sessions" element={<SessionsPage />} />
         <Route path="/jobs" element={<JobsPage />} />
+        <Route path="/jobs/new" element={<SubmitJobPage />} />
         <Route path="/catalog" element={<CatalogPage />} />
         <Route path="/benchmarks" element={<BenchmarksPage />} />
         <Route path="/benchmarks/:runId" element={<BenchmarkRunPage />} />

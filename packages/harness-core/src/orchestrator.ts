@@ -7,7 +7,12 @@ import {
   OpenCodeCliAdapter,
   type OpenCodeCliAdapterOptions,
 } from '@ecruz165/agent-adapter';
-import type { BindingResolver, CredentialBroker, ResolvedBinding } from '@ecruz165/agent-auth';
+import type {
+  BindingResolver,
+  CredentialBroker,
+  GitHubCredentialResolver,
+  ResolvedBinding,
+} from '@ecruz165/agent-auth';
 import { Command } from '@langchain/langgraph';
 import type { AdapterId, ToolResolver } from './catalog.ts';
 import { discoverChangedFiles } from './changed-files.ts';
@@ -23,6 +28,7 @@ import type { JobRecord, RegisteredAgent } from './job.ts';
 import { bridgeAdapter, type JobBus } from './job-bus.ts';
 import { makeToolExecutor, type McpResult } from './tool-executor.ts';
 import { makeScriptExecutor } from './script-executor.ts';
+import { makePublishExecutor } from './publish-executor.ts';
 import type { FlowDef, McpToolDef } from './catalog.ts';
 import {
   compileNonAgentFlow,
@@ -210,6 +216,17 @@ export interface RunJobDeps {
    * needing HITL gates put them in the parent flow.
    */
   flowResolver?: FlowResolver;
+  /**
+   * Credential resolver for `kind: 'publish'` nodes (`push-and-open-pr`,
+   * `merge-pr`). A cascade — local `gh auth` first, controlplane-issued
+   * GitHub App token as fallback (see `@ecruz165/agent-auth`'s
+   * `defaultGitHubResolver`). When absent, publish nodes fail with
+   * `errorName: 'UnconfiguredGitHub'` so flows can route around them —
+   * same pattern as `toolResolver` / `flowResolver`.
+   *
+   * Optional. Flows containing no publish nodes work without it.
+   */
+  githubResolver?: GitHubCredentialResolver;
 }
 
 /**
@@ -407,6 +424,19 @@ export async function runJob(jobId: string, deps: RunJobDeps): Promise<void> {
       executors.set(node.id, makeSubflowExecutor(node, innerGraph));
     } else if (node.kind === 'script') {
       executors.set(node.id, makeScriptExecutor(node));
+    } else if (node.kind === 'publish') {
+      // publish-* nodes (push-and-open-pr, merge-pr) need the GitHub
+      // credential resolver. Like tool/subflow nodes, an unset resolver
+      // fails the node (errorName: 'UnconfiguredGitHub') rather than
+      // throwing at compile time — flows can route around it.
+      executors.set(
+        node.id,
+        makePublishExecutor(node, {
+          job,
+          ...(deps.githubResolver ? { githubResolver: deps.githubResolver } : {}),
+          ...(deps.fetchFn ? { fetchFn: deps.fetchFn } : {}),
+        }),
+      );
     }
   }
 

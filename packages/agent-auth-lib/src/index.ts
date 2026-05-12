@@ -16,6 +16,17 @@ export {
 } from './copilot-api.ts';
 export { FileBroker } from './file-broker.ts';
 export {
+  ChainedGitHubResolver,
+  ControlplaneGitHubResolver,
+  defaultGitHubResolver,
+  type GitHubCredential,
+  GitHubCredentialError,
+  type GitHubCredentialResolver,
+  type GitHubCredentialSource,
+  type GitHubRepoRef,
+  LocalAmbientGitHubResolver,
+} from './github-creds.ts';
+export {
   type DeviceFlowOptions,
   type DeviceFlowResult,
   loginGitHubCopilot,

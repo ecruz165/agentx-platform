@@ -17,7 +17,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       git tmux ca-certificates curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Stage the harness CLI so agents can call `harness memory|context …` (decision #2).
+# Stage the harness CLIs so agents can call `harness …` and the pipeline
+# entrypoint `harness-pipeline …` (which launches OpenCode against the
+# mounted worktree). Package names are `@ecruz165/*` per the workspace.
 WORKDIR /opt/agentx
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY tsconfig.base.json tsconfig.json ./
@@ -26,17 +28,30 @@ COPY packages/agent-auth-lib/package.json ./packages/agent-auth-lib/
 COPY packages/agent-adapter/package.json ./packages/agent-adapter/
 COPY packages/edge-memory-server/package.json ./packages/edge-memory-server/
 COPY packages/edge-context-server/package.json ./packages/edge-context-server/
+COPY packages/harness-core/package.json ./packages/harness-core/
 COPY packages/harness-cli/package.json ./packages/harness-cli/
+COPY packages/harness-pipeline-cli/package.json ./packages/harness-pipeline-cli/
 COPY packages/harness-server/package.json ./packages/harness-server/
 
-RUN pnpm install --frozen-lockfile --filter @agentx/harness-cli...
+RUN pnpm install --frozen-lockfile \
+      --filter @ecruz165/harness... \
+      --filter @ecruz165/harness-pipeline...
 
 COPY packages/agent-auth-lib ./packages/agent-auth-lib
+COPY packages/agent-adapter ./packages/agent-adapter
+COPY packages/harness-core ./packages/harness-core
 COPY packages/harness-cli ./packages/harness-cli
+COPY packages/harness-pipeline-cli ./packages/harness-pipeline-cli
 
-# Wrapper script so `harness ...` works inside the container.
-RUN printf '#!/bin/sh\nexec pnpm --silent --filter @agentx/harness-cli exec tsx /opt/agentx/packages/harness-cli/src/index.ts "$@"\n' > /usr/local/bin/harness \
+# Wrapper script so `harness …` works inside the container.
+RUN printf '#!/bin/sh\nexec pnpm --silent --filter @ecruz165/harness exec tsx /opt/agentx/packages/harness-cli/src/index.ts "$@"\n' > /usr/local/bin/harness \
     && chmod 0755 /usr/local/bin/harness
+
+# Wrapper script so `harness-pipeline …` works inside the container —
+# this is what spawn-worker.ts invokes via `devcontainer exec harness-pipeline`
+# to launch OpenCode CLI against the mounted worktree.
+RUN printf '#!/bin/sh\nexec pnpm --silent --filter @ecruz165/harness-pipeline exec tsx /opt/agentx/packages/harness-pipeline-cli/src/bin.ts "$@"\n' > /usr/local/bin/harness-pipeline \
+    && chmod 0755 /usr/local/bin/harness-pipeline
 
 # Worktrees mount under /workspace/<repoName>/ (per F19 — synthetic monorepo).
 WORKDIR /workspace

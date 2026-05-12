@@ -154,7 +154,7 @@ export interface TaskStep {
   /** Stable id; referenced by edges. Unique within a flow. */
   id: string;
   /** Polymorphic discriminator. */
-  kind: 'agent' | 'tool' | 'script' | 'transform' | 'gate' | 'subflow' | 'trigger';
+  kind: 'agent' | 'tool' | 'script' | 'transform' | 'gate' | 'subflow' | 'trigger' | 'publish';
   /** Per-kind config (typed by which kind is set). */
   config:
     | AgentConfig
@@ -163,7 +163,8 @@ export interface TaskStep {
     | TransformConfig
     | GateConfig
     | SubflowConfig
-    | TriggerConfig;
+    | TriggerConfig
+    | PublishConfig;
   /** Behavioral modifier tags. Multiple allowed; render order is
    *  Loop top-left, Approval/Suspend top-right. Approval and Suspend
    *  are mutually exclusive on the same node. */
@@ -373,6 +374,59 @@ export type TriggerConfig =
   | { kind: 'manual' }
   | { kind: 'event'; eventType: string; matcher?: Expression }
   | { kind: 'message'; channel: string };
+
+/**
+ * Delivery of the flow's output to an external destination. The
+ * `publish-*` family — `push-and-open-pr`, `merge-pr`, and (future)
+ * `upload-to-s3`, `export-to-figma`, … — keeps the "how the work ships"
+ * decision in the authored flow graph rather than baked into the
+ * orchestrator. The runtime executor (`publish-executor.ts`) reads
+ * `action` to pick the path.
+ *
+ * GitHub credentials for the `*-pr` actions resolve through a cascade
+ * (local `gh` → controlplane-issued App token); the executor takes a
+ * `GitHubCredentialResolver` from `RunJobDeps.githubResolver`.
+ */
+export type PublishConfig = PushAndOpenPrConfig | MergePrConfig;
+
+/**
+ * Push the per-job branch to `origin` and open a pull request. Placed
+ * after an agent has staged + committed changes in the worktree.
+ * Writes `{ prUrl, prNumber, branchName }` into `state.output` (as
+ * JSON) and onto the JobRecord (`branchName`, `prUrl`).
+ */
+export interface PushAndOpenPrConfig {
+  action: 'push-and-open-pr';
+  /** Which product repo to push — must match a name in
+   *  `JobRecord.productRepos`. Omittable when the product has exactly
+   *  one repo. */
+  repo?: string;
+  /** PR title. Defaults to a generated title from the job name/id. */
+  title?: string;
+  /** PR body (Markdown). Defaults to a generated body referencing the
+   *  job and its base ref. */
+  body?: string;
+  /** Base branch the PR targets. Default: the repo's default branch
+   *  (resolved via the GitHub API). */
+  base?: string;
+  /** Open as a draft PR. Default false. */
+  draft?: boolean;
+}
+
+/**
+ * Merge a pull request opened earlier in the same flow (by a
+ * `push-and-open-pr` node). Typically placed immediately after an
+ * `approval`-tagged node, so it only runs on the approve edge. Writes
+ * `{ mergeSha }` into `state.output` (as JSON) and onto the JobRecord
+ * (`mergeSha`). The PR to merge is read from the JobRecord's `prUrl`.
+ */
+export interface MergePrConfig {
+  action: 'merge-pr';
+  /** Merge strategy. Default 'squash'. */
+  method?: 'merge' | 'squash' | 'rebase';
+  /** Delete the head branch after a successful merge. Default true. */
+  deleteBranch?: boolean;
+}
 
 // ─── Tags (behavioral modifiers) ─────────────────────────────────────────
 
@@ -1019,7 +1073,10 @@ const VALID_NODE_KINDS = new Set([
   'gate',
   'subflow',
   'trigger',
+  'publish',
 ]);
+
+const VALID_PUBLISH_ACTIONS = new Set(['push-and-open-pr', 'merge-pr']);
 
 function validateNode(value: unknown, where: string): void {
   if (!value || typeof value !== 'object') {
@@ -1105,6 +1162,49 @@ function validateNodeConfig(kind: string, config: object, where: string): void {
     case 'trigger':
       validateTriggerConfig(c, where);
       break;
+    case 'publish':
+      validatePublishConfig(c, where);
+      break;
+  }
+}
+
+function validatePublishConfig(c: Record<string, unknown>, where: string): void {
+  if (typeof c.action !== 'string' || !VALID_PUBLISH_ACTIONS.has(c.action)) {
+    throw new CatalogError(
+      `${where}.action must be one of: ${[...VALID_PUBLISH_ACTIONS].join(', ')} (got ${JSON.stringify(c.action)})`,
+    );
+  }
+  if (c.action === 'push-and-open-pr') {
+    if (c.repo !== undefined && (typeof c.repo !== 'string' || !c.repo)) {
+      throw new CatalogError(`${where}.repo must be a non-empty string when present`);
+    }
+    if (c.title !== undefined && typeof c.title !== 'string') {
+      throw new CatalogError(`${where}.title must be a string when present`);
+    }
+    if (c.body !== undefined && typeof c.body !== 'string') {
+      throw new CatalogError(`${where}.body must be a string when present`);
+    }
+    if (c.base !== undefined && (typeof c.base !== 'string' || !c.base)) {
+      throw new CatalogError(`${where}.base must be a non-empty string when present`);
+    }
+    if (c.draft !== undefined && typeof c.draft !== 'boolean') {
+      throw new CatalogError(`${where}.draft must be a boolean when present`);
+    }
+  } else {
+    // merge-pr
+    if (
+      c.method !== undefined &&
+      c.method !== 'merge' &&
+      c.method !== 'squash' &&
+      c.method !== 'rebase'
+    ) {
+      throw new CatalogError(
+        `${where}.method must be one of: merge, squash, rebase (got ${JSON.stringify(c.method)})`,
+      );
+    }
+    if (c.deleteBranch !== undefined && typeof c.deleteBranch !== 'boolean') {
+      throw new CatalogError(`${where}.deleteBranch must be a boolean when present`);
+    }
   }
 }
 

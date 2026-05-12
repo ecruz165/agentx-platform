@@ -231,6 +231,16 @@ export interface ApprovalRequest {
    *  staged changes (or no product repos are wired). UI uses this to
    *  render a sidebar of files for diff/content fetch. */
   changes: ChangedFile[];
+  /** Gate 2b — URL of the pull request opened by an upstream
+   *  `publish` node (`push-and-open-pr`), when one ran before this
+   *  gate. Lets the HITL surface link straight to the PR. Absent for
+   *  flows that don't open a PR before review. */
+  prUrl?: string;
+  /** Gate 2b — short human-readable summary of the staged diff
+   *  (e.g. "3 files, +42 −7"), derived from `changes` at interrupt
+   *  time. The full per-file detail is in `changes`; this is the
+   *  one-liner the UI shows next to the PR link. */
+  diffSummary?: string;
 }
 
 export interface ApprovalResume {
@@ -761,6 +771,34 @@ function rewriteFlowForInterruptTags(flow: FlowDef): FlowDef {
 // ─── Tag-node executors ──────────────────────────────────────────────────
 
 /**
+ * Pull a `prUrl` out of a node's text `output` when it's the JSON shape
+ * a `publish` (push-and-open-pr) node emits. Returns `undefined` for
+ * any other output (plain agent text, non-JSON, JSON without a prUrl
+ * string) — purely best-effort enrichment, never throws.
+ */
+function extractPrUrlFromOutput(output: string): string | undefined {
+  if (!output || output[0] !== '{') return undefined;
+  try {
+    const parsed = JSON.parse(output) as Record<string, unknown>;
+    return typeof parsed.prUrl === 'string' ? parsed.prUrl : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** One-line summary of staged changes for the HITL surface, e.g.
+ *  "3 files (2 modified, 1 added)". Returns `undefined` when there are
+ *  no changes (the UI then shows nothing rather than "0 files"). */
+function summarizeChanges(changes: readonly ChangedFile[]): string | undefined {
+  if (changes.length === 0) return undefined;
+  const byKind = new Map<string, number>();
+  for (const c of changes) byKind.set(c.changeKind, (byKind.get(c.changeKind) ?? 0) + 1);
+  const breakdown = [...byKind.entries()].map(([k, n]) => `${n} ${k}`).join(', ');
+  const noun = changes.length === 1 ? 'file' : 'files';
+  return `${changes.length} ${noun} (${breakdown})`;
+}
+
+/**
  * Synthetic Approval node executor.
  *
  * On first execution: calls interrupt(...) with an ApprovalRequest
@@ -783,6 +821,12 @@ function makeApprovalExecutor(node: SyntheticApprovalNode): NodeExecutor {
   return async (state) => {
     const attempts = state.attempts[nodeId] ?? 0;
 
+    // Gate 2b — when an upstream `publish` node (push-and-open-pr) ran,
+    // its output is `JSON.stringify({ prUrl, prNumber, branchName })`.
+    // Surface `prUrl` on the request so the HITL UI can link to the PR.
+    const prUrl = extractPrUrlFromOutput(state.output);
+    const diffSummary = summarizeChanges(state.changedFiles);
+
     const request: ApprovalRequest = {
       kind: 'approval',
       nodeId: originalId,
@@ -792,6 +836,8 @@ function makeApprovalExecutor(node: SyntheticApprovalNode): NodeExecutor {
       content: state.output,
       attempt: attempts + 1,
       changes: state.changedFiles,
+      ...(prUrl ? { prUrl } : {}),
+      ...(diffSummary ? { diffSummary } : {}),
     };
 
     const resume = interrupt(request) as ApprovalResume;

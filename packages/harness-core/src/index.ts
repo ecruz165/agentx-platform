@@ -31,8 +31,11 @@ export {
   type JobIntent,
   type LoopTag,
   loadCatalog,
+  type MergePrConfig,
   type ProductDef,
   type ProductRepo,
+  type PublishConfig,
+  type PushAndOpenPrConfig,
   type RejectEdge,
   type RejectionPayload,
   type RetryPolicy,
@@ -97,6 +100,7 @@ export {
   steerJob,
 } from './orchestrator.ts';
 export { makeScriptExecutor } from './script-executor.ts';
+export { makePublishExecutor } from './publish-executor.ts';
 export {
   compileNonAgentFlow,
   type FlowResolver,

@@ -298,3 +298,55 @@ async function readWorkspaceYamlProducts(workspaceRoot: string): Promise<Product
 export function inlineCatalogLoader(catalog: Catalog): () => Promise<Catalog> {
   return () => Promise.resolve(catalog);
 }
+
+/**
+ * Worktree-lifetime policy read from `harness-workspace.yml`'s
+ * `workspace.worktree` section. Drives the container/worktree cleanup
+ * behavior in the container path (Gate 1d).
+ *
+ * Defaults match the PRD: `keepOnSuccess: true` — clean exits preserve
+ * the worktree + container so reviewers/reapers can inspect them.
+ */
+export interface WorktreePolicy {
+  keepOnSuccess: boolean;
+  keepOnFailure: boolean;
+}
+
+const DEFAULT_WORKTREE_POLICY: WorktreePolicy = {
+  keepOnSuccess: true,
+  keepOnFailure: true,
+};
+
+/**
+ * Read `workspace.worktree.{keepOnSuccess,keepOnFailure}` from the
+ * workspace YAML. Missing file / missing section → defaults. Tests can
+ * pass `workspaceRoot` to a fixture dir; production reads from the
+ * server's `--workspaceRoot`.
+ */
+export async function readWorkspaceYamlWorktreePolicy(
+  workspaceRoot: string,
+): Promise<WorktreePolicy> {
+  const candidates = [
+    join(workspaceRoot, 'harness-workspace.yml'),
+    join(workspaceRoot, 'harness-workspace.yaml'),
+  ];
+  const path = candidates.find((c) => existsSync(c));
+  if (!path) return DEFAULT_WORKTREE_POLICY;
+
+  let parsed: unknown;
+  try {
+    parsed = YAML.parse(await readFile(path, 'utf8'));
+  } catch {
+    return DEFAULT_WORKTREE_POLICY;
+  }
+  const ws = (parsed as Record<string, unknown> | null)?.workspace;
+  const wt = ws && typeof ws === 'object' ? (ws as Record<string, unknown>).worktree : undefined;
+  if (!wt || typeof wt !== 'object') return DEFAULT_WORKTREE_POLICY;
+  const w = wt as Record<string, unknown>;
+  return {
+    keepOnSuccess:
+      typeof w.keepOnSuccess === 'boolean' ? w.keepOnSuccess : DEFAULT_WORKTREE_POLICY.keepOnSuccess,
+    keepOnFailure:
+      typeof w.keepOnFailure === 'boolean' ? w.keepOnFailure : DEFAULT_WORKTREE_POLICY.keepOnFailure,
+  };
+}

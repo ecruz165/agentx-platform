@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
-import { chmod, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import {
@@ -75,6 +75,8 @@ async function main() {
       return handleProject(rest);
     case 'submit':
       return handleSubmit(rest);
+    case 'reap':
+      return handleReap(rest);
     case 'tui':
       await import('./tui.tsx');
       return;
@@ -278,25 +280,29 @@ async function handleSubmit(args: string[]) {
 
   const input = await resolveInput(opts);
   if (!input) {
-    die('No input provided. Use --input <file>, --input-text "<text>", or pipe via stdin.');
+    die(
+      'No change/input provided. Usage:\n' +
+        '  harness submit --product <id> "<change>"\n' +
+        '  or pass --input <file> | --input-text "<text>" | pipe via stdin',
+    );
   }
 
   const jobId = `job_${randomUUID().slice(0, 8)}`;
-  const body = {
+  const body: Record<string, unknown> = {
     jobId,
-    name: opts.name,
-    pipeline: opts.pipeline,
     productId: product.id,
     productRepos: product.repos.map((r) => r.name),
     input,
     submittedAt: new Date().toISOString(),
   };
+  if (opts.name) body.name = opts.name;
+  if (opts.pipeline) body.pipeline = opts.pipeline;
 
   const label = opts.name ? `${jobId} ("${opts.name}")` : jobId;
   console.log(`Submitting ${label} to harness-server (${HARNESS_SOCKET})…`);
-  console.log(`  pipeline:   ${opts.pipeline}`);
+  console.log(`  pipeline:   ${opts.pipeline ?? '(auto-route via coordinator)'}`);
   console.log(`  productId:  ${product.id}`);
-  console.log(`  repos:      ${body.productRepos.join(', ')}`);
+  console.log(`  repos:      ${(body.productRepos as string[]).join(', ')}`);
   if (opts.name) console.log(`  name:       ${opts.name}`);
   console.log(`  input:      ${input.length} chars`);
 
@@ -306,7 +312,8 @@ async function handleSubmit(args: string[]) {
 }
 
 interface SubmitOptions {
-  pipeline: string;
+  change?: string;
+  pipeline?: string;
   product?: string;
   name?: string;
   inputFile?: string;
@@ -315,26 +322,23 @@ interface SubmitOptions {
 
 function parseSubmitArgs(args: string[]): SubmitOptions {
   const positional: string[] = [];
-  const opts: SubmitOptions = { pipeline: '' };
+  const opts: SubmitOptions = {};
   for (let i = 0; i < args.length; i++) {
     const a = args[i];
     if (a === '--product') opts.product = args[++i];
+    else if (a === '--pipeline') opts.pipeline = args[++i];
     else if (a === '--name') opts.name = args[++i];
     else if (a === '--input') opts.inputFile = args[++i];
     else if (a === '--input-text') opts.inputText = args[++i];
     else if (a?.startsWith('--')) die(`Unknown flag: ${a}`);
     else if (a !== undefined) positional.push(a);
   }
-  if (positional.length === 0) {
-    die(
-      'Usage: harness submit <pipeline> [--product <id>] [--name "<title>"] [--input <file>|--input-text "<text>"]',
-    );
-  }
-  opts.pipeline = positional[0]!;
+  if (positional.length > 0) opts.change = positional[0];
   return opts;
 }
 
 async function resolveInput(opts: SubmitOptions): Promise<string | null> {
+  if (opts.change) return opts.change;
   if (opts.inputText) return opts.inputText;
   if (opts.inputFile) {
     const path = resolve(opts.inputFile);
@@ -353,6 +357,198 @@ function readStdin(): Promise<string> {
     process.stdin.on('data', (c) => (data += c));
     process.stdin.on('end', () => resolve(data));
     process.stdin.on('error', reject);
+  });
+}
+
+// ---------- harness reap (Gate 1d.2) ----------
+
+/** Job statuses that mean the job is done and its resources are eligible
+ *  for reaping. Non-terminal statuses (`queued`, `running`,
+ *  `awaiting-approval`, `suspended`) are NEVER reaped — that would
+ *  destroy live work. */
+const TERMINAL_STATUSES = new Set(['completed', 'failed', 'cancelled']);
+
+interface ReapOptions {
+  /** When set, restrict reaping to this single jobId. */
+  job?: string;
+  /** Don't actually reap — just print what would be done. */
+  dryRun: boolean;
+  /** Pass `git worktree remove --force` (also removes worktrees with
+   *  uncommitted changes). Without it, a dirty worktree is left in
+   *  place and reported as a failure for that job. */
+  force: boolean;
+}
+
+interface ReapableJob {
+  jobId: string;
+  status: string;
+  productRepos?: string[];
+}
+
+function parseReapArgs(args: string[]): ReapOptions {
+  const opts: ReapOptions = { dryRun: false, force: false };
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i];
+    if (a === '--job') opts.job = args[++i];
+    else if (a === '--dry-run') opts.dryRun = true;
+    else if (a === '--force') opts.force = true;
+    else if (a === '--help' || a === '-h') {
+      console.log(
+        'Usage: harness reap [--job <id>] [--dry-run] [--force]\n\n' +
+          '  Removes the worker container + per-repo worktrees for terminal\n' +
+          '  jobs (completed | failed | cancelled). This is the "explicit\n' +
+          '  reaper pass" — workspace.worktree.{keepOnSuccess,keepOnFailure}\n' +
+          '  govern AUTOMATIC at-exit cleanup, not this command.\n\n' +
+          '  --job <id>   reap only that job\n' +
+          '  --dry-run    print what would be reaped, do nothing\n' +
+          '  --force      pass `git worktree remove --force` (also removes\n' +
+          '               worktrees with uncommitted changes). Without it,\n' +
+          '               a dirty worktree is left in place and reported.',
+      );
+      process.exit(0);
+    } else if (a?.startsWith('--')) die(`Unknown flag: ${a}`);
+  }
+  return opts;
+}
+
+async function handleReap(args: string[]) {
+  const opts = parseReapArgs(args);
+
+  // Pull job list from harness-server. The server is in-memory today, so
+  // jobs that ran before a restart aren't visible here — those leave
+  // orphan worktrees. A future `--orphans` flag can scan the filesystem
+  // directly; for now we trust the server's view.
+  const resp = await udsRequest(HARNESS_SOCKET, 'GET', '/v1/jobs', null);
+  if (!resp.body || typeof resp.body !== 'object') {
+    die(`Unexpected response from harness-server: ${JSON.stringify(resp.body)}`);
+  }
+  const allJobs = (resp.body as { jobs?: ReapableJob[] }).jobs ?? [];
+
+  // `harness reap` is the *explicit* cleanup action, so it targets every
+  // terminal job (the `worktree.keepOn*` settings govern AUTOMATIC
+  // at-exit cleanup — see ServerCtx.worktreePolicy — not this command;
+  // otherwise `keepOnSuccess: true`, the default, would mean disk is
+  // never reclaimed). `cancelled` counts as terminal like the rest.
+  // Never touch running/paused jobs — that would destroy live work.
+  const candidates = allJobs.filter((j) => {
+    if (!TERMINAL_STATUSES.has(j.status)) return false;
+    if (opts.job && j.jobId !== opts.job) return false;
+    return true;
+  });
+
+  if (candidates.length === 0) {
+    console.log('Nothing to reap.');
+    return;
+  }
+
+  console.log(`${opts.dryRun ? '[dry-run] ' : ''}Reaping ${candidates.length} job(s):`);
+  for (const job of candidates) {
+    console.log(`  - ${job.jobId} (${job.status})`);
+  }
+  if (opts.dryRun) return;
+
+  let reaped = 0;
+  let failed = 0;
+  for (const job of candidates) {
+    try {
+      await reapOneJob(job, opts.force);
+      reaped++;
+    } catch (err) {
+      failed++;
+      console.error(`  ! ${job.jobId}: ${(err as Error).message}`);
+    }
+  }
+  console.log(`Done — ${reaped} reaped, ${failed} failed.`);
+}
+
+async function reapOneJob(job: ReapableJob, force: boolean): Promise<void> {
+  // (1) Remove the worker container (if any). We discover the container
+  // via the labels the worker Dockerfile sets at spawn time.
+  const containerId = await findContainerByJobLabel(job.jobId);
+  if (containerId) {
+    await runCmd('docker', ['rm', '-f', containerId]);
+  }
+
+  // (2) Remove per-repo worktrees under .harness/wt/<jobId>/<subagent>/<repo>/.
+  // `git worktree remove` must be run from inside the bare clone, which
+  // lives at .harness/repos/<repoName>.git.
+  await removeWorktreesForJob(WORKSPACE_ROOT, job.jobId, force);
+
+  // (3) Best-effort: remove the now-empty .harness/wt/<jobId>/ dir.
+  const jobDir = join(WORKSPACE_ROOT, '.harness', 'wt', job.jobId);
+  await rm(jobDir, { recursive: true, force: true }).catch(() => {});
+}
+
+async function findContainerByJobLabel(jobId: string): Promise<string | null> {
+  // `docker ps -a` includes exited containers. The worker Dockerfile
+  // (workspace-template/.devcontainer/worker/Dockerfile) labels every
+  // worker with harness-job-id=<id>. One container per job.
+  const { stdout } = await runCmd('docker', [
+    'ps',
+    '-a',
+    '--filter',
+    `label=harness-job-id=${jobId}`,
+    '--format',
+    '{{.ID}}',
+  ]);
+  const id = stdout.trim().split('\n')[0];
+  return id || null;
+}
+
+async function removeWorktreesForJob(
+  workspaceRoot: string,
+  jobId: string,
+  force: boolean,
+): Promise<void> {
+  const wtRoot = join(workspaceRoot, '.harness', 'wt', jobId);
+  const reposRoot = join(workspaceRoot, '.harness', 'repos');
+  if (!existsSync(wtRoot)) return;
+
+  // Layout: .harness/wt/<jobId>/<subagentId>/<repoName>/
+  const subagents = await readdir(wtRoot, { withFileTypes: true });
+  for (const subagentEnt of subagents) {
+    if (!subagentEnt.isDirectory()) continue;
+    const subagentDir = join(wtRoot, subagentEnt.name);
+    const repos = await readdir(subagentDir, { withFileTypes: true });
+    for (const repoEnt of repos) {
+      if (!repoEnt.isDirectory()) continue;
+      const worktreePath = join(subagentDir, repoEnt.name);
+      const bareRepo = join(reposRoot, `${repoEnt.name}.git`);
+      if (!existsSync(bareRepo)) {
+        // Orphan worktree (bare clone gone). rm -rf and move on — there's
+        // no git metadata left to update.
+        await rm(worktreePath, { recursive: true, force: true }).catch(() => {});
+        continue;
+      }
+      // Without --force, `git worktree remove` refuses on a dirty
+      // worktree — the operator gets told and the tree is left for
+      // inspection. With --force, it's removed regardless.
+      const gitArgs = ['-C', bareRepo, 'worktree', 'remove', worktreePath];
+      if (force) gitArgs.splice(4, 0, '--force');
+      await runCmd('git', gitArgs);
+    }
+  }
+}
+
+async function runCmd(
+  cmd: string,
+  args: string[],
+): Promise<{ stdout: string; stderr: string; code: number }> {
+  const { spawn } = await import('node:child_process');
+  return new Promise((resolveP, rejectP) => {
+    const child = spawn(cmd, args, { stdio: ['ignore', 'pipe', 'pipe'] });
+    let stdout = '';
+    let stderr = '';
+    child.stdout.on('data', (c) => (stdout += c.toString()));
+    child.stderr.on('data', (c) => (stderr += c.toString()));
+    child.on('close', (code) => {
+      if (code !== 0) {
+        rejectP(new Error(`${cmd} ${args.join(' ')} exited ${code}: ${stderr.trim()}`));
+        return;
+      }
+      resolveP({ stdout, stderr, code: code ?? 0 });
+    });
+    child.on('error', rejectP);
   });
 }
 
@@ -992,7 +1188,8 @@ function usage(): void {
       '  harness jobs-tui                              # 3-column jobs/agents/events viewer',
       '  harness session <show|get|set> [key] [value]',
       '  harness project <list|show> [id]',
-      '  harness submit <pipeline> [--product <id>] [--name "<title>"] [--input <file>|--input-text "<text>"]',
+      '  harness submit "<change>" [--product <id>] [--pipeline <id>] [--name "<title>"] [--input <file>|--input-text "<text>"]',
+      '  harness reap [--job <id>] [--dry-run] [--force]   # remove containers + worktrees for terminal (done) jobs',
       '  harness steering <check|push|wait> [--job <id>] [--text "..."]',
       '',
       '  # Memory operations moved to a peer CLI:',

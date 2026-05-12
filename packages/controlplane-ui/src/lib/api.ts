@@ -121,6 +121,20 @@ export interface Job {
   completedAt?: string;
 }
 
+/**
+ * Wire shape for {@code POST /api/jobs}. Mirrors
+ * {@code SubmitJobRequestDTO} in the controlplane — {@code input} and
+ * {@code config} are arbitrary JSON; the free-text "change description"
+ * the form collects is wrapped as {@code { change: "..." }} before send.
+ */
+export interface SubmitJobRequest {
+  flowId: string;
+  productId: string;
+  input: unknown;
+  set?: string;
+  config?: unknown;
+}
+
 export const jobs = {
   list: () => request<Job[]>("/api/jobs"),
   listByBenchmarkRun: (runId: string, limit = 500) =>
@@ -128,6 +142,8 @@ export const jobs = {
       `/api/jobs?benchmarkRunId=${encodeURIComponent(runId)}&limit=${limit}`,
     ),
   get: (id: string) => request<Job>(`/api/jobs/${id}`),
+  submit: (body: SubmitJobRequest) =>
+    request<Job>("/api/jobs", { method: "POST", body: JSON.stringify(body) }),
   start: (id: string) => request<Job>(`/api/jobs/${id}/start`, { method: "POST" }),
   cancel: (id: string) => request<Job>(`/api/jobs/${id}/cancel`, { method: "POST" }),
 };

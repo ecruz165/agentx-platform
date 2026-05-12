@@ -2,7 +2,12 @@ import { randomUUID } from 'node:crypto';
 import { chmod, mkdir, unlink } from 'node:fs/promises';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { dirname } from 'node:path';
-import type { BindingResolver, CredentialBroker } from '@ecruz165/agent-auth';
+import {
+  type BindingResolver,
+  type CredentialBroker,
+  defaultGitHubResolver,
+  type GitHubCredentialResolver,
+} from '@ecruz165/agent-auth';
 import {
   type AdapterFactory,
   type AdapterId,
@@ -44,7 +49,11 @@ import {
   safeResolveInRepo,
   streamFileContent,
 } from './file-routes.ts';
-import { inlineCatalogLoader } from './load-catalog.ts';
+import {
+  inlineCatalogLoader,
+  readWorkspaceYamlWorktreePolicy,
+  type WorktreePolicy,
+} from './load-catalog.ts';
 import { type LoaderEvent, spawnLoaderJob } from './loader-spawn.ts';
 import { runJobInContainer } from './run-job-in-container.ts';
 import type { SpawnRepoSpec } from './spawn-worker.ts';
@@ -336,6 +345,11 @@ export async function startHarnessServer(opts: HarnessServerOptions): Promise<Ha
   // JobRecord with per-call usage history + running totals (slice 13d).
   // One instance per server, attached lazily as jobs are created.
   const tokens = new TokenAccumulator(jobs);
+  const workspaceRoot = opts.workspaceRoot ?? process.cwd();
+  // Gate 1d — read worktree lifetime policy at startup. Defaults to
+  // keepOnSuccess: true (PRD wording: "clean exit retains worktree
+  // volume; cleanup only on explicit reaper pass").
+  const worktreePolicy = await readWorkspaceYamlWorktreePolicy(workspaceRoot);
   const ctx: ServerCtx = {
     bus,
     catalog,
@@ -347,7 +361,11 @@ export async function startHarnessServer(opts: HarnessServerOptions): Promise<Ha
     inFlight: new Set(),
     queue: [],
     capacity: opts.maxConcurrentJobs ?? 5,
-    workspaceRoot: opts.workspaceRoot ?? process.cwd(),
+    workspaceRoot,
+    worktreePolicy,
+    githubResolver: defaultGitHubResolver({
+      ...(process.env.CONTROLPLANE_URL ? { controlplaneUrl: process.env.CONTROLPLANE_URL } : {}),
+    }),
     ...(opts.forwardSshAgent !== undefined ? { forwardSshAgent: opts.forwardSshAgent } : {}),
     ...(opts.sshAgentContainerPath ? { sshAgentContainerPath: opts.sshAgentContainerPath } : {}),
     ...(opts.memorySocketPath ? { memorySocketPath: opts.memorySocketPath } : {}),
@@ -446,6 +464,20 @@ interface ServerCtx {
   adapterFactory?: AdapterFactory;
   resolver?: BindingResolver;
   coordinatorModel?: BaseChatModel;
+  /** Gate 2 — GitHub credential resolver for `kind: 'publish'` nodes
+   *  (`push-and-open-pr`, `merge-pr`). A cascade: local `gh auth` first,
+   *  controlplane-issued App token as fallback when `CONTROLPLANE_URL`
+   *  is set. Built once at server start. Passed into runJob's
+   *  RunJobDeps; the in-container path (harness-pipeline-cli) wires its
+   *  own — TODO when remote workers land. */
+  githubResolver: GitHubCredentialResolver;
+  /** Gate 1d — worktree/container lifetime policy read from
+   *  `harness-workspace.yml`'s `workspace.worktree` section. Drives
+   *  the `removeContainerOnSuccess` / `removeContainerOnFailure` flags
+   *  passed to runJobInContainer. `keepOnSuccess: true` (the PRD
+   *  default) means the container persists after clean exit; cleanup
+   *  is the reaper's job (Gate 1d.2). */
+  worktreePolicy: WorktreePolicy;
 }
 
 function route(req: IncomingMessage, res: ServerResponse, ctx: ServerCtx) {
@@ -751,6 +783,31 @@ function route(req: IncomingMessage, res: ServerResponse, ctx: ServerCtx) {
   });
 }
 
+/**
+ * Gate 2b — best-effort POST of an ApprovalRequest to the controlplane.
+ *
+ * Endpoint contract (controlplane side built with the deferred
+ * controlplane work):
+ *   POST {CONTROLPLANE_URL}/api/jobs/{jobId}/approval-event
+ *   body: the ApprovalRequest (carries prUrl + diffSummary when an
+ *         upstream publish node ran)
+ *
+ * No-op when CONTROLPLANE_URL is unset. All errors swallowed — the
+ * harness-server UDS (`GET /v1/jobs/:id/approval`) is the source of
+ * truth; this is a convenience mirror for the web HITL view.
+ */
+function emitApprovalToControlplane(jobId: string, request: ApprovalRequest): void {
+  const base = process.env.CONTROLPLANE_URL?.replace(/\/$/, '');
+  if (!base) return;
+  void fetch(`${base}/api/jobs/${encodeURIComponent(jobId)}/approval-event`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+  }).catch(() => {
+    // swallowed — UDS surface remains authoritative
+  });
+}
+
 async function handleSubmitJob(
   res: ServerResponse,
   body: Record<string, unknown>,
@@ -922,6 +979,7 @@ async function handleSubmitJob(
     const broker = ctx.broker;
     const adapterFactory = ctx.adapterFactory;
     const resolver = ctx.resolver;
+    const githubResolver = ctx.githubResolver;
     const tokens = ctx.tokens;
     const onJobTerminal = (agentId: string | null, status: string) => {
       // Token accumulator detaches on job-level terminal transitions
@@ -988,6 +1046,11 @@ async function handleSubmitJob(
           productId: containerProductId,
           pipeline: containerPipeline,
           setName,
+          // Gate 1d — translate worktree policy into runJobInContainer's
+          // container-removal flags. `keepOn*: true` ⇒ never remove
+          // automatically; rely on the reaper (Gate 1d.2) instead.
+          removeContainerOnSuccess: !ctx.worktreePolicy.keepOnSuccess,
+          removeContainerOnFailure: !ctx.worktreePolicy.keepOnFailure,
           ...(forwardSshAgent !== undefined ? { forwardSshAgent } : {}),
           ...(ctx.sshAgentContainerPath
             ? { sshAgentContainerPath: ctx.sshAgentContainerPath }
@@ -1022,6 +1085,7 @@ async function handleSubmitJob(
         broker,
         adapterFactory,
         resolver,
+        ...(githubResolver ? { githubResolver } : {}),
         graphs: ctx.graphs,
         onStatusChange: (jid, agentId, status) => {
           onJobTerminal(agentId, status);
@@ -1049,6 +1113,13 @@ async function handleSubmitJob(
         },
         onAwaitingApproval: (jid, request) => {
           ctx.pendingApprovals.set(jid, request);
+          // Gate 2b — best-effort: surface the (PR-enriched) approval
+          // request to the controlplane so the web HITL view can show
+          // it. No-op when CONTROLPLANE_URL is unset (local-only setups
+          // read the request via GET /v1/jobs/:id/approval instead).
+          // Failures are swallowed — the UDS surface is the source of
+          // truth; the controlplane copy is a convenience mirror.
+          emitApprovalToControlplane(jid, request);
         },
         onSuspend: (jid, request) => {
           ctx.pendingSuspends.set(jid, request);
