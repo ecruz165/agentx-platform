@@ -148,6 +148,18 @@ export {
 
 export interface HarnessServerOptions {
   socketPath: string;
+  /**
+   * Optional TCP listener. When set, harness-server binds a second
+   * `node:http` server on this port (same request handler as the UDS)
+   * — needed so a remote controlplane (separate JVM / container) can
+   * reach it for job dispatch (W1) and so the launcher can register
+   * `endpoints.tcp`. `0` ⇒ ephemeral port (the actual port is on the
+   * returned handle's `tcpPort`). Unset ⇒ UDS-only (the default).
+   */
+  port?: number;
+  /** Bind address for the TCP listener. Default `127.0.0.1`. Set to
+   *  `0.0.0.0` when the controlplane lives in another container. */
+  host?: string;
   /** Inject a bus to share with the orchestrator. Defaults to a fresh one. */
   bus?: JobBus;
   /**
@@ -253,6 +265,10 @@ export interface HarnessServerOptions {
 export interface HarnessServerHandle {
   bus: JobBus;
   catalog: Catalog;
+  /** The TCP port the server bound, when `opts.port` was set (resolves
+   *  the ephemeral port when `opts.port` was `0`). Undefined for
+   *  UDS-only servers. */
+  tcpPort?: number;
   stop(): Promise<void>;
 }
 
@@ -378,20 +394,38 @@ export async function startHarnessServer(opts: HarnessServerOptions): Promise<Ha
   await mkdir(dirname(opts.socketPath), { recursive: true, mode: 0o700 });
   await unlink(opts.socketPath).catch(() => {});
 
-  const server = createServer((req, res) => route(req, res, ctx));
+  const handler = (req: IncomingMessage, res: ServerResponse) => route(req, res, ctx);
 
+  const udsServer = createServer(handler);
   await new Promise<void>((resolve, reject) => {
-    server.once('error', reject);
-    server.listen(opts.socketPath, () => resolve());
+    udsServer.once('error', reject);
+    udsServer.listen(opts.socketPath, () => resolve());
   });
-
   await chmod(opts.socketPath, 0o600);
+
+  // Optional TCP listener (W1) — a second http.Server with the same
+  // handler. http.Server can only listen on one address, hence two
+  // server instances.
+  let tcpServer: ReturnType<typeof createServer> | undefined;
+  let tcpPort: number | undefined;
+  if (opts.port !== undefined) {
+    tcpServer = createServer(handler);
+    const s = tcpServer;
+    await new Promise<void>((resolve, reject) => {
+      s.once('error', reject);
+      s.listen(opts.port, opts.host ?? '127.0.0.1', () => resolve());
+    });
+    const addr = s.address();
+    tcpPort = addr && typeof addr === 'object' ? addr.port : opts.port;
+  }
 
   return {
     bus,
     catalog,
+    ...(tcpPort !== undefined ? { tcpPort } : {}),
     async stop() {
-      await new Promise<void>((resolve) => server.close(() => resolve()));
+      await new Promise<void>((resolve) => udsServer.close(() => resolve()));
+      if (tcpServer) await new Promise<void>((resolve) => tcpServer.close(() => resolve()));
       await unlink(opts.socketPath).catch(() => {});
     },
   };

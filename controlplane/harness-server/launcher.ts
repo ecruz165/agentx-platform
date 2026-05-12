@@ -89,12 +89,26 @@ const loadCatalog = async (): Promise<Catalog> => {
   return { flows, products };
 };
 
+// TCP listener (W1) — the controlplane (separate JVM / container) can't
+// reach the UDS, so harness-server also binds a TCP port for job
+// dispatch + status sync. `HARNESS_RPC_PORT=0` ⇒ ephemeral. Bind on
+// 0.0.0.0 inside the container; the *advertised* host (what the
+// controlplane connects to) is HARNESS_ADVERTISE_HOST — the compose
+// service name in docker, `localhost` in a local `workspace start`.
+const rpcPort = Number(process.env.HARNESS_RPC_PORT ?? 7700);
+const advertiseHost = process.env.HARNESS_ADVERTISE_HOST ?? 'localhost';
+
 const harnessSrv = await startHarnessServer({
   socketPath: harnessSocket,
+  port: rpcPort,
+  host: process.env.HARNESS_BIND_HOST ?? '0.0.0.0',
   loadCatalog,
 });
 
-console.log(`[harness-server] listening on ${harnessSocket}`);
+const tcpPort = harnessSrv.tcpPort ?? rpcPort;
+const tcpEndpoint = `http://${advertiseHost}:${tcpPort}`;
+
+console.log(`[harness-server] listening on ${harnessSocket} (UDS) and ${tcpEndpoint} (TCP)`);
 console.log(`[harness-server] edge sockets: ${process.env.EDGE_SOCKETS_DIR ?? '/run/edge'}`);
 
 // ── Self-register with controlplane's HarnessRegistry ────────────────
@@ -120,7 +134,10 @@ async function registerWithControlplane(): Promise<void> {
     version: harnessVersion,
     region: harnessRegion,
     capabilities: { adapters: ['claude-sdk'] },
-    endpoints: { rpc: harnessSocket },
+    // `rpc` is the in-host UDS path (used by co-located CLIs/TUI);
+    // `tcp` is the network endpoint the controlplane dispatches jobs to
+    // and pushes nothing to (status flows the other way). W1.
+    endpoints: { rpc: harnessSocket, tcp: tcpEndpoint },
   };
   const res = await fetch(`${controlplaneUrl}/api/registry/harnesses`, {
     method: 'POST',
