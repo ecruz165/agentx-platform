@@ -153,6 +153,40 @@ public class JobService {
     }
 
     /**
+     * Apply a status transition pushed back by a harness-server executing
+     * a WORK job (W1d). Maps harness-server's status vocabulary to the
+     * controlplane's {@link JobStatus}, then updates the row (the DAO
+     * never regresses out of a terminal state). Returns the post-update
+     * snapshot, or {@code Optional.empty()} when the job doesn't exist
+     * (a no-op update on an already-terminal job still returns the
+     * snapshot — not a 404).
+     */
+    @Transactional
+    public Optional<Job> applyHarnessStatus(String orgId, String id, String harnessStatus, String failureReason) {
+        JobStatus mapped = mapHarnessStatus(harnessStatus);
+        JobDao dao = jdbi.onDemand(JobDao.class);
+        dao.applyHarnessStatus(orgId, id, mapped.dbValue(), failureReason);
+        return dao.findById(orgId, id).map(this::toDomain);
+    }
+
+    /** harness-server status string → controlplane {@link JobStatus}.
+     *  The two paused sub-states ({@code awaiting-approval}, {@code suspended})
+     *  fold to {@code running} — the controlplane has no equivalent; the
+     *  HITL queue reads the paused detail from the ApprovalRequest, not
+     *  the job status. */
+    private static JobStatus mapHarnessStatus(String s) {
+        return switch (s) {
+            case "received", "queued" -> JobStatus.QUEUED;
+            case "running", "awaiting-approval", "suspended" -> JobStatus.RUNNING;
+            case "completed" -> JobStatus.COMPLETED;
+            case "failed" -> JobStatus.FAILED;
+            case "cancelling" -> JobStatus.CANCELLING;
+            case "cancelled" -> JobStatus.CANCELLED;
+            default -> throw new IllegalArgumentException("unknown harness job status: " + s);
+        };
+    }
+
+    /**
      * Record a quality score for a job (slice 4 of the eval-harness).
      * The scorer is external — rubric runner / LLM-as-judge / manual
      * review — and posts via {@code POST /api/jobs/&#123;id&#125;/score}.

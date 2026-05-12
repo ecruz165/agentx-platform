@@ -835,11 +835,41 @@ function emitApprovalToControlplane(jobId: string, request: ApprovalRequest): vo
   if (!base) return;
   void fetch(`${base}/api/jobs/${encodeURIComponent(jobId)}/approval-event`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: controlplaneHeaders(),
     body: JSON.stringify(request),
   }).catch(() => {
     // swallowed — UDS surface remains authoritative
   });
+}
+
+/**
+ * W1d — best-effort push of a job-level status transition to the
+ * controlplane so `GET /api/jobs/:id` reflects the harness-server's
+ * truth. No-op when CONTROLPLANE_URL is unset (local-only / TUI-only
+ * setups read status from the UDS instead). Errors swallowed — the
+ * harness-server's in-memory JobRecord is authoritative; this is the
+ * mirror. The controlplane maps harness-server's status vocabulary
+ * (received|running|awaiting-approval|suspended|completed|failed|cancelled)
+ * to its own JobStatus.
+ */
+function emitJobStatusToControlplane(jobId: string, status: string, failureReason?: string): void {
+  const base = process.env.CONTROLPLANE_URL?.replace(/\/$/, '');
+  if (!base) return;
+  void fetch(`${base}/api/jobs/${encodeURIComponent(jobId)}/status`, {
+    method: 'POST',
+    headers: controlplaneHeaders(),
+    body: JSON.stringify({ status, ...(failureReason ? { failureReason } : {}) }),
+  }).catch(() => {
+    // swallowed — UDS / in-memory JobRecord remains authoritative
+  });
+}
+
+function controlplaneHeaders(): Record<string, string> {
+  return {
+    'Content-Type': 'application/json',
+    'X-Org-Id': process.env.AGENTX_ORG_ID ?? 'dev-org',
+    'X-User-Id': 'harness-server',
+  };
 }
 
 async function handleSubmitJob(
@@ -1091,6 +1121,8 @@ async function handleSubmitJob(
             : {}),
           onStatusChange: (jid, agentId, status) => {
             onJobTerminal(agentId, status);
+            // W1d — push job-level transitions up to the controlplane.
+            if (agentId === null) emitJobStatusToControlplane(jid, status);
             // Mirror the in-process F19 cleanup hook for the
             // container path. Terminal job-status (job-level, not
             // agent-level) → best-effort cleanup-unconfirmed.
@@ -1123,6 +1155,8 @@ async function handleSubmitJob(
         graphs: ctx.graphs,
         onStatusChange: (jid, agentId, status) => {
           onJobTerminal(agentId, status);
+          // W1d — push job-level transitions up to the controlplane.
+          if (agentId === null) emitJobStatusToControlplane(jid, status);
           // Free the dispatcher slot on terminal status. Paused statuses
           // (awaiting-approval / suspended) are intentionally NOT
           // terminal — paused jobs continue holding their slot until

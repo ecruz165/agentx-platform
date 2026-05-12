@@ -3,6 +3,7 @@ package com.jefelabs.agentx.controlplane.job.api;
 import com.jefelabs.agentx.controlplane.core.tenancy.TenantContext;
 import com.jefelabs.agentx.controlplane.job.api.dto.JobDTO;
 import com.jefelabs.agentx.controlplane.job.api.dto.JobReflectionRequestDTO;
+import com.jefelabs.agentx.controlplane.job.api.dto.JobStatusEventDTO;
 import com.jefelabs.agentx.controlplane.job.api.dto.ScoreJobRequestDTO;
 import com.jefelabs.agentx.controlplane.job.api.dto.SubmitJobRequestDTO;
 import com.jefelabs.agentx.controlplane.job.api.mapper.JobMapper;
@@ -151,6 +152,21 @@ public class JobController {
         } catch (IllegalStateException e) {
             return ResponseEntity.status(org.springframework.http.HttpStatus.CONFLICT).build();
         }
+    }
+
+    /**
+     * Status push-back from the harness-server executing a WORK job (W1d).
+     * Best-effort sender; idempotent-ish receiver (never regresses out of
+     * a terminal state). No auth yet — trust-based on the deployment
+     * network for the MVP; H3/W1d-hardening adds a per-harness token.
+     */
+    @PostMapping("/{id}/status")
+    public ResponseEntity<JobDTO> updateStatus(@PathVariable String id, @RequestBody JobStatusEventDTO body) {
+        var tenant = TenantContext.current();
+        return jobService.applyHarnessStatus(tenant.orgId(), id, body.status(), body.failureReason())
+            .map(jobMapper::toDTO)
+            .map(ResponseEntity::ok)
+            .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
     /** Submit an approval verdict to a paused {@code approval} step. */
