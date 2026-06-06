@@ -72,6 +72,9 @@ edge-context search --query "..." --label Function,Doc
   `infra`, `docs`, `code`. Scope the search when you know the area — e.g.
   `--domain security` for an auth question, `--domain testing` to find tests.
   Each hit also reports its `domain` so you can see where a result came from.
+- `--mode <code|plan|impact|debug|analysis>` — preset the retrieval shape for a
+  task, then synthesize a structured brief from the hits. See the
+  `graphrag-briefs` SKILL for what each mode retrieves and the brief to write.
 
 By default `search` is **hybrid** across three signals, fused by Reciprocal
 Rank Fusion (RRF):

@@ -48,6 +48,12 @@ export interface ContextQueryRequest {
    *  Filters vector + BM25 seeds AND graph neighbors by their `domain`
    *  property (tagged deterministically at ingest). Default: all domains. */
   domains?: string[];
+  /** Retrieval mode — a deterministic preset of retrieval-shape params tuned
+   *  for a worker task (code | plan | impact | debug | analysis). Presets are
+   *  applied UNDER explicit fields (an explicit param always wins). Unknown /
+   *  absent mode → no preset. The worker synthesizes the actual brief; this
+   *  only shapes what's retrieved. See RETRIEVAL_MODES. */
+  mode?: string;
   /** Graph expansion hops from each vector seed. 0 = pure vector ANN (the
    *  original v1 behavior — fully backward-compatible). Default
    *  QUERY_EXPAND_DEPTH_DEFAULT, clamped to [0, QUERY_EXPAND_DEPTH_MAX]. */
@@ -367,6 +373,8 @@ export class ContextQueryService implements QueryService {
   }
 
   async query(req: ContextQueryRequest): Promise<ContextQueryResult> {
+    // Tier 3: a retrieval mode supplies preset params under any explicit ones.
+    req = applyMode(req);
     const topK = req.topK ?? 10;
     const expandDepth = clamp(req.expandDepth ?? QUERY_EXPAND_DEPTH_DEFAULT, 0, QUERY_EXPAND_DEPTH_MAX);
     const weights: RrfWeights = {
@@ -919,6 +927,57 @@ export interface RrfWeights {
   vector: number;
   bm25: number;
   graph: number;
+}
+
+/** A retrieval-shape preset for a worker task mode. Only the fields a mode
+ *  cares about are set; the rest fall through to built-in defaults. */
+export interface RetrievalModePreset {
+  topK?: number;
+  vectorWeight?: number;
+  bm25Weight?: number;
+  graphWeight?: number;
+  expandDepth?: number;
+  expandPredicates?: string[];
+}
+
+/**
+ * Deterministic "mode router" (Tier 3). Maps a worker task mode to the
+ * retrieval shape its brief needs — NO LLM. The worker still synthesizes the
+ * brief (CodegenBrief / Plan / ImpactReport / …); this just gets it the right
+ * raw material. Presets are applied under explicit request fields.
+ */
+export const RETRIEVAL_MODES: Record<string, RetrievalModePreset> = {
+  // CodegenBrief — generating/editing code: exact symbols + immediate deps.
+  code: {
+    topK: 10,
+    bm25Weight: 1.5,
+    expandDepth: 1,
+    expandPredicates: ['CALLS', 'IMPORTS', 'EXTENDS', 'IMPLEMENTS'],
+  },
+  // Plan — planning a change: broad semantic understanding.
+  plan: { topK: 15, vectorWeight: 1.5, bm25Weight: 0.7, expandDepth: 1 },
+  // ImpactReport — blast radius: graph-heavy, two hops along call/import edges.
+  impact: { topK: 20, graphWeight: 1.0, expandDepth: 2, expandPredicates: ['CALLS', 'IMPORTS'] },
+  // DebugBrief — chasing an error/symbol: exact lexical match dominates.
+  debug: { topK: 12, vectorWeight: 0.7, bm25Weight: 2.0, expandDepth: 1 },
+  // AnalystReport — broad analysis: high recall, wide expansion.
+  analysis: { topK: 25, graphWeight: 0.7, expandDepth: 2 },
+};
+
+/** Merge a mode preset UNDER the request's explicit fields (explicit wins).
+ *  Absent/unknown mode → request returned unchanged. Pure + deterministic. */
+export function applyMode(req: ContextQueryRequest): ContextQueryRequest {
+  const preset = req.mode ? RETRIEVAL_MODES[req.mode] : undefined;
+  if (!preset) return req;
+  return {
+    ...req,
+    topK: req.topK ?? preset.topK,
+    vectorWeight: req.vectorWeight ?? preset.vectorWeight,
+    bm25Weight: req.bm25Weight ?? preset.bm25Weight,
+    graphWeight: req.graphWeight ?? preset.graphWeight,
+    expandDepth: req.expandDepth ?? preset.expandDepth,
+    expandPredicates: req.expandPredicates ?? preset.expandPredicates,
+  };
 }
 
 /** Build the seed-query WHERE clause for optional product + domain scoping.

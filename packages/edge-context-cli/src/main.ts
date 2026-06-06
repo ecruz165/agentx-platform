@@ -139,6 +139,9 @@ Global flags:
   --help           Show this help.
 
 Search flags (hybrid graph + vector fusion):
+  --mode <mode>          Retrieval preset for a task: code | plan | impact |
+                         debug | analysis. Shapes what's retrieved for the
+                         matching brief; explicit flags below override it.
   --top-k <n>            Result count (default 10).
   --label <CSV>          Restrict to these node labels.
   --domain <CSV>         Restrict to semantic domains (security, testing, api,
@@ -321,6 +324,7 @@ async function cmdSearch(
   const productId = stringFlag(parsed.flags, 'product');
   const labels = stringFlag(parsed.flags, 'label');
   const domains = stringFlag(parsed.flags, 'domain');
+  const mode = stringFlag(parsed.flags, 'mode');
   // Hybrid-fusion knobs (server defaults apply when omitted).
   const expandDepth = numberFlag(parsed.flags, 'expand-depth');
   const vectorWeight = numberFlag(parsed.flags, 'vector-weight');
@@ -337,6 +341,7 @@ async function cmdSearch(
   if (productId) body.productId = productId;
   if (labels) body.labels = labels.split(',').map((s) => s.trim()).filter(Boolean);
   if (domains) body.domains = domains.split(',').map((s) => s.trim()).filter(Boolean);
+  if (mode) body.mode = mode;
   if (expandDepth != null) body.expandDepth = expandDepth;
   if (vectorWeight != null) body.vectorWeight = vectorWeight;
   if (bm25Weight != null) body.bm25Weight = bm25Weight;
