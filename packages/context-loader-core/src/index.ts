@@ -44,6 +44,8 @@ export {
 // Other source types throw with explicit "not yet implemented" until
 // Phase B.1+ wires tree-sitter / crawl / API sources.
 export { ingest } from './core/ingest.ts';
+// Semantic-domain classifier (Tier 2 — deterministic domain tagging)
+export { classifyDomain, DOMAINS, type Domain } from './core/domain.ts';
 // Matcher + walker (lower-level, for custom orchestration)
 export { compileMatcher, type MatcherFn, type MatcherSpec } from './core/matcher.ts';
 // OSS provenance (manifest → Package + Version + BelongsTo nodes/edges)

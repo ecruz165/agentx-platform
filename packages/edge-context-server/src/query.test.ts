@@ -531,3 +531,104 @@ describe.skipIf(!RUN_INTEGRATION)('ContextQueryService — weighted graph expans
     expect(mentionRank).toBeLessThan(callRank);
   }, 30_000);
 });
+
+// ─── Tier 2: domain filtering ────────────────────────────────────────────
+const DLABEL = `Domain_${RUN_ID}`;
+
+describe.skipIf(!RUN_INTEGRATION)('ContextQueryService — domain filtering', () => {
+  let backend: Neo4jBackend;
+  let svc: ContextQueryService;
+
+  beforeAll(async () => {
+    backend = new Neo4jBackend({
+      url: NEO4J_URL,
+      user: NEO4J_USER,
+      password: NEO4J_PASSWORD,
+      vectorDim: 1024,
+    });
+    await backend.ensureSchema({ nodes: [DLABEL], edges: [] });
+
+    const docs = [
+      { id: 'd-sec', text: 'verify and refresh the oauth access token', domain: 'security' },
+      { id: 'd-ui', text: 'render the navigation sidebar component', domain: 'ui' },
+      { id: 'd-api', text: 'handle the POST request to create a user', domain: 'api' },
+    ];
+    await backend.upsertNodesBulk(
+      docs.map((d) => ({
+        id: d.id,
+        label: DLABEL,
+        properties: { text: d.text, domain: d.domain },
+        sourceTypeId: 'test',
+        sourceId: 'domain-test-product',
+      })),
+    );
+
+    const { createHttpEmbedderClient } = await import('@ecruz165/context-loader-core');
+    const embedder = createHttpEmbedderClient({
+      config: { url: EMBEDDER_URL, model: EMBEDDER_MODEL, dim: 1024 },
+    });
+    const vectors = await embedder.embed(docs.map((d) => d.text));
+    await backend.upsertVectorsBulk(
+      docs.map((d, i) => ({ nodeId: d.id, vector: vectors[i]!, meta: { kind: 'test' } })),
+    );
+
+    const s = rawSession(backend);
+    try {
+      await s.run('CALL db.awaitIndexes(30)');
+    } finally {
+      await s.close();
+    }
+
+    svc = new ContextQueryService({
+      neo4jUrl: NEO4J_URL,
+      neo4jUser: NEO4J_USER,
+      neo4jPassword: NEO4J_PASSWORD,
+      embedderUrl: EMBEDDER_URL,
+      embedderModel: EMBEDDER_MODEL,
+      embedderDim: 1024,
+    });
+  }, 60_000);
+
+  afterAll(async () => {
+    if (svc) await svc.close();
+    if (backend) {
+      const session = rawSession(backend);
+      try {
+        await session.run(`MATCH (n:\`${DLABEL}\`) DETACH DELETE n`);
+      } finally {
+        await session.close();
+      }
+      await backend.close();
+    }
+  });
+
+  it('restricts results to the requested domain', async () => {
+    const r = await svc.query({
+      q: 'oauth token refresh',
+      topK: 5,
+      labels: [DLABEL],
+      domains: ['security'],
+    });
+    expect(r.hits.length).toBeGreaterThan(0);
+    for (const h of r.hits) expect(h.domain).toBe('security');
+    expect(r.hits.some((h) => h.nodeId === 'd-sec')).toBe(true);
+    expect(r.hits.some((h) => h.nodeId === 'd-ui' || h.nodeId === 'd-api')).toBe(false);
+  }, 30_000);
+
+  it('surfaces the domain on each hit and spans domains when unfiltered', async () => {
+    const r = await svc.query({ q: 'oauth token refresh', topK: 5, labels: [DLABEL] });
+    expect(r.hits[0]!.domain).toBe('security'); // best semantic match
+    expect(new Set(r.hits.map((h) => h.domain)).size).toBeGreaterThan(1);
+  }, 30_000);
+
+  it('a multi-domain filter excludes the others', async () => {
+    const r = await svc.query({
+      q: 'create user request',
+      topK: 5,
+      labels: [DLABEL],
+      domains: ['ui', 'api'],
+    });
+    expect(r.hits.length).toBeGreaterThan(0);
+    for (const h of r.hits) expect(['ui', 'api']).toContain(h.domain);
+  }, 30_000);
+});

@@ -141,6 +141,8 @@ Global flags:
 Search flags (hybrid graph + vector fusion):
   --top-k <n>            Result count (default 10).
   --label <CSV>          Restrict to these node labels.
+  --domain <CSV>         Restrict to semantic domains (security, testing, api,
+                         data, ui, config, build, infra, docs, code).
   --expand-depth <n>     Graph-expansion hops from each vector seed.
                          0 = pure vector ANN. Default 1, max 2.
   --expand-predicate <CSV>  Restrict expansion to these relationship types.
@@ -318,6 +320,7 @@ async function cmdSearch(
   const topK = numberFlag(parsed.flags, 'top-k') ?? numberFlag(parsed.flags, 'topK');
   const productId = stringFlag(parsed.flags, 'product');
   const labels = stringFlag(parsed.flags, 'label');
+  const domains = stringFlag(parsed.flags, 'domain');
   // Hybrid-fusion knobs (server defaults apply when omitted).
   const expandDepth = numberFlag(parsed.flags, 'expand-depth');
   const vectorWeight = numberFlag(parsed.flags, 'vector-weight');
@@ -333,6 +336,7 @@ async function cmdSearch(
   if (topK != null) body.topK = topK;
   if (productId) body.productId = productId;
   if (labels) body.labels = labels.split(',').map((s) => s.trim()).filter(Boolean);
+  if (domains) body.domains = domains.split(',').map((s) => s.trim()).filter(Boolean);
   if (expandDepth != null) body.expandDepth = expandDepth;
   if (vectorWeight != null) body.vectorWeight = vectorWeight;
   if (bm25Weight != null) body.bm25Weight = bm25Weight;
@@ -489,7 +493,9 @@ function formatSearch(r: ContextQueryResult): string {
   for (const h of r.hits) {
     const text = (h.properties.text ?? h.properties.title ?? h.properties.name ?? '') as string;
     const snippet = text.length > 100 ? text.slice(0, 100) + '…' : text;
-    lines.push(`  ${h.score.toFixed(3)}  ${(h.via ?? '?').padEnd(16)} ${h.label.padEnd(12)} ${h.nodeId}`);
+    lines.push(
+      `  ${h.score.toFixed(3)}  ${(h.via ?? '?').padEnd(16)} ${(h.domain ?? '-').padEnd(8)} ${h.label.padEnd(12)} ${h.nodeId}`,
+    );
     if (snippet) lines.push(`         ${snippet}`);
   }
   return lines.join('\n') + '\n';
