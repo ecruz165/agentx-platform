@@ -97,6 +97,16 @@ workflow needs a different precision/recall balance):
   types (e.g. `CALLS,IMPORTS`).
 - `--hub-ceiling <n>` — exclude over-connected nodes (logging utils, index
   docs) from expansion; they can still surface via a direct vector/BM25 match.
+- `--predicate-weight <CSV>` — weight relationship types in the graph signal,
+  e.g. `CALLS=1,MENTIONS=0.5`. Structural edges (CALLS/IMPORTS/EXTENDS) default
+  to 1.0, looser ones (MENTIONS) lower. A multi-hop path's weight is the product
+  of its edges, so a path through a weak edge is weak overall. Use this to favor
+  call/import structure over prose mentions (or vice-versa).
+- `--hub-dampen` — soft-dampen graph pull by neighbor degree, so generic hubs
+  contribute less *without* being excluded. Gentler than `--hub-ceiling`; leave
+  off when hubs (core services, base classes) are what you're hunting for.
+- `--max-neighbors <n>` — cap how many neighbors each seed contributes (keeps
+  the strongest by edge weight). Bounds fan-out from a well-connected seed.
 
 ### `stats` — graph metrics
 

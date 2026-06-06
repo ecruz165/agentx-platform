@@ -67,6 +67,30 @@ describe('graphScoreFor — MAX-based, hub-safe', () => {
     const twoHop = graphScoreFor([{ seedId: 's1', dist: 2 }], seedScores);
     expect(twoHop).toBeCloseTo(oneHop * QUERY_HOP_DECAY);
   });
+
+  it('scales pull by relationship weight', () => {
+    const full = graphScoreFor([{ seedId: 's1', dist: 1, weight: 1.0 }], seedScores);
+    const weak = graphScoreFor([{ seedId: 's1', dist: 1, weight: 0.5 }], seedScores);
+    expect(weak).toBeCloseTo(full * 0.5);
+  });
+
+  it('missing weight is treated as 1.0 (back-compat)', () => {
+    const withW = graphScoreFor([{ seedId: 's1', dist: 1, weight: 1.0 }], seedScores);
+    const noW = graphScoreFor([{ seedId: 's1', dist: 1 }], seedScores);
+    expect(noW).toBeCloseTo(withW);
+  });
+
+  it('soft-dampens by neighbor degree when enabled (IDF-style)', () => {
+    const reach = [{ seedId: 's1', dist: 1, weight: 1.0 }];
+    const plain = graphScoreFor(reach, seedScores);
+    const dampedLow = graphScoreFor(reach, seedScores, { degree: 4, dampen: true });
+    const dampedHigh = graphScoreFor(reach, seedScores, { degree: 500, dampen: true });
+    // Dampening only reduces, and a higher-degree hub is reduced more.
+    expect(dampedLow).toBeLessThan(plain);
+    expect(dampedHigh).toBeLessThan(dampedLow);
+    // Off by default — no degree effect unless dampen:true.
+    expect(graphScoreFor(reach, seedScores, { degree: 500 })).toBeCloseTo(plain);
+  });
 });
 
 describe('rrfFuse — reciprocal rank fusion over vector/bm25/graph', () => {
@@ -403,5 +427,107 @@ describe.skipIf(!RUN_INTEGRATION)('ContextQueryService — hybrid BM25 + RRF', (
     expect(r.hits[0]!.nodeId).toBe('h-auth');
     expect(r.hits[0]!.via).toContain('vector');
     expect(r.hits[0]!.via).toContain('bm25');
+  }, 30_000);
+});
+
+// ─── Tier 4: relationship-weighted graph expansion ───────────────────────
+const TLABEL = `Tier4_${RUN_ID}`;
+
+describe.skipIf(!RUN_INTEGRATION)('ContextQueryService — weighted graph expansion', () => {
+  let backend: Neo4jBackend;
+  let svc: ContextQueryService;
+
+  beforeAll(async () => {
+    backend = new Neo4jBackend({
+      url: NEO4J_URL,
+      user: NEO4J_USER,
+      password: NEO4J_PASSWORD,
+      vectorDim: 1024,
+    });
+    await backend.ensureSchema({ nodes: [TLABEL], edges: ['CALLS', 'MENTIONS'] });
+
+    // One semantically-distinct seed (gets an embedding) with two graph-only
+    // neighbors reached by edges of different types — same hop, same seed pull,
+    // so any rank difference comes purely from relationship weighting.
+    const seed = { id: 't4-seed', text: 'rate limiter using a token bucket algorithm' };
+    const neighbors = [
+      { id: 't4-call', text: 'internal helper alpha widget routine' }, // via CALLS
+      { id: 't4-mention', text: 'internal helper beta gadget routine' }, // via MENTIONS
+    ];
+    await backend.upsertNodesBulk(
+      [seed, ...neighbors].map((d) => ({
+        id: d.id,
+        label: TLABEL,
+        properties: { text: d.text },
+        sourceTypeId: 'test',
+        sourceId: 'tier4-test-product',
+      })),
+    );
+    await backend.upsertEdgesBulk([
+      { from: 't4-seed', to: 't4-call', label: 'CALLS', sourceTypeId: 'test' },
+      { from: 't4-seed', to: 't4-mention', label: 'MENTIONS', sourceTypeId: 'test' },
+    ]);
+
+    // Only the seed gets a vector — the neighbors must arrive via expansion.
+    const { createHttpEmbedderClient } = await import('@ecruz165/context-loader-core');
+    const embedder = createHttpEmbedderClient({
+      config: { url: EMBEDDER_URL, model: EMBEDDER_MODEL, dim: 1024 },
+    });
+    const [seedVec] = await embedder.embed([seed.text]);
+    await backend.upsertVectorsBulk([{ nodeId: 't4-seed', vector: seedVec!, meta: { kind: 'test' } }]);
+
+    const s = rawSession(backend);
+    try {
+      await s.run('CALL db.awaitIndexes(30)');
+    } finally {
+      await s.close();
+    }
+
+    svc = new ContextQueryService({
+      neo4jUrl: NEO4J_URL,
+      neo4jUser: NEO4J_USER,
+      neo4jPassword: NEO4J_PASSWORD,
+      embedderUrl: EMBEDDER_URL,
+      embedderModel: EMBEDDER_MODEL,
+      embedderDim: 1024,
+    });
+  }, 60_000);
+
+  afterAll(async () => {
+    if (svc) await svc.close();
+    if (backend) {
+      const session = rawSession(backend);
+      try {
+        await session.run(`MATCH (n:\`${TLABEL}\`) DETACH DELETE n`);
+      } finally {
+        await session.close();
+      }
+      await backend.close();
+    }
+  });
+
+  it('default weights rank a CALLS neighbor above a MENTIONS neighbor', async () => {
+    const r = await svc.query({ q: 'token bucket rate limiter', topK: 4, labels: [TLABEL] });
+    expect(r.hits[0]!.nodeId).toBe('t4-seed'); // the vector/bm25 match
+    const callRank = r.hits.findIndex((h) => h.nodeId === 't4-call');
+    const mentionRank = r.hits.findIndex((h) => h.nodeId === 't4-mention');
+    expect(callRank).toBeGreaterThanOrEqual(0);
+    expect(mentionRank).toBeGreaterThanOrEqual(0);
+    // CALLS (weight 1.0) outranks MENTIONS (0.5); both arrived via graph.
+    expect(callRank).toBeLessThan(mentionRank);
+    expect(r.hits[callRank]!.via).toBe('graph');
+    expect(r.hits[mentionRank]!.via).toBe('graph');
+  }, 30_000);
+
+  it('overriding predicate weights flips the neighbor order', async () => {
+    const r = await svc.query({
+      q: 'token bucket rate limiter',
+      topK: 4,
+      labels: [TLABEL],
+      expandPredicateWeights: { CALLS: 0.3, MENTIONS: 1.0 },
+    });
+    const callRank = r.hits.findIndex((h) => h.nodeId === 't4-call');
+    const mentionRank = r.hits.findIndex((h) => h.nodeId === 't4-mention');
+    expect(mentionRank).toBeLessThan(callRank);
   }, 30_000);
 });

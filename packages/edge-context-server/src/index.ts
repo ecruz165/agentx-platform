@@ -347,6 +347,15 @@ function route(req: IncomingMessage, res: ServerResponse, ctx: RouteContext): vo
           graphWeight: typeof reqBody.graphWeight === 'number' ? reqBody.graphWeight : undefined,
           hubDegreeCeiling:
             typeof reqBody.hubDegreeCeiling === 'number' ? reqBody.hubDegreeCeiling : undefined,
+          expandPredicateWeights:
+            reqBody.expandPredicateWeights &&
+            typeof reqBody.expandPredicateWeights === 'object' &&
+            !Array.isArray(reqBody.expandPredicateWeights)
+              ? (reqBody.expandPredicateWeights as Record<string, number>)
+              : undefined,
+          hubDampening: typeof reqBody.hubDampening === 'boolean' ? reqBody.hubDampening : undefined,
+          maxNeighborsPerSeed:
+            typeof reqBody.maxNeighborsPerSeed === 'number' ? reqBody.maxNeighborsPerSeed : undefined,
         });
         ok(res, { service: 'context', result, ts: new Date().toISOString() });
       } catch (err) {

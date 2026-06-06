@@ -64,6 +64,20 @@ export interface ContextQueryRequest {
    *  graphs where generic hubs (logging utils, index docs) pollute
    *  neighbors. */
   hubDegreeCeiling?: number;
+  /** Per-relationship-type weights for graph expansion, e.g.
+   *  `{ CALLS: 1, MENTIONS: 0.5 }`. Merged over DEFAULT_PREDICATE_WEIGHTS;
+   *  unlisted types use QUERY_DEFAULT_PREDICATE_WEIGHT. A multi-hop path's
+   *  weight is the product of its edge weights, so a path through a weak edge
+   *  is weak overall. */
+  expandPredicateWeights?: Record<string, number>;
+  /** Soft-dampen graph pull by neighbor degree (`pull /= log2(degree + 2)`)
+   *  so generic hubs contribute less without being excluded. Off by default —
+   *  in code graphs, hubs (core services, base classes) are often the answer.
+   *  Distinct from hubDegreeCeiling, which is a hard cutoff. */
+  hubDampening?: boolean;
+  /** Cap how many neighbors each seed contributes (keeps the strongest by
+   *  edge weight). Bounds fan-out from a well-connected seed. Off by default. */
+  maxNeighborsPerSeed?: number;
 }
 
 export interface ContextQueryHit {
@@ -255,6 +269,21 @@ export const QUERY_RRF_GRAPH_WEIGHT = 0.5;
 /** Graph-score multiplier per hop. A 2-hop neighbor pulls half as hard as a
  *  1-hop neighbor, all else equal. */
 export const QUERY_HOP_DECAY = 0.5;
+/** Default per-relationship-type weights for graph expansion. Structural
+ *  edges (CALLS/IMPORTS/EXTENDS/IMPLEMENTS) carry full weight; looser
+ *  associative edges (MENTIONS/CONTAINS/REFERENCES) are dampened. Types not
+ *  listed use QUERY_DEFAULT_PREDICATE_WEIGHT. */
+export const DEFAULT_PREDICATE_WEIGHTS: Record<string, number> = {
+  CALLS: 1.0,
+  IMPORTS: 1.0,
+  EXTENDS: 1.0,
+  IMPLEMENTS: 1.0,
+  REFERENCES: 0.8,
+  CONTAINS: 0.7,
+  MENTIONS: 0.5,
+};
+/** Weight for relationship types not in the (merged) weight map. */
+export const QUERY_DEFAULT_PREDICATE_WEIGHT = 1.0;
 /** Whitelist for relationship type names + Cypher identifier substitution.
  *  Anything failing this regex is rejected before reaching Cypher — defense
  *  in depth against injection through `predicate` / `predicates`. */
@@ -375,14 +404,14 @@ export class ContextQueryService implements QueryService {
     //    seeds anchor expansion on a comparable scale.
     if (expandDepth > 0 && weights.graph > 0 && candidates.size > 0) {
       const seedScores = normalizedSeedScores([...candidates.values()]);
-      const neighbors = await this.expandGraph(
-        [...seedScores.keys()],
-        seedScores,
-        expandDepth,
-        req.expandPredicates,
-        req.productId,
-        req.hubDegreeCeiling,
-      );
+      const neighbors = await this.expandGraph([...seedScores.keys()], seedScores, expandDepth, {
+        predicates: req.expandPredicates,
+        productId: req.productId,
+        hubDegreeCeiling: req.hubDegreeCeiling,
+        predicateWeights: req.expandPredicateWeights,
+        hubDampening: req.hubDampening,
+        maxNeighborsPerSeed: req.maxNeighborsPerSeed,
+      });
       for (const n of neighbors) {
         const existing = candidates.get(n.nodeId);
         if (existing) existing.graphScore = n.graphScore;
@@ -516,51 +545,92 @@ export class ContextQueryService implements QueryService {
     return out;
   }
 
-  /** One Cypher round-trip: expand 1..depth hops from ALL seeds at once,
-   *  collapse to per-neighbor min-distance-per-seed, and compute a MAX-based
-   *  decayed graph score (hub-safe — no accumulation inflation). READ-mode
-   *  session: structurally cannot mutate the graph. */
+  /** One Cypher round-trip: expand 1..depth hops from ALL seeds at once.
+   *  Each path's structural weight is the product of its edge weights
+   *  (per-relationship-type), so weak edge types (e.g. MENTIONS) and paths
+   *  through them contribute less. Per (seed, neighbor) we keep the single
+   *  strongest reach; optionally cap neighbors per seed. The MAX-based,
+   *  optionally degree-dampened graph score is computed in graphScoreFor.
+   *  READ-mode session: structurally cannot mutate the graph. */
   private async expandGraph(
     seedIds: string[],
     seedScores: Map<string, number>,
     depth: number,
-    predicates: string[] | undefined,
-    productId?: string,
-    hubDegreeCeiling?: number,
+    opts: {
+      predicates?: string[];
+      productId?: string;
+      hubDegreeCeiling?: number;
+      predicateWeights?: Record<string, number>;
+      hubDampening?: boolean;
+      maxNeighborsPerSeed?: number;
+    } = {},
   ): Promise<Candidate[]> {
-    const relFilter = buildRelFilter(predicates);
-    const productScope = productId ? ` AND nbr.sourceId STARTS WITH $productPrefix` : '';
+    const relFilter = buildRelFilter(opts.predicates);
+    const productScope = opts.productId ? ` AND nbr.sourceId STARTS WITH $productPrefix` : '';
     // Exclude over-connected nodes from expansion (still reachable by vector).
-    const hubScope = hubDegreeCeiling != null ? ` AND COUNT { (nbr)--() } <= $hubCeiling` : '';
+    const hubScope = opts.hubDegreeCeiling != null ? ` AND COUNT { (nbr)--() } <= $hubCeiling` : '';
+    // Merge caller weights over defaults; only finite, non-negative numbers.
+    const weights: Record<string, number> = { ...DEFAULT_PREDICATE_WEIGHTS };
+    for (const [k, v] of Object.entries(opts.predicateWeights ?? {})) {
+      if (typeof v === 'number' && Number.isFinite(v) && v >= 0) weights[k] = v;
+    }
+    // Optional per-seed neighbor cap: keep each seed's strongest reaches.
+    const capClause =
+      opts.maxNeighborsPerSeed != null
+        ? `ORDER BY best.weight DESC, best.len ASC
+           WITH seedId, collect({nbr: nbr, best: best})[0..$maxPerSeed] AS top
+           UNWIND top AS t
+           WITH t.nbr AS nbr, seedId, t.best AS best`
+        : '';
+
     const session = this.readSession();
     try {
       const cypher = `
         MATCH (seed) WHERE seed.id IN $seedIds
         MATCH path = (seed)-[${relFilter}*1..${depth}]-(nbr)
         WHERE nbr.id <> seed.id${productScope}${hubScope}
-        WITH nbr, seed.id AS seedId, min(length(path)) AS dist
+        WITH seed.id AS seedId, nbr,
+             length(path) AS len,
+             reduce(w = 1.0, r IN relationships(path) |
+               w * coalesce($relWeights[type(r)], $defaultRelWeight)) AS pathWeight
+        ORDER BY pathWeight DESC, len ASC
+        WITH seedId, nbr, head(collect({len: len, weight: pathWeight})) AS best
+        ${capClause}
+        WITH nbr,
+             collect({seedId: seedId, dist: best.len, weight: best.weight}) AS reaches,
+             COUNT { (nbr)--() } AS degree
         RETURN nbr.id AS id, labels(nbr) AS labels, properties(nbr) AS props,
                nbr.sourceTypeId AS sourceTypeId, nbr.sourceId AS sourceId,
-               collect({seedId: seedId, dist: dist}) AS reaches
+               reaches, degree
         LIMIT $expandLimit
       `;
       const params: Record<string, unknown> = {
         seedIds,
         expandLimit: neo4j.int(QUERY_EXPAND_LIMIT_MAX),
+        relWeights: weights,
+        defaultRelWeight: QUERY_DEFAULT_PREDICATE_WEIGHT,
       };
-      if (productId) params.productPrefix = productId;
-      if (hubDegreeCeiling != null) params.hubCeiling = neo4j.int(hubDegreeCeiling);
+      if (opts.productId) params.productPrefix = opts.productId;
+      if (opts.hubDegreeCeiling != null) params.hubCeiling = neo4j.int(opts.hubDegreeCeiling);
+      if (opts.maxNeighborsPerSeed != null) params.maxPerSeed = neo4j.int(opts.maxNeighborsPerSeed);
 
       const r = await session.run(cypher, params);
       return r.records.map((rec) => {
-        const reaches = rec.get('reaches') as Array<{ seedId: string; dist: unknown }>;
+        const reaches = rec.get('reaches') as Array<{
+          seedId: string;
+          dist: unknown;
+          weight: unknown;
+        }>;
         return {
           nodeId: String(rec.get('id') ?? ''),
           label: firstLabel(rec.get('labels')),
           properties: stripVectorProps(rec.get('props') as Record<string, unknown>),
           sourceTypeId: rec.get('sourceTypeId') as string | undefined,
           sourceId: rec.get('sourceId') as string | undefined,
-          graphScore: graphScoreFor(reaches, seedScores),
+          graphScore: graphScoreFor(reaches, seedScores, {
+            degree: asNumber(rec.get('degree')),
+            dampen: opts.hubDampening,
+          }),
         };
       });
     } finally {
@@ -859,19 +929,25 @@ function viaOf(c: Candidate): string {
   return parts.join('+') || 'none';
 }
 
-/** Graph pull on a neighbor = its single strongest seed link, decayed by
- *  hop distance. MAX (not sum) by design: in hub-dense graphs, summing pull
- *  across every seed a node touches inflates well-connected nodes on
- *  connectivity alone. A neighbor is worth its best seed connection. */
+/** Graph pull on a neighbor = its single strongest seed link, scaled by the
+ *  reach's relationship weight and decayed by hop distance. MAX (not sum) by
+ *  design: in hub-dense graphs, summing pull across every seed a node touches
+ *  inflates well-connected nodes on connectivity alone. Optionally soft-dampen
+ *  by neighbor degree (IDF-style) so generic hubs contribute less. */
 export function graphScoreFor(
-  reaches: Array<{ seedId: string; dist: unknown }>,
+  reaches: Array<{ seedId: string; dist: unknown; weight?: unknown }>,
   seedScores: Map<string, number>,
+  opts: { degree?: number; dampen?: boolean } = {},
 ): number {
   let best = 0;
-  for (const { seedId, dist } of reaches) {
+  for (const { seedId, dist, weight } of reaches) {
     const d = asNumber(dist); // 1-based hop count
-    const pull = (seedScores.get(seedId) ?? 0) * QUERY_HOP_DECAY ** (d - 1);
+    const w = weight == null ? 1 : asNumber(weight); // relationship weight
+    const pull = (seedScores.get(seedId) ?? 0) * w * QUERY_HOP_DECAY ** (d - 1);
     if (pull > best) best = pull;
+  }
+  if (opts.dampen && opts.degree != null && opts.degree > 0) {
+    best /= Math.log2(opts.degree + 2);
   }
   return best;
 }

@@ -144,6 +144,11 @@ Search flags (hybrid graph + vector fusion):
   --expand-depth <n>     Graph-expansion hops from each vector seed.
                          0 = pure vector ANN. Default 1, max 2.
   --expand-predicate <CSV>  Restrict expansion to these relationship types.
+  --predicate-weight <CSV>  Per-type weights, e.g. CALLS=1,MENTIONS=0.5.
+                         Weak edge types contribute less to the graph signal.
+  --hub-dampen           Soft-dampen graph pull by neighbor degree (hubs
+                         contribute less without being excluded).
+  --max-neighbors <n>    Cap neighbors contributed per seed (keeps strongest).
   --vector-weight <n>    RRF weight for the vector (semantic) signal. Default 1.0.
   --bm25-weight <n>      RRF weight for the BM25 (lexical) signal. 0 disables.
                          Default 1.0.
@@ -320,6 +325,9 @@ async function cmdSearch(
   const graphWeight = numberFlag(parsed.flags, 'graph-weight');
   const hubCeiling = numberFlag(parsed.flags, 'hub-ceiling');
   const expandPredicates = stringFlag(parsed.flags, 'expand-predicate');
+  const predicateWeightStr = stringFlag(parsed.flags, 'predicate-weight');
+  const hubDampen = parsed.flags['hub-dampen'] === true;
+  const maxNeighbors = numberFlag(parsed.flags, 'max-neighbors');
 
   const body: Record<string, unknown> = { q };
   if (topK != null) body.topK = topK;
@@ -332,6 +340,18 @@ async function cmdSearch(
   if (hubCeiling != null) body.hubDegreeCeiling = hubCeiling;
   if (expandPredicates)
     body.expandPredicates = expandPredicates.split(',').map((s) => s.trim()).filter(Boolean);
+  if (predicateWeightStr) {
+    // Parse `CALLS=1,MENTIONS=0.5` → { CALLS: 1, MENTIONS: 0.5 }.
+    const w: Record<string, number> = {};
+    for (const pair of predicateWeightStr.split(',')) {
+      const [k, v] = pair.split('=');
+      const n = Number(v);
+      if (k && k.trim() && Number.isFinite(n)) w[k.trim()] = n;
+    }
+    if (Object.keys(w).length > 0) body.expandPredicateWeights = w;
+  }
+  if (hubDampen) body.hubDampening = true;
+  if (maxNeighbors != null) body.maxNeighborsPerSeed = maxNeighbors;
 
   const r = await udsJson<{ result: ContextQueryResult }>(socket, 'POST', '/v1/context/query', body);
   if (json) {
