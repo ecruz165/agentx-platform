@@ -17,6 +17,8 @@
  *   CREATE VECTOR INDEX `<Label>_vec_idx` IF NOT EXISTS …
  *     OPTIONS { indexConfig: { 'vector.dimensions': 1024,
  *                              'vector.similarity_function': 'cosine' } }
+ *   CREATE FULLTEXT INDEX `<Label>_fts_idx` IF NOT EXISTS
+ *     FOR (n:`Label`) ON EACH [n.text, n.title, …]  (BM25 lexical recall)
  *
  * Cypher-injection note: Neo4j does not allow parameterizing labels or
  * relationship types — they must be in the query string. We validate
@@ -48,6 +50,12 @@ export interface Neo4jBackendOptions {
 /** Reject anything that isn't a valid Cypher identifier. Prevents Cypher injection
  *  via the label channel (the one channel where parameters don't work). */
 const SAFE_IDENT = /^[A-Za-z_][A-Za-z0-9_]*$/;
+
+/** Text-bearing properties covered by the per-label full-text (BM25) index.
+ *  A node missing a given property is simply not indexed on it — harmless.
+ *  Keep in sync with the property-projection in edge-context-server's
+ *  query formatting (text/title/name are the common display fields). */
+const FULLTEXT_PROPS = ['text', 'title', 'name', 'body', 'summary', 'description'] as const;
 
 function assertSafeLabel(label: string, kind: 'node' | 'edge'): void {
   if (!SAFE_IDENT.test(label)) {
@@ -96,6 +104,18 @@ export class Neo4jBackend implements GraphIngestionBackend {
              \`vector.similarity_function\`: $sim
            } }`,
           { dim: neo4j.int(this.vectorDim), sim: this.vectorSimilarity },
+        );
+        // Full-text (Lucene/BM25) index over the text-bearing properties.
+        // Powers lexical retrieval (API names, error codes, terminology)
+        // that vector ANN misses. The `english` analyzer strips English
+        // stopwords and Porter-stems — without it, queries match on noise
+        // words like "how"/"the". Idempotent: IF NOT EXISTS guards
+        // re-creation. The query side fuses BM25 hits with vector + graph.
+        const ftsProps = FULLTEXT_PROPS.map((p) => `n.\`${p}\``).join(', ');
+        await session.run(
+          `CREATE FULLTEXT INDEX \`${label}_fts_idx\` IF NOT EXISTS
+           FOR (n:\`${label}\`) ON EACH [${ftsProps}]
+           OPTIONS { indexConfig: { \`fulltext.analyzer\`: 'english' } }`,
         );
       }
       // Edge labels don't need explicit DDL in Neo4j — they're created

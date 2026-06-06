@@ -44,17 +44,46 @@ export interface ContextQueryRequest {
   topK?: number;
   /** Restrict to specific node labels. Default: every indexed label. */
   labels?: string[];
+  /** Graph expansion hops from each vector seed. 0 = pure vector ANN (the
+   *  original v1 behavior — fully backward-compatible). Default
+   *  QUERY_EXPAND_DEPTH_DEFAULT, clamped to [0, QUERY_EXPAND_DEPTH_MAX]. */
+  expandDepth?: number;
+  /** Restrict graph expansion to these relationship types (default: all). */
+  expandPredicates?: string[];
+  /** Reciprocal Rank Fusion weight for the vector (semantic) signal.
+   *  Default QUERY_RRF_VECTOR_WEIGHT (1.0). */
+  vectorWeight?: number;
+  /** RRF weight for the BM25 (lexical) signal — exact identifiers, API
+   *  names, error codes. 0 disables BM25. Default QUERY_RRF_BM25_WEIGHT (1.0). */
+  bm25Weight?: number;
+  /** RRF weight for the graph-expansion signal. A softer corroborating
+   *  signal. 0 disables expansion fusion. Default QUERY_RRF_GRAPH_WEIGHT (0.5). */
+  graphWeight?: number;
+  /** Drop nodes whose total degree exceeds this from *expansion* (they can
+   *  still surface via a direct vector/BM25 match). Off by default; set it for
+   *  graphs where generic hubs (logging utils, index docs) pollute
+   *  neighbors. */
+  hubDegreeCeiling?: number;
 }
 
 export interface ContextQueryHit {
   nodeId: string;
   label: string;
+  /** Fused score — normalized vector + graph signals blended by vectorWeight. */
   score: number;
   /** Pruned set of node properties — small enough to return to a TUI. */
   properties: Record<string, unknown>;
   /** Provenance — which workspace / product / source-type produced it. */
   sourceTypeId?: string;
   sourceId?: string;
+  /** Which signals surfaced this hit — a `+`-joined list of `vector`,
+   *  `bm25`, `graph` (e.g. `vector+bm25`). A `graph`-only hit near the top
+   *  means both vector and BM25 missed something structurally relevant. */
+  via: string;
+  /** Component signals retained for transparency + offline tuning. */
+  vectorScore?: number;
+  bm25Score?: number;
+  graphScore?: number;
 }
 
 export interface ContextQueryResult {
@@ -209,12 +238,45 @@ export const RELATED_LIMIT_DEFAULT = 50;
 export const RELATED_LIMIT_MAX = 500;
 export const CYPHER_LIMIT_DEFAULT = 100;
 export const CYPHER_LIMIT_MAX = 1000;
+/** Hybrid-fusion knobs for query(). Oversample vector seeds so graph
+ *  expansion has room to promote a strong neighbor over a weak direct hit. */
+export const QUERY_SEED_MULTIPLIER = 4;
+export const QUERY_EXPAND_DEPTH_DEFAULT = 1;
+export const QUERY_EXPAND_DEPTH_MAX = 2;
+export const QUERY_EXPAND_LIMIT_MAX = 1000;
+/** Reciprocal Rank Fusion constant — dampens low-ranked items' contribution.
+ *  60 is the canonical value from the original RRF paper (Cormack et al.). */
+export const QUERY_RRF_K = 60;
+/** Default per-signal RRF weights. Vector + BM25 are co-primary; graph is a
+ *  softer expansion signal that corroborates rather than dominates. */
+export const QUERY_RRF_VECTOR_WEIGHT = 1.0;
+export const QUERY_RRF_BM25_WEIGHT = 1.0;
+export const QUERY_RRF_GRAPH_WEIGHT = 0.5;
+/** Graph-score multiplier per hop. A 2-hop neighbor pulls half as hard as a
+ *  1-hop neighbor, all else equal. */
+export const QUERY_HOP_DECAY = 0.5;
 /** Whitelist for relationship type names + Cypher identifier substitution.
  *  Anything failing this regex is rejected before reaching Cypher — defense
  *  in depth against injection through `predicate` / `predicates`. */
 const SAFE_REL_TYPE = /^[A-Z_][A-Z0-9_]*$/i;
 
 const SAFE_IDENT = /^[A-Za-z_][A-Za-z0-9_]*$/;
+
+/** Internal fusion candidate — a node that surfaced via vector match, graph
+ *  expansion, or both, carrying whatever signals we have for it. */
+export interface Candidate {
+  nodeId: string;
+  label: string;
+  properties: Record<string, unknown>;
+  sourceTypeId?: string;
+  sourceId?: string;
+  /** Present iff it was a direct vector (semantic) hit. */
+  vectorScore?: number;
+  /** Present iff it was a direct BM25 (lexical) hit. */
+  bm25Score?: number;
+  /** Present iff it was reached by graph expansion. */
+  graphScore?: number;
+}
 
 export class ContextQueryService implements QueryService {
   private readonly driver: Driver;
@@ -224,6 +286,9 @@ export class ContextQueryService implements QueryService {
   /** Labels with a `<Label>_vec_idx` vector index — discovered lazily on
    *  first query and cached. Re-discovery happens on schema mismatch. */
   private indexedLabels: string[] | null = null;
+  /** label → full-text index name, discovered lazily and cached. Empty when
+   *  no FULLTEXT indexes exist yet (BM25 then silently no-ops). */
+  private fulltextIndexes: Map<string, string> | null = null;
 
   constructor(opts: ContextQueryServiceOptions) {
     this.driver = neo4j.driver(
@@ -268,6 +333,12 @@ export class ContextQueryService implements QueryService {
 
   async query(req: ContextQueryRequest): Promise<ContextQueryResult> {
     const topK = req.topK ?? 10;
+    const expandDepth = clamp(req.expandDepth ?? QUERY_EXPAND_DEPTH_DEFAULT, 0, QUERY_EXPAND_DEPTH_MAX);
+    const weights: RrfWeights = {
+      vector: clampNonNeg(req.vectorWeight ?? QUERY_RRF_VECTOR_WEIGHT),
+      bm25: clampNonNeg(req.bm25Weight ?? QUERY_RRF_BM25_WEIGHT),
+      graph: clampNonNeg(req.graphWeight ?? QUERY_RRF_GRAPH_WEIGHT),
+    };
 
     // 1. Embed the query text in the same vector space as stored vectors.
     const embedStart = Date.now();
@@ -277,71 +348,51 @@ export class ContextQueryService implements QueryService {
     }
     const embeddingMs = Date.now() - embedStart;
 
-    // 2. Discover indexed labels if we don't already know them.
-    const labels = req.labels ?? (await this.discoverIndexedLabels());
-
-    // 3. Vector search per label, merge, re-sort.
     const searchStart = Date.now();
-    const session = this.session();
-    const allHits: ContextQueryHit[] = [];
-    try {
-      for (const label of labels) {
-        if (!SAFE_IDENT.test(label)) continue; // defense-in-depth
-        const indexName = `${label}_vec_idx`;
-        const params: Record<string, unknown> = {
-          indexName,
-          k: neo4j.int(topK),
-          vec: Array.from(queryVec),
-        };
-        // Optional product-scope filter — only nodes whose sourceId starts
-        // with the product id. This matches the loader's convention of
-        // tagging sourceId with the product (Phase G.5 setup).
-        const productPredicate = req.productId
-          ? ` WHERE n.sourceId STARTS WITH $productPrefix`
-          : '';
-        if (req.productId) params.productPrefix = req.productId;
+    const labels = req.labels ?? (await this.discoverIndexedLabels());
+    const seedK = expandDepth > 0 ? topK * QUERY_SEED_MULTIPLIER : topK;
 
-        const cypher = `CALL db.index.vector.queryNodes($indexName, $k, $vec)
-           YIELD node AS n, score
-           ${productPredicate}
-           RETURN n.id AS id, labels(n) AS labels, score,
-                  properties(n) AS props,
-                  n.sourceTypeId AS sourceTypeId,
-                  n.sourceId AS sourceId`;
-        try {
-          const r = await session.run(cypher, params);
-          for (const rec of r.records) {
-            const props = rec.get('props') as Record<string, unknown>;
-            // Strip the embedding from returned properties — it's huge,
-            // useless to consumers, and would dwarf the actual content.
-            delete props.embedding;
-            delete props.embeddingMeta;
-            allHits.push({
-              nodeId: String(rec.get('id') ?? ''),
-              label,
-              score: asNumber(rec.get('score')),
-              properties: props,
-              sourceTypeId: rec.get('sourceTypeId') as string | undefined,
-              sourceId: rec.get('sourceId') as string | undefined,
-            });
-          }
-        } catch (err) {
-          // Index doesn't exist for this label, or query failed — skip
-          // and keep going. Common case: a label was just created and its
-          // index hasn't populated yet, or the cached label list is stale.
-          if (this.indexedLabels && (err as Error).message.includes('no such index')) {
-            this.indexedLabels = null; // force re-discovery next time
-          }
-        }
-      }
-    } finally {
-      await session.close();
+    // 2. Seed from two independent signals in parallel: vector ANN
+    //    (semantics) + BM25 full-text (lexical/exact terms). BM25 is skipped
+    //    when its weight is 0 or no full-text index exists.
+    const [vSeeds, bSeeds] = await Promise.all([
+      this.vectorSeeds(Array.from(queryVec), labels, seedK, req.productId),
+      weights.bm25 > 0 ? this.bm25Seeds(req.q, labels, seedK, req.productId) : Promise.resolve([]),
+    ]);
+
+    // Merge seeds — keyed by nodeId so a node hit by both signals carries
+    // both component scores.
+    const candidates = new Map<string, Candidate>();
+    for (const s of vSeeds) candidates.set(s.nodeId, s);
+    for (const s of bSeeds) {
+      const existing = candidates.get(s.nodeId);
+      if (existing) existing.bm25Score = s.bm25Score;
+      else candidates.set(s.nodeId, s);
     }
-    const searchMs = Date.now() - searchStart;
 
-    // Top-K across all labels, sorted by score descending.
-    allHits.sort((a, b) => b.score - a.score);
-    const hits = allHits.slice(0, topK);
+    // 3. Deterministic graph expansion around the union of seeds (no LLM in
+    //    the path). Seed pull is normalized per-signal so vector and BM25
+    //    seeds anchor expansion on a comparable scale.
+    if (expandDepth > 0 && weights.graph > 0 && candidates.size > 0) {
+      const seedScores = normalizedSeedScores([...candidates.values()]);
+      const neighbors = await this.expandGraph(
+        [...seedScores.keys()],
+        seedScores,
+        expandDepth,
+        req.expandPredicates,
+        req.productId,
+        req.hubDegreeCeiling,
+      );
+      for (const n of neighbors) {
+        const existing = candidates.get(n.nodeId);
+        if (existing) existing.graphScore = n.graphScore;
+        else candidates.set(n.nodeId, n);
+      }
+    }
+
+    // 4. Reciprocal Rank Fusion across all three signals, rank, slice to topK.
+    const hits = rrfFuse([...candidates.values()], weights, topK);
+    const searchMs = Date.now() - searchStart;
 
     return {
       q: req.q,
@@ -352,6 +403,169 @@ export class ContextQueryService implements QueryService {
       embeddingMs,
       searchMs,
     };
+  }
+
+  /** Per-label BM25 full-text seeds. Mirrors vectorSeeds but over Lucene
+   *  full-text indexes (`<Label>_fts_idx`). No-ops (returns []) when no
+   *  full-text index exists yet, so the path degrades to vector + graph. */
+  private async bm25Seeds(
+    queryText: string,
+    labels: string[],
+    k: number,
+    productId?: string,
+  ): Promise<Candidate[]> {
+    const indexes = await this.discoverFulltextIndexes();
+    if (indexes.size === 0) return [];
+    const lucene = escapeLucene(queryText);
+    if (!lucene) return [];
+
+    const session = this.session();
+    const out: Candidate[] = [];
+    try {
+      for (const label of labels) {
+        const indexName = indexes.get(label);
+        if (!indexName) continue; // no full-text index for this label
+        const productPredicate = productId ? ` WHERE n.sourceId STARTS WITH $productPrefix` : '';
+        const params: Record<string, unknown> = { indexName, q: lucene, k: neo4j.int(k) };
+        if (productId) params.productPrefix = productId;
+
+        const cypher = `CALL db.index.fulltext.queryNodes($indexName, $q)
+           YIELD node AS n, score
+           ${productPredicate}
+           RETURN n.id AS id, score, properties(n) AS props,
+                  n.sourceTypeId AS sourceTypeId, n.sourceId AS sourceId
+           LIMIT $k`;
+        try {
+          const r = await session.run(cypher, params);
+          for (const rec of r.records) {
+            out.push({
+              nodeId: String(rec.get('id') ?? ''),
+              label,
+              properties: stripVectorProps(rec.get('props') as Record<string, unknown>),
+              bm25Score: asNumber(rec.get('score')),
+              sourceTypeId: rec.get('sourceTypeId') as string | undefined,
+              sourceId: rec.get('sourceId') as string | undefined,
+            });
+          }
+        } catch (err) {
+          // Index vanished or query failed — drop the cache and skip.
+          if (this.fulltextIndexes && (err as Error).message.includes('no such')) {
+            this.fulltextIndexes = null;
+          }
+        }
+      }
+    } finally {
+      await session.close();
+    }
+    return out;
+  }
+
+  /** Per-label vector ANN — the original query() core, extracted. Returns
+   *  candidates tagged `via: 'vector'` with `vectorScore` set; fusion +
+   *  ranking happen in the caller. */
+  private async vectorSeeds(
+    queryVec: number[],
+    labels: string[],
+    k: number,
+    productId?: string,
+  ): Promise<Candidate[]> {
+    const session = this.session();
+    const out: Candidate[] = [];
+    try {
+      for (const label of labels) {
+        if (!SAFE_IDENT.test(label)) continue; // defense-in-depth
+        // Optional product-scope filter — only nodes whose sourceId starts
+        // with the product id, matching the loader's tagging convention.
+        const productPredicate = productId ? ` WHERE n.sourceId STARTS WITH $productPrefix` : '';
+        const params: Record<string, unknown> = {
+          indexName: `${label}_vec_idx`,
+          k: neo4j.int(k),
+          vec: queryVec,
+        };
+        if (productId) params.productPrefix = productId;
+
+        const cypher = `CALL db.index.vector.queryNodes($indexName, $k, $vec)
+           YIELD node AS n, score
+           ${productPredicate}
+           RETURN n.id AS id, score, properties(n) AS props,
+                  n.sourceTypeId AS sourceTypeId, n.sourceId AS sourceId`;
+        try {
+          const r = await session.run(cypher, params);
+          for (const rec of r.records) {
+            out.push({
+              nodeId: String(rec.get('id') ?? ''),
+              label,
+              properties: stripVectorProps(rec.get('props') as Record<string, unknown>),
+              vectorScore: asNumber(rec.get('score')),
+              sourceTypeId: rec.get('sourceTypeId') as string | undefined,
+              sourceId: rec.get('sourceId') as string | undefined,
+            });
+          }
+        } catch (err) {
+          // Index missing for this label, or query failed — skip and keep
+          // going. Common case: a freshly-created label whose index hasn't
+          // populated, or a stale cached label list.
+          if (this.indexedLabels && (err as Error).message.includes('no such index')) {
+            this.indexedLabels = null; // force re-discovery next time
+          }
+        }
+      }
+    } finally {
+      await session.close();
+    }
+    return out;
+  }
+
+  /** One Cypher round-trip: expand 1..depth hops from ALL seeds at once,
+   *  collapse to per-neighbor min-distance-per-seed, and compute a MAX-based
+   *  decayed graph score (hub-safe — no accumulation inflation). READ-mode
+   *  session: structurally cannot mutate the graph. */
+  private async expandGraph(
+    seedIds: string[],
+    seedScores: Map<string, number>,
+    depth: number,
+    predicates: string[] | undefined,
+    productId?: string,
+    hubDegreeCeiling?: number,
+  ): Promise<Candidate[]> {
+    const relFilter = buildRelFilter(predicates);
+    const productScope = productId ? ` AND nbr.sourceId STARTS WITH $productPrefix` : '';
+    // Exclude over-connected nodes from expansion (still reachable by vector).
+    const hubScope = hubDegreeCeiling != null ? ` AND COUNT { (nbr)--() } <= $hubCeiling` : '';
+    const session = this.readSession();
+    try {
+      const cypher = `
+        MATCH (seed) WHERE seed.id IN $seedIds
+        MATCH path = (seed)-[${relFilter}*1..${depth}]-(nbr)
+        WHERE nbr.id <> seed.id${productScope}${hubScope}
+        WITH nbr, seed.id AS seedId, min(length(path)) AS dist
+        RETURN nbr.id AS id, labels(nbr) AS labels, properties(nbr) AS props,
+               nbr.sourceTypeId AS sourceTypeId, nbr.sourceId AS sourceId,
+               collect({seedId: seedId, dist: dist}) AS reaches
+        LIMIT $expandLimit
+      `;
+      const params: Record<string, unknown> = {
+        seedIds,
+        expandLimit: neo4j.int(QUERY_EXPAND_LIMIT_MAX),
+      };
+      if (productId) params.productPrefix = productId;
+      if (hubDegreeCeiling != null) params.hubCeiling = neo4j.int(hubDegreeCeiling);
+
+      const r = await session.run(cypher, params);
+      return r.records.map((rec) => {
+        const reaches = rec.get('reaches') as Array<{ seedId: string; dist: unknown }>;
+        return {
+          nodeId: String(rec.get('id') ?? ''),
+          label: firstLabel(rec.get('labels')),
+          properties: stripVectorProps(rec.get('props') as Record<string, unknown>),
+          sourceTypeId: rec.get('sourceTypeId') as string | undefined,
+          sourceId: rec.get('sourceId') as string | undefined,
+          graphScore: graphScoreFor(reaches, seedScores),
+        };
+      });
+    } finally {
+      await session.close();
+    }
   }
 
   async traverse(req: TraverseRequest): Promise<TraverseResult> {
@@ -554,6 +768,30 @@ export class ContextQueryService implements QueryService {
     }
   }
 
+  /** Maps each label to its FULLTEXT index name. Empty when none exist yet
+   *  (BM25 then no-ops). Cached; re-discovered if a query hits a stale name. */
+  private async discoverFulltextIndexes(): Promise<Map<string, string>> {
+    if (this.fulltextIndexes) return this.fulltextIndexes;
+    const session = this.session();
+    try {
+      const r = await session.run(
+        `SHOW INDEXES YIELD name, type, labelsOrTypes
+         WHERE type = 'FULLTEXT'
+         RETURN name, labelsOrTypes`,
+      );
+      const m = new Map<string, string>();
+      for (const rec of r.records) {
+        const name = String(rec.get('name'));
+        const list = rec.get('labelsOrTypes') as string[] | null;
+        if (list) for (const lbl of list) m.set(lbl, name);
+      }
+      this.fulltextIndexes = m;
+      return m;
+    } finally {
+      await session.close();
+    }
+  }
+
   private session(): Session {
     return this.driver.session({ database: this.database });
   }
@@ -579,6 +817,119 @@ function asNumber(v: unknown): number {
 function clamp(n: number, lo: number, hi: number): number {
   if (!Number.isFinite(n)) return lo;
   return Math.max(lo, Math.min(hi, Math.floor(n)));
+}
+
+/** Non-negative clamp for RRF weights. NaN/negative → 0 (disables signal). */
+function clampNonNeg(n: number): number {
+  return Number.isFinite(n) && n > 0 ? n : 0;
+}
+
+/** Escape Lucene query-syntax metacharacters so free-text queries can't
+ *  throw a parse error or inject operators into the full-text search. */
+function escapeLucene(s: string): string {
+  return s.replace(/[+\-&|!(){}[\]^"~*?:\\/]/g, '\\$&').trim();
+}
+
+export interface RrfWeights {
+  vector: number;
+  bm25: number;
+  graph: number;
+}
+
+/** Per-signal seed pull, normalized to [0, 1] within each signal so vector
+ *  (cosine) and BM25 (Lucene) seeds anchor graph expansion on a comparable
+ *  scale. A node that's a seed in both takes the stronger of the two. */
+function normalizedSeedScores(seeds: Candidate[]): Map<string, number> {
+  const maxV = seeds.reduce((m, c) => Math.max(m, c.vectorScore ?? 0), 1e-9);
+  const maxB = seeds.reduce((m, c) => Math.max(m, c.bm25Score ?? 0), 1e-9);
+  const out = new Map<string, number>();
+  for (const c of seeds) {
+    const pull = Math.max((c.vectorScore ?? 0) / maxV, (c.bm25Score ?? 0) / maxB);
+    if (pull > 0) out.set(c.nodeId, pull);
+  }
+  return out;
+}
+
+/** `+`-joined list of the signals that surfaced a candidate. */
+function viaOf(c: Candidate): string {
+  const parts: string[] = [];
+  if (c.vectorScore != null) parts.push('vector');
+  if (c.bm25Score != null) parts.push('bm25');
+  if (c.graphScore != null) parts.push('graph');
+  return parts.join('+') || 'none';
+}
+
+/** Graph pull on a neighbor = its single strongest seed link, decayed by
+ *  hop distance. MAX (not sum) by design: in hub-dense graphs, summing pull
+ *  across every seed a node touches inflates well-connected nodes on
+ *  connectivity alone. A neighbor is worth its best seed connection. */
+export function graphScoreFor(
+  reaches: Array<{ seedId: string; dist: unknown }>,
+  seedScores: Map<string, number>,
+): number {
+  let best = 0;
+  for (const { seedId, dist } of reaches) {
+    const d = asNumber(dist); // 1-based hop count
+    const pull = (seedScores.get(seedId) ?? 0) * QUERY_HOP_DECAY ** (d - 1);
+    if (pull > best) best = pull;
+  }
+  return best;
+}
+
+/**
+ * Reciprocal Rank Fusion across the three signals. RRF fuses by *rank*, not
+ * raw score, so it sidesteps the scale mismatch between cosine (0–1), Lucene
+ * BM25 (unbounded), and graph pull — the reason a weighted sum of raw scores
+ * would be dominated by whichever signal has the largest numbers.
+ *
+ * For each signal a candidate appears in at rank r, it earns
+ * `weight / (K + r)`; contributions sum across signals, so a node ranked
+ * highly by multiple signals beats one that's #1 in a single signal. The
+ * final score is normalized to [0, 1] for readable output — order-preserving.
+ */
+export function rrfFuse(
+  candidates: Candidate[],
+  weights: RrfWeights,
+  topK: number,
+): ContextQueryHit[] {
+  // 1-based rank of each candidate within each signal's sorted list.
+  const rankBy = (key: 'vectorScore' | 'bm25Score' | 'graphScore'): Map<string, number> => {
+    const ranked = candidates
+      .filter((c) => c[key] != null)
+      .sort((a, b) => (b[key] as number) - (a[key] as number));
+    const m = new Map<string, number>();
+    ranked.forEach((c, i) => m.set(c.nodeId, i + 1));
+    return m;
+  };
+  const vRank = rankBy('vectorScore');
+  const bRank = rankBy('bm25Score');
+  const gRank = rankBy('graphScore');
+
+  const scored = candidates.map((c) => {
+    let rrf = 0;
+    const v = vRank.get(c.nodeId);
+    if (v != null) rrf += weights.vector / (QUERY_RRF_K + v);
+    const b = bRank.get(c.nodeId);
+    if (b != null) rrf += weights.bm25 / (QUERY_RRF_K + b);
+    const g = gRank.get(c.nodeId);
+    if (g != null) rrf += weights.graph / (QUERY_RRF_K + g);
+    return { c, rrf };
+  });
+  const maxRrf = scored.reduce((m, s) => Math.max(m, s.rrf), 1e-9);
+  scored.sort((a, b) => b.rrf - a.rrf);
+
+  return scored.slice(0, topK).map(({ c, rrf }) => ({
+    nodeId: c.nodeId,
+    label: c.label,
+    score: rrf / maxRrf, // normalize to [0, 1] for presentation; order preserved
+    properties: c.properties,
+    sourceTypeId: c.sourceTypeId,
+    sourceId: c.sourceId,
+    via: viaOf(c),
+    vectorScore: c.vectorScore,
+    bm25Score: c.bm25Score,
+    graphScore: c.graphScore,
+  }));
 }
 
 function firstLabel(v: unknown): string {

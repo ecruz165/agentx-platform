@@ -19,7 +19,119 @@
 
 import { Neo4jBackend } from '@ecruz165/context-loader-core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { ContextQueryService } from './query.ts';
+import {
+  type Candidate,
+  ContextQueryService,
+  graphScoreFor,
+  QUERY_HOP_DECAY,
+  type RrfWeights,
+  rrfFuse,
+} from './query.ts';
+
+const EQUAL: RrfWeights = { vector: 1, bm25: 1, graph: 1 };
+
+// ─── Pure fusion logic — no Neo4j, always runs ───────────────────────────
+describe('graphScoreFor — MAX-based, hub-safe', () => {
+  const seedScores = new Map([
+    ['s1', 0.8],
+    ['s2', 0.7],
+  ]);
+
+  it('takes the max seed pull, not the sum (no hub accumulation)', () => {
+    // A node reached by two strong seeds at 1 hop scores 0.8 (max), NOT 1.5.
+    const score = graphScoreFor(
+      [
+        { seedId: 's1', dist: 1 },
+        { seedId: 's2', dist: 1 },
+      ],
+      seedScores,
+    );
+    expect(score).toBeCloseTo(0.8);
+  });
+
+  it('a node touched by many weak seeds never beats one strong link', () => {
+    const many = graphScoreFor(
+      [
+        { seedId: 's2', dist: 1 },
+        { seedId: 's2', dist: 1 },
+        { seedId: 's2', dist: 1 },
+      ],
+      seedScores,
+    );
+    const oneStrong = graphScoreFor([{ seedId: 's1', dist: 1 }], seedScores);
+    expect(oneStrong).toBeGreaterThan(many);
+  });
+
+  it('decays pull by hop distance', () => {
+    const oneHop = graphScoreFor([{ seedId: 's1', dist: 1 }], seedScores);
+    const twoHop = graphScoreFor([{ seedId: 's1', dist: 2 }], seedScores);
+    expect(twoHop).toBeCloseTo(oneHop * QUERY_HOP_DECAY);
+  });
+});
+
+describe('rrfFuse — reciprocal rank fusion over vector/bm25/graph', () => {
+  const cand = (id: string, scores: Partial<Candidate>): Candidate => ({
+    nodeId: id,
+    label: 'Function',
+    properties: {},
+    ...scores,
+  });
+
+  it('rewards multi-signal agreement: a node strong in two signals beats one strong in a single signal', () => {
+    const both = cand('both', { vectorScore: 0.9, bm25Score: 8 }); // #1 vector AND #1 bm25
+    const vOnly = cand('v-only', { vectorScore: 0.95 }); // #1 vector only (but higher raw)
+    const bOnly = cand('b-only', { bm25Score: 9 }); // #1 bm25 only
+    const hits = rrfFuse([vOnly, bOnly, both], EQUAL, 3);
+    expect(hits[0]!.nodeId).toBe('both');
+    expect(hits[0]!.via).toBe('vector+bm25');
+  });
+
+  it('fuses by rank, not raw magnitude — huge BM25 numbers do not swamp vector', () => {
+    // bm25 scores are ~10x the cosine scale; RRF must not let that dominate.
+    const a = cand('a', { vectorScore: 0.9, bm25Score: 1 }); // vec #1, bm25 #2
+    const b = cand('b', { vectorScore: 0.1, bm25Score: 50 }); // vec #2, bm25 #1
+    const hits = rrfFuse([a, b], EQUAL, 2);
+    // Both are rank-1 in one signal and rank-2 in the other → effectively tied,
+    // NOT dominated by b's raw bm25 of 50.
+    expect(Math.abs(hits[0]!.score - hits[1]!.score)).toBeLessThan(1e-9);
+  });
+
+  it('a graph-only neighbor surfaces, tagged via=graph', () => {
+    const hits = rrfFuse(
+      [cand('v', { vectorScore: 0.9 }), cand('g', { graphScore: 0.7 })],
+      { vector: 1, bm25: 1, graph: 1 },
+      2,
+    );
+    const g = hits.find((h) => h.nodeId === 'g');
+    expect(g?.via).toBe('graph');
+  });
+
+  it('weight 0 removes a signal from fusion', () => {
+    // graph weight 0 → a graph-only node contributes nothing, ranks last.
+    const hits = rrfFuse(
+      [cand('v', { vectorScore: 0.5 }), cand('g', { graphScore: 0.99 })],
+      { vector: 1, bm25: 1, graph: 0 },
+      2,
+    );
+    expect(hits[0]!.nodeId).toBe('v');
+  });
+
+  it('normalizes scores to [0, 1], descending', () => {
+    const hits = rrfFuse(
+      [cand('a', { vectorScore: 0.9 }), cand('b', { vectorScore: 0.5, bm25Score: 3 })],
+      EQUAL,
+      2,
+    );
+    for (let i = 1; i < hits.length; i++) {
+      expect(hits[i - 1]!.score).toBeGreaterThanOrEqual(hits[i]!.score);
+    }
+    for (const h of hits) {
+      expect(h.score).toBeGreaterThanOrEqual(0);
+      expect(h.score).toBeLessThanOrEqual(1);
+    }
+    expect(hits[0]!.score).toBeCloseTo(1); // top normalized to 1
+  });
+});
 
 const RUN_INTEGRATION = process.env.RUN_NEO4J_INTEGRATION === '1';
 const NEO4J_URL = process.env.NEO4J_TEST_URL ?? 'bolt://localhost:7687';
@@ -107,8 +219,13 @@ describe.skipIf(!RUN_INTEGRATION)('ContextQueryService — real vector search', 
   });
 
   it('ranks the most semantically similar node first', async () => {
+    // NB: avoid boilerplate question words ("how do I …") here — in this
+    // tiny 4-doc corpus BM25's IDF is inverted, so a near-stopword shared
+    // with an off-topic doc (e.g. "how" in the pasta recipe) gets scored as
+    // rare+important and pollutes the ranking. Real corpora self-suppress
+    // such terms via IDF; the synthetic corpus doesn't.
     const r = await svc.query({
-      q: 'how do I write SQL against postgres',
+      q: 'writing SQL queries against a postgres database',
       topK: 4,
       labels: [LABEL],
     });
@@ -119,7 +236,7 @@ describe.skipIf(!RUN_INTEGRATION)('ContextQueryService — real vector search', 
     expect(cookingRank).toBe(3);
   }, 30_000);
 
-  it('returns scores in descending order with cosine in [0, 1]', async () => {
+  it('returns normalized fused scores in [0, 1], descending', async () => {
     const r = await svc.query({ q: 'graph database query language', topK: 4, labels: [LABEL] });
     for (let i = 1; i < r.hits.length; i++) {
       expect(r.hits[i - 1]!.score).toBeGreaterThanOrEqual(r.hits[i]!.score);
@@ -163,5 +280,128 @@ describe.skipIf(!RUN_INTEGRATION)('ContextQueryService — real vector search', 
     const r = await svc.query({ q: 'quick test', labels: [LABEL] });
     expect(r.embeddingMs).toBeGreaterThan(0);
     expect(r.searchMs).toBeGreaterThanOrEqual(0);
+  }, 30_000);
+});
+
+// ─── Hybrid BM25 + RRF — needs the full-text index from ensureSchema ──────
+const HLABEL = `Hybrid_${RUN_ID}`;
+
+/** Hack into the backend's private driver to run raw Cypher (await-indexes,
+ *  teardown) — mirrors the teardown pattern in the block above. */
+type RawSession = { run(q: string): Promise<unknown>; close(): Promise<void> };
+function rawSession(backend: Neo4jBackend): RawSession {
+  return (backend as unknown as { driver: { session(): RawSession } }).driver.session();
+}
+
+describe.skipIf(!RUN_INTEGRATION)('ContextQueryService — hybrid BM25 + RRF', () => {
+  let backend: Neo4jBackend;
+  let svc: ContextQueryService;
+
+  beforeAll(async () => {
+    backend = new Neo4jBackend({
+      url: NEO4J_URL,
+      user: NEO4J_USER,
+      password: NEO4J_PASSWORD,
+      vectorDim: 1024,
+    });
+    // ensureSchema now also creates `<Label>_fts_idx` — the BM25 index.
+    await backend.ensureSchema({ nodes: [HLABEL], edges: [] });
+
+    const docs: Array<{ id: string; text: string }> = [
+      { id: 'h-auth', text: 'user authentication and login session handling with tokens' },
+      // A rare exact token the embedder has no good representation for.
+      { id: 'h-errcode', text: 'the gateway raises ERRXQ7TOKEN when the upstream service times out' },
+      { id: 'h-ui', text: 'rendering a responsive navigation bar in the web frontend' },
+      { id: 'h-db', text: 'running database schema migrations safely in production' },
+    ];
+    await backend.upsertNodesBulk(
+      docs.map((d) => ({
+        id: d.id,
+        label: HLABEL,
+        properties: { text: d.text },
+        sourceTypeId: 'test',
+        sourceId: 'hybrid-test-product',
+      })),
+    );
+
+    const { createHttpEmbedderClient } = await import('@ecruz165/context-loader-core');
+    const embedder = createHttpEmbedderClient({
+      config: { url: EMBEDDER_URL, model: EMBEDDER_MODEL, dim: 1024 },
+    });
+    const vectors = await embedder.embed(docs.map((d) => d.text));
+    await backend.upsertVectorsBulk(
+      docs.map((d, i) => ({ nodeId: d.id, vector: vectors[i]!, meta: { kind: 'test' } })),
+    );
+
+    // Make sure both vector + full-text indexes are online & populated before
+    // querying — avoids a flaky empty-BM25 race on a freshly-created index.
+    const s = rawSession(backend);
+    try {
+      await s.run('CALL db.awaitIndexes(30)');
+    } finally {
+      await s.close();
+    }
+
+    svc = new ContextQueryService({
+      neo4jUrl: NEO4J_URL,
+      neo4jUser: NEO4J_USER,
+      neo4jPassword: NEO4J_PASSWORD,
+      embedderUrl: EMBEDDER_URL,
+      embedderModel: EMBEDDER_MODEL,
+      embedderDim: 1024,
+    });
+  }, 60_000);
+
+  afterAll(async () => {
+    if (svc) await svc.close();
+    if (backend) {
+      const session = rawSession(backend);
+      try {
+        await session.run(`MATCH (n:\`${HLABEL}\`) DETACH DELETE n`);
+      } finally {
+        await session.close();
+      }
+      await backend.close();
+    }
+  });
+
+  it('BM25 lifts an exact token to the top (lexical signal vector lacks)', async () => {
+    // Querying the rare token — vector alone has little to grab onto.
+    const hybrid = await svc.query({ q: 'ERRXQ7TOKEN', topK: 4, labels: [HLABEL] });
+    const vectorOnly = await svc.query({
+      q: 'ERRXQ7TOKEN',
+      topK: 4,
+      labels: [HLABEL],
+      bm25Weight: 0,
+      graphWeight: 0,
+    });
+
+    const hybridRank = hybrid.hits.findIndex((h) => h.nodeId === 'h-errcode');
+    const vectorRank = vectorOnly.hits.findIndex((h) => h.nodeId === 'h-errcode');
+
+    // With BM25 fused in, the exact-token doc is #1 and BM25 is credited.
+    expect(hybridRank).toBe(0);
+    expect(hybrid.hits[0]!.via).toContain('bm25');
+    // Lexical signal can only help — never ranks the exact match worse.
+    expect(hybridRank).toBeLessThanOrEqual(vectorRank);
+  }, 30_000);
+
+  it('bm25 drives ranking when vector + graph weights are 0', async () => {
+    const r = await svc.query({
+      q: 'ERRXQ7TOKEN',
+      topK: 4,
+      labels: [HLABEL],
+      vectorWeight: 0,
+      graphWeight: 0,
+    });
+    expect(r.hits[0]!.nodeId).toBe('h-errcode');
+    expect(r.hits[0]!.via).toContain('bm25');
+  }, 30_000);
+
+  it('a doc matched both semantically and lexically is tagged via=vector+bm25', async () => {
+    const r = await svc.query({ q: 'user authentication login', topK: 4, labels: [HLABEL] });
+    expect(r.hits[0]!.nodeId).toBe('h-auth');
+    expect(r.hits[0]!.via).toContain('vector');
+    expect(r.hits[0]!.via).toContain('bm25');
   }, 30_000);
 });
