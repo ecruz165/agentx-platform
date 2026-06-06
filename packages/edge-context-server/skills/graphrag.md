@@ -67,6 +67,11 @@ edge-context search --query "..." --label Function,Doc
 - `--top-k <n>` — result count (default 10)
 - `--product <id>` — scope to one product's graph
 - `--label <CSV>` — restrict to these node labels
+- `--domain <CSV>` — restrict to semantic domains (deterministically tagged at
+  ingest): `security`, `testing`, `api`, `data`, `ui`, `config`, `build`,
+  `infra`, `docs`, `code`. Scope the search when you know the area — e.g.
+  `--domain security` for an auth question, `--domain testing` to find tests.
+  Each hit also reports its `domain` so you can see where a result came from.
 
 By default `search` is **hybrid** across three signals, fused by Reciprocal
 Rank Fusion (RRF):

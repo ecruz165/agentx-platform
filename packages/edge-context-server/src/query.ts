@@ -44,6 +44,10 @@ export interface ContextQueryRequest {
   topK?: number;
   /** Restrict to specific node labels. Default: every indexed label. */
   labels?: string[];
+  /** Restrict retrieval to these semantic domains (e.g. ['security','api']).
+   *  Filters vector + BM25 seeds AND graph neighbors by their `domain`
+   *  property (tagged deterministically at ingest). Default: all domains. */
+  domains?: string[];
   /** Graph expansion hops from each vector seed. 0 = pure vector ANN (the
    *  original v1 behavior — fully backward-compatible). Default
    *  QUERY_EXPAND_DEPTH_DEFAULT, clamped to [0, QUERY_EXPAND_DEPTH_MAX]. */
@@ -94,6 +98,8 @@ export interface ContextQueryHit {
    *  `bm25`, `graph` (e.g. `vector+bm25`). A `graph`-only hit near the top
    *  means both vector and BM25 missed something structurally relevant. */
   via: string;
+  /** Semantic domain tagged at ingest (security, testing, api, …), if any. */
+  domain?: string;
   /** Component signals retained for transparency + offline tuning. */
   vectorScore?: number;
   bm25Score?: number;
@@ -385,8 +391,10 @@ export class ContextQueryService implements QueryService {
     //    (semantics) + BM25 full-text (lexical/exact terms). BM25 is skipped
     //    when its weight is 0 or no full-text index exists.
     const [vSeeds, bSeeds] = await Promise.all([
-      this.vectorSeeds(Array.from(queryVec), labels, seedK, req.productId),
-      weights.bm25 > 0 ? this.bm25Seeds(req.q, labels, seedK, req.productId) : Promise.resolve([]),
+      this.vectorSeeds(Array.from(queryVec), labels, seedK, req.productId, req.domains),
+      weights.bm25 > 0
+        ? this.bm25Seeds(req.q, labels, seedK, req.productId, req.domains)
+        : Promise.resolve([]),
     ]);
 
     // Merge seeds — keyed by nodeId so a node hit by both signals carries
@@ -407,6 +415,7 @@ export class ContextQueryService implements QueryService {
       const neighbors = await this.expandGraph([...seedScores.keys()], seedScores, expandDepth, {
         predicates: req.expandPredicates,
         productId: req.productId,
+        domains: req.domains,
         hubDegreeCeiling: req.hubDegreeCeiling,
         predicateWeights: req.expandPredicateWeights,
         hubDampening: req.hubDampening,
@@ -442,6 +451,7 @@ export class ContextQueryService implements QueryService {
     labels: string[],
     k: number,
     productId?: string,
+    domains?: string[],
   ): Promise<Candidate[]> {
     const indexes = await this.discoverFulltextIndexes();
     if (indexes.size === 0) return [];
@@ -454,13 +464,14 @@ export class ContextQueryService implements QueryService {
       for (const label of labels) {
         const indexName = indexes.get(label);
         if (!indexName) continue; // no full-text index for this label
-        const productPredicate = productId ? ` WHERE n.sourceId STARTS WITH $productPrefix` : '';
+        const { clause: whereClause, hasDomains } = seedWhere(productId, domains);
         const params: Record<string, unknown> = { indexName, q: lucene, k: neo4j.int(k) };
         if (productId) params.productPrefix = productId;
+        if (hasDomains) params.domains = domains;
 
         const cypher = `CALL db.index.fulltext.queryNodes($indexName, $q)
            YIELD node AS n, score
-           ${productPredicate}
+           ${whereClause}
            RETURN n.id AS id, score, properties(n) AS props,
                   n.sourceTypeId AS sourceTypeId, n.sourceId AS sourceId
            LIMIT $k`;
@@ -497,25 +508,26 @@ export class ContextQueryService implements QueryService {
     labels: string[],
     k: number,
     productId?: string,
+    domains?: string[],
   ): Promise<Candidate[]> {
     const session = this.session();
     const out: Candidate[] = [];
     try {
       for (const label of labels) {
         if (!SAFE_IDENT.test(label)) continue; // defense-in-depth
-        // Optional product-scope filter — only nodes whose sourceId starts
-        // with the product id, matching the loader's tagging convention.
-        const productPredicate = productId ? ` WHERE n.sourceId STARTS WITH $productPrefix` : '';
+        // Optional product-scope + domain filters on the ANN results.
+        const { clause: whereClause, hasDomains } = seedWhere(productId, domains);
         const params: Record<string, unknown> = {
           indexName: `${label}_vec_idx`,
           k: neo4j.int(k),
           vec: queryVec,
         };
         if (productId) params.productPrefix = productId;
+        if (hasDomains) params.domains = domains;
 
         const cypher = `CALL db.index.vector.queryNodes($indexName, $k, $vec)
            YIELD node AS n, score
-           ${productPredicate}
+           ${whereClause}
            RETURN n.id AS id, score, properties(n) AS props,
                   n.sourceTypeId AS sourceTypeId, n.sourceId AS sourceId`;
         try {
@@ -559,6 +571,7 @@ export class ContextQueryService implements QueryService {
     opts: {
       predicates?: string[];
       productId?: string;
+      domains?: string[];
       hubDegreeCeiling?: number;
       predicateWeights?: Record<string, number>;
       hubDampening?: boolean;
@@ -567,6 +580,7 @@ export class ContextQueryService implements QueryService {
   ): Promise<Candidate[]> {
     const relFilter = buildRelFilter(opts.predicates);
     const productScope = opts.productId ? ` AND nbr.sourceId STARTS WITH $productPrefix` : '';
+    const domainScope = opts.domains?.length ? ` AND nbr.domain IN $domains` : '';
     // Exclude over-connected nodes from expansion (still reachable by vector).
     const hubScope = opts.hubDegreeCeiling != null ? ` AND COUNT { (nbr)--() } <= $hubCeiling` : '';
     // Merge caller weights over defaults; only finite, non-negative numbers.
@@ -588,7 +602,7 @@ export class ContextQueryService implements QueryService {
       const cypher = `
         MATCH (seed) WHERE seed.id IN $seedIds
         MATCH path = (seed)-[${relFilter}*1..${depth}]-(nbr)
-        WHERE nbr.id <> seed.id${productScope}${hubScope}
+        WHERE nbr.id <> seed.id${productScope}${domainScope}${hubScope}
         WITH seed.id AS seedId, nbr,
              length(path) AS len,
              reduce(w = 1.0, r IN relationships(path) |
@@ -611,6 +625,7 @@ export class ContextQueryService implements QueryService {
         defaultRelWeight: QUERY_DEFAULT_PREDICATE_WEIGHT,
       };
       if (opts.productId) params.productPrefix = opts.productId;
+      if (opts.domains?.length) params.domains = opts.domains;
       if (opts.hubDegreeCeiling != null) params.hubCeiling = neo4j.int(opts.hubDegreeCeiling);
       if (opts.maxNeighborsPerSeed != null) params.maxPerSeed = neo4j.int(opts.maxNeighborsPerSeed);
 
@@ -906,6 +921,20 @@ export interface RrfWeights {
   graph: number;
 }
 
+/** Build the seed-query WHERE clause for optional product + domain scoping.
+ *  Returns the clause (with leading ` WHERE …` or empty) and whether a
+ *  `$domains` param needs binding. Param names: $productPrefix, $domains. */
+function seedWhere(
+  productId: string | undefined,
+  domains: string[] | undefined,
+): { clause: string; hasDomains: boolean } {
+  const preds: string[] = [];
+  if (productId) preds.push('n.sourceId STARTS WITH $productPrefix');
+  const hasDomains = !!domains?.length;
+  if (hasDomains) preds.push('n.domain IN $domains');
+  return { clause: preds.length ? ` WHERE ${preds.join(' AND ')}` : '', hasDomains };
+}
+
 /** Per-signal seed pull, normalized to [0, 1] within each signal so vector
  *  (cosine) and BM25 (Lucene) seeds anchor graph expansion on a comparable
  *  scale. A node that's a seed in both takes the stronger of the two. */
@@ -1002,6 +1031,7 @@ export function rrfFuse(
     sourceTypeId: c.sourceTypeId,
     sourceId: c.sourceId,
     via: viaOf(c),
+    domain: typeof c.properties.domain === 'string' ? c.properties.domain : undefined,
     vectorScore: c.vectorScore,
     bm25Score: c.bm25Score,
     graphScore: c.graphScore,

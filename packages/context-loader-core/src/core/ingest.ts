@@ -23,6 +23,7 @@ import { basename, resolve } from 'node:path';
 import { BUILTIN_SOURCE_TYPES } from '../catalog/index.ts';
 import type { IngestionSummary, IngestSpec, SourceType } from '../types.ts';
 import { type ChunkOutput, chunkHeadingBased } from './chunkers/heading-based.ts';
+import { classifyDomain } from './domain.ts';
 import { chunkCodeFull } from './chunkers/tree-sitter.ts';
 import { chunkWholeFile } from './chunkers/whole-file.ts';
 import { createHttpEmbedderClient, type EmbedderClient } from './embedder-client.ts';
@@ -176,6 +177,11 @@ export async function ingest(spec: IngestSpecExt): Promise<IngestionSummary> {
         0,
       ),
     });
+
+    // Tier 2: tag every node of this file with a coarse semantic domain
+    // (deterministic, path-based) so workers can scope retrieval by domain.
+    const domain = classifyDomain(item.relativePath, sourceType.id);
+    for (const n of chunked.nodes) n.properties.domain = domain;
 
     // Incremental hash gate. The file's root node (File/Doc) carries a
     // contentHash; if a prior ingest stored the same hash, the file is

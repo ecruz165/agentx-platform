@@ -338,6 +338,9 @@ function route(req: IncomingMessage, res: ServerResponse, ctx: RouteContext): vo
           labels: Array.isArray(reqBody.labels)
             ? reqBody.labels.filter((l) => typeof l === 'string')
             : undefined,
+          domains: Array.isArray(reqBody.domains)
+            ? reqBody.domains.filter((d): d is string => typeof d === 'string')
+            : undefined,
           expandDepth: typeof reqBody.expandDepth === 'number' ? reqBody.expandDepth : undefined,
           expandPredicates: Array.isArray(reqBody.expandPredicates)
             ? reqBody.expandPredicates.filter((p): p is string => typeof p === 'string')
