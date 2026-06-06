@@ -83,12 +83,20 @@ class StubIngestService implements IngestService {
       startedAt: new Date().toISOString(),
       completedAt: new Date().toISOString(),
       productId: req.productId,
-      summary: { filesIngested: 5, chunksWritten: 12, vectorsWritten: 12, errors: 0, durationMs: 100 },
+      summary: {
+        filesIngested: 5,
+        filesSkipped: 0,
+        chunksWritten: 12,
+        vectorsWritten: 12,
+        errors: 0,
+        durationMs: 100,
+      },
       events: [
         { kind: 'source-resolved', source: { kind: 'path', path: '/tmp/x' }, itemCount: 5 },
         {
           kind: 'source-completed',
           filesIngested: 5,
+          filesSkipped: 0,
           chunksWritten: 12,
           vectorsWritten: 12,
           errors: 0,
@@ -114,7 +122,7 @@ class StubIngestService implements IngestService {
       startedAt: new Date().toISOString(),
       completedAt: new Date().toISOString(),
       productId: req.productId,
-      summary: { filesIngested: 7, chunksWritten: 7, vectorsWritten: 7, errors: 0, durationMs: 30 },
+      summary: { filesIngested: 7, filesSkipped: 0, chunksWritten: 7, vectorsWritten: 7, errors: 0, durationMs: 30 },
       events: [],
     });
     return { ingestId };
@@ -130,7 +138,7 @@ class StubIngestService implements IngestService {
       startedAt: new Date().toISOString(),
       completedAt: new Date().toISOString(),
       productId: req.productId,
-      summary: { filesIngested: 12, chunksWritten: 12, vectorsWritten: 12, errors: 0, durationMs: 60 },
+      summary: { filesIngested: 12, filesSkipped: 0, chunksWritten: 12, vectorsWritten: 12, errors: 0, durationMs: 60 },
       events: [],
     });
     return { ingestId };
@@ -148,7 +156,7 @@ class StubIngestService implements IngestService {
       startedAt: new Date().toISOString(),
       completedAt: new Date().toISOString(),
       productId: req.productId,
-      summary: { filesIngested: 4, chunksWritten: 4, vectorsWritten: 4, errors: 0, durationMs: 25 },
+      summary: { filesIngested: 4, filesSkipped: 0, chunksWritten: 4, vectorsWritten: 4, errors: 0, durationMs: 25 },
       events: [],
     });
     return { ingestId };
@@ -164,7 +172,7 @@ class StubIngestService implements IngestService {
       startedAt: new Date().toISOString(),
       completedAt: new Date().toISOString(),
       productId: req.productId,
-      summary: { filesIngested: 1, chunksWritten: 4, vectorsWritten: 4, errors: 0, durationMs: 50 },
+      summary: { filesIngested: 1, filesSkipped: 0, chunksWritten: 4, vectorsWritten: 4, errors: 0, durationMs: 50 },
       events: [],
     });
     return { ingestId };
@@ -192,7 +200,7 @@ class StubIngestService implements IngestService {
       state: 'completed',
       startedAt: new Date().toISOString(),
       completedAt: new Date().toISOString(),
-      summary: { filesIngested: 1, chunksWritten: 0, vectorsWritten: 0, errors: 0, durationMs: 1 },
+      summary: { filesIngested: 1, filesSkipped: 0, chunksWritten: 0, vectorsWritten: 0, errors: 0, durationMs: 1 },
       events: [{ kind: 'node-written', nodeId: docId, label: 'Doc' }],
     });
     return { ingestId, entry };

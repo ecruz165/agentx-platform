@@ -673,6 +673,7 @@ export class ContextIngestService implements IngestService {
 
       this.transitionCompleted(ingestId, {
         filesIngested: pageCount,
+        filesSkipped: 0,
         chunksWritten: pageCount,
         vectorsWritten: pageCount,
         errors,
@@ -722,6 +723,7 @@ export class ContextIngestService implements IngestService {
       });
       this.transitionCompleted(ingestId, {
         filesIngested: 1,
+        filesSkipped: 0,
         chunksWritten: 0,
         vectorsWritten: 0,
         errors: 0,
@@ -793,6 +795,7 @@ export class ContextIngestService implements IngestService {
     this.emit(ingestId, {
       kind: 'source-completed',
       filesIngested: summary.filesIngested,
+      filesSkipped: summary.filesSkipped,
       chunksWritten: summary.chunksWritten,
       vectorsWritten: summary.vectorsWritten,
       errors: summary.errors,

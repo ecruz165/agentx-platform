@@ -127,6 +127,27 @@ export class Neo4jBackend implements GraphIngestionBackend {
     }
   }
 
+  /** Fetch stored contentHash per node id (for incremental ingest gating).
+   *  Ids without a contentHash are omitted from the returned map. */
+  async getContentHashes(ids: string[]): Promise<Map<string, string>> {
+    const out = new Map<string, string>();
+    if (ids.length === 0) return out;
+    const session = this.session();
+    try {
+      const r = await session.run(
+        `MATCH (n) WHERE n.id IN $ids AND n.contentHash IS NOT NULL
+         RETURN n.id AS id, n.contentHash AS hash`,
+        { ids },
+      );
+      for (const rec of r.records) {
+        out.set(String(rec.get('id')), String(rec.get('hash')));
+      }
+    } finally {
+      await session.close();
+    }
+    return out;
+  }
+
   async upsertNode(node: GraphNode): Promise<void> {
     return this.upsertNodesBulk([node]);
   }

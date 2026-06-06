@@ -161,6 +161,7 @@ export type ExternalIngestEvent =
   | {
       kind: 'source-completed';
       filesIngested: number;
+      filesSkipped: number;
       chunksWritten: number;
       vectorsWritten: number;
       errors: number;
@@ -169,6 +170,7 @@ export type ExternalIngestEvent =
 
 export interface ExternalIngestSummary {
   filesIngested: number;
+  filesSkipped: number;
   chunksWritten: number;
   vectorsWritten: number;
   errors: number;
@@ -463,6 +465,7 @@ export async function runGithubIssuesIngest(
 
   const summary: ExternalIngestSummary = {
     filesIngested: count,
+    filesSkipped: 0,
     chunksWritten: count,
     vectorsWritten: count,
     errors,
@@ -471,6 +474,7 @@ export async function runGithubIssuesIngest(
   onEvent?.({
     kind: 'source-completed',
     filesIngested: summary.filesIngested,
+    filesSkipped: summary.filesSkipped,
     chunksWritten: summary.chunksWritten,
     vectorsWritten: summary.vectorsWritten,
     errors: summary.errors,
@@ -576,6 +580,7 @@ export async function runJiraIngest(opts: JiraRunOptions): Promise<ExternalInges
 
   const summary: ExternalIngestSummary = {
     filesIngested: count,
+    filesSkipped: 0,
     chunksWritten: count,
     vectorsWritten: count,
     errors,
@@ -584,6 +589,7 @@ export async function runJiraIngest(opts: JiraRunOptions): Promise<ExternalInges
   onEvent?.({
     kind: 'source-completed',
     filesIngested: summary.filesIngested,
+    filesSkipped: summary.filesSkipped,
     chunksWritten: summary.chunksWritten,
     vectorsWritten: summary.vectorsWritten,
     errors: summary.errors,
@@ -713,6 +719,7 @@ export async function runConfluenceIngest(
 
   const summary: ExternalIngestSummary = {
     filesIngested: count,
+    filesSkipped: 0,
     chunksWritten: count,
     vectorsWritten: count,
     errors,
@@ -721,6 +728,7 @@ export async function runConfluenceIngest(
   onEvent?.({
     kind: 'source-completed',
     filesIngested: summary.filesIngested,
+    filesSkipped: summary.filesSkipped,
     chunksWritten: summary.chunksWritten,
     vectorsWritten: summary.vectorsWritten,
     errors: summary.errors,

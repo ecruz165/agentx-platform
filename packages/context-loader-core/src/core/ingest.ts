@@ -17,6 +17,7 @@
  *   5. Emit IngestionEvent at each phase boundary
  */
 
+import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { basename, resolve } from 'node:path';
 import { BUILTIN_SOURCE_TYPES } from '../catalog/index.ts';
@@ -43,6 +44,7 @@ export async function ingest(spec: IngestSpecExt): Promise<IngestionSummary> {
   const startedAt = Date.now();
   const summary = {
     filesIngested: 0,
+    filesSkipped: 0,
     chunksWritten: 0,
     vectorsWritten: 0,
     errors: 0,
@@ -175,6 +177,28 @@ export async function ingest(spec: IngestSpecExt): Promise<IngestionSummary> {
       ),
     });
 
+    // Incremental hash gate. The file's root node (File/Doc) carries a
+    // contentHash; if a prior ingest stored the same hash, the file is
+    // unchanged — skip the expensive embed + all writes. `force` bypasses.
+    // Hash includes the source-type id so re-typing a path re-ingests.
+    const fileHash = createHash('sha256')
+      .update(sourceType.id)
+      .update('\0')
+      .update(content)
+      .digest('hex');
+    const rootNode = chunked.nodes.find(
+      (n) => n.label.endsWith('File') || n.label.endsWith('Doc'),
+    );
+    if (rootNode) rootNode.properties.contentHash = fileHash;
+    if (!spec.force && rootNode && typeof spec.backend.getContentHashes === 'function') {
+      const existing = await spec.backend.getContentHashes([rootNode.id]);
+      if (existing.get(rootNode.id) === fileHash) {
+        summary.filesSkipped += 1;
+        spec.onEvent?.({ kind: 'item-unchanged', itemId: item.relativePath });
+        continue;
+      }
+    }
+
     // Write nodes + edges
     await spec.backend.upsertNodesBulk(chunked.nodes);
     for (const node of chunked.nodes) {
@@ -291,6 +315,7 @@ export async function ingest(spec: IngestSpecExt): Promise<IngestionSummary> {
   spec.onEvent?.({
     kind: 'source-completed',
     filesIngested: summary.filesIngested,
+    filesSkipped: summary.filesSkipped,
     chunksWritten: summary.chunksWritten,
     vectorsWritten: summary.vectorsWritten,
     errors: summary.errors,
