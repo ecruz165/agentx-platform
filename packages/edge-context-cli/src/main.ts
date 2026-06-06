@@ -115,7 +115,7 @@ Usage:
 Read commands:
   traverse     Depth-bounded subgraph from a seed entity
   related      Single-predicate adjacency from a seed entity
-  search       Hybrid graph + similarity search
+  search       Hybrid BM25 + vector + graph search (RRF-fused)
   cypher       Run admin Cypher (UDS-only; READ-mode)
   stats        Graph metrics (nodes, edges, indexed labels)
   health       Server health probe
@@ -138,8 +138,33 @@ Global flags:
   --json           Emit JSON instead of human-readable output.
   --help           Show this help.
 
+Search flags (hybrid graph + vector fusion):
+  --top-k <n>            Result count (default 10).
+  --label <CSV>          Restrict to these node labels.
+  --expand-depth <n>     Graph-expansion hops from each vector seed.
+                         0 = pure vector ANN. Default 1, max 2.
+  --expand-predicate <CSV>  Restrict expansion to these relationship types.
+  --predicate-weight <CSV>  Per-type weights, e.g. CALLS=1,MENTIONS=0.5.
+                         Weak edge types contribute less to the graph signal.
+  --hub-dampen           Soft-dampen graph pull by neighbor degree (hubs
+                         contribute less without being excluded).
+  --max-neighbors <n>    Cap neighbors contributed per seed (keeps strongest).
+  --vector-weight <n>    RRF weight for the vector (semantic) signal. Default 1.0.
+  --bm25-weight <n>      RRF weight for the BM25 (lexical) signal. 0 disables.
+                         Default 1.0.
+  --graph-weight <n>     RRF weight for the graph-expansion signal. 0 disables.
+                         Default 0.5.
+  --hub-ceiling <n>      Exclude nodes above this degree from expansion
+                         (still retrievable by direct vector/BM25 match).
+
+Hits are ranked by Reciprocal Rank Fusion of vector + BM25 + graph signals;
+each hit shows which signals surfaced it (e.g. vector+bm25).
+
 Examples:
   edge-context traverse --entity AuthService --depth 2
+  edge-context search --query "rate limiting" --top-k 5 --expand-depth 1
+  edge-context search --query "ERR_TOKEN_EXPIRED" --bm25-weight 2   # boost exact terms
+  edge-context search --query "OIDC token refresh" --vector-weight 1.5 --hub-ceiling 150
   edge-context import-repo --name my-app --path ./src
   edge-context import-repo --name my-app --url git@github.com:org/repo.git --branch main
   edge-context upload ./design-spec.pdf --description "Mobile checkout v2"
@@ -293,11 +318,40 @@ async function cmdSearch(
   const topK = numberFlag(parsed.flags, 'top-k') ?? numberFlag(parsed.flags, 'topK');
   const productId = stringFlag(parsed.flags, 'product');
   const labels = stringFlag(parsed.flags, 'label');
+  // Hybrid-fusion knobs (server defaults apply when omitted).
+  const expandDepth = numberFlag(parsed.flags, 'expand-depth');
+  const vectorWeight = numberFlag(parsed.flags, 'vector-weight');
+  const bm25Weight = numberFlag(parsed.flags, 'bm25-weight');
+  const graphWeight = numberFlag(parsed.flags, 'graph-weight');
+  const hubCeiling = numberFlag(parsed.flags, 'hub-ceiling');
+  const expandPredicates = stringFlag(parsed.flags, 'expand-predicate');
+  const predicateWeightStr = stringFlag(parsed.flags, 'predicate-weight');
+  const hubDampen = parsed.flags['hub-dampen'] === true;
+  const maxNeighbors = numberFlag(parsed.flags, 'max-neighbors');
 
   const body: Record<string, unknown> = { q };
   if (topK != null) body.topK = topK;
   if (productId) body.productId = productId;
   if (labels) body.labels = labels.split(',').map((s) => s.trim()).filter(Boolean);
+  if (expandDepth != null) body.expandDepth = expandDepth;
+  if (vectorWeight != null) body.vectorWeight = vectorWeight;
+  if (bm25Weight != null) body.bm25Weight = bm25Weight;
+  if (graphWeight != null) body.graphWeight = graphWeight;
+  if (hubCeiling != null) body.hubDegreeCeiling = hubCeiling;
+  if (expandPredicates)
+    body.expandPredicates = expandPredicates.split(',').map((s) => s.trim()).filter(Boolean);
+  if (predicateWeightStr) {
+    // Parse `CALLS=1,MENTIONS=0.5` → { CALLS: 1, MENTIONS: 0.5 }.
+    const w: Record<string, number> = {};
+    for (const pair of predicateWeightStr.split(',')) {
+      const [k, v] = pair.split('=');
+      const n = Number(v);
+      if (k && k.trim() && Number.isFinite(n)) w[k.trim()] = n;
+    }
+    if (Object.keys(w).length > 0) body.expandPredicateWeights = w;
+  }
+  if (hubDampen) body.hubDampening = true;
+  if (maxNeighbors != null) body.maxNeighborsPerSeed = maxNeighbors;
 
   const r = await udsJson<{ result: ContextQueryResult }>(socket, 'POST', '/v1/context/query', body);
   if (json) {
@@ -435,7 +489,7 @@ function formatSearch(r: ContextQueryResult): string {
   for (const h of r.hits) {
     const text = (h.properties.text ?? h.properties.title ?? h.properties.name ?? '') as string;
     const snippet = text.length > 100 ? text.slice(0, 100) + '…' : text;
-    lines.push(`  ${h.score.toFixed(3)}  ${h.label.padEnd(12)} ${h.nodeId}`);
+    lines.push(`  ${h.score.toFixed(3)}  ${(h.via ?? '?').padEnd(16)} ${h.label.padEnd(12)} ${h.nodeId}`);
     if (snippet) lines.push(`         ${snippet}`);
   }
   return lines.join('\n') + '\n';

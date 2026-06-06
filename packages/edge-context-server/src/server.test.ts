@@ -285,6 +285,7 @@ describe('edge-context-server — with stub backend', () => {
           score: 0.95,
           properties: { text: 'cached hit' },
           sourceId: 'web',
+          via: 'vector',
         },
       ],
     });

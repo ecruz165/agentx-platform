@@ -68,6 +68,46 @@ edge-context search --query "..." --label Function,Doc
 - `--product <id>` — scope to one product's graph
 - `--label <CSV>` — restrict to these node labels
 
+By default `search` is **hybrid** across three signals, fused by Reciprocal
+Rank Fusion (RRF):
+
+1. **vector** — semantic similarity (good for paraphrase, intent).
+2. **bm25** — lexical full-text (good for *exact* identifiers, API names,
+   error codes like `ERR_TOKEN_EXPIRED` — things the embedder blurs).
+3. **graph** — 1-hop expansion around the vector/BM25 seeds (structural
+   relevance).
+
+Each hit is tagged with the signals that surfaced it (e.g. `vector+bm25`, or
+just `graph`). A `graph`-only hit near the top means both vector and BM25
+missed something structurally relevant; a `bm25`-only hit means an exact term
+matched that the embedder didn't rank.
+
+Tuning flags (server defaults are sensible; reach for these only when a
+workflow needs a different precision/recall balance):
+
+- `--bm25-weight <n>` — RRF weight for lexical matching. Default `1.0`. **Raise
+  it** when the query is an exact symbol / error code / API name; set `0` to
+  disable lexical search.
+- `--vector-weight <n>` — RRF weight for semantics. Default `1.0`.
+- `--graph-weight <n>` — RRF weight for graph expansion. Default `0.5`
+  (corroborating signal). Set `0` to disable expansion entirely.
+- `--expand-depth <n>` — graph hops from each seed. `0` = no expansion;
+  `1` (default) folds in immediate neighbors; `2` widens recall. Max 2.
+- `--expand-predicate <CSV>` — restrict expansion to these relationship
+  types (e.g. `CALLS,IMPORTS`).
+- `--hub-ceiling <n>` — exclude over-connected nodes (logging utils, index
+  docs) from expansion; they can still surface via a direct vector/BM25 match.
+- `--predicate-weight <CSV>` — weight relationship types in the graph signal,
+  e.g. `CALLS=1,MENTIONS=0.5`. Structural edges (CALLS/IMPORTS/EXTENDS) default
+  to 1.0, looser ones (MENTIONS) lower. A multi-hop path's weight is the product
+  of its edges, so a path through a weak edge is weak overall. Use this to favor
+  call/import structure over prose mentions (or vice-versa).
+- `--hub-dampen` — soft-dampen graph pull by neighbor degree, so generic hubs
+  contribute less *without* being excluded. Gentler than `--hub-ceiling`; leave
+  off when hubs (core services, base classes) are what you're hunting for.
+- `--max-neighbors <n>` — cap how many neighbors each seed contributes (keeps
+  the strongest by edge weight). Bounds fan-out from a well-connected seed.
+
 ### `stats` — graph metrics
 
 ```

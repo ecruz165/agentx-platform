@@ -338,6 +338,24 @@ function route(req: IncomingMessage, res: ServerResponse, ctx: RouteContext): vo
           labels: Array.isArray(reqBody.labels)
             ? reqBody.labels.filter((l) => typeof l === 'string')
             : undefined,
+          expandDepth: typeof reqBody.expandDepth === 'number' ? reqBody.expandDepth : undefined,
+          expandPredicates: Array.isArray(reqBody.expandPredicates)
+            ? reqBody.expandPredicates.filter((p): p is string => typeof p === 'string')
+            : undefined,
+          vectorWeight: typeof reqBody.vectorWeight === 'number' ? reqBody.vectorWeight : undefined,
+          bm25Weight: typeof reqBody.bm25Weight === 'number' ? reqBody.bm25Weight : undefined,
+          graphWeight: typeof reqBody.graphWeight === 'number' ? reqBody.graphWeight : undefined,
+          hubDegreeCeiling:
+            typeof reqBody.hubDegreeCeiling === 'number' ? reqBody.hubDegreeCeiling : undefined,
+          expandPredicateWeights:
+            reqBody.expandPredicateWeights &&
+            typeof reqBody.expandPredicateWeights === 'object' &&
+            !Array.isArray(reqBody.expandPredicateWeights)
+              ? (reqBody.expandPredicateWeights as Record<string, number>)
+              : undefined,
+          hubDampening: typeof reqBody.hubDampening === 'boolean' ? reqBody.hubDampening : undefined,
+          maxNeighborsPerSeed:
+            typeof reqBody.maxNeighborsPerSeed === 'number' ? reqBody.maxNeighborsPerSeed : undefined,
         });
         ok(res, { service: 'context', result, ts: new Date().toISOString() });
       } catch (err) {

@@ -52,6 +52,7 @@ class StubQueryService implements QueryService {
           label: 'Symbol',
           score: 0.92,
           properties: { text: 'a search hit' },
+          via: 'vector',
         },
       ],
       searchedLabels: ['Symbol'],

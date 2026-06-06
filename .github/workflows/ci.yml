@@ -59,6 +59,13 @@ jobs:
           node-version: 22
           cache: pnpm
 
+      - name: Setup Bun
+        # context-loader-cli (`agentx-load`) ships a `#!/usr/bin/env bun`
+        # binary; its Vitest suite spawns it, so the runner needs bun on
+        # PATH or those tests fail to spawn (exit -1). Bun is already part
+        # of the toolchain (agentx-load is compiled via `bun build --compile`).
+        uses: oven-sh/setup-bun@v2
+
       - name: Install dependencies
         # `--frozen-lockfile` enforces lockfile discipline: any drift
         # between package.json deps and pnpm-lock.yaml fails the build,
