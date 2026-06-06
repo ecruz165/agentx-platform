@@ -87,6 +87,18 @@ jobs:
         # and the root script delegates via `pnpm -r typecheck`.
         run: pnpm typecheck
 
+      - name: Harness skills in sync
+        # workspace-template/.harness/skills/{context,context-briefs}.md are
+        # GENERATED from packages/edge-context-cli/skills/ via `pnpm sync:skills`.
+        # Regenerate here and fail if the committed copies drifted from source.
+        run: |
+          pnpm sync:skills
+          if [ -n "$(git status --porcelain -- workspace-template/.harness/skills/)" ]; then
+            echo "::error::Harness skills are stale — run 'pnpm sync:skills' and commit."
+            git status --porcelain -- workspace-template/.harness/skills/
+            exit 1
+          fi
+
       - name: Vitest — run all package suites
         # `-r test --if-present` recursively runs each package's `test`
         # script when it exists; pnpm skips packages without one. As
