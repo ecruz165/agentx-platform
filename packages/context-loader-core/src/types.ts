@@ -231,6 +231,15 @@ export interface GraphIngestionBackend {
    */
   ensureSchema(schema: SourceTypeSchema): Promise<void>;
 
+  /**
+   * Return the stored `contentHash` for each given node id that has one.
+   * Powers incremental ingest: the pipeline skips re-chunking-embedding a
+   * file whose root node already carries a matching hash. Optional — a
+   * backend that doesn't implement it simply forfeits hash-gating (every
+   * run re-ingests). Ids without a stored hash are omitted from the map.
+   */
+  getContentHashes?(ids: string[]): Promise<Map<string, string>>;
+
   /** Flush buffers and close connections. */
   close(): Promise<void>;
 }
@@ -245,6 +254,7 @@ export interface GraphIngestionBackend {
 export type IngestionEvent =
   | { kind: 'source-resolved'; source: SourceRef; itemCount: number }
   | { kind: 'item-walked'; itemId: string; itemType: string; sizeBytes: number }
+  | { kind: 'item-unchanged'; itemId: string }
   | { kind: 'chunk-produced'; chunkId: string; chunkCount: number; totalTokens: number }
   | { kind: 'chunk-embedded'; chunkId: string; vectorDim: number; latencyMs: number }
   | { kind: 'node-written'; nodeId: string; label: string }
@@ -252,6 +262,7 @@ export type IngestionEvent =
   | {
       kind: 'source-completed';
       filesIngested: number;
+      filesSkipped: number;
       chunksWritten: number;
       vectorsWritten: number;
       errors: number;
@@ -271,6 +282,9 @@ export interface IngestSpec {
   onEvent?: (event: IngestionEvent) => void;
   /** Cooperative cancellation. */
   signal?: AbortSignal;
+  /** Bypass incremental hash-gating and re-ingest every file even when its
+   *  content is unchanged. Default false. */
+  force?: boolean;
 }
 
 /**
@@ -281,6 +295,8 @@ export type IngestFn = (spec: IngestSpec) => Promise<IngestionSummary>;
 
 export interface IngestionSummary {
   filesIngested: number;
+  /** Files skipped because their content hash matched a prior ingest. */
+  filesSkipped: number;
   chunksWritten: number;
   vectorsWritten: number;
   errors: number;

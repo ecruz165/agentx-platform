@@ -68,6 +68,15 @@ export class InMemoryGraphBackend implements GraphIngestionBackend {
     this.schemas.push(schema);
   }
 
+  async getContentHashes(ids: string[]): Promise<Map<string, string>> {
+    const out = new Map<string, string>();
+    for (const id of ids) {
+      const h = this.nodes.get(id)?.properties.contentHash;
+      if (typeof h === 'string') out.set(id, h);
+    }
+    return out;
+  }
+
   async close(): Promise<void> {
     // no-op
   }

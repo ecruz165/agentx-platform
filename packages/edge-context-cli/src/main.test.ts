@@ -398,7 +398,7 @@ class StubIngestService implements IngestService {
       startedAt: '2026-05-07T00:00:00Z',
       completedAt: '2026-05-07T00:00:01Z',
       productId: req.productId,
-      summary: { filesIngested: 3, chunksWritten: 7, vectorsWritten: 7, errors: 0, durationMs: 50 },
+      summary: { filesIngested: 3, filesSkipped: 0, chunksWritten: 7, vectorsWritten: 7, errors: 0, durationMs: 50 },
       events: [],
     });
     return { ingestId };

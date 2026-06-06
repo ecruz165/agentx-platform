@@ -67,6 +67,11 @@ Embedder options:
   --embedder-model <id>        default: 'ai/qwen3-embedding'
   --embedder-dim <n>           default: 1024
 
+Incremental ingest:
+  --force                      Re-ingest every file even if unchanged.
+                               Default: files whose content hash matches a
+                               prior ingest are skipped (no re-embed).
+
 Output:
   --output json                One IngestionEvent JSON per line on stdout.
   --output progress            Default. Single-line redraw on stderr; final
@@ -115,6 +120,8 @@ interface CliArgs {
   embedderModel: string;
   embedderDim: number;
   output: 'json' | 'progress' | 'silent';
+  /** Bypass incremental hash-gating; re-ingest every file. */
+  force: boolean;
   /** When set, IngestionEvents flow as JSON-per-line to this UDS path
    *  instead of stdout/stderr. Triggered by harness-server's spawnWorker
    *  when running this binary as a job worker. */
@@ -189,6 +196,7 @@ function parseArgv(argv: string[]): CliArgs {
     embedderModel: flags['embedder-model'] ?? 'ai/qwen3-embedding',
     embedderDim: dim,
     output,
+    force: flags.force === 'true',
     outputEventsUds,
     jobId,
   };
@@ -235,6 +243,7 @@ async function buildBackend(args: CliArgs): Promise<GraphIngestionBackend> {
 
 interface ProgressState {
   itemsWalked: number;
+  itemsSkipped: number;
   chunksProduced: number;
   nodesWritten: number;
   edgesWritten: number;
@@ -247,7 +256,7 @@ interface ProgressState {
  *  interactive use; pipes capture stdout cleanly because we keep this on stderr. */
 function renderProgress(state: ProgressState): void {
   const line =
-    `files=${state.itemsWalked} chunks=${state.chunksProduced} ` +
+    `files=${state.itemsWalked} skipped=${state.itemsSkipped} chunks=${state.chunksProduced} ` +
     `nodes=${state.nodesWritten} edges=${state.edgesWritten} ` +
     `vectors=${state.vectorsWritten} errors=${state.errors}` +
     (state.lastItem ? `  ${truncMiddle(state.lastItem, 40)}` : '');
@@ -266,6 +275,7 @@ function makeEventHandler(args: CliArgs): {
 } {
   const state: ProgressState = {
     itemsWalked: 0,
+    itemsSkipped: 0,
     chunksProduced: 0,
     nodesWritten: 0,
     edgesWritten: 0,
@@ -278,6 +288,10 @@ function makeEventHandler(args: CliArgs): {
       switch (e.kind) {
         case 'item-walked':
           state.itemsWalked++;
+          state.lastItem = e.itemId;
+          break;
+        case 'item-unchanged':
+          state.itemsSkipped++;
           state.lastItem = e.itemId;
           break;
         case 'chunk-produced':
@@ -390,6 +404,7 @@ async function runIngest(args: CliArgs): Promise<number> {
       source: { type: args.type, ref: { kind: 'path', path: args.target } },
       backend,
       embedderClient,
+      force: args.force,
       onEvent: (e) => {
         // Fire BOTH outputs when both are enabled (tmux-pane mode).
         if (udsEmitter) udsEmitter.emit(e);
