@@ -164,10 +164,11 @@ RUN_NEO4J_INTEGRATION=1 \
 
 ## SKILL files
 
-The server ships two reference SKILL files for agent integration. They live in `skills/` and the workspace template installs them into `~/.claude/skills/` (or the equivalent for non-Claude adapters):
+The agent-facing SKILL files ship **with the CLI** — `@ecruz165/edge-context-cli/skills/` — not with the server. The CLI is what agents invoke, so its manual travels with it, keeping the server + CLI usable independently of the AgentX harness. (The harness, when it provisions a workspace, installs the equivalent into `~/.harness/skills/` / `~/.claude/skills/`.)
 
-- `skills/graphrag.md` — default agent SKILL covering reads + ingestion. Installed by default.
-- `skills/graphrag-admin.md` — opt-in admin SKILL that adds raw Cypher (UDS-only, READ-mode). Not installed by default; workspace operators opt in for power-user agent contexts.
+- `edge-context-cli/skills/graphrag.md` — default agent SKILL covering reads + ingestion.
+- `edge-context-cli/skills/graphrag-briefs.md` — task-shaped retrieval: the `--mode` presets (code/plan/impact/debug/analysis) + the brief templates the agent synthesizes from the hits. The mode router is deterministic (server-side); the brief synthesis is the agent's job.
+- `edge-context-cli/skills/graphrag-admin.md` — opt-in admin SKILL that adds raw Cypher (UDS-only, READ-mode); for power-user agent contexts.
 
 ## Related packages
 

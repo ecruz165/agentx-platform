@@ -20,15 +20,50 @@
 import { Neo4jBackend } from '@ecruz165/context-loader-core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
+  applyMode,
   type Candidate,
   ContextQueryService,
   graphScoreFor,
   QUERY_HOP_DECAY,
+  RETRIEVAL_MODES,
   type RrfWeights,
   rrfFuse,
 } from './query.ts';
 
 const EQUAL: RrfWeights = { vector: 1, bm25: 1, graph: 1 };
+
+describe('applyMode — deterministic mode → retrieval preset', () => {
+  it('applies a known preset (impact → depth 2)', () => {
+    const r = applyMode({ q: 'x', mode: 'impact' });
+    expect(r.expandDepth).toBe(RETRIEVAL_MODES.impact!.expandDepth);
+    expect(r.expandPredicates).toEqual(['CALLS', 'IMPORTS']);
+    expect(r.topK).toBe(20);
+  });
+
+  it('explicit request fields override the preset', () => {
+    const r = applyMode({ q: 'x', mode: 'impact', expandDepth: 1, topK: 3 });
+    expect(r.expandDepth).toBe(1); // explicit wins over preset's 2
+    expect(r.topK).toBe(3);
+  });
+
+  it('debug boosts bm25 over vector', () => {
+    const r = applyMode({ q: 'x', mode: 'debug' });
+    expect(r.bm25Weight!).toBeGreaterThan(r.vectorWeight!);
+  });
+
+  it('unknown or absent mode leaves the request unchanged', () => {
+    const base = { q: 'x', topK: 7 };
+    expect(applyMode(base)).toEqual(base);
+    expect(applyMode({ ...base, mode: 'nope' })).toEqual({ ...base, mode: 'nope' });
+  });
+
+  it('preserves non-preset fields (q, domains, productId)', () => {
+    const r = applyMode({ q: 'hi', mode: 'code', domains: ['api'], productId: 'p1' });
+    expect(r.q).toBe('hi');
+    expect(r.domains).toEqual(['api']);
+    expect(r.productId).toBe('p1');
+  });
+});
 
 // ─── Pure fusion logic — no Neo4j, always runs ───────────────────────────
 describe('graphScoreFor — MAX-based, hub-safe', () => {
