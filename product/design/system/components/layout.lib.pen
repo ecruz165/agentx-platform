@@ -1,0 +1,356 @@
+{
+  "version": "2.11",
+  "imports": {
+    "colors": "../foundations/colors.lib.pen",
+    "type": "../foundations/typography.lib.pen",
+    "grids": "../foundations/grids.lib.pen"
+  },
+  "children": [
+    {
+      "id": "core-layout",
+      "type": "frame",
+      "name": "Layout · HeroUI v3",
+      "x": 0,
+      "y": 0,
+      "layout": "vertical",
+      "gap": 24,
+      "padding": 32,
+      "fill": "$colors:color.background",
+      "children": [
+        {
+          "id": "core-layout-h",
+          "type": "text",
+          "content": "Layout · HeroUI v3",
+          "fill": "$colors:color.foreground",
+          "fontFamily": "$type:font.family",
+          "fontSize": 24,
+          "fontWeight": "700"
+        },
+        {
+          "id": "core-layout-items",
+          "type": "frame",
+          "name": "Items",
+          "layout": "vertical",
+          "width": "fit_content",
+          "gap": 16,
+          "children": [
+            {
+              "id": "separator",
+              "type": "frame",
+              "name": "Separator",
+              "width": 240,
+              "height": 1,
+              "fill": "$colors:color.border",
+              "reusable": true,
+              "metadata": {
+                "type": "component",
+                "framework": "heroui",
+                "atomic": "atom",
+                "fidelity": "full",
+                "react": "Separator",
+                "package": "@heroui/react",
+                "slug": "separator",
+                "category": "Layout"
+              }
+            },
+            {
+              "id": "surface",
+              "type": "frame",
+              "name": "Surface",
+              "width": 240,
+              "height": 120,
+              "layout": "horizontal",
+              "alignItems": "center",
+              "justifyContent": "center",
+              "fill": "$colors:color.surface",
+              "cornerRadius": "$grids:radius.lg",
+              "stroke": {
+                "thickness": "$grids:border.width",
+                "fill": "$colors:color.border"
+              },
+              "effect": {
+                "type": "shadow",
+                "shadowType": "outer",
+                "offset": {
+                  "x": 0,
+                  "y": 2
+                },
+                "blur": 10,
+                "spread": 0,
+                "color": "#0000001f"
+              },
+              "children": [
+                {
+                  "id": "surface-label",
+                  "type": "text",
+                  "content": "Surface",
+                  "fill": "$colors:color.muted",
+                  "fontFamily": "$type:font.family",
+                  "fontSize": "$type:font.size-sm"
+                }
+              ],
+              "reusable": true,
+              "metadata": {
+                "type": "component",
+                "framework": "heroui",
+                "atomic": "atom",
+                "fidelity": "full",
+                "react": "Surface",
+                "package": "@heroui/react",
+                "slug": "surface",
+                "category": "Layout"
+              }
+            },
+            {
+              "id": "card",
+              "type": "frame",
+              "name": "Card",
+              "width": 360,
+              "fill": "$colors:color.surface",
+              "cornerRadius": "$grids:radius.lg",
+              "stroke": {
+                "thickness": "$grids:border.width",
+                "fill": "$colors:color.border"
+              },
+              "effect": {
+                "type": "shadow",
+                "shadowType": "outer",
+                "offset": {
+                  "x": 0,
+                  "y": 2
+                },
+                "blur": 8,
+                "spread": 0,
+                "color": "#0000001f"
+              },
+              "layout": "vertical",
+              "gap": 16,
+              "clip": true,
+              "children": [
+                {
+                  "id": "card-header",
+                  "type": "frame",
+                  "name": "Header",
+                  "layout": "vertical",
+                  "gap": "$grids:space.unit",
+                  "width": "fill_container",
+                  "padding": [
+                    20,
+                    20,
+                    0,
+                    20
+                  ],
+                  "children": [
+                    {
+                      "id": "card-title",
+                      "type": "text",
+                      "content": "Card title",
+                      "fill": "$colors:color.surface-foreground",
+                      "fontFamily": "$type:font.family",
+                      "fontSize": "$type:font.size-lg",
+                      "fontWeight": "600"
+                    },
+                    {
+                      "id": "card-subtitle",
+                      "type": "text",
+                      "content": "Supporting copy goes here.",
+                      "fill": "$colors:color.muted",
+                      "fontFamily": "$type:font.family",
+                      "fontSize": "$type:font.size-sm"
+                    }
+                  ]
+                },
+                {
+                  "id": "card-body",
+                  "type": "frame",
+                  "name": "Body",
+                  "width": "fill_container",
+                  "padding": 20,
+                  "layout": "vertical",
+                  "gap": "$grids:space.unit",
+                  "children": [
+                    {
+                      "id": "card-body-text",
+                      "type": "text",
+                      "content": "Body content.",
+                      "fill": "$colors:color.muted",
+                      "fontFamily": "$type:font.family",
+                      "fontSize": "$type:font.size-sm"
+                    }
+                  ]
+                },
+                {
+                  "id": "card-footer",
+                  "type": "frame",
+                  "name": "Footer",
+                  "width": "fill_container",
+                  "padding": [
+                    0,
+                    20,
+                    20,
+                    20
+                  ],
+                  "layout": "horizontal",
+                  "justifyContent": "end",
+                  "gap": "$grids:space.unit"
+                }
+              ],
+              "reusable": true,
+              "metadata": {
+                "type": "component",
+                "framework": "heroui",
+                "atomic": "molecule",
+                "fidelity": "full",
+                "react": "Card",
+                "package": "@heroui/react",
+                "slug": "card",
+                "category": "Layout"
+              }
+            },
+            {
+              "id": "toolbar",
+              "type": "frame",
+              "name": "Toolbar",
+              "layout": "horizontal",
+              "width": "fit_content",
+              "alignItems": "center",
+              "gap": 4,
+              "padding": 6,
+              "fill": "$colors:color.surface",
+              "cornerRadius": "$grids:radius.md",
+              "stroke": {
+                "thickness": "$grids:border.width",
+                "fill": "$colors:color.border"
+              },
+              "children": [
+                {
+                  "id": "toolbar-b",
+                  "type": "frame",
+                  "width": 32,
+                  "height": 32,
+                  "layout": "horizontal",
+                  "alignItems": "center",
+                  "justifyContent": "center",
+                  "cornerRadius": "$grids:radius.sm",
+                  "fill": "transparent",
+                  "children": [
+                    {
+                      "id": "toolbar-b-g",
+                      "type": "text",
+                      "content": "B",
+                      "fill": "$colors:color.foreground",
+                      "fontFamily": "$type:font.family",
+                      "fontSize": "$type:font.size-md"
+                    }
+                  ]
+                },
+                {
+                  "id": "toolbar-i",
+                  "type": "frame",
+                  "width": 32,
+                  "height": 32,
+                  "layout": "horizontal",
+                  "alignItems": "center",
+                  "justifyContent": "center",
+                  "cornerRadius": "$grids:radius.sm",
+                  "fill": "transparent",
+                  "children": [
+                    {
+                      "id": "toolbar-i-g",
+                      "type": "text",
+                      "content": "I",
+                      "fill": "$colors:color.foreground",
+                      "fontFamily": "$type:font.family",
+                      "fontSize": "$type:font.size-md"
+                    }
+                  ]
+                },
+                {
+                  "id": "toolbar-u",
+                  "type": "frame",
+                  "width": 32,
+                  "height": 32,
+                  "layout": "horizontal",
+                  "alignItems": "center",
+                  "justifyContent": "center",
+                  "cornerRadius": "$grids:radius.sm",
+                  "fill": "transparent",
+                  "children": [
+                    {
+                      "id": "toolbar-u-g",
+                      "type": "text",
+                      "content": "U",
+                      "fill": "$colors:color.foreground",
+                      "fontFamily": "$type:font.family",
+                      "fontSize": "$type:font.size-md"
+                    }
+                  ]
+                },
+                {
+                  "id": "toolbar-sep",
+                  "type": "frame",
+                  "width": 1,
+                  "height": 24,
+                  "fill": "$colors:color.border"
+                },
+                {
+                  "id": "toolbar-l",
+                  "type": "frame",
+                  "width": 32,
+                  "height": 32,
+                  "layout": "horizontal",
+                  "alignItems": "center",
+                  "justifyContent": "center",
+                  "cornerRadius": "$grids:radius.sm",
+                  "fill": "transparent",
+                  "children": [
+                    {
+                      "id": "toolbar-l-g",
+                      "type": "text",
+                      "content": "≣",
+                      "fill": "$colors:color.foreground",
+                      "fontFamily": "$type:font.family",
+                      "fontSize": "$type:font.size-md"
+                    }
+                  ]
+                },
+                {
+                  "id": "toolbar-c",
+                  "type": "frame",
+                  "width": 32,
+                  "height": 32,
+                  "layout": "horizontal",
+                  "alignItems": "center",
+                  "justifyContent": "center",
+                  "cornerRadius": "$grids:radius.sm",
+                  "fill": "transparent",
+                  "children": [
+                    {
+                      "id": "toolbar-c-g",
+                      "type": "text",
+                      "content": "≡",
+                      "fill": "$colors:color.foreground",
+                      "fontFamily": "$type:font.family",
+                      "fontSize": "$type:font.size-md"
+                    }
+                  ]
+                }
+              ],
+              "reusable": true,
+              "metadata": {
+                "type": "component",
+                "framework": "heroui",
+                "atomic": "organism",
+                "fidelity": "full",
+                "react": "Toolbar",
+                "package": "@heroui/react",
+                "slug": "toolbar",
+                "category": "Layout"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

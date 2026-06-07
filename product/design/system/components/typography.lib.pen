@@ -1,0 +1,131 @@
+{
+  "version": "2.11",
+  "imports": {
+    "colors": "../foundations/colors.lib.pen",
+    "type": "../foundations/typography.lib.pen",
+    "grids": "../foundations/grids.lib.pen"
+  },
+  "children": [
+    {
+      "id": "core-typography",
+      "type": "frame",
+      "name": "Typography · HeroUI v3",
+      "x": 0,
+      "y": 0,
+      "layout": "vertical",
+      "gap": 24,
+      "padding": 32,
+      "fill": "$colors:color.background",
+      "children": [
+        {
+          "id": "core-typography-h",
+          "type": "text",
+          "content": "Typography · HeroUI v3",
+          "fill": "$colors:color.foreground",
+          "fontFamily": "$type:font.family",
+          "fontSize": 24,
+          "fontWeight": "700"
+        },
+        {
+          "id": "core-typography-items",
+          "type": "frame",
+          "name": "Items",
+          "layout": "vertical",
+          "width": "fit_content",
+          "gap": 16,
+          "children": [
+            {
+              "id": "kbd",
+              "type": "frame",
+              "name": "Kbd",
+              "layout": "horizontal",
+              "width": "fit_content",
+              "height": "fit_content",
+              "alignItems": "center",
+              "justifyContent": "center",
+              "padding": [
+                8,
+                4
+              ],
+              "cornerRadius": "$grids:radius.sm",
+              "fill": "$colors:color.surface",
+              "stroke": {
+                "thickness": "$grids:border.width",
+                "fill": "$colors:color.border"
+              },
+              "children": [
+                {
+                  "id": "kbd-label",
+                  "type": "text",
+                  "content": "⌘ K",
+                  "fill": "$colors:color.foreground",
+                  "fontFamily": "$type:font.family",
+                  "fontSize": 12,
+                  "fontWeight": "600"
+                }
+              ],
+              "reusable": true,
+              "metadata": {
+                "type": "component",
+                "framework": "heroui",
+                "atomic": "atom",
+                "fidelity": "full",
+                "react": "Kbd",
+                "package": "@heroui/react",
+                "slug": "kbd",
+                "category": "Typography"
+              }
+            },
+            {
+              "id": "typography",
+              "type": "frame",
+              "name": "Typography",
+              "layout": "vertical",
+              "width": "fit_content",
+              "gap": 8,
+              "children": [
+                {
+                  "id": "typography-h",
+                  "type": "text",
+                  "content": "Heading",
+                  "fill": "$colors:color.foreground",
+                  "fontFamily": "$type:font.family",
+                  "fontSize": 28,
+                  "fontWeight": "800"
+                },
+                {
+                  "id": "typography-b",
+                  "type": "text",
+                  "content": "Body text that explains the heading above.",
+                  "fill": "$colors:color.foreground",
+                  "fontFamily": "$type:font.family",
+                  "fontSize": "$type:font.size-md"
+                },
+                {
+                  "id": "typography-c",
+                  "type": "text",
+                  "content": "CAPTION",
+                  "fill": "$colors:color.muted",
+                  "fontFamily": "$type:font.family",
+                  "fontSize": 12,
+                  "fontWeight": "600"
+                }
+              ],
+              "reusable": true,
+              "metadata": {
+                "type": "component",
+                "framework": "heroui",
+                "atomic": "atom",
+                "fidelity": "full",
+                "react": "Typography",
+                "package": "@heroui/react",
+                "slug": "typography",
+                "category": "Typography"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

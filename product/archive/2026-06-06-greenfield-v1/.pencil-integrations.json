@@ -1,0 +1,118 @@
+{
+  "version": 1,
+  "integrations": {
+    "datadog": {
+      "interfaces": [
+        "cli",
+        "mcp",
+        "rest"
+      ],
+      "preferred": "cli",
+      "credentialsConfigured": false
+    },
+    "discord": {
+      "interfaces": [
+        "rest"
+      ],
+      "preferred": "rest",
+      "credentialsConfigured": false
+    },
+    "figma": {
+      "interfaces": [
+        "mcp",
+        "rest"
+      ],
+      "preferred": "mcp",
+      "credentialsConfigured": false
+    },
+    "github": {
+      "interfaces": [
+        "cli",
+        "mcp",
+        "rest"
+      ],
+      "preferred": "cli",
+      "credentialsConfigured": false
+    },
+    "hootsuite": {
+      "interfaces": [
+        "rest"
+      ],
+      "preferred": "rest",
+      "credentialsConfigured": false
+    },
+    "instagram": {
+      "interfaces": [
+        "rest"
+      ],
+      "preferred": "rest",
+      "credentialsConfigured": false
+    },
+    "jira": {
+      "interfaces": [
+        "cli",
+        "mcp",
+        "rest"
+      ],
+      "preferred": "cli",
+      "credentialsConfigured": false
+    },
+    "linkedin": {
+      "interfaces": [
+        "rest"
+      ],
+      "preferred": "rest",
+      "credentialsConfigured": false
+    },
+    "onedrive": {
+      "interfaces": [
+        "rest"
+      ],
+      "preferred": "rest",
+      "credentialsConfigured": false
+    },
+    "outlook": {
+      "interfaces": [
+        "rest"
+      ],
+      "preferred": "rest",
+      "credentialsConfigured": false
+    },
+    "reddit": {
+      "interfaces": [
+        "rest"
+      ],
+      "preferred": "rest",
+      "credentialsConfigured": false
+    },
+    "semrush": {
+      "interfaces": [
+        "rest"
+      ],
+      "preferred": "rest",
+      "credentialsConfigured": false
+    },
+    "splunk": {
+      "interfaces": [
+        "cli",
+        "rest"
+      ],
+      "preferred": "cli",
+      "credentialsConfigured": false
+    },
+    "teams": {
+      "interfaces": [
+        "rest"
+      ],
+      "preferred": "rest",
+      "credentialsConfigured": false
+    },
+    "x": {
+      "interfaces": [
+        "rest"
+      ],
+      "preferred": "rest",
+      "credentialsConfigured": false
+    }
+  }
+}

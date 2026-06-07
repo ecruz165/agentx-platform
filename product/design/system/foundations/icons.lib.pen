@@ -1,0 +1,30 @@
+{
+  "version": "2.11",
+  "variables": {
+    "icon.xs": {
+      "type": "number",
+      "value": 12
+    },
+    "icon.sm": {
+      "type": "number",
+      "value": 16
+    },
+    "icon.md": {
+      "type": "number",
+      "value": 20
+    },
+    "icon.lg": {
+      "type": "number",
+      "value": 24
+    },
+    "icon.xl": {
+      "type": "number",
+      "value": 32
+    },
+    "icon.2xl": {
+      "type": "number",
+      "value": 40
+    }
+  },
+  "children": []
+}

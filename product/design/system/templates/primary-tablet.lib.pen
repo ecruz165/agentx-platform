@@ -1,0 +1,317 @@
+{
+  "version": "2.11",
+  "imports": {
+    "colors": "../foundations/colors.lib.pen",
+    "grids": "../foundations/grids.lib.pen",
+    "type": "../foundations/typography.lib.pen"
+  },
+  "children": [
+    {
+      "id": "tpl-primary-tablet-components",
+      "type": "frame",
+      "name": "Components",
+      "x": 1600,
+      "y": 0,
+      "layout": "vertical",
+      "gap": 24,
+      "padding": 32,
+      "fill": "$colors:color.background",
+      "children": [
+        {
+          "id": "card",
+          "type": "frame",
+          "name": "Card",
+          "width": 360,
+          "fill": "$colors:color.surface",
+          "cornerRadius": "$grids:radius.lg",
+          "stroke": {
+            "thickness": "$grids:border.width",
+            "fill": "$colors:color.border"
+          },
+          "effect": {
+            "type": "shadow",
+            "shadowType": "outer",
+            "offset": {
+              "x": 0,
+              "y": 2
+            },
+            "blur": 8,
+            "spread": 0,
+            "color": "#0000001f"
+          },
+          "layout": "vertical",
+          "gap": 16,
+          "clip": true,
+          "children": [
+            {
+              "id": "card-header",
+              "type": "frame",
+              "name": "Header",
+              "layout": "vertical",
+              "gap": "$grids:space.unit",
+              "width": "fill_container",
+              "padding": [
+                20,
+                20,
+                0,
+                20
+              ],
+              "children": [
+                {
+                  "id": "card-title",
+                  "type": "text",
+                  "content": "Card title",
+                  "fill": "$colors:color.surface-foreground",
+                  "fontFamily": "$type:font.family",
+                  "fontSize": "$type:font.size-lg",
+                  "fontWeight": "600"
+                },
+                {
+                  "id": "card-subtitle",
+                  "type": "text",
+                  "content": "Supporting copy goes here.",
+                  "fill": "$colors:color.muted",
+                  "fontFamily": "$type:font.family",
+                  "fontSize": "$type:font.size-sm"
+                }
+              ]
+            },
+            {
+              "id": "card-body",
+              "type": "frame",
+              "name": "Body",
+              "width": "fill_container",
+              "padding": 20,
+              "layout": "vertical",
+              "gap": "$grids:space.unit",
+              "children": [
+                {
+                  "id": "card-body-text",
+                  "type": "text",
+                  "content": "Body content.",
+                  "fill": "$colors:color.muted",
+                  "fontFamily": "$type:font.family",
+                  "fontSize": "$type:font.size-sm"
+                }
+              ]
+            },
+            {
+              "id": "card-footer",
+              "type": "frame",
+              "name": "Footer",
+              "width": "fill_container",
+              "padding": [
+                0,
+                20,
+                20,
+                20
+              ],
+              "layout": "horizontal",
+              "justifyContent": "end",
+              "gap": "$grids:space.unit"
+            }
+          ],
+          "reusable": true,
+          "metadata": {
+            "type": "component",
+            "framework": "heroui",
+            "atomic": "molecule",
+            "fidelity": "full",
+            "react": "Card",
+            "package": "@heroui/react",
+            "slug": "card",
+            "category": "Layout"
+          }
+        },
+        {
+          "id": "button",
+          "type": "frame",
+          "name": "Button",
+          "height": 40,
+          "fill": "$colors:color.accent",
+          "cornerRadius": "$grids:radius.md",
+          "layout": "horizontal",
+          "gap": "$grids:space.2",
+          "padding": [
+            "$grids:space.3",
+            "$grids:space.4"
+          ],
+          "justifyContent": "center",
+          "alignItems": "center",
+          "children": [
+            {
+              "id": "button-icon",
+              "type": "path",
+              "name": "plus",
+              "geometry": "M256 80c0-17.7-14.3-32-32-32s-32 14.3-32 32l0 144L48 224c-17.7 0-32 14.3-32 32s14.3 32 32 32l144 0 0 144c0 17.7 14.3 32 32 32s32-14.3 32-32l0-144 144 0c17.7 0 32-14.3 32-32s-14.3-32-32-32l-144 0 0-144z",
+              "viewBox": [
+                0,
+                0,
+                448,
+                512
+              ],
+              "width": 16,
+              "height": 16,
+              "fill": "$colors:color.accent-foreground"
+            },
+            {
+              "id": "button-label",
+              "type": "text",
+              "content": "Button",
+              "fill": "$colors:color.accent-foreground",
+              "fontFamily": "$type:font.family",
+              "fontSize": "$type:font.body-md.size",
+              "fontWeight": "600"
+            }
+          ],
+          "reusable": true,
+          "metadata": {
+            "type": "component",
+            "framework": "heroui",
+            "atomic": "atom",
+            "fidelity": "full",
+            "react": "Button",
+            "package": "@heroui/react",
+            "slug": "button",
+            "category": "Buttons"
+          }
+        }
+      ]
+    },
+    {
+      "id": "primary-tablet-screen-13",
+      "type": "frame",
+      "name": "Primary · tablet",
+      "width": 834,
+      "height": 1112,
+      "fill": "$colors:color.background",
+      "theme": {
+        "mode": "light"
+      },
+      "layout": "vertical",
+      "gap": 0,
+      "children": [
+        {
+          "id": "primary-tablet-topbar-10",
+          "type": "frame",
+          "name": "TopBar",
+          "layout": "horizontal",
+          "width": "fill_container",
+          "height": 56,
+          "fill": "$colors:color.surface",
+          "padding": [
+            0,
+            16
+          ],
+          "justifyContent": "space_between",
+          "alignItems": "center",
+          "children": [
+            {
+              "id": "primary-tablet-brand-11",
+              "type": "text",
+              "content": "AgentX",
+              "fill": "$colors:color.foreground",
+              "fontFamily": "$type:font.display",
+              "fontSize": 16,
+              "fontWeight": "700"
+            },
+            {
+              "id": "primary-tablet-tb-btn-12",
+              "type": "ref",
+              "ref": "button"
+            }
+          ]
+        },
+        {
+          "id": "primary-tablet-row-7",
+          "type": "frame",
+          "name": "Row",
+          "layout": "horizontal",
+          "width": "fill_container",
+          "height": "fill_container",
+          "gap": 0,
+          "children": [
+            {
+              "id": "primary-tablet-sidebar-8",
+              "type": "frame",
+              "name": "Sidebar",
+              "layout": "vertical",
+              "width": 240,
+              "height": "fill_container",
+              "fill": "$colors:color.surface-secondary",
+              "padding": "$grids:space.4",
+              "gap": "$grids:space.2",
+              "children": [
+                {
+                  "id": "primary-tablet-nav-9",
+                  "type": "text",
+                  "content": "Navigation",
+                  "fill": "$colors:color.muted",
+                  "fontFamily": "$type:font.mono",
+                  "fontSize": 12
+                }
+              ]
+            },
+            {
+              "id": "primary-tablet-content-4",
+              "type": "frame",
+              "name": "Content",
+              "layout": "vertical",
+              "width": "fill_container",
+              "gap": "$grids:space.6",
+              "padding": "$grids:space.6",
+              "children": [
+                {
+                  "id": "primary-tablet-title-5",
+                  "type": "text",
+                  "content": "Dashboard",
+                  "fill": "$colors:color.foreground",
+                  "fontFamily": "$type:font.display",
+                  "fontSize": "$type:font.h2.size",
+                  "fontWeight": "700"
+                },
+                {
+                  "id": "primary-tablet-grid-6",
+                  "type": "frame",
+                  "name": "Grid",
+                  "layout": "horizontal",
+                  "width": "fill_container",
+                  "gap": "$grids:grid.gutter",
+                  "children": [
+                    {
+                      "id": "primary-tablet-card-0-0",
+                      "type": "ref",
+                      "ref": "card",
+                      "width": "fill_container"
+                    },
+                    {
+                      "id": "primary-tablet-card-1-1",
+                      "type": "ref",
+                      "ref": "card",
+                      "width": "fill_container"
+                    },
+                    {
+                      "id": "primary-tablet-card-2-2",
+                      "type": "ref",
+                      "ref": "card",
+                      "width": "fill_container"
+                    },
+                    {
+                      "id": "primary-tablet-card-3-3",
+                      "type": "ref",
+                      "ref": "card",
+                      "width": "fill_container"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "reusable": true,
+      "x": 0,
+      "y": 0
+    }
+  ]
+}

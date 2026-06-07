@@ -1,0 +1,380 @@
+{
+  "version": "2.11",
+  "imports": {
+    "colors": "../foundations/colors.lib.pen",
+    "type": "../foundations/typography.lib.pen",
+    "grids": "../foundations/grids.lib.pen"
+  },
+  "children": [
+    {
+      "id": "core-buttons",
+      "type": "frame",
+      "name": "Buttons · HeroUI v3",
+      "x": 0,
+      "y": 0,
+      "layout": "vertical",
+      "gap": 24,
+      "padding": 32,
+      "fill": "$colors:color.background",
+      "children": [
+        {
+          "id": "core-buttons-h",
+          "type": "text",
+          "content": "Buttons · HeroUI v3",
+          "fill": "$colors:color.foreground",
+          "fontFamily": "$type:font.family",
+          "fontSize": 24,
+          "fontWeight": "700"
+        },
+        {
+          "id": "core-buttons-items",
+          "type": "frame",
+          "name": "Items",
+          "layout": "vertical",
+          "width": "fit_content",
+          "gap": 16,
+          "children": [
+            {
+              "id": "button",
+              "type": "frame",
+              "name": "Button",
+              "height": 40,
+              "fill": "$colors:color.accent",
+              "cornerRadius": "$grids:radius.md",
+              "layout": "horizontal",
+              "gap": "$grids:space.2",
+              "padding": [
+                "$grids:space.3",
+                "$grids:space.4"
+              ],
+              "justifyContent": "center",
+              "alignItems": "center",
+              "children": [
+                {
+                  "id": "button-icon",
+                  "type": "path",
+                  "name": "plus",
+                  "geometry": "M256 80c0-17.7-14.3-32-32-32s-32 14.3-32 32l0 144L48 224c-17.7 0-32 14.3-32 32s14.3 32 32 32l144 0 0 144c0 17.7 14.3 32 32 32s32-14.3 32-32l0-144 144 0c17.7 0 32-14.3 32-32s-14.3-32-32-32l-144 0 0-144z",
+                  "viewBox": [
+                    0,
+                    0,
+                    448,
+                    512
+                  ],
+                  "width": 16,
+                  "height": 16,
+                  "fill": "$colors:color.accent-foreground"
+                },
+                {
+                  "id": "button-label",
+                  "type": "text",
+                  "content": "Button",
+                  "fill": "$colors:color.accent-foreground",
+                  "fontFamily": "$type:font.family",
+                  "fontSize": "$type:font.body-md.size",
+                  "fontWeight": "600"
+                }
+              ],
+              "reusable": true,
+              "metadata": {
+                "type": "component",
+                "framework": "heroui",
+                "atomic": "atom",
+                "fidelity": "full",
+                "react": "Button",
+                "package": "@heroui/react",
+                "slug": "button",
+                "category": "Buttons"
+              }
+            },
+            {
+              "id": "close-button",
+              "type": "frame",
+              "name": "CloseButton",
+              "width": 32,
+              "height": 32,
+              "layout": "horizontal",
+              "alignItems": "center",
+              "justifyContent": "center",
+              "cornerRadius": 9999,
+              "fill": "$colors:color.accent-soft",
+              "children": [
+                {
+                  "id": "close-button-icon",
+                  "type": "text",
+                  "content": "✕",
+                  "fill": "$colors:color.muted",
+                  "fontFamily": "$type:font.family",
+                  "fontSize": 14,
+                  "fontWeight": "600"
+                }
+              ],
+              "reusable": true,
+              "metadata": {
+                "type": "component",
+                "framework": "heroui",
+                "atomic": "atom",
+                "fidelity": "full",
+                "react": "CloseButton",
+                "package": "@heroui/react",
+                "slug": "close-button",
+                "category": "Buttons"
+              }
+            },
+            {
+              "id": "toggle-button",
+              "type": "frame",
+              "name": "ToggleButton",
+              "layout": "horizontal",
+              "width": "fit_content",
+              "height": "fit_content",
+              "alignItems": "center",
+              "justifyContent": "center",
+              "padding": [
+                16,
+                10
+              ],
+              "cornerRadius": "$grids:radius.md",
+              "fill": "$colors:color.accent-soft",
+              "stroke": {
+                "thickness": "$grids:border.width",
+                "fill": "$colors:color.accent"
+              },
+              "children": [
+                {
+                  "id": "toggle-button-label",
+                  "type": "text",
+                  "content": "Toggle",
+                  "fill": "$colors:color.accent",
+                  "fontFamily": "$type:font.family",
+                  "fontSize": "$type:font.size-md",
+                  "fontWeight": "600"
+                }
+              ],
+              "reusable": true,
+              "metadata": {
+                "type": "component",
+                "framework": "heroui",
+                "atomic": "atom",
+                "fidelity": "full",
+                "react": "ToggleButton",
+                "package": "@heroui/react",
+                "slug": "toggle-button",
+                "category": "Buttons"
+              }
+            },
+            {
+              "id": "button-group",
+              "type": "frame",
+              "name": "ButtonGroup",
+              "layout": "horizontal",
+              "width": "fit_content",
+              "cornerRadius": "$grids:radius.md",
+              "clip": true,
+              "children": [
+                {
+                  "id": "button-group-0",
+                  "type": "frame",
+                  "name": "Day",
+                  "layout": "horizontal",
+                  "alignItems": "center",
+                  "justifyContent": "center",
+                  "padding": [
+                    16,
+                    10
+                  ],
+                  "fill": "$colors:color.accent",
+                  "stroke": {
+                    "thickness": "$grids:border.width",
+                    "fill": "$colors:color.border"
+                  },
+                  "children": [
+                    {
+                      "id": "button-group-0-label",
+                      "type": "text",
+                      "content": "Day",
+                      "fill": "$colors:color.accent-foreground",
+                      "fontFamily": "$type:font.family",
+                      "fontSize": "$type:font.size-md",
+                      "fontWeight": "600"
+                    }
+                  ]
+                },
+                {
+                  "id": "button-group-1",
+                  "type": "frame",
+                  "name": "Week",
+                  "layout": "horizontal",
+                  "alignItems": "center",
+                  "justifyContent": "center",
+                  "padding": [
+                    16,
+                    10
+                  ],
+                  "fill": "$colors:color.surface",
+                  "stroke": {
+                    "thickness": "$grids:border.width",
+                    "fill": "$colors:color.border"
+                  },
+                  "children": [
+                    {
+                      "id": "button-group-1-label",
+                      "type": "text",
+                      "content": "Week",
+                      "fill": "$colors:color.foreground",
+                      "fontFamily": "$type:font.family",
+                      "fontSize": "$type:font.size-md",
+                      "fontWeight": "600"
+                    }
+                  ]
+                },
+                {
+                  "id": "button-group-2",
+                  "type": "frame",
+                  "name": "Month",
+                  "layout": "horizontal",
+                  "alignItems": "center",
+                  "justifyContent": "center",
+                  "padding": [
+                    16,
+                    10
+                  ],
+                  "fill": "$colors:color.surface",
+                  "stroke": {
+                    "thickness": "$grids:border.width",
+                    "fill": "$colors:color.border"
+                  },
+                  "children": [
+                    {
+                      "id": "button-group-2-label",
+                      "type": "text",
+                      "content": "Month",
+                      "fill": "$colors:color.foreground",
+                      "fontFamily": "$type:font.family",
+                      "fontSize": "$type:font.size-md",
+                      "fontWeight": "600"
+                    }
+                  ]
+                }
+              ],
+              "reusable": true,
+              "metadata": {
+                "type": "component",
+                "framework": "heroui",
+                "atomic": "molecule",
+                "fidelity": "full",
+                "react": "ButtonGroup",
+                "package": "@heroui/react",
+                "slug": "button-group",
+                "category": "Buttons"
+              }
+            },
+            {
+              "id": "toggle-button-group",
+              "type": "frame",
+              "name": "ToggleButtonGroup",
+              "layout": "horizontal",
+              "width": "fit_content",
+              "gap": 4,
+              "padding": 4,
+              "cornerRadius": "$grids:radius.md",
+              "fill": "$colors:color.surface",
+              "stroke": {
+                "thickness": "$grids:border.width",
+                "fill": "$colors:color.border"
+              },
+              "children": [
+                {
+                  "id": "toggle-button-group-0",
+                  "type": "frame",
+                  "name": "B",
+                  "layout": "horizontal",
+                  "alignItems": "center",
+                  "justifyContent": "center",
+                  "padding": [
+                    14,
+                    9
+                  ],
+                  "cornerRadius": "$grids:radius.sm",
+                  "fill": "$colors:color.accent-soft",
+                  "children": [
+                    {
+                      "id": "toggle-button-group-0-label",
+                      "type": "text",
+                      "content": "B",
+                      "fill": "$colors:color.accent",
+                      "fontFamily": "$type:font.family",
+                      "fontSize": "$type:font.size-sm",
+                      "fontWeight": "600"
+                    }
+                  ]
+                },
+                {
+                  "id": "toggle-button-group-1",
+                  "type": "frame",
+                  "name": "I",
+                  "layout": "horizontal",
+                  "alignItems": "center",
+                  "justifyContent": "center",
+                  "padding": [
+                    14,
+                    9
+                  ],
+                  "cornerRadius": "$grids:radius.sm",
+                  "fill": "transparent",
+                  "children": [
+                    {
+                      "id": "toggle-button-group-1-label",
+                      "type": "text",
+                      "content": "I",
+                      "fill": "$colors:color.muted",
+                      "fontFamily": "$type:font.family",
+                      "fontSize": "$type:font.size-sm",
+                      "fontWeight": "600"
+                    }
+                  ]
+                },
+                {
+                  "id": "toggle-button-group-2",
+                  "type": "frame",
+                  "name": "U",
+                  "layout": "horizontal",
+                  "alignItems": "center",
+                  "justifyContent": "center",
+                  "padding": [
+                    14,
+                    9
+                  ],
+                  "cornerRadius": "$grids:radius.sm",
+                  "fill": "transparent",
+                  "children": [
+                    {
+                      "id": "toggle-button-group-2-label",
+                      "type": "text",
+                      "content": "U",
+                      "fill": "$colors:color.muted",
+                      "fontFamily": "$type:font.family",
+                      "fontSize": "$type:font.size-sm",
+                      "fontWeight": "600"
+                    }
+                  ]
+                }
+              ],
+              "reusable": true,
+              "metadata": {
+                "type": "component",
+                "framework": "heroui",
+                "atomic": "molecule",
+                "fidelity": "full",
+                "react": "ToggleButtonGroup",
+                "package": "@heroui/react",
+                "slug": "toggle-button-group",
+                "category": "Buttons"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

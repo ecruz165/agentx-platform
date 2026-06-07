@@ -1,0 +1,75 @@
+{
+  "version": "2.11",
+  "imports": {
+    "colors": "../foundations/colors.lib.pen",
+    "type": "../foundations/typography.lib.pen"
+  },
+  "children": [
+    {
+      "id": "core-media",
+      "type": "frame",
+      "name": "Media · HeroUI v3",
+      "x": 0,
+      "y": 0,
+      "layout": "vertical",
+      "gap": 24,
+      "padding": 32,
+      "fill": "$colors:color.background",
+      "children": [
+        {
+          "id": "core-media-h",
+          "type": "text",
+          "content": "Media · HeroUI v3",
+          "fill": "$colors:color.foreground",
+          "fontFamily": "$type:font.family",
+          "fontSize": 24,
+          "fontWeight": "700"
+        },
+        {
+          "id": "core-media-items",
+          "type": "frame",
+          "name": "Items",
+          "layout": "vertical",
+          "width": "fit_content",
+          "gap": 16,
+          "children": [
+            {
+              "id": "avatar",
+              "type": "frame",
+              "name": "Avatar",
+              "width": 40,
+              "height": 40,
+              "layout": "horizontal",
+              "alignItems": "center",
+              "justifyContent": "center",
+              "fill": "$colors:color.accent",
+              "cornerRadius": 9999,
+              "children": [
+                {
+                  "id": "avatar-initials",
+                  "type": "text",
+                  "content": "AB",
+                  "fill": "$colors:color.accent-foreground",
+                  "fontFamily": "$type:font.family",
+                  "fontSize": 14,
+                  "fontWeight": "600"
+                }
+              ],
+              "reusable": true,
+              "metadata": {
+                "type": "component",
+                "framework": "heroui",
+                "atomic": "atom",
+                "fidelity": "full",
+                "react": "Avatar",
+                "package": "@heroui/react",
+                "slug": "avatar",
+                "category": "Media"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
