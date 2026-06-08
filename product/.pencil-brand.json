@@ -36,9 +36,7 @@
       "danger":    { "50": "#FFF2F0", "100": "#FFE4E1", "200": "#FFBFB6", "300": "#F78579", "400": "#D7574D", "500": "#C2423B", "600": "#9B1F1D", "700": "#76080C", "800": "#540003", "900": "#380000", "950": "#1E0000" },
       "info":      { "50": "#EBF7FF", "100": "#D7EFFF", "200": "#9FDAFE", "300": "#5DB5E8", "400": "#1590C9", "500": "#0B84B8", "600": "#035C83", "700": "#004261", "800": "#002D44", "900": "#001B2C", "950": "#000B18" }
     },
-    "darkModePrimaryStop": 600,
-    "themeCss": "packages/design-system/src/theme.css",
-    "a11y": {
+    "darkModePrimaryStop": 600,    "a11y": {
       "buttonFillStop": 600,
       "dangerTextMinStop": 600,
       "_note": "Primary button fill = accent-600 (white text AAA). Dark-mode CTA promotes to accent-300 with dark text. danger-500 fill-only; body error text → danger-600+."
@@ -60,9 +58,7 @@
       "body": ["system-ui", "-apple-system", "Segoe UI", "sans-serif"],
       "mono": ["ui-monospace", "SFMono-Regular", "Menlo", "Consolas", "monospace"]
     },
-    "loadingNote": "Self-host: .woff2 in controlplane-ui/public/fonts/, @font-face in packages/design-system/src/fonts.css (imported before theme.css), preload Inter body weight only; JetBrains Mono loads non-blocking.",
-    "themeCss": "packages/design-system/src/theme.css",
-    "renderedPen": false,
+    "loadingNote": "Self-host: .woff2 in controlplane-ui/public/fonts/, @font-face in packages/design-system/src/fonts.css (imported before theme.css), preload Inter body weight only; JetBrains Mono loads non-blocking.",    "renderedPen": false,
     "_note": "UI base size 14px (dense console). Type scale (--font-h1 … --font-code-sm) written by foundations:typography render."
   },
   "icons": {
