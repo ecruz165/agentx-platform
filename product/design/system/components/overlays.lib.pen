@@ -1,10 +1,5 @@
 {
-  "version": "2.11",
-  "imports": {
-    "colors": "../foundations/colors.lib.pen",
-    "type": "../foundations/typography.lib.pen",
-    "grids": "../foundations/grids.lib.pen"
-  },
+  "version": "2.13",
   "children": [
     {
       "id": "core-overlays",
@@ -31,15 +26,14 @@
           "type": "frame",
           "name": "Items",
           "layout": "vertical",
-          "width": "fit_content",
+          "width": "fit_content(0)",
           "gap": 16,
           "children": [
             {
               "id": "tooltip",
               "type": "frame",
               "name": "Tooltip",
-              "layout": "horizontal",
-              "width": "fit_content",
+              "width": "fit_content(0)",
               "alignItems": "center",
               "padding": [
                 10,
@@ -54,7 +48,8 @@
                   "content": "Tooltip",
                   "fill": "$colors:color.background",
                   "fontFamily": "$type:font.family",
-                  "fontSize": "$type:font.size-sm"
+                  "fontSize": "$type:font.size-sm",
+                  "fontWeight": "normal"
                 }
               ],
               "reusable": true,
@@ -79,10 +74,6 @@
               "padding": 24,
               "fill": "$colors:color.surface",
               "cornerRadius": "$grids:radius.lg",
-              "stroke": {
-                "thickness": "$grids:border.width",
-                "fill": "$colors:color.border"
-              },
               "effect": {
                 "type": "shadow",
                 "shadowType": "outer",
@@ -91,14 +82,15 @@
                   "y": 8
                 },
                 "blur": 24,
-                "spread": 0,
                 "color": "#00000026"
               },
+              "stroke": "$colors:color.border",
+              "strokeWidth": "$grids:border.width",
+              "strokeAlignment": "inner",
               "children": [
                 {
                   "id": "alert-dialog-hd",
                   "type": "frame",
-                  "layout": "horizontal",
                   "width": "fill_container",
                   "alignItems": "center",
                   "justifyContent": "space_between",
@@ -118,7 +110,8 @@
                       "content": "✕",
                       "fill": "$colors:color.muted",
                       "fontFamily": "$type:font.family",
-                      "fontSize": "$type:font.size-md"
+                      "fontSize": "$type:font.size-md",
+                      "fontWeight": "normal"
                     }
                   ]
                 },
@@ -130,12 +123,12 @@
                   "fontFamily": "$type:font.family",
                   "fontSize": "$type:font.size-md",
                   "textGrowth": "fixed-width",
-                  "width": "fill_container"
+                  "width": "fill_container",
+                  "fontWeight": "normal"
                 },
                 {
                   "id": "alert-dialog-ft",
                   "type": "frame",
-                  "layout": "horizontal",
                   "width": "fill_container",
                   "justifyContent": "end",
                   "gap": 12,
@@ -144,8 +137,7 @@
                       "id": "alert-dialog-cancel",
                       "type": "frame",
                       "name": "Cancel",
-                      "layout": "horizontal",
-                      "width": "fit_content",
+                      "width": "fit_content(0)",
                       "alignItems": "center",
                       "justifyContent": "center",
                       "padding": [
@@ -154,10 +146,9 @@
                       ],
                       "cornerRadius": "$grids:radius.md",
                       "fill": "$colors:color.surface",
-                      "stroke": {
-                        "thickness": "$grids:border.width",
-                        "fill": "$colors:color.border"
-                      },
+                      "stroke": "$colors:color.border",
+                      "strokeWidth": "$grids:border.width",
+                      "strokeAlignment": "inner",
                       "children": [
                         {
                           "id": "alert-dialog-cancel-l",
@@ -174,8 +165,7 @@
                       "id": "alert-dialog-ok",
                       "type": "frame",
                       "name": "Confirm",
-                      "layout": "horizontal",
-                      "width": "fit_content",
+                      "width": "fit_content(0)",
                       "alignItems": "center",
                       "justifyContent": "center",
                       "padding": [
@@ -219,12 +209,6 @@
               "height": 480,
               "layout": "vertical",
               "fill": "$colors:color.surface",
-              "stroke": {
-                "thickness": {
-                  "left": "$grids:border.width"
-                },
-                "fill": "$colors:color.border"
-              },
               "effect": {
                 "type": "shadow",
                 "shadowType": "outer",
@@ -233,24 +217,26 @@
                   "y": 8
                 },
                 "blur": 24,
-                "spread": 0,
                 "color": "#00000026"
               },
+              "stroke": "$colors:color.border",
+              "strokeWidth": {
+                "left": "$grids:border.width"
+              },
+              "strokeAlignment": "inner",
               "children": [
                 {
                   "id": "drawer-hd",
                   "type": "frame",
-                  "layout": "horizontal",
                   "width": "fill_container",
                   "alignItems": "center",
                   "justifyContent": "space_between",
                   "padding": 20,
-                  "stroke": {
-                    "thickness": {
-                      "bottom": "$grids:border.width"
-                    },
-                    "fill": "$colors:color.border"
+                  "stroke": "$colors:color.border",
+                  "strokeWidth": {
+                    "bottom": "$grids:border.width"
                   },
+                  "strokeAlignment": "inner",
                   "children": [
                     {
                       "id": "drawer-title",
@@ -267,7 +253,8 @@
                       "content": "✕",
                       "fill": "$colors:color.muted",
                       "fontFamily": "$type:font.family",
-                      "fontSize": "$type:font.size-md"
+                      "fontSize": "$type:font.size-md",
+                      "fontWeight": "normal"
                     }
                   ]
                 },
@@ -285,7 +272,6 @@
                       "name": "Field",
                       "width": "fill_container",
                       "height": 40,
-                      "layout": "horizontal",
                       "alignItems": "center",
                       "justifyContent": "space_between",
                       "padding": [
@@ -294,10 +280,9 @@
                       ],
                       "cornerRadius": "$grids:radius.md",
                       "fill": "$colors:color.field-background",
-                      "stroke": {
-                        "thickness": "$grids:border.width",
-                        "fill": "$colors:color.border"
-                      },
+                      "stroke": "$colors:color.border",
+                      "strokeWidth": "$grids:border.width",
+                      "strokeAlignment": "inner",
                       "children": [
                         {
                           "id": "drawer-f1-v",
@@ -305,7 +290,8 @@
                           "content": "Category",
                           "fill": "$colors:color.field-placeholder",
                           "fontFamily": "$type:font.family",
-                          "fontSize": "$type:font.size-md"
+                          "fontSize": "$type:font.size-md",
+                          "fontWeight": "normal"
                         },
                         {
                           "id": "drawer-f1-c",
@@ -313,7 +299,8 @@
                           "content": "▾",
                           "fill": "$colors:color.muted",
                           "fontFamily": "$type:font.family",
-                          "fontSize": "$type:font.size-md"
+                          "fontSize": "$type:font.size-md",
+                          "fontWeight": "normal"
                         }
                       ]
                     },
@@ -323,7 +310,6 @@
                       "name": "Field",
                       "width": "fill_container",
                       "height": 40,
-                      "layout": "horizontal",
                       "alignItems": "center",
                       "justifyContent": "space_between",
                       "padding": [
@@ -332,10 +318,9 @@
                       ],
                       "cornerRadius": "$grids:radius.md",
                       "fill": "$colors:color.field-background",
-                      "stroke": {
-                        "thickness": "$grids:border.width",
-                        "fill": "$colors:color.border"
-                      },
+                      "stroke": "$colors:color.border",
+                      "strokeWidth": "$grids:border.width",
+                      "strokeAlignment": "inner",
                       "children": [
                         {
                           "id": "drawer-f2-v",
@@ -343,7 +328,8 @@
                           "content": "Status",
                           "fill": "$colors:color.field-placeholder",
                           "fontFamily": "$type:font.family",
-                          "fontSize": "$type:font.size-md"
+                          "fontSize": "$type:font.size-md",
+                          "fontWeight": "normal"
                         },
                         {
                           "id": "drawer-f2-c",
@@ -351,7 +337,8 @@
                           "content": "▾",
                           "fill": "$colors:color.muted",
                           "fontFamily": "$type:font.family",
-                          "fontSize": "$type:font.size-md"
+                          "fontSize": "$type:font.size-md",
+                          "fontWeight": "normal"
                         }
                       ]
                     }
@@ -380,10 +367,6 @@
               "padding": 24,
               "fill": "$colors:color.surface",
               "cornerRadius": "$grids:radius.lg",
-              "stroke": {
-                "thickness": "$grids:border.width",
-                "fill": "$colors:color.border"
-              },
               "effect": {
                 "type": "shadow",
                 "shadowType": "outer",
@@ -392,14 +375,15 @@
                   "y": 8
                 },
                 "blur": 24,
-                "spread": 0,
                 "color": "#00000026"
               },
+              "stroke": "$colors:color.border",
+              "strokeWidth": "$grids:border.width",
+              "strokeAlignment": "inner",
               "children": [
                 {
                   "id": "modal-hd",
                   "type": "frame",
-                  "layout": "horizontal",
                   "width": "fill_container",
                   "alignItems": "center",
                   "justifyContent": "space_between",
@@ -419,7 +403,8 @@
                       "content": "✕",
                       "fill": "$colors:color.muted",
                       "fontFamily": "$type:font.family",
-                      "fontSize": "$type:font.size-md"
+                      "fontSize": "$type:font.size-md",
+                      "fontWeight": "normal"
                     }
                   ]
                 },
@@ -431,12 +416,12 @@
                   "fontFamily": "$type:font.family",
                   "fontSize": "$type:font.size-md",
                   "textGrowth": "fixed-width",
-                  "width": "fill_container"
+                  "width": "fill_container",
+                  "fontWeight": "normal"
                 },
                 {
                   "id": "modal-ft",
                   "type": "frame",
-                  "layout": "horizontal",
                   "width": "fill_container",
                   "justifyContent": "end",
                   "gap": 12,
@@ -445,8 +430,7 @@
                       "id": "modal-cancel",
                       "type": "frame",
                       "name": "Cancel",
-                      "layout": "horizontal",
-                      "width": "fit_content",
+                      "width": "fit_content(0)",
                       "alignItems": "center",
                       "justifyContent": "center",
                       "padding": [
@@ -455,10 +439,9 @@
                       ],
                       "cornerRadius": "$grids:radius.md",
                       "fill": "$colors:color.surface",
-                      "stroke": {
-                        "thickness": "$grids:border.width",
-                        "fill": "$colors:color.border"
-                      },
+                      "stroke": "$colors:color.border",
+                      "strokeWidth": "$grids:border.width",
+                      "strokeAlignment": "inner",
                       "children": [
                         {
                           "id": "modal-cancel-l",
@@ -475,8 +458,7 @@
                       "id": "modal-ok",
                       "type": "frame",
                       "name": "Confirm",
-                      "layout": "horizontal",
-                      "width": "fit_content",
+                      "width": "fit_content(0)",
                       "alignItems": "center",
                       "justifyContent": "center",
                       "padding": [
@@ -522,10 +504,6 @@
               "padding": 16,
               "fill": "$colors:color.surface",
               "cornerRadius": "$grids:radius.md",
-              "stroke": {
-                "thickness": "$grids:border.width",
-                "fill": "$colors:color.border"
-              },
               "effect": {
                 "type": "shadow",
                 "shadowType": "outer",
@@ -534,9 +512,11 @@
                   "y": 8
                 },
                 "blur": 24,
-                "spread": 0,
                 "color": "#00000026"
               },
+              "stroke": "$colors:color.border",
+              "strokeWidth": "$grids:border.width",
+              "strokeAlignment": "inner",
               "children": [
                 {
                   "id": "popover-title",
@@ -555,7 +535,8 @@
                   "fontFamily": "$type:font.family",
                   "fontSize": "$type:font.size-sm",
                   "textGrowth": "fixed-width",
-                  "width": "fill_container"
+                  "width": "fill_container",
+                  "fontWeight": "normal"
                 }
               ],
               "reusable": true,
@@ -575,16 +556,10 @@
               "type": "frame",
               "name": "Toast",
               "width": 380,
-              "layout": "horizontal",
-              "alignItems": "start",
               "gap": 12,
               "padding": 16,
               "fill": "$colors:color.surface",
               "cornerRadius": "$grids:radius.md",
-              "stroke": {
-                "thickness": "$grids:border.width",
-                "fill": "$colors:color.border"
-              },
               "effect": {
                 "type": "shadow",
                 "shadowType": "outer",
@@ -593,9 +568,11 @@
                   "y": 8
                 },
                 "blur": 24,
-                "spread": 0,
                 "color": "#00000026"
               },
+              "stroke": "$colors:color.border",
+              "strokeWidth": "$grids:border.width",
+              "strokeAlignment": "inner",
               "children": [
                 {
                   "id": "toast-dot",
@@ -627,7 +604,8 @@
                       "content": "Your preferences were updated.",
                       "fill": "$colors:color.muted",
                       "fontFamily": "$type:font.family",
-                      "fontSize": "$type:font.size-sm"
+                      "fontSize": "$type:font.size-sm",
+                      "fontWeight": "normal"
                     }
                   ]
                 },
@@ -637,7 +615,8 @@
                   "content": "✕",
                   "fill": "$colors:color.muted",
                   "fontFamily": "$type:font.family",
-                  "fontSize": "$type:font.size-md"
+                  "fontSize": "$type:font.size-md",
+                  "fontWeight": "normal"
                 }
               ],
               "reusable": true,
@@ -656,5 +635,10 @@
         }
       ]
     }
-  ]
+  ],
+  "imports": {
+    "colors": "../foundations/colors.lib.pen",
+    "type": "../foundations/typography.lib.pen",
+    "grids": "../foundations/grids.lib.pen"
+  }
 }

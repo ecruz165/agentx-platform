@@ -1,10 +1,5 @@
 {
-  "version": "2.11",
-  "imports": {
-    "colors": "../foundations/colors.lib.pen",
-    "type": "../foundations/typography.lib.pen",
-    "grids": "../foundations/grids.lib.pen"
-  },
+  "version": "2.13",
   "children": [
     {
       "id": "core-date-and-time",
@@ -31,7 +26,7 @@
           "type": "frame",
           "name": "Items",
           "layout": "vertical",
-          "width": "fit_content",
+          "width": "fit_content(0)",
           "gap": 16,
           "children": [
             {
@@ -40,7 +35,6 @@
               "name": "DateField",
               "width": 220,
               "height": 40,
-              "layout": "horizontal",
               "alignItems": "center",
               "justifyContent": "space_between",
               "padding": [
@@ -49,10 +43,9 @@
               ],
               "cornerRadius": "$grids:radius.md",
               "fill": "$colors:color.field-background",
-              "stroke": {
-                "thickness": "$grids:border.width",
-                "fill": "$colors:color.border"
-              },
+              "stroke": "$colors:color.border",
+              "strokeWidth": "$grids:border.width",
+              "strokeAlignment": "inner",
               "children": [
                 {
                   "id": "date-field-val",
@@ -60,7 +53,8 @@
                   "content": "MM / DD / YYYY",
                   "fill": "$colors:color.field-placeholder",
                   "fontFamily": "$type:font.family",
-                  "fontSize": "$type:font.size-md"
+                  "fontSize": "$type:font.size-md",
+                  "fontWeight": "normal"
                 },
                 {
                   "id": "date-field-icon",
@@ -68,7 +62,8 @@
                   "content": "▦",
                   "fill": "$colors:color.muted",
                   "fontFamily": "$type:font.family",
-                  "fontSize": "$type:font.size-md"
+                  "fontSize": "$type:font.size-md",
+                  "fontWeight": "normal"
                 }
               ],
               "reusable": true,
@@ -89,7 +84,6 @@
               "name": "TimeField",
               "width": 220,
               "height": 40,
-              "layout": "horizontal",
               "alignItems": "center",
               "justifyContent": "space_between",
               "padding": [
@@ -98,10 +92,9 @@
               ],
               "cornerRadius": "$grids:radius.md",
               "fill": "$colors:color.field-background",
-              "stroke": {
-                "thickness": "$grids:border.width",
-                "fill": "$colors:color.border"
-              },
+              "stroke": "$colors:color.border",
+              "strokeWidth": "$grids:border.width",
+              "strokeAlignment": "inner",
               "children": [
                 {
                   "id": "time-field-val",
@@ -109,7 +102,8 @@
                   "content": "HH : MM",
                   "fill": "$colors:color.field-placeholder",
                   "fontFamily": "$type:font.family",
-                  "fontSize": "$type:font.size-md"
+                  "fontSize": "$type:font.size-md",
+                  "fontWeight": "normal"
                 },
                 {
                   "id": "time-field-icon",
@@ -117,7 +111,8 @@
                   "content": "◷",
                   "fill": "$colors:color.muted",
                   "fontFamily": "$type:font.family",
-                  "fontSize": "$type:font.size-md"
+                  "fontSize": "$type:font.size-md",
+                  "fontWeight": "normal"
                 }
               ],
               "reusable": true,
@@ -137,34 +132,29 @@
               "type": "frame",
               "name": "Calendar",
               "layout": "vertical",
-              "width": "fit_content",
+              "width": "fit_content(0)",
               "children": [
                 {
                   "id": "calendar-cal",
                   "type": "frame",
                   "name": "Calendar",
                   "layout": "vertical",
-                  "width": "fit_content",
+                  "width": "fit_content(0)",
                   "gap": 4,
                   "padding": 12,
                   "fill": "$colors:color.surface",
                   "cornerRadius": "$grids:radius.lg",
-                  "stroke": {
-                    "thickness": "$grids:border.width",
-                    "fill": "$colors:color.border"
-                  },
+                  "stroke": "$colors:color.border",
+                  "strokeWidth": "$grids:border.width",
+                  "strokeAlignment": "inner",
                   "children": [
                     {
                       "id": "calendar-head",
                       "type": "frame",
-                      "layout": "horizontal",
                       "width": "fill_container",
                       "alignItems": "center",
                       "justifyContent": "space_between",
-                      "padding": [
-                        4,
-                        4
-                      ],
+                      "padding": 4,
                       "children": [
                         {
                           "id": "calendar-prev",
@@ -172,7 +162,8 @@
                           "content": "‹",
                           "fill": "$colors:color.muted",
                           "fontFamily": "$type:font.family",
-                          "fontSize": "$type:font.size-md"
+                          "fontSize": "$type:font.size-md",
+                          "fontWeight": "normal"
                         },
                         {
                           "id": "calendar-mon",
@@ -189,14 +180,14 @@
                           "content": "›",
                           "fill": "$colors:color.muted",
                           "fontFamily": "$type:font.family",
-                          "fontSize": "$type:font.size-md"
+                          "fontSize": "$type:font.size-md",
+                          "fontWeight": "normal"
                         }
                       ]
                     },
                     {
                       "id": "calendar-wk",
                       "type": "frame",
-                      "layout": "horizontal",
                       "width": "fill_container",
                       "children": [
                         {
@@ -204,7 +195,6 @@
                           "type": "frame",
                           "width": 32,
                           "height": 28,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
                           "children": [
@@ -224,7 +214,6 @@
                           "type": "frame",
                           "width": 32,
                           "height": 28,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
                           "children": [
@@ -244,7 +233,6 @@
                           "type": "frame",
                           "width": 32,
                           "height": 28,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
                           "children": [
@@ -264,7 +252,6 @@
                           "type": "frame",
                           "width": 32,
                           "height": 28,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
                           "children": [
@@ -284,7 +271,6 @@
                           "type": "frame",
                           "width": 32,
                           "height": 28,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
                           "children": [
@@ -304,7 +290,6 @@
                           "type": "frame",
                           "width": 32,
                           "height": 28,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
                           "children": [
@@ -324,7 +309,6 @@
                           "type": "frame",
                           "width": 32,
                           "height": 28,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
                           "children": [
@@ -344,7 +328,6 @@
                     {
                       "id": "calendar-r0",
                       "type": "frame",
-                      "layout": "horizontal",
                       "width": "fill_container",
                       "children": [
                         {
@@ -352,19 +335,17 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
                               "id": "calendar-r0-0-t",
                               "type": "text",
-                              "content": "",
                               "fill": "$colors:color.muted",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -373,19 +354,17 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
                               "id": "calendar-r0-1-t",
                               "type": "text",
-                              "content": "",
                               "fill": "$colors:color.muted",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -394,19 +373,17 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
                               "id": "calendar-r0-2-t",
                               "type": "text",
-                              "content": "",
                               "fill": "$colors:color.muted",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -415,10 +392,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
@@ -427,7 +402,8 @@
                               "content": "1",
                               "fill": "$colors:color.foreground",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -436,10 +412,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
@@ -448,7 +422,8 @@
                               "content": "2",
                               "fill": "$colors:color.foreground",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -457,10 +432,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
@@ -469,7 +442,8 @@
                               "content": "3",
                               "fill": "$colors:color.foreground",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -478,10 +452,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
@@ -490,7 +462,8 @@
                               "content": "4",
                               "fill": "$colors:color.foreground",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         }
@@ -499,7 +472,6 @@
                     {
                       "id": "calendar-r1",
                       "type": "frame",
-                      "layout": "horizontal",
                       "width": "fill_container",
                       "children": [
                         {
@@ -507,10 +479,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
@@ -519,7 +489,8 @@
                               "content": "5",
                               "fill": "$colors:color.foreground",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -528,10 +499,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
@@ -540,7 +509,8 @@
                               "content": "6",
                               "fill": "$colors:color.foreground",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -549,10 +519,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
@@ -561,7 +529,8 @@
                               "content": "7",
                               "fill": "$colors:color.foreground",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -570,10 +539,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
@@ -582,7 +549,8 @@
                               "content": "8",
                               "fill": "$colors:color.foreground",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -591,10 +559,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
@@ -603,7 +569,8 @@
                               "content": "9",
                               "fill": "$colors:color.foreground",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -612,10 +579,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
@@ -624,7 +589,8 @@
                               "content": "10",
                               "fill": "$colors:color.foreground",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -633,10 +599,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
@@ -645,7 +609,8 @@
                               "content": "11",
                               "fill": "$colors:color.foreground",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         }
@@ -654,7 +619,6 @@
                     {
                       "id": "calendar-r2",
                       "type": "frame",
-                      "layout": "horizontal",
                       "width": "fill_container",
                       "children": [
                         {
@@ -662,10 +626,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
@@ -674,7 +636,8 @@
                               "content": "12",
                               "fill": "$colors:color.foreground",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -683,10 +646,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
@@ -695,7 +656,8 @@
                               "content": "13",
                               "fill": "$colors:color.foreground",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -704,7 +666,6 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
                           "cornerRadius": 9999,
@@ -716,7 +677,8 @@
                               "content": "14",
                               "fill": "$colors:color.accent-foreground",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -725,10 +687,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
@@ -737,7 +697,8 @@
                               "content": "15",
                               "fill": "$colors:color.foreground",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -746,10 +707,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
@@ -758,7 +717,8 @@
                               "content": "16",
                               "fill": "$colors:color.foreground",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -767,10 +727,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
@@ -779,7 +737,8 @@
                               "content": "17",
                               "fill": "$colors:color.foreground",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -788,10 +747,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
@@ -800,7 +757,8 @@
                               "content": "18",
                               "fill": "$colors:color.foreground",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         }
@@ -809,7 +767,6 @@
                     {
                       "id": "calendar-r3",
                       "type": "frame",
-                      "layout": "horizontal",
                       "width": "fill_container",
                       "children": [
                         {
@@ -817,10 +774,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
@@ -829,7 +784,8 @@
                               "content": "19",
                               "fill": "$colors:color.foreground",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -838,10 +794,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
@@ -850,7 +804,8 @@
                               "content": "20",
                               "fill": "$colors:color.foreground",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -859,10 +814,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
@@ -871,7 +824,8 @@
                               "content": "21",
                               "fill": "$colors:color.foreground",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -880,10 +834,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
@@ -892,7 +844,8 @@
                               "content": "22",
                               "fill": "$colors:color.foreground",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -901,10 +854,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
@@ -913,7 +864,8 @@
                               "content": "23",
                               "fill": "$colors:color.foreground",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -922,10 +874,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
@@ -934,7 +884,8 @@
                               "content": "24",
                               "fill": "$colors:color.foreground",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -943,10 +894,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
@@ -955,7 +904,8 @@
                               "content": "25",
                               "fill": "$colors:color.foreground",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         }
@@ -964,7 +914,6 @@
                     {
                       "id": "calendar-r4",
                       "type": "frame",
-                      "layout": "horizontal",
                       "width": "fill_container",
                       "children": [
                         {
@@ -972,10 +921,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
@@ -984,7 +931,8 @@
                               "content": "26",
                               "fill": "$colors:color.foreground",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -993,10 +941,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
@@ -1005,7 +951,8 @@
                               "content": "27",
                               "fill": "$colors:color.foreground",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -1014,10 +961,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
@@ -1026,7 +971,8 @@
                               "content": "28",
                               "fill": "$colors:color.foreground",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -1035,10 +981,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
@@ -1047,7 +991,8 @@
                               "content": "29",
                               "fill": "$colors:color.foreground",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -1056,10 +1001,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
@@ -1068,7 +1011,8 @@
                               "content": "30",
                               "fill": "$colors:color.foreground",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -1077,19 +1021,17 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
                               "id": "calendar-r4-5-t",
                               "type": "text",
-                              "content": "",
                               "fill": "$colors:color.muted",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -1098,19 +1040,17 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
                               "id": "calendar-r4-6-t",
                               "type": "text",
-                              "content": "",
                               "fill": "$colors:color.muted",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         }
@@ -1136,34 +1076,29 @@
               "type": "frame",
               "name": "RangeCalendar",
               "layout": "vertical",
-              "width": "fit_content",
+              "width": "fit_content(0)",
               "children": [
                 {
                   "id": "range-calendar-cal",
                   "type": "frame",
                   "name": "Calendar",
                   "layout": "vertical",
-                  "width": "fit_content",
+                  "width": "fit_content(0)",
                   "gap": 4,
                   "padding": 12,
                   "fill": "$colors:color.surface",
                   "cornerRadius": "$grids:radius.lg",
-                  "stroke": {
-                    "thickness": "$grids:border.width",
-                    "fill": "$colors:color.border"
-                  },
+                  "stroke": "$colors:color.border",
+                  "strokeWidth": "$grids:border.width",
+                  "strokeAlignment": "inner",
                   "children": [
                     {
                       "id": "range-calendar-head",
                       "type": "frame",
-                      "layout": "horizontal",
                       "width": "fill_container",
                       "alignItems": "center",
                       "justifyContent": "space_between",
-                      "padding": [
-                        4,
-                        4
-                      ],
+                      "padding": 4,
                       "children": [
                         {
                           "id": "range-calendar-prev",
@@ -1171,7 +1106,8 @@
                           "content": "‹",
                           "fill": "$colors:color.muted",
                           "fontFamily": "$type:font.family",
-                          "fontSize": "$type:font.size-md"
+                          "fontSize": "$type:font.size-md",
+                          "fontWeight": "normal"
                         },
                         {
                           "id": "range-calendar-mon",
@@ -1188,14 +1124,14 @@
                           "content": "›",
                           "fill": "$colors:color.muted",
                           "fontFamily": "$type:font.family",
-                          "fontSize": "$type:font.size-md"
+                          "fontSize": "$type:font.size-md",
+                          "fontWeight": "normal"
                         }
                       ]
                     },
                     {
                       "id": "range-calendar-wk",
                       "type": "frame",
-                      "layout": "horizontal",
                       "width": "fill_container",
                       "children": [
                         {
@@ -1203,7 +1139,6 @@
                           "type": "frame",
                           "width": 32,
                           "height": 28,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
                           "children": [
@@ -1223,7 +1158,6 @@
                           "type": "frame",
                           "width": 32,
                           "height": 28,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
                           "children": [
@@ -1243,7 +1177,6 @@
                           "type": "frame",
                           "width": 32,
                           "height": 28,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
                           "children": [
@@ -1263,7 +1196,6 @@
                           "type": "frame",
                           "width": 32,
                           "height": 28,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
                           "children": [
@@ -1283,7 +1215,6 @@
                           "type": "frame",
                           "width": 32,
                           "height": 28,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
                           "children": [
@@ -1303,7 +1234,6 @@
                           "type": "frame",
                           "width": 32,
                           "height": 28,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
                           "children": [
@@ -1323,7 +1253,6 @@
                           "type": "frame",
                           "width": 32,
                           "height": 28,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
                           "children": [
@@ -1343,7 +1272,6 @@
                     {
                       "id": "range-calendar-r0",
                       "type": "frame",
-                      "layout": "horizontal",
                       "width": "fill_container",
                       "children": [
                         {
@@ -1351,19 +1279,17 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
                               "id": "range-calendar-r0-0-t",
                               "type": "text",
-                              "content": "",
                               "fill": "$colors:color.muted",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -1372,19 +1298,17 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
                               "id": "range-calendar-r0-1-t",
                               "type": "text",
-                              "content": "",
                               "fill": "$colors:color.muted",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -1393,19 +1317,17 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
                               "id": "range-calendar-r0-2-t",
                               "type": "text",
-                              "content": "",
                               "fill": "$colors:color.muted",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -1414,10 +1336,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
@@ -1426,7 +1346,8 @@
                               "content": "1",
                               "fill": "$colors:color.foreground",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -1435,10 +1356,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
@@ -1447,7 +1366,8 @@
                               "content": "2",
                               "fill": "$colors:color.foreground",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -1456,10 +1376,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
@@ -1468,7 +1386,8 @@
                               "content": "3",
                               "fill": "$colors:color.foreground",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -1477,10 +1396,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
@@ -1489,7 +1406,8 @@
                               "content": "4",
                               "fill": "$colors:color.foreground",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         }
@@ -1498,7 +1416,6 @@
                     {
                       "id": "range-calendar-r1",
                       "type": "frame",
-                      "layout": "horizontal",
                       "width": "fill_container",
                       "children": [
                         {
@@ -1506,10 +1423,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
@@ -1518,7 +1433,8 @@
                               "content": "5",
                               "fill": "$colors:color.foreground",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -1527,10 +1443,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
@@ -1539,7 +1453,8 @@
                               "content": "6",
                               "fill": "$colors:color.foreground",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -1548,10 +1463,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
@@ -1560,7 +1473,8 @@
                               "content": "7",
                               "fill": "$colors:color.foreground",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -1569,10 +1483,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
@@ -1581,7 +1493,8 @@
                               "content": "8",
                               "fill": "$colors:color.foreground",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -1590,10 +1503,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
@@ -1602,7 +1513,8 @@
                               "content": "9",
                               "fill": "$colors:color.foreground",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -1611,10 +1523,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "$colors:color.accent-soft",
                           "children": [
                             {
@@ -1623,7 +1533,8 @@
                               "content": "10",
                               "fill": "$colors:color.accent",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -1632,10 +1543,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "$colors:color.accent-soft",
                           "children": [
                             {
@@ -1644,7 +1553,8 @@
                               "content": "11",
                               "fill": "$colors:color.accent",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         }
@@ -1653,7 +1563,6 @@
                     {
                       "id": "range-calendar-r2",
                       "type": "frame",
-                      "layout": "horizontal",
                       "width": "fill_container",
                       "children": [
                         {
@@ -1661,10 +1570,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "$colors:color.accent-soft",
                           "children": [
                             {
@@ -1673,7 +1580,8 @@
                               "content": "12",
                               "fill": "$colors:color.accent",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -1682,10 +1590,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "$colors:color.accent-soft",
                           "children": [
                             {
@@ -1694,7 +1600,8 @@
                               "content": "13",
                               "fill": "$colors:color.accent",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -1703,10 +1610,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "$colors:color.accent-soft",
                           "children": [
                             {
@@ -1715,7 +1620,8 @@
                               "content": "14",
                               "fill": "$colors:color.accent",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -1724,10 +1630,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "$colors:color.accent-soft",
                           "children": [
                             {
@@ -1736,7 +1640,8 @@
                               "content": "15",
                               "fill": "$colors:color.accent",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -1745,10 +1650,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "$colors:color.accent-soft",
                           "children": [
                             {
@@ -1757,7 +1660,8 @@
                               "content": "16",
                               "fill": "$colors:color.accent",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -1766,10 +1670,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
@@ -1778,7 +1680,8 @@
                               "content": "17",
                               "fill": "$colors:color.foreground",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -1787,10 +1690,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
@@ -1799,7 +1700,8 @@
                               "content": "18",
                               "fill": "$colors:color.foreground",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         }
@@ -1808,7 +1710,6 @@
                     {
                       "id": "range-calendar-r3",
                       "type": "frame",
-                      "layout": "horizontal",
                       "width": "fill_container",
                       "children": [
                         {
@@ -1816,10 +1717,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
@@ -1828,7 +1727,8 @@
                               "content": "19",
                               "fill": "$colors:color.foreground",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -1837,10 +1737,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
@@ -1849,7 +1747,8 @@
                               "content": "20",
                               "fill": "$colors:color.foreground",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -1858,10 +1757,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
@@ -1870,7 +1767,8 @@
                               "content": "21",
                               "fill": "$colors:color.foreground",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -1879,10 +1777,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
@@ -1891,7 +1787,8 @@
                               "content": "22",
                               "fill": "$colors:color.foreground",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -1900,10 +1797,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
@@ -1912,7 +1807,8 @@
                               "content": "23",
                               "fill": "$colors:color.foreground",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -1921,10 +1817,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
@@ -1933,7 +1827,8 @@
                               "content": "24",
                               "fill": "$colors:color.foreground",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -1942,10 +1837,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
@@ -1954,7 +1847,8 @@
                               "content": "25",
                               "fill": "$colors:color.foreground",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         }
@@ -1963,7 +1857,6 @@
                     {
                       "id": "range-calendar-r4",
                       "type": "frame",
-                      "layout": "horizontal",
                       "width": "fill_container",
                       "children": [
                         {
@@ -1971,10 +1864,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
@@ -1983,7 +1874,8 @@
                               "content": "26",
                               "fill": "$colors:color.foreground",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -1992,10 +1884,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
@@ -2004,7 +1894,8 @@
                               "content": "27",
                               "fill": "$colors:color.foreground",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -2013,10 +1904,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
@@ -2025,7 +1914,8 @@
                               "content": "28",
                               "fill": "$colors:color.foreground",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -2034,10 +1924,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
@@ -2046,7 +1934,8 @@
                               "content": "29",
                               "fill": "$colors:color.foreground",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -2055,10 +1944,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
@@ -2067,7 +1954,8 @@
                               "content": "30",
                               "fill": "$colors:color.foreground",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -2076,19 +1964,17 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
                               "id": "range-calendar-r4-5-t",
                               "type": "text",
-                              "content": "",
                               "fill": "$colors:color.muted",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -2097,19 +1983,17 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
                               "id": "range-calendar-r4-6-t",
                               "type": "text",
-                              "content": "",
                               "fill": "$colors:color.muted",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         }
@@ -2144,7 +2028,6 @@
                   "name": "Field",
                   "width": "fill_container",
                   "height": 40,
-                  "layout": "horizontal",
                   "alignItems": "center",
                   "justifyContent": "space_between",
                   "padding": [
@@ -2153,10 +2036,9 @@
                   ],
                   "cornerRadius": "$grids:radius.md",
                   "fill": "$colors:color.field-background",
-                  "stroke": {
-                    "thickness": "$grids:border.width",
-                    "fill": "$colors:color.border"
-                  },
+                  "stroke": "$colors:color.border",
+                  "strokeWidth": "$grids:border.width",
+                  "strokeAlignment": "inner",
                   "children": [
                     {
                       "id": "date-picker-f-v",
@@ -2164,7 +2046,8 @@
                       "content": "14 / 06 / 2026",
                       "fill": "$colors:color.foreground",
                       "fontFamily": "$type:font.family",
-                      "fontSize": "$type:font.size-md"
+                      "fontSize": "$type:font.size-md",
+                      "fontWeight": "normal"
                     },
                     {
                       "id": "date-picker-f-c",
@@ -2172,7 +2055,8 @@
                       "content": "▾",
                       "fill": "$colors:color.muted",
                       "fontFamily": "$type:font.family",
-                      "fontSize": "$type:font.size-md"
+                      "fontSize": "$type:font.size-md",
+                      "fontWeight": "normal"
                     }
                   ]
                 },
@@ -2181,27 +2065,22 @@
                   "type": "frame",
                   "name": "Calendar",
                   "layout": "vertical",
-                  "width": "fit_content",
+                  "width": "fit_content(0)",
                   "gap": 4,
                   "padding": 12,
                   "fill": "$colors:color.surface",
                   "cornerRadius": "$grids:radius.lg",
-                  "stroke": {
-                    "thickness": "$grids:border.width",
-                    "fill": "$colors:color.border"
-                  },
+                  "stroke": "$colors:color.border",
+                  "strokeWidth": "$grids:border.width",
+                  "strokeAlignment": "inner",
                   "children": [
                     {
                       "id": "date-picker-head",
                       "type": "frame",
-                      "layout": "horizontal",
                       "width": "fill_container",
                       "alignItems": "center",
                       "justifyContent": "space_between",
-                      "padding": [
-                        4,
-                        4
-                      ],
+                      "padding": 4,
                       "children": [
                         {
                           "id": "date-picker-prev",
@@ -2209,7 +2088,8 @@
                           "content": "‹",
                           "fill": "$colors:color.muted",
                           "fontFamily": "$type:font.family",
-                          "fontSize": "$type:font.size-md"
+                          "fontSize": "$type:font.size-md",
+                          "fontWeight": "normal"
                         },
                         {
                           "id": "date-picker-mon",
@@ -2226,14 +2106,14 @@
                           "content": "›",
                           "fill": "$colors:color.muted",
                           "fontFamily": "$type:font.family",
-                          "fontSize": "$type:font.size-md"
+                          "fontSize": "$type:font.size-md",
+                          "fontWeight": "normal"
                         }
                       ]
                     },
                     {
                       "id": "date-picker-wk",
                       "type": "frame",
-                      "layout": "horizontal",
                       "width": "fill_container",
                       "children": [
                         {
@@ -2241,7 +2121,6 @@
                           "type": "frame",
                           "width": 32,
                           "height": 28,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
                           "children": [
@@ -2261,7 +2140,6 @@
                           "type": "frame",
                           "width": 32,
                           "height": 28,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
                           "children": [
@@ -2281,7 +2159,6 @@
                           "type": "frame",
                           "width": 32,
                           "height": 28,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
                           "children": [
@@ -2301,7 +2178,6 @@
                           "type": "frame",
                           "width": 32,
                           "height": 28,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
                           "children": [
@@ -2321,7 +2197,6 @@
                           "type": "frame",
                           "width": 32,
                           "height": 28,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
                           "children": [
@@ -2341,7 +2216,6 @@
                           "type": "frame",
                           "width": 32,
                           "height": 28,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
                           "children": [
@@ -2361,7 +2235,6 @@
                           "type": "frame",
                           "width": 32,
                           "height": 28,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
                           "children": [
@@ -2381,7 +2254,6 @@
                     {
                       "id": "date-picker-r0",
                       "type": "frame",
-                      "layout": "horizontal",
                       "width": "fill_container",
                       "children": [
                         {
@@ -2389,19 +2261,17 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
                               "id": "date-picker-r0-0-t",
                               "type": "text",
-                              "content": "",
                               "fill": "$colors:color.muted",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -2410,19 +2280,17 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
                               "id": "date-picker-r0-1-t",
                               "type": "text",
-                              "content": "",
                               "fill": "$colors:color.muted",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -2431,19 +2299,17 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
                               "id": "date-picker-r0-2-t",
                               "type": "text",
-                              "content": "",
                               "fill": "$colors:color.muted",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -2452,10 +2318,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
@@ -2464,7 +2328,8 @@
                               "content": "1",
                               "fill": "$colors:color.foreground",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -2473,10 +2338,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
@@ -2485,7 +2348,8 @@
                               "content": "2",
                               "fill": "$colors:color.foreground",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -2494,10 +2358,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
@@ -2506,7 +2368,8 @@
                               "content": "3",
                               "fill": "$colors:color.foreground",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -2515,10 +2378,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
@@ -2527,7 +2388,8 @@
                               "content": "4",
                               "fill": "$colors:color.foreground",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         }
@@ -2536,7 +2398,6 @@
                     {
                       "id": "date-picker-r1",
                       "type": "frame",
-                      "layout": "horizontal",
                       "width": "fill_container",
                       "children": [
                         {
@@ -2544,10 +2405,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
@@ -2556,7 +2415,8 @@
                               "content": "5",
                               "fill": "$colors:color.foreground",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -2565,10 +2425,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
@@ -2577,7 +2435,8 @@
                               "content": "6",
                               "fill": "$colors:color.foreground",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -2586,10 +2445,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
@@ -2598,7 +2455,8 @@
                               "content": "7",
                               "fill": "$colors:color.foreground",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -2607,10 +2465,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
@@ -2619,7 +2475,8 @@
                               "content": "8",
                               "fill": "$colors:color.foreground",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -2628,10 +2485,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
@@ -2640,7 +2495,8 @@
                               "content": "9",
                               "fill": "$colors:color.foreground",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -2649,10 +2505,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
@@ -2661,7 +2515,8 @@
                               "content": "10",
                               "fill": "$colors:color.foreground",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -2670,10 +2525,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
@@ -2682,7 +2535,8 @@
                               "content": "11",
                               "fill": "$colors:color.foreground",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         }
@@ -2691,7 +2545,6 @@
                     {
                       "id": "date-picker-r2",
                       "type": "frame",
-                      "layout": "horizontal",
                       "width": "fill_container",
                       "children": [
                         {
@@ -2699,10 +2552,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
@@ -2711,7 +2562,8 @@
                               "content": "12",
                               "fill": "$colors:color.foreground",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -2720,10 +2572,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
@@ -2732,7 +2582,8 @@
                               "content": "13",
                               "fill": "$colors:color.foreground",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -2741,7 +2592,6 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
                           "cornerRadius": 9999,
@@ -2753,7 +2603,8 @@
                               "content": "14",
                               "fill": "$colors:color.accent-foreground",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -2762,10 +2613,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
@@ -2774,7 +2623,8 @@
                               "content": "15",
                               "fill": "$colors:color.foreground",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -2783,10 +2633,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
@@ -2795,7 +2643,8 @@
                               "content": "16",
                               "fill": "$colors:color.foreground",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -2804,10 +2653,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
@@ -2816,7 +2663,8 @@
                               "content": "17",
                               "fill": "$colors:color.foreground",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -2825,10 +2673,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
@@ -2837,7 +2683,8 @@
                               "content": "18",
                               "fill": "$colors:color.foreground",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         }
@@ -2846,7 +2693,6 @@
                     {
                       "id": "date-picker-r3",
                       "type": "frame",
-                      "layout": "horizontal",
                       "width": "fill_container",
                       "children": [
                         {
@@ -2854,10 +2700,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
@@ -2866,7 +2710,8 @@
                               "content": "19",
                               "fill": "$colors:color.foreground",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -2875,10 +2720,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
@@ -2887,7 +2730,8 @@
                               "content": "20",
                               "fill": "$colors:color.foreground",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -2896,10 +2740,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
@@ -2908,7 +2750,8 @@
                               "content": "21",
                               "fill": "$colors:color.foreground",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -2917,10 +2760,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
@@ -2929,7 +2770,8 @@
                               "content": "22",
                               "fill": "$colors:color.foreground",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -2938,10 +2780,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
@@ -2950,7 +2790,8 @@
                               "content": "23",
                               "fill": "$colors:color.foreground",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -2959,10 +2800,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
@@ -2971,7 +2810,8 @@
                               "content": "24",
                               "fill": "$colors:color.foreground",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -2980,10 +2820,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
@@ -2992,7 +2830,8 @@
                               "content": "25",
                               "fill": "$colors:color.foreground",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         }
@@ -3001,7 +2840,6 @@
                     {
                       "id": "date-picker-r4",
                       "type": "frame",
-                      "layout": "horizontal",
                       "width": "fill_container",
                       "children": [
                         {
@@ -3009,10 +2847,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
@@ -3021,7 +2857,8 @@
                               "content": "26",
                               "fill": "$colors:color.foreground",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -3030,10 +2867,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
@@ -3042,7 +2877,8 @@
                               "content": "27",
                               "fill": "$colors:color.foreground",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -3051,10 +2887,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
@@ -3063,7 +2897,8 @@
                               "content": "28",
                               "fill": "$colors:color.foreground",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -3072,10 +2907,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
@@ -3084,7 +2917,8 @@
                               "content": "29",
                               "fill": "$colors:color.foreground",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -3093,10 +2927,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
@@ -3105,7 +2937,8 @@
                               "content": "30",
                               "fill": "$colors:color.foreground",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -3114,19 +2947,17 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
                               "id": "date-picker-r4-5-t",
                               "type": "text",
-                              "content": "",
                               "fill": "$colors:color.muted",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -3135,19 +2966,17 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
                               "id": "date-picker-r4-6-t",
                               "type": "text",
-                              "content": "",
                               "fill": "$colors:color.muted",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         }
@@ -3179,7 +3008,6 @@
                 {
                   "id": "date-range-picker-row",
                   "type": "frame",
-                  "layout": "horizontal",
                   "width": "fill_container",
                   "gap": 8,
                   "children": [
@@ -3189,7 +3017,6 @@
                       "name": "Field",
                       "width": "fill_container",
                       "height": 40,
-                      "layout": "horizontal",
                       "alignItems": "center",
                       "justifyContent": "space_between",
                       "padding": [
@@ -3198,10 +3025,9 @@
                       ],
                       "cornerRadius": "$grids:radius.md",
                       "fill": "$colors:color.field-background",
-                      "stroke": {
-                        "thickness": "$grids:border.width",
-                        "fill": "$colors:color.border"
-                      },
+                      "stroke": "$colors:color.border",
+                      "strokeWidth": "$grids:border.width",
+                      "strokeAlignment": "inner",
                       "children": [
                         {
                           "id": "date-range-picker-s-v",
@@ -3209,7 +3035,8 @@
                           "content": "Jun 10",
                           "fill": "$colors:color.foreground",
                           "fontFamily": "$type:font.family",
-                          "fontSize": "$type:font.size-md"
+                          "fontSize": "$type:font.size-md",
+                          "fontWeight": "normal"
                         },
                         {
                           "id": "date-range-picker-s-c",
@@ -3217,7 +3044,8 @@
                           "content": "▾",
                           "fill": "$colors:color.muted",
                           "fontFamily": "$type:font.family",
-                          "fontSize": "$type:font.size-md"
+                          "fontSize": "$type:font.size-md",
+                          "fontWeight": "normal"
                         }
                       ]
                     },
@@ -3227,7 +3055,6 @@
                       "name": "Field",
                       "width": "fill_container",
                       "height": 40,
-                      "layout": "horizontal",
                       "alignItems": "center",
                       "justifyContent": "space_between",
                       "padding": [
@@ -3236,10 +3063,9 @@
                       ],
                       "cornerRadius": "$grids:radius.md",
                       "fill": "$colors:color.field-background",
-                      "stroke": {
-                        "thickness": "$grids:border.width",
-                        "fill": "$colors:color.border"
-                      },
+                      "stroke": "$colors:color.border",
+                      "strokeWidth": "$grids:border.width",
+                      "strokeAlignment": "inner",
                       "children": [
                         {
                           "id": "date-range-picker-e-v",
@@ -3247,7 +3073,8 @@
                           "content": "Jun 16",
                           "fill": "$colors:color.foreground",
                           "fontFamily": "$type:font.family",
-                          "fontSize": "$type:font.size-md"
+                          "fontSize": "$type:font.size-md",
+                          "fontWeight": "normal"
                         },
                         {
                           "id": "date-range-picker-e-c",
@@ -3255,7 +3082,8 @@
                           "content": "▾",
                           "fill": "$colors:color.muted",
                           "fontFamily": "$type:font.family",
-                          "fontSize": "$type:font.size-md"
+                          "fontSize": "$type:font.size-md",
+                          "fontWeight": "normal"
                         }
                       ]
                     }
@@ -3266,27 +3094,22 @@
                   "type": "frame",
                   "name": "Calendar",
                   "layout": "vertical",
-                  "width": "fit_content",
+                  "width": "fit_content(0)",
                   "gap": 4,
                   "padding": 12,
                   "fill": "$colors:color.surface",
                   "cornerRadius": "$grids:radius.lg",
-                  "stroke": {
-                    "thickness": "$grids:border.width",
-                    "fill": "$colors:color.border"
-                  },
+                  "stroke": "$colors:color.border",
+                  "strokeWidth": "$grids:border.width",
+                  "strokeAlignment": "inner",
                   "children": [
                     {
                       "id": "date-range-picker-head",
                       "type": "frame",
-                      "layout": "horizontal",
                       "width": "fill_container",
                       "alignItems": "center",
                       "justifyContent": "space_between",
-                      "padding": [
-                        4,
-                        4
-                      ],
+                      "padding": 4,
                       "children": [
                         {
                           "id": "date-range-picker-prev",
@@ -3294,7 +3117,8 @@
                           "content": "‹",
                           "fill": "$colors:color.muted",
                           "fontFamily": "$type:font.family",
-                          "fontSize": "$type:font.size-md"
+                          "fontSize": "$type:font.size-md",
+                          "fontWeight": "normal"
                         },
                         {
                           "id": "date-range-picker-mon",
@@ -3311,14 +3135,14 @@
                           "content": "›",
                           "fill": "$colors:color.muted",
                           "fontFamily": "$type:font.family",
-                          "fontSize": "$type:font.size-md"
+                          "fontSize": "$type:font.size-md",
+                          "fontWeight": "normal"
                         }
                       ]
                     },
                     {
                       "id": "date-range-picker-wk",
                       "type": "frame",
-                      "layout": "horizontal",
                       "width": "fill_container",
                       "children": [
                         {
@@ -3326,7 +3150,6 @@
                           "type": "frame",
                           "width": 32,
                           "height": 28,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
                           "children": [
@@ -3346,7 +3169,6 @@
                           "type": "frame",
                           "width": 32,
                           "height": 28,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
                           "children": [
@@ -3366,7 +3188,6 @@
                           "type": "frame",
                           "width": 32,
                           "height": 28,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
                           "children": [
@@ -3386,7 +3207,6 @@
                           "type": "frame",
                           "width": 32,
                           "height": 28,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
                           "children": [
@@ -3406,7 +3226,6 @@
                           "type": "frame",
                           "width": 32,
                           "height": 28,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
                           "children": [
@@ -3426,7 +3245,6 @@
                           "type": "frame",
                           "width": 32,
                           "height": 28,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
                           "children": [
@@ -3446,7 +3264,6 @@
                           "type": "frame",
                           "width": 32,
                           "height": 28,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
                           "children": [
@@ -3466,7 +3283,6 @@
                     {
                       "id": "date-range-picker-r0",
                       "type": "frame",
-                      "layout": "horizontal",
                       "width": "fill_container",
                       "children": [
                         {
@@ -3474,19 +3290,17 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
                               "id": "date-range-picker-r0-0-t",
                               "type": "text",
-                              "content": "",
                               "fill": "$colors:color.muted",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -3495,19 +3309,17 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
                               "id": "date-range-picker-r0-1-t",
                               "type": "text",
-                              "content": "",
                               "fill": "$colors:color.muted",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -3516,19 +3328,17 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
                               "id": "date-range-picker-r0-2-t",
                               "type": "text",
-                              "content": "",
                               "fill": "$colors:color.muted",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -3537,10 +3347,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
@@ -3549,7 +3357,8 @@
                               "content": "1",
                               "fill": "$colors:color.foreground",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -3558,10 +3367,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
@@ -3570,7 +3377,8 @@
                               "content": "2",
                               "fill": "$colors:color.foreground",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -3579,10 +3387,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
@@ -3591,7 +3397,8 @@
                               "content": "3",
                               "fill": "$colors:color.foreground",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -3600,10 +3407,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
@@ -3612,7 +3417,8 @@
                               "content": "4",
                               "fill": "$colors:color.foreground",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         }
@@ -3621,7 +3427,6 @@
                     {
                       "id": "date-range-picker-r1",
                       "type": "frame",
-                      "layout": "horizontal",
                       "width": "fill_container",
                       "children": [
                         {
@@ -3629,10 +3434,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
@@ -3641,7 +3444,8 @@
                               "content": "5",
                               "fill": "$colors:color.foreground",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -3650,10 +3454,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
@@ -3662,7 +3464,8 @@
                               "content": "6",
                               "fill": "$colors:color.foreground",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -3671,10 +3474,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
@@ -3683,7 +3484,8 @@
                               "content": "7",
                               "fill": "$colors:color.foreground",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -3692,10 +3494,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
@@ -3704,7 +3504,8 @@
                               "content": "8",
                               "fill": "$colors:color.foreground",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -3713,10 +3514,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
@@ -3725,7 +3524,8 @@
                               "content": "9",
                               "fill": "$colors:color.foreground",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -3734,10 +3534,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "$colors:color.accent-soft",
                           "children": [
                             {
@@ -3746,7 +3544,8 @@
                               "content": "10",
                               "fill": "$colors:color.accent",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -3755,10 +3554,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "$colors:color.accent-soft",
                           "children": [
                             {
@@ -3767,7 +3564,8 @@
                               "content": "11",
                               "fill": "$colors:color.accent",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         }
@@ -3776,7 +3574,6 @@
                     {
                       "id": "date-range-picker-r2",
                       "type": "frame",
-                      "layout": "horizontal",
                       "width": "fill_container",
                       "children": [
                         {
@@ -3784,10 +3581,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "$colors:color.accent-soft",
                           "children": [
                             {
@@ -3796,7 +3591,8 @@
                               "content": "12",
                               "fill": "$colors:color.accent",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -3805,10 +3601,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "$colors:color.accent-soft",
                           "children": [
                             {
@@ -3817,7 +3611,8 @@
                               "content": "13",
                               "fill": "$colors:color.accent",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -3826,10 +3621,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "$colors:color.accent-soft",
                           "children": [
                             {
@@ -3838,7 +3631,8 @@
                               "content": "14",
                               "fill": "$colors:color.accent",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -3847,10 +3641,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "$colors:color.accent-soft",
                           "children": [
                             {
@@ -3859,7 +3651,8 @@
                               "content": "15",
                               "fill": "$colors:color.accent",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -3868,10 +3661,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "$colors:color.accent-soft",
                           "children": [
                             {
@@ -3880,7 +3671,8 @@
                               "content": "16",
                               "fill": "$colors:color.accent",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -3889,10 +3681,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
@@ -3901,7 +3691,8 @@
                               "content": "17",
                               "fill": "$colors:color.foreground",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -3910,10 +3701,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
@@ -3922,7 +3711,8 @@
                               "content": "18",
                               "fill": "$colors:color.foreground",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         }
@@ -3931,7 +3721,6 @@
                     {
                       "id": "date-range-picker-r3",
                       "type": "frame",
-                      "layout": "horizontal",
                       "width": "fill_container",
                       "children": [
                         {
@@ -3939,10 +3728,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
@@ -3951,7 +3738,8 @@
                               "content": "19",
                               "fill": "$colors:color.foreground",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -3960,10 +3748,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
@@ -3972,7 +3758,8 @@
                               "content": "20",
                               "fill": "$colors:color.foreground",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -3981,10 +3768,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
@@ -3993,7 +3778,8 @@
                               "content": "21",
                               "fill": "$colors:color.foreground",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -4002,10 +3788,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
@@ -4014,7 +3798,8 @@
                               "content": "22",
                               "fill": "$colors:color.foreground",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -4023,10 +3808,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
@@ -4035,7 +3818,8 @@
                               "content": "23",
                               "fill": "$colors:color.foreground",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -4044,10 +3828,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
@@ -4056,7 +3838,8 @@
                               "content": "24",
                               "fill": "$colors:color.foreground",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -4065,10 +3848,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
@@ -4077,7 +3858,8 @@
                               "content": "25",
                               "fill": "$colors:color.foreground",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         }
@@ -4086,7 +3868,6 @@
                     {
                       "id": "date-range-picker-r4",
                       "type": "frame",
-                      "layout": "horizontal",
                       "width": "fill_container",
                       "children": [
                         {
@@ -4094,10 +3875,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
@@ -4106,7 +3885,8 @@
                               "content": "26",
                               "fill": "$colors:color.foreground",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -4115,10 +3895,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
@@ -4127,7 +3905,8 @@
                               "content": "27",
                               "fill": "$colors:color.foreground",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -4136,10 +3915,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
@@ -4148,7 +3925,8 @@
                               "content": "28",
                               "fill": "$colors:color.foreground",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -4157,10 +3935,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
@@ -4169,7 +3945,8 @@
                               "content": "29",
                               "fill": "$colors:color.foreground",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -4178,10 +3955,8 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
@@ -4190,7 +3965,8 @@
                               "content": "30",
                               "fill": "$colors:color.foreground",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -4199,19 +3975,17 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
                               "id": "date-range-picker-r4-5-t",
                               "type": "text",
-                              "content": "",
                               "fill": "$colors:color.muted",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         },
@@ -4220,19 +3994,17 @@
                           "type": "frame",
                           "width": 32,
                           "height": 32,
-                          "layout": "horizontal",
                           "alignItems": "center",
                           "justifyContent": "center",
-                          "cornerRadius": 0,
                           "fill": "transparent",
                           "children": [
                             {
                               "id": "date-range-picker-r4-6-t",
                               "type": "text",
-                              "content": "",
                               "fill": "$colors:color.muted",
                               "fontFamily": "$type:font.family",
-                              "fontSize": "$type:font.size-sm"
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
                             }
                           ]
                         }
@@ -4257,5 +4029,10 @@
         }
       ]
     }
-  ]
+  ],
+  "imports": {
+    "colors": "../foundations/colors.lib.pen",
+    "type": "../foundations/typography.lib.pen",
+    "grids": "../foundations/grids.lib.pen"
+  }
 }

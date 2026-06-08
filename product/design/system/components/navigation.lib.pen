@@ -1,10 +1,5 @@
 {
-  "version": "2.11",
-  "imports": {
-    "colors": "../foundations/colors.lib.pen",
-    "type": "../foundations/typography.lib.pen",
-    "grids": "../foundations/grids.lib.pen"
-  },
+  "version": "2.13",
   "children": [
     {
       "id": "core-navigation",
@@ -31,16 +26,15 @@
           "type": "frame",
           "name": "Items",
           "layout": "vertical",
-          "width": "fit_content",
+          "width": "fit_content(0)",
           "gap": 16,
           "children": [
             {
               "id": "link",
               "type": "frame",
               "name": "Link",
-              "layout": "horizontal",
-              "width": "fit_content",
-              "height": "fit_content",
+              "width": "fit_content(0)",
+              "height": "fit_content(0)",
               "children": [
                 {
                   "id": "link-label",
@@ -69,8 +63,7 @@
               "id": "breadcrumbs",
               "type": "frame",
               "name": "Breadcrumbs",
-              "layout": "horizontal",
-              "width": "fit_content",
+              "width": "fit_content(0)",
               "alignItems": "center",
               "gap": 8,
               "children": [
@@ -81,7 +74,7 @@
                   "fill": "$colors:color.muted",
                   "fontFamily": "$type:font.family",
                   "fontSize": "$type:font.size-sm",
-                  "fontWeight": "400"
+                  "fontWeight": "normal"
                 },
                 {
                   "id": "breadcrumbs-sep-0",
@@ -89,7 +82,8 @@
                   "content": "/",
                   "fill": "$colors:color.muted",
                   "fontFamily": "$type:font.family",
-                  "fontSize": "$type:font.size-sm"
+                  "fontSize": "$type:font.size-sm",
+                  "fontWeight": "normal"
                 },
                 {
                   "id": "breadcrumbs-1",
@@ -98,7 +92,7 @@
                   "fill": "$colors:color.muted",
                   "fontFamily": "$type:font.family",
                   "fontSize": "$type:font.size-sm",
-                  "fontWeight": "400"
+                  "fontWeight": "normal"
                 },
                 {
                   "id": "breadcrumbs-sep-1",
@@ -106,7 +100,8 @@
                   "content": "/",
                   "fill": "$colors:color.muted",
                   "fontFamily": "$type:font.family",
-                  "fontSize": "$type:font.size-sm"
+                  "fontSize": "$type:font.size-sm",
+                  "fontWeight": "normal"
                 },
                 {
                   "id": "breadcrumbs-2",
@@ -134,8 +129,7 @@
               "id": "pagination",
               "type": "frame",
               "name": "Pagination",
-              "layout": "horizontal",
-              "width": "fit_content",
+              "width": "fit_content(0)",
               "gap": 8,
               "children": [
                 {
@@ -144,7 +138,6 @@
                   "name": "Page 1",
                   "width": 32,
                   "height": 32,
-                  "layout": "horizontal",
                   "alignItems": "center",
                   "justifyContent": "center",
                   "fill": "$colors:color.accent",
@@ -167,15 +160,13 @@
                   "name": "Page 2",
                   "width": 32,
                   "height": 32,
-                  "layout": "horizontal",
                   "alignItems": "center",
                   "justifyContent": "center",
                   "fill": "$colors:color.surface",
                   "cornerRadius": "$grids:radius.md",
-                  "stroke": {
-                    "thickness": "$grids:border.width",
-                    "fill": "$colors:color.border"
-                  },
+                  "stroke": "$colors:color.border",
+                  "strokeWidth": "$grids:border.width",
+                  "strokeAlignment": "inner",
                   "children": [
                     {
                       "id": "pagination-page-1-label",
@@ -194,15 +185,13 @@
                   "name": "Page 3",
                   "width": 32,
                   "height": 32,
-                  "layout": "horizontal",
                   "alignItems": "center",
                   "justifyContent": "center",
                   "fill": "$colors:color.surface",
                   "cornerRadius": "$grids:radius.md",
-                  "stroke": {
-                    "thickness": "$grids:border.width",
-                    "fill": "$colors:color.border"
-                  },
+                  "stroke": "$colors:color.border",
+                  "strokeWidth": "$grids:border.width",
+                  "strokeAlignment": "inner",
                   "children": [
                     {
                       "id": "pagination-page-2-label",
@@ -221,15 +210,13 @@
                   "name": "Page 4",
                   "width": 32,
                   "height": 32,
-                  "layout": "horizontal",
                   "alignItems": "center",
                   "justifyContent": "center",
                   "fill": "$colors:color.surface",
                   "cornerRadius": "$grids:radius.md",
-                  "stroke": {
-                    "thickness": "$grids:border.width",
-                    "fill": "$colors:color.border"
-                  },
+                  "stroke": "$colors:color.border",
+                  "strokeWidth": "$grids:border.width",
+                  "strokeAlignment": "inner",
                   "children": [
                     {
                       "id": "pagination-page-3-label",
@@ -248,15 +235,13 @@
                   "name": "Page 5",
                   "width": 32,
                   "height": 32,
-                  "layout": "horizontal",
                   "alignItems": "center",
                   "justifyContent": "center",
                   "fill": "$colors:color.surface",
                   "cornerRadius": "$grids:radius.md",
-                  "stroke": {
-                    "thickness": "$grids:border.width",
-                    "fill": "$colors:color.border"
-                  },
+                  "stroke": "$colors:color.border",
+                  "strokeWidth": "$grids:border.width",
+                  "strokeAlignment": "inner",
                   "children": [
                     {
                       "id": "pagination-page-4-label",
@@ -286,22 +271,19 @@
               "id": "tabs",
               "type": "frame",
               "name": "Tabs",
-              "layout": "horizontal",
-              "width": "fit_content",
+              "width": "fit_content(0)",
               "gap": 4,
               "padding": 4,
               "fill": "$colors:color.surface",
               "cornerRadius": "$grids:radius.md",
-              "stroke": {
-                "thickness": "$grids:border.width",
-                "fill": "$colors:color.border"
-              },
+              "stroke": "$colors:color.border",
+              "strokeWidth": "$grids:border.width",
+              "strokeAlignment": "inner",
               "children": [
                 {
                   "id": "tabs-tab-0",
                   "type": "frame",
                   "name": "Overview",
-                  "layout": "horizontal",
                   "alignItems": "center",
                   "justifyContent": "center",
                   "padding": [
@@ -326,7 +308,6 @@
                   "id": "tabs-tab-1",
                   "type": "frame",
                   "name": "Activity",
-                  "layout": "horizontal",
                   "alignItems": "center",
                   "justifyContent": "center",
                   "padding": [
@@ -351,7 +332,6 @@
                   "id": "tabs-tab-2",
                   "type": "frame",
                   "name": "Settings",
-                  "layout": "horizontal",
                   "alignItems": "center",
                   "justifyContent": "center",
                   "padding": [
@@ -392,16 +372,14 @@
               "width": 320,
               "layout": "vertical",
               "cornerRadius": "$grids:radius.md",
-              "stroke": {
-                "thickness": "$grids:border.width",
-                "fill": "$colors:color.border"
-              },
               "clip": true,
+              "stroke": "$colors:color.border",
+              "strokeWidth": "$grids:border.width",
+              "strokeAlignment": "inner",
               "children": [
                 {
                   "id": "disclosure-header",
                   "type": "frame",
-                  "layout": "horizontal",
                   "width": "fill_container",
                   "alignItems": "center",
                   "justifyContent": "space_between",
@@ -423,7 +401,8 @@
                       "content": "▾",
                       "fill": "$colors:color.muted",
                       "fontFamily": "$type:font.family",
-                      "fontSize": "$type:font.size-md"
+                      "fontSize": "$type:font.size-md",
+                      "fontWeight": "normal"
                     }
                   ]
                 },
@@ -447,7 +426,8 @@
                       "fontFamily": "$type:font.family",
                       "fontSize": "$type:font.size-sm",
                       "textGrowth": "fixed-width",
-                      "width": "fill_container"
+                      "width": "fill_container",
+                      "fontWeight": "normal"
                     }
                   ]
                 }
@@ -471,11 +451,10 @@
               "width": 360,
               "layout": "vertical",
               "cornerRadius": "$grids:radius.md",
-              "stroke": {
-                "thickness": "$grids:border.width",
-                "fill": "$colors:color.border"
-              },
               "clip": true,
+              "stroke": "$colors:color.border",
+              "strokeWidth": "$grids:border.width",
+              "strokeAlignment": "inner",
               "children": [
                 {
                   "id": "accordion-0",
@@ -483,17 +462,15 @@
                   "name": "Overview",
                   "layout": "vertical",
                   "width": "fill_container",
-                  "stroke": {
-                    "thickness": {
-                      "bottom": "$grids:border.width"
-                    },
-                    "fill": "$colors:color.border"
+                  "stroke": "$colors:color.border",
+                  "strokeWidth": {
+                    "bottom": "$grids:border.width"
                   },
+                  "strokeAlignment": "inner",
                   "children": [
                     {
                       "id": "accordion-0-h",
                       "type": "frame",
-                      "layout": "horizontal",
                       "width": "fill_container",
                       "alignItems": "center",
                       "justifyContent": "space_between",
@@ -514,7 +491,8 @@
                           "content": "▾",
                           "fill": "$colors:color.muted",
                           "fontFamily": "$type:font.family",
-                          "fontSize": "$type:font.size-md"
+                          "fontSize": "$type:font.size-md",
+                          "fontWeight": "normal"
                         }
                       ]
                     },
@@ -538,7 +516,8 @@
                           "fontFamily": "$type:font.family",
                           "fontSize": "$type:font.size-sm",
                           "textGrowth": "fixed-width",
-                          "width": "fill_container"
+                          "width": "fill_container",
+                          "fontWeight": "normal"
                         }
                       ]
                     }
@@ -550,17 +529,15 @@
                   "name": "Pricing",
                   "layout": "vertical",
                   "width": "fill_container",
-                  "stroke": {
-                    "thickness": {
-                      "bottom": "$grids:border.width"
-                    },
-                    "fill": "$colors:color.border"
+                  "stroke": "$colors:color.border",
+                  "strokeWidth": {
+                    "bottom": "$grids:border.width"
                   },
+                  "strokeAlignment": "inner",
                   "children": [
                     {
                       "id": "accordion-1-h",
                       "type": "frame",
-                      "layout": "horizontal",
                       "width": "fill_container",
                       "alignItems": "center",
                       "justifyContent": "space_between",
@@ -581,7 +558,8 @@
                           "content": "▸",
                           "fill": "$colors:color.muted",
                           "fontFamily": "$type:font.family",
-                          "fontSize": "$type:font.size-md"
+                          "fontSize": "$type:font.size-md",
+                          "fontWeight": "normal"
                         }
                       ]
                     }
@@ -593,17 +571,15 @@
                   "name": "FAQ",
                   "layout": "vertical",
                   "width": "fill_container",
-                  "stroke": {
-                    "thickness": {
-                      "bottom": "$grids:border.width"
-                    },
-                    "fill": "$colors:color.border"
+                  "stroke": "$colors:color.border",
+                  "strokeWidth": {
+                    "bottom": "$grids:border.width"
                   },
+                  "strokeAlignment": "inner",
                   "children": [
                     {
                       "id": "accordion-2-h",
                       "type": "frame",
-                      "layout": "horizontal",
                       "width": "fill_container",
                       "alignItems": "center",
                       "justifyContent": "space_between",
@@ -624,7 +600,8 @@
                           "content": "▸",
                           "fill": "$colors:color.muted",
                           "fontFamily": "$type:font.family",
-                          "fontSize": "$type:font.size-md"
+                          "fontSize": "$type:font.size-md",
+                          "fontWeight": "normal"
                         }
                       ]
                     }
@@ -657,16 +634,14 @@
                   "layout": "vertical",
                   "width": "fill_container",
                   "cornerRadius": "$grids:radius.md",
-                  "stroke": {
-                    "thickness": "$grids:border.width",
-                    "fill": "$colors:color.border"
-                  },
                   "clip": true,
+                  "stroke": "$colors:color.border",
+                  "strokeWidth": "$grids:border.width",
+                  "strokeAlignment": "inner",
                   "children": [
                     {
                       "id": "disclosure-group-0-h",
                       "type": "frame",
-                      "layout": "horizontal",
                       "width": "fill_container",
                       "alignItems": "center",
                       "justifyContent": "space_between",
@@ -688,7 +663,8 @@
                           "content": "▾",
                           "fill": "$colors:color.muted",
                           "fontFamily": "$type:font.family",
-                          "fontSize": "$type:font.size-md"
+                          "fontSize": "$type:font.size-md",
+                          "fontWeight": "normal"
                         }
                       ]
                     }
@@ -700,16 +676,14 @@
                   "layout": "vertical",
                   "width": "fill_container",
                   "cornerRadius": "$grids:radius.md",
-                  "stroke": {
-                    "thickness": "$grids:border.width",
-                    "fill": "$colors:color.border"
-                  },
                   "clip": true,
+                  "stroke": "$colors:color.border",
+                  "strokeWidth": "$grids:border.width",
+                  "strokeAlignment": "inner",
                   "children": [
                     {
                       "id": "disclosure-group-1-h",
                       "type": "frame",
-                      "layout": "horizontal",
                       "width": "fill_container",
                       "alignItems": "center",
                       "justifyContent": "space_between",
@@ -731,7 +705,8 @@
                           "content": "▸",
                           "fill": "$colors:color.muted",
                           "fontFamily": "$type:font.family",
-                          "fontSize": "$type:font.size-md"
+                          "fontSize": "$type:font.size-md",
+                          "fontWeight": "normal"
                         }
                       ]
                     }
@@ -754,5 +729,10 @@
         }
       ]
     }
-  ]
+  ],
+  "imports": {
+    "colors": "../foundations/colors.lib.pen",
+    "type": "../foundations/typography.lib.pen",
+    "grids": "../foundations/grids.lib.pen"
+  }
 }

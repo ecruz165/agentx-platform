@@ -1,10 +1,5 @@
 {
-  "version": "2.11",
-  "imports": {
-    "colors": "../foundations/colors.lib.pen",
-    "type": "../foundations/typography.lib.pen",
-    "grids": "../foundations/grids.lib.pen"
-  },
+  "version": "2.13",
   "children": [
     {
       "id": "core-data-display",
@@ -31,15 +26,14 @@
           "type": "frame",
           "name": "Items",
           "layout": "vertical",
-          "width": "fit_content",
+          "width": "fit_content(0)",
           "gap": 16,
           "children": [
             {
               "id": "badge",
               "type": "frame",
               "name": "Badge",
-              "layout": "horizontal",
-              "width": "fit_content",
+              "width": "fit_content(0)",
               "alignItems": "center",
               "justifyContent": "center",
               "padding": [
@@ -75,8 +69,7 @@
               "id": "chip",
               "type": "frame",
               "name": "Chip",
-              "layout": "horizontal",
-              "width": "fit_content",
+              "width": "fit_content(0)",
               "alignItems": "center",
               "gap": "$grids:space.unit",
               "padding": [
@@ -115,32 +108,28 @@
               "width": 520,
               "layout": "vertical",
               "cornerRadius": "$grids:radius.lg",
-              "stroke": {
-                "thickness": "$grids:border.width",
-                "fill": "$colors:color.border"
-              },
               "clip": true,
+              "stroke": "$colors:color.border",
+              "strokeWidth": "$grids:border.width",
+              "strokeAlignment": "inner",
               "children": [
                 {
                   "id": "table-h",
                   "type": "frame",
                   "name": "Header",
-                  "layout": "horizontal",
                   "width": "fill_container",
                   "fill": "$colors:color.accent-soft",
-                  "stroke": {
-                    "thickness": {
-                      "bottom": "$grids:border.width"
-                    },
-                    "fill": "$colors:color.border"
+                  "stroke": "$colors:color.border",
+                  "strokeWidth": {
+                    "bottom": "$grids:border.width"
                   },
+                  "strokeAlignment": "inner",
                   "children": [
                     {
                       "id": "table-h-c0",
                       "type": "frame",
                       "name": "Cell",
                       "width": "fill_container",
-                      "layout": "horizontal",
                       "alignItems": "center",
                       "padding": [
                         16,
@@ -163,7 +152,6 @@
                       "type": "frame",
                       "name": "Cell",
                       "width": "fill_container",
-                      "layout": "horizontal",
                       "alignItems": "center",
                       "padding": [
                         16,
@@ -186,7 +174,6 @@
                       "type": "frame",
                       "name": "Cell",
                       "width": "fill_container",
-                      "layout": "horizontal",
                       "alignItems": "center",
                       "padding": [
                         16,
@@ -210,22 +197,19 @@
                   "id": "table-r0",
                   "type": "frame",
                   "name": "Row",
-                  "layout": "horizontal",
                   "width": "fill_container",
                   "fill": "$colors:color.surface",
-                  "stroke": {
-                    "thickness": {
-                      "bottom": "$grids:border.width"
-                    },
-                    "fill": "$colors:color.border"
+                  "stroke": "$colors:color.border",
+                  "strokeWidth": {
+                    "bottom": "$grids:border.width"
                   },
+                  "strokeAlignment": "inner",
                   "children": [
                     {
                       "id": "table-r0-c0",
                       "type": "frame",
                       "name": "Cell",
                       "width": "fill_container",
-                      "layout": "horizontal",
                       "alignItems": "center",
                       "padding": [
                         16,
@@ -239,7 +223,7 @@
                           "fill": "$colors:color.foreground",
                           "fontFamily": "$type:font.family",
                           "fontSize": "$type:font.size-md",
-                          "fontWeight": "400"
+                          "fontWeight": "normal"
                         }
                       ]
                     },
@@ -248,7 +232,6 @@
                       "type": "frame",
                       "name": "Cell",
                       "width": "fill_container",
-                      "layout": "horizontal",
                       "alignItems": "center",
                       "padding": [
                         16,
@@ -262,7 +245,7 @@
                           "fill": "$colors:color.foreground",
                           "fontFamily": "$type:font.family",
                           "fontSize": "$type:font.size-md",
-                          "fontWeight": "400"
+                          "fontWeight": "normal"
                         }
                       ]
                     },
@@ -271,7 +254,6 @@
                       "type": "frame",
                       "name": "Cell",
                       "width": "fill_container",
-                      "layout": "horizontal",
                       "alignItems": "center",
                       "padding": [
                         16,
@@ -285,7 +267,7 @@
                           "fill": "$colors:color.foreground",
                           "fontFamily": "$type:font.family",
                           "fontSize": "$type:font.size-md",
-                          "fontWeight": "400"
+                          "fontWeight": "normal"
                         }
                       ]
                     }
@@ -295,22 +277,19 @@
                   "id": "table-r1",
                   "type": "frame",
                   "name": "Row",
-                  "layout": "horizontal",
                   "width": "fill_container",
                   "fill": "$colors:color.surface",
-                  "stroke": {
-                    "thickness": {
-                      "bottom": "$grids:border.width"
-                    },
-                    "fill": "$colors:color.border"
+                  "stroke": "$colors:color.border",
+                  "strokeWidth": {
+                    "bottom": "$grids:border.width"
                   },
+                  "strokeAlignment": "inner",
                   "children": [
                     {
                       "id": "table-r1-c0",
                       "type": "frame",
                       "name": "Cell",
                       "width": "fill_container",
-                      "layout": "horizontal",
                       "alignItems": "center",
                       "padding": [
                         16,
@@ -324,7 +303,7 @@
                           "fill": "$colors:color.foreground",
                           "fontFamily": "$type:font.family",
                           "fontSize": "$type:font.size-md",
-                          "fontWeight": "400"
+                          "fontWeight": "normal"
                         }
                       ]
                     },
@@ -333,7 +312,6 @@
                       "type": "frame",
                       "name": "Cell",
                       "width": "fill_container",
-                      "layout": "horizontal",
                       "alignItems": "center",
                       "padding": [
                         16,
@@ -347,7 +325,7 @@
                           "fill": "$colors:color.foreground",
                           "fontFamily": "$type:font.family",
                           "fontSize": "$type:font.size-md",
-                          "fontWeight": "400"
+                          "fontWeight": "normal"
                         }
                       ]
                     },
@@ -356,7 +334,6 @@
                       "type": "frame",
                       "name": "Cell",
                       "width": "fill_container",
-                      "layout": "horizontal",
                       "alignItems": "center",
                       "padding": [
                         16,
@@ -370,7 +347,7 @@
                           "fill": "$colors:color.foreground",
                           "fontFamily": "$type:font.family",
                           "fontSize": "$type:font.size-md",
-                          "fontWeight": "400"
+                          "fontWeight": "normal"
                         }
                       ]
                     }
@@ -380,22 +357,19 @@
                   "id": "table-r2",
                   "type": "frame",
                   "name": "Row",
-                  "layout": "horizontal",
                   "width": "fill_container",
                   "fill": "$colors:color.surface",
-                  "stroke": {
-                    "thickness": {
-                      "bottom": "$grids:border.width"
-                    },
-                    "fill": "$colors:color.border"
+                  "stroke": "$colors:color.border",
+                  "strokeWidth": {
+                    "bottom": "$grids:border.width"
                   },
+                  "strokeAlignment": "inner",
                   "children": [
                     {
                       "id": "table-r2-c0",
                       "type": "frame",
                       "name": "Cell",
                       "width": "fill_container",
-                      "layout": "horizontal",
                       "alignItems": "center",
                       "padding": [
                         16,
@@ -409,7 +383,7 @@
                           "fill": "$colors:color.foreground",
                           "fontFamily": "$type:font.family",
                           "fontSize": "$type:font.size-md",
-                          "fontWeight": "400"
+                          "fontWeight": "normal"
                         }
                       ]
                     },
@@ -418,7 +392,6 @@
                       "type": "frame",
                       "name": "Cell",
                       "width": "fill_container",
-                      "layout": "horizontal",
                       "alignItems": "center",
                       "padding": [
                         16,
@@ -432,7 +405,7 @@
                           "fill": "$colors:color.foreground",
                           "fontFamily": "$type:font.family",
                           "fontSize": "$type:font.size-md",
-                          "fontWeight": "400"
+                          "fontWeight": "normal"
                         }
                       ]
                     },
@@ -441,7 +414,6 @@
                       "type": "frame",
                       "name": "Cell",
                       "width": "fill_container",
-                      "layout": "horizontal",
                       "alignItems": "center",
                       "padding": [
                         16,
@@ -455,7 +427,7 @@
                           "fill": "$colors:color.foreground",
                           "fontFamily": "$type:font.family",
                           "fontSize": "$type:font.size-md",
-                          "fontWeight": "400"
+                          "fontWeight": "normal"
                         }
                       ]
                     }
@@ -478,5 +450,10 @@
         }
       ]
     }
-  ]
+  ],
+  "imports": {
+    "colors": "../foundations/colors.lib.pen",
+    "type": "../foundations/typography.lib.pen",
+    "grids": "../foundations/grids.lib.pen"
+  }
 }

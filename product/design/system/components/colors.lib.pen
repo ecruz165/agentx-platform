@@ -1,10 +1,5 @@
 {
-  "version": "2.11",
-  "imports": {
-    "colors": "../foundations/colors.lib.pen",
-    "type": "../foundations/typography.lib.pen",
-    "grids": "../foundations/grids.lib.pen"
-  },
+  "version": "2.13",
   "children": [
     {
       "id": "core-colors",
@@ -31,7 +26,7 @@
           "type": "frame",
           "name": "Items",
           "layout": "vertical",
-          "width": "fit_content",
+          "width": "fit_content(0)",
           "gap": 16,
           "children": [
             {
@@ -42,10 +37,9 @@
               "height": 40,
               "cornerRadius": "$grids:radius.md",
               "fill": "$colors:color.accent",
-              "stroke": {
-                "thickness": "$grids:border.width",
-                "fill": "$colors:color.border"
-              },
+              "stroke": "$colors:color.border",
+              "strokeWidth": "$grids:border.width",
+              "strokeAlignment": "inner",
               "reusable": true,
               "metadata": {
                 "type": "component",
@@ -64,7 +58,6 @@
               "name": "ColorField",
               "width": 220,
               "height": 40,
-              "layout": "horizontal",
               "alignItems": "center",
               "gap": 10,
               "padding": [
@@ -73,10 +66,9 @@
               ],
               "cornerRadius": "$grids:radius.md",
               "fill": "$colors:color.field-background",
-              "stroke": {
-                "thickness": "$grids:border.width",
-                "fill": "$colors:color.border"
-              },
+              "stroke": "$colors:color.border",
+              "strokeWidth": "$grids:border.width",
+              "strokeAlignment": "inner",
               "children": [
                 {
                   "id": "color-field-sw",
@@ -92,7 +84,8 @@
                   "content": "#3F5694",
                   "fill": "$colors:color.foreground",
                   "fontFamily": "$type:font.family",
-                  "fontSize": "$type:font.size-md"
+                  "fontSize": "$type:font.size-md",
+                  "fontWeight": "normal"
                 }
               ],
               "reusable": true,
@@ -140,7 +133,11 @@
                         "color": "#0000ff",
                         "position": 1
                       }
-                    ]
+                    ],
+                    "enabled": true,
+                    "size": {
+                      "height": 1
+                    }
                   }
                 },
                 {
@@ -152,10 +149,9 @@
                   "height": 16,
                   "cornerRadius": 9999,
                   "fill": "$colors:color.surface",
-                  "stroke": {
-                    "thickness": 2,
-                    "fill": "$colors:color.border"
-                  }
+                  "stroke": "$colors:color.border",
+                  "strokeWidth": 2,
+                  "strokeAlignment": "inner"
                 }
               ],
               "reusable": true,
@@ -191,7 +187,11 @@
                     "color": "$colors:color.accent",
                     "position": 1
                   }
-                ]
+                ],
+                "enabled": true,
+                "size": {
+                  "height": 1
+                }
               },
               "children": [
                 {
@@ -203,10 +203,9 @@
                   "height": 16,
                   "cornerRadius": 9999,
                   "fill": "#00000000",
-                  "stroke": {
-                    "thickness": 2,
-                    "fill": "#ffffff"
-                  }
+                  "stroke": "#ffffff",
+                  "strokeWidth": 2,
+                  "strokeAlignment": "inner"
                 }
               ],
               "reusable": true,
@@ -225,8 +224,7 @@
               "id": "color-swatch-picker",
               "type": "frame",
               "name": "ColorSwatchPicker",
-              "layout": "horizontal",
-              "width": "fit_content",
+              "width": "fit_content(0)",
               "gap": 8,
               "children": [
                 {
@@ -236,10 +234,9 @@
                   "height": 28,
                   "cornerRadius": "$grids:radius.sm",
                   "fill": "#c2453f",
-                  "stroke": {
-                    "thickness": "$grids:border.width",
-                    "fill": "$colors:color.border"
-                  }
+                  "stroke": "$colors:color.border",
+                  "strokeWidth": "$grids:border.width",
+                  "strokeAlignment": "inner"
                 },
                 {
                   "id": "color-swatch-picker-1",
@@ -248,10 +245,9 @@
                   "height": 28,
                   "cornerRadius": "$grids:radius.sm",
                   "fill": "#c98a2e",
-                  "stroke": {
-                    "thickness": "$grids:border.width",
-                    "fill": "$colors:color.border"
-                  }
+                  "stroke": "$colors:color.border",
+                  "strokeWidth": "$grids:border.width",
+                  "strokeAlignment": "inner"
                 },
                 {
                   "id": "color-swatch-picker-2",
@@ -260,10 +256,9 @@
                   "height": 28,
                   "cornerRadius": "$grids:radius.sm",
                   "fill": "#2f9e6e",
-                  "stroke": {
-                    "thickness": "$grids:border.width",
-                    "fill": "$colors:color.border"
-                  }
+                  "stroke": "$colors:color.border",
+                  "strokeWidth": "$grids:border.width",
+                  "strokeAlignment": "inner"
                 },
                 {
                   "id": "color-swatch-picker-3",
@@ -272,10 +267,9 @@
                   "height": 28,
                   "cornerRadius": "$grids:radius.sm",
                   "fill": "#3a72b8",
-                  "stroke": {
-                    "thickness": "$grids:border.width",
-                    "fill": "$colors:color.border"
-                  }
+                  "stroke": "$colors:color.border",
+                  "strokeWidth": "$grids:border.width",
+                  "strokeAlignment": "inner"
                 },
                 {
                   "id": "color-swatch-picker-4",
@@ -284,10 +278,9 @@
                   "height": 28,
                   "cornerRadius": "$grids:radius.sm",
                   "fill": "#3f5694",
-                  "stroke": {
-                    "thickness": 2,
-                    "fill": "$colors:color.foreground"
-                  }
+                  "stroke": "$colors:color.foreground",
+                  "strokeWidth": 2,
+                  "strokeAlignment": "inner"
                 }
               ],
               "reusable": true,
@@ -312,10 +305,6 @@
               "padding": 16,
               "fill": "$colors:color.surface",
               "cornerRadius": "$grids:radius.lg",
-              "stroke": {
-                "thickness": "$grids:border.width",
-                "fill": "$colors:color.border"
-              },
               "effect": {
                 "type": "shadow",
                 "shadowType": "outer",
@@ -324,9 +313,11 @@
                   "y": 8
                 },
                 "blur": 24,
-                "spread": 0,
                 "color": "#00000026"
               },
+              "stroke": "$colors:color.border",
+              "strokeWidth": "$grids:border.width",
+              "strokeAlignment": "inner",
               "children": [
                 {
                   "id": "color-picker-area",
@@ -347,7 +338,11 @@
                         "color": "$colors:color.accent",
                         "position": 1
                       }
-                    ]
+                    ],
+                    "enabled": true,
+                    "size": {
+                      "height": 1
+                    }
                   }
                 },
                 {
@@ -373,13 +368,16 @@
                         "color": "#0000ff",
                         "position": 1
                       }
-                    ]
+                    ],
+                    "enabled": true,
+                    "size": {
+                      "height": 1
+                    }
                   }
                 },
                 {
                   "id": "color-picker-row",
                   "type": "frame",
-                  "layout": "horizontal",
                   "width": "fill_container",
                   "alignItems": "center",
                   "gap": 8,
@@ -398,7 +396,8 @@
                       "content": "#3F5694",
                       "fill": "$colors:color.foreground",
                       "fontFamily": "$type:font.family",
-                      "fontSize": "$type:font.size-md"
+                      "fontSize": "$type:font.size-md",
+                      "fontWeight": "normal"
                     }
                   ]
                 }
@@ -419,5 +418,10 @@
         }
       ]
     }
-  ]
+  ],
+  "imports": {
+    "colors": "../foundations/colors.lib.pen",
+    "type": "../foundations/typography.lib.pen",
+    "grids": "../foundations/grids.lib.pen"
+  }
 }

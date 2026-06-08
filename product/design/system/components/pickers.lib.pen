@@ -1,10 +1,5 @@
 {
-  "version": "2.11",
-  "imports": {
-    "colors": "../foundations/colors.lib.pen",
-    "type": "../foundations/typography.lib.pen",
-    "grids": "../foundations/grids.lib.pen"
-  },
+  "version": "2.13",
   "children": [
     {
       "id": "core-pickers",
@@ -31,7 +26,7 @@
           "type": "frame",
           "name": "Items",
           "layout": "vertical",
-          "width": "fit_content",
+          "width": "fit_content(0)",
           "gap": 16,
           "children": [
             {
@@ -48,7 +43,6 @@
                   "name": "Field",
                   "width": "fill_container",
                   "height": 40,
-                  "layout": "horizontal",
                   "alignItems": "center",
                   "justifyContent": "space_between",
                   "padding": [
@@ -57,10 +51,9 @@
                   ],
                   "cornerRadius": "$grids:radius.md",
                   "fill": "$colors:color.field-background",
-                  "stroke": {
-                    "thickness": "$grids:border.width",
-                    "fill": "$colors:color.border"
-                  },
+                  "stroke": "$colors:color.border",
+                  "strokeWidth": "$grids:border.width",
+                  "strokeAlignment": "inner",
                   "children": [
                     {
                       "id": "autocomplete-f-v",
@@ -68,7 +61,8 @@
                       "content": "Type to search…",
                       "fill": "$colors:color.field-placeholder",
                       "fontFamily": "$type:font.family",
-                      "fontSize": "$type:font.size-md"
+                      "fontSize": "$type:font.size-md",
+                      "fontWeight": "normal"
                     },
                     {
                       "id": "autocomplete-f-c",
@@ -76,7 +70,8 @@
                       "content": "▾",
                       "fill": "$colors:color.muted",
                       "fontFamily": "$type:font.family",
-                      "fontSize": "$type:font.size-md"
+                      "fontSize": "$type:font.size-md",
+                      "fontWeight": "normal"
                     }
                   ]
                 },
@@ -89,10 +84,6 @@
                   "padding": 6,
                   "fill": "$colors:color.surface",
                   "cornerRadius": "$grids:radius.md",
-                  "stroke": {
-                    "thickness": "$grids:border.width",
-                    "fill": "$colors:color.border"
-                  },
                   "effect": {
                     "type": "shadow",
                     "shadowType": "outer",
@@ -101,15 +92,16 @@
                       "y": 8
                     },
                     "blur": 24,
-                    "spread": 0,
                     "color": "#00000026"
                   },
+                  "stroke": "$colors:color.border",
+                  "strokeWidth": "$grids:border.width",
+                  "strokeAlignment": "inner",
                   "children": [
                     {
                       "id": "autocomplete-m-0",
                       "type": "frame",
                       "name": "Argentina",
-                      "layout": "horizontal",
                       "width": "fill_container",
                       "alignItems": "center",
                       "padding": [
@@ -134,7 +126,6 @@
                       "id": "autocomplete-m-1",
                       "type": "frame",
                       "name": "Australia",
-                      "layout": "horizontal",
                       "width": "fill_container",
                       "alignItems": "center",
                       "padding": [
@@ -151,7 +142,7 @@
                           "fill": "$colors:color.foreground",
                           "fontFamily": "$type:font.family",
                           "fontSize": "$type:font.size-md",
-                          "fontWeight": "400"
+                          "fontWeight": "normal"
                         }
                       ]
                     },
@@ -159,7 +150,6 @@
                       "id": "autocomplete-m-2",
                       "type": "frame",
                       "name": "Austria",
-                      "layout": "horizontal",
                       "width": "fill_container",
                       "alignItems": "center",
                       "padding": [
@@ -176,7 +166,7 @@
                           "fill": "$colors:color.foreground",
                           "fontFamily": "$type:font.family",
                           "fontSize": "$type:font.size-md",
-                          "fontWeight": "400"
+                          "fontWeight": "normal"
                         }
                       ]
                     }
@@ -209,7 +199,6 @@
                   "name": "Field",
                   "width": "fill_container",
                   "height": 40,
-                  "layout": "horizontal",
                   "alignItems": "center",
                   "justifyContent": "space_between",
                   "padding": [
@@ -218,10 +207,9 @@
                   ],
                   "cornerRadius": "$grids:radius.md",
                   "fill": "$colors:color.field-background",
-                  "stroke": {
-                    "thickness": "$grids:border.width",
-                    "fill": "$colors:color.border"
-                  },
+                  "stroke": "$colors:color.border",
+                  "strokeWidth": "$grids:border.width",
+                  "strokeAlignment": "inner",
                   "children": [
                     {
                       "id": "combo-box-f-v",
@@ -229,7 +217,8 @@
                       "content": "Select a framework",
                       "fill": "$colors:color.foreground",
                       "fontFamily": "$type:font.family",
-                      "fontSize": "$type:font.size-md"
+                      "fontSize": "$type:font.size-md",
+                      "fontWeight": "normal"
                     },
                     {
                       "id": "combo-box-f-c",
@@ -237,7 +226,8 @@
                       "content": "▾",
                       "fill": "$colors:color.muted",
                       "fontFamily": "$type:font.family",
-                      "fontSize": "$type:font.size-md"
+                      "fontSize": "$type:font.size-md",
+                      "fontWeight": "normal"
                     }
                   ]
                 },
@@ -250,10 +240,6 @@
                   "padding": 6,
                   "fill": "$colors:color.surface",
                   "cornerRadius": "$grids:radius.md",
-                  "stroke": {
-                    "thickness": "$grids:border.width",
-                    "fill": "$colors:color.border"
-                  },
                   "effect": {
                     "type": "shadow",
                     "shadowType": "outer",
@@ -262,15 +248,16 @@
                       "y": 8
                     },
                     "blur": 24,
-                    "spread": 0,
                     "color": "#00000026"
                   },
+                  "stroke": "$colors:color.border",
+                  "strokeWidth": "$grids:border.width",
+                  "strokeAlignment": "inner",
                   "children": [
                     {
                       "id": "combo-box-m-0",
                       "type": "frame",
                       "name": "React",
-                      "layout": "horizontal",
                       "width": "fill_container",
                       "alignItems": "center",
                       "padding": [
@@ -295,7 +282,6 @@
                       "id": "combo-box-m-1",
                       "type": "frame",
                       "name": "Vue",
-                      "layout": "horizontal",
                       "width": "fill_container",
                       "alignItems": "center",
                       "padding": [
@@ -312,7 +298,7 @@
                           "fill": "$colors:color.foreground",
                           "fontFamily": "$type:font.family",
                           "fontSize": "$type:font.size-md",
-                          "fontWeight": "400"
+                          "fontWeight": "normal"
                         }
                       ]
                     },
@@ -320,7 +306,6 @@
                       "id": "combo-box-m-2",
                       "type": "frame",
                       "name": "Svelte",
-                      "layout": "horizontal",
                       "width": "fill_container",
                       "alignItems": "center",
                       "padding": [
@@ -337,7 +322,7 @@
                           "fill": "$colors:color.foreground",
                           "fontFamily": "$type:font.family",
                           "fontSize": "$type:font.size-md",
-                          "fontWeight": "400"
+                          "fontWeight": "normal"
                         }
                       ]
                     },
@@ -345,7 +330,6 @@
                       "id": "combo-box-m-3",
                       "type": "frame",
                       "name": "Solid",
-                      "layout": "horizontal",
                       "width": "fill_container",
                       "alignItems": "center",
                       "padding": [
@@ -362,7 +346,7 @@
                           "fill": "$colors:color.foreground",
                           "fontFamily": "$type:font.family",
                           "fontSize": "$type:font.size-md",
-                          "fontWeight": "400"
+                          "fontWeight": "normal"
                         }
                       ]
                     }
@@ -395,7 +379,6 @@
                   "name": "Field",
                   "width": "fill_container",
                   "height": 40,
-                  "layout": "horizontal",
                   "alignItems": "center",
                   "justifyContent": "space_between",
                   "padding": [
@@ -404,10 +387,9 @@
                   ],
                   "cornerRadius": "$grids:radius.md",
                   "fill": "$colors:color.field-background",
-                  "stroke": {
-                    "thickness": "$grids:border.width",
-                    "fill": "$colors:color.border"
-                  },
+                  "stroke": "$colors:color.border",
+                  "strokeWidth": "$grids:border.width",
+                  "strokeAlignment": "inner",
                   "children": [
                     {
                       "id": "select-f-v",
@@ -415,7 +397,8 @@
                       "content": "Choose a plan",
                       "fill": "$colors:color.field-placeholder",
                       "fontFamily": "$type:font.family",
-                      "fontSize": "$type:font.size-md"
+                      "fontSize": "$type:font.size-md",
+                      "fontWeight": "normal"
                     },
                     {
                       "id": "select-f-c",
@@ -423,7 +406,8 @@
                       "content": "▾",
                       "fill": "$colors:color.muted",
                       "fontFamily": "$type:font.family",
-                      "fontSize": "$type:font.size-md"
+                      "fontSize": "$type:font.size-md",
+                      "fontWeight": "normal"
                     }
                   ]
                 },
@@ -436,10 +420,6 @@
                   "padding": 6,
                   "fill": "$colors:color.surface",
                   "cornerRadius": "$grids:radius.md",
-                  "stroke": {
-                    "thickness": "$grids:border.width",
-                    "fill": "$colors:color.border"
-                  },
                   "effect": {
                     "type": "shadow",
                     "shadowType": "outer",
@@ -448,15 +428,16 @@
                       "y": 8
                     },
                     "blur": 24,
-                    "spread": 0,
                     "color": "#00000026"
                   },
+                  "stroke": "$colors:color.border",
+                  "strokeWidth": "$grids:border.width",
+                  "strokeAlignment": "inner",
                   "children": [
                     {
                       "id": "select-m-0",
                       "type": "frame",
                       "name": "Starter",
-                      "layout": "horizontal",
                       "width": "fill_container",
                       "alignItems": "center",
                       "padding": [
@@ -473,7 +454,7 @@
                           "fill": "$colors:color.foreground",
                           "fontFamily": "$type:font.family",
                           "fontSize": "$type:font.size-md",
-                          "fontWeight": "400"
+                          "fontWeight": "normal"
                         }
                       ]
                     },
@@ -481,7 +462,6 @@
                       "id": "select-m-1",
                       "type": "frame",
                       "name": "Team",
-                      "layout": "horizontal",
                       "width": "fill_container",
                       "alignItems": "center",
                       "padding": [
@@ -506,7 +486,6 @@
                       "id": "select-m-2",
                       "type": "frame",
                       "name": "Enterprise",
-                      "layout": "horizontal",
                       "width": "fill_container",
                       "alignItems": "center",
                       "padding": [
@@ -523,7 +502,7 @@
                           "fill": "$colors:color.foreground",
                           "fontFamily": "$type:font.family",
                           "fontSize": "$type:font.size-md",
-                          "fontWeight": "400"
+                          "fontWeight": "normal"
                         }
                       ]
                     }
@@ -546,5 +525,10 @@
         }
       ]
     }
-  ]
+  ],
+  "imports": {
+    "colors": "../foundations/colors.lib.pen",
+    "type": "../foundations/typography.lib.pen",
+    "grids": "../foundations/grids.lib.pen"
+  }
 }

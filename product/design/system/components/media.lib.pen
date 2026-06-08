@@ -1,9 +1,5 @@
 {
-  "version": "2.11",
-  "imports": {
-    "colors": "../foundations/colors.lib.pen",
-    "type": "../foundations/typography.lib.pen"
-  },
+  "version": "2.13",
   "children": [
     {
       "id": "core-media",
@@ -30,7 +26,7 @@
           "type": "frame",
           "name": "Items",
           "layout": "vertical",
-          "width": "fit_content",
+          "width": "fit_content(0)",
           "gap": 16,
           "children": [
             {
@@ -39,7 +35,6 @@
               "name": "Avatar",
               "width": 40,
               "height": 40,
-              "layout": "horizontal",
               "alignItems": "center",
               "justifyContent": "center",
               "fill": "$colors:color.accent",
@@ -71,5 +66,9 @@
         }
       ]
     }
-  ]
+  ],
+  "imports": {
+    "colors": "../foundations/colors.lib.pen",
+    "type": "../foundations/typography.lib.pen"
+  }
 }

@@ -1,10 +1,5 @@
 {
-  "version": "2.11",
-  "imports": {
-    "colors": "../foundations/colors.lib.pen",
-    "type": "../foundations/typography.lib.pen",
-    "grids": "../foundations/grids.lib.pen"
-  },
+  "version": "2.13",
   "children": [
     {
       "id": "core-collections",
@@ -31,23 +26,21 @@
           "type": "frame",
           "name": "Items",
           "layout": "vertical",
-          "width": "fit_content",
+          "width": "fit_content(0)",
           "gap": 16,
           "children": [
             {
               "id": "tag-group",
               "type": "frame",
               "name": "TagGroup",
-              "layout": "horizontal",
-              "width": "fit_content",
+              "width": "fit_content(0)",
               "gap": 8,
               "children": [
                 {
                   "id": "tag-group-0",
                   "type": "frame",
                   "name": "Design",
-                  "layout": "horizontal",
-                  "width": "fit_content",
+                  "width": "fit_content(0)",
                   "alignItems": "center",
                   "gap": 6,
                   "padding": [
@@ -72,7 +65,8 @@
                       "content": "✕",
                       "fill": "$colors:color.accent",
                       "fontFamily": "$type:font.family",
-                      "fontSize": 11
+                      "fontSize": 11,
+                      "fontWeight": "normal"
                     }
                   ]
                 },
@@ -80,8 +74,7 @@
                   "id": "tag-group-1",
                   "type": "frame",
                   "name": "Eng",
-                  "layout": "horizontal",
-                  "width": "fit_content",
+                  "width": "fit_content(0)",
                   "alignItems": "center",
                   "gap": 6,
                   "padding": [
@@ -106,7 +99,8 @@
                       "content": "✕",
                       "fill": "$colors:color.accent",
                       "fontFamily": "$type:font.family",
-                      "fontSize": 11
+                      "fontSize": 11,
+                      "fontWeight": "normal"
                     }
                   ]
                 },
@@ -114,8 +108,7 @@
                   "id": "tag-group-2",
                   "type": "frame",
                   "name": "Ops",
-                  "layout": "horizontal",
-                  "width": "fit_content",
+                  "width": "fit_content(0)",
                   "alignItems": "center",
                   "gap": 6,
                   "padding": [
@@ -140,7 +133,8 @@
                       "content": "✕",
                       "fill": "$colors:color.accent",
                       "fontFamily": "$type:font.family",
-                      "fontSize": 11
+                      "fontSize": 11,
+                      "fontWeight": "normal"
                     }
                   ]
                 }
@@ -166,16 +160,14 @@
               "padding": 6,
               "fill": "$colors:color.surface",
               "cornerRadius": "$grids:radius.md",
-              "stroke": {
-                "thickness": "$grids:border.width",
-                "fill": "$colors:color.border"
-              },
+              "stroke": "$colors:color.border",
+              "strokeWidth": "$grids:border.width",
+              "strokeAlignment": "inner",
               "children": [
                 {
                   "id": "list-box-0",
                   "type": "frame",
                   "name": "Profile",
-                  "layout": "horizontal",
                   "width": "fill_container",
                   "alignItems": "center",
                   "padding": [
@@ -192,7 +184,7 @@
                       "fill": "$colors:color.foreground",
                       "fontFamily": "$type:font.family",
                       "fontSize": "$type:font.size-md",
-                      "fontWeight": "400"
+                      "fontWeight": "normal"
                     }
                   ]
                 },
@@ -200,7 +192,6 @@
                   "id": "list-box-1",
                   "type": "frame",
                   "name": "Billing",
-                  "layout": "horizontal",
                   "width": "fill_container",
                   "alignItems": "center",
                   "padding": [
@@ -225,7 +216,6 @@
                   "id": "list-box-2",
                   "type": "frame",
                   "name": "Team",
-                  "layout": "horizontal",
                   "width": "fill_container",
                   "alignItems": "center",
                   "padding": [
@@ -242,7 +232,7 @@
                       "fill": "$colors:color.foreground",
                       "fontFamily": "$type:font.family",
                       "fontSize": "$type:font.size-md",
-                      "fontWeight": "400"
+                      "fontWeight": "normal"
                     }
                   ]
                 },
@@ -250,7 +240,6 @@
                   "id": "list-box-3",
                   "type": "frame",
                   "name": "Settings",
-                  "layout": "horizontal",
                   "width": "fill_container",
                   "alignItems": "center",
                   "padding": [
@@ -267,7 +256,7 @@
                       "fill": "$colors:color.foreground",
                       "fontFamily": "$type:font.family",
                       "fontSize": "$type:font.size-md",
-                      "fontWeight": "400"
+                      "fontWeight": "normal"
                     }
                   ]
                 }
@@ -296,8 +285,7 @@
                   "id": "dropdown-trigger",
                   "type": "frame",
                   "name": "Actions  ▾",
-                  "layout": "horizontal",
-                  "width": "fit_content",
+                  "width": "fit_content(0)",
                   "alignItems": "center",
                   "justifyContent": "center",
                   "padding": [
@@ -306,10 +294,9 @@
                   ],
                   "cornerRadius": "$grids:radius.md",
                   "fill": "$colors:color.surface",
-                  "stroke": {
-                    "thickness": "$grids:border.width",
-                    "fill": "$colors:color.border"
-                  },
+                  "stroke": "$colors:color.border",
+                  "strokeWidth": "$grids:border.width",
+                  "strokeAlignment": "inner",
                   "children": [
                     {
                       "id": "dropdown-trigger-l",
@@ -331,10 +318,6 @@
                   "padding": 6,
                   "fill": "$colors:color.surface",
                   "cornerRadius": "$grids:radius.md",
-                  "stroke": {
-                    "thickness": "$grids:border.width",
-                    "fill": "$colors:color.border"
-                  },
                   "effect": {
                     "type": "shadow",
                     "shadowType": "outer",
@@ -343,15 +326,16 @@
                       "y": 8
                     },
                     "blur": 24,
-                    "spread": 0,
                     "color": "#00000026"
                   },
+                  "stroke": "$colors:color.border",
+                  "strokeWidth": "$grids:border.width",
+                  "strokeAlignment": "inner",
                   "children": [
                     {
                       "id": "dropdown-menu-0",
                       "type": "frame",
                       "name": "Edit",
-                      "layout": "horizontal",
                       "width": "fill_container",
                       "alignItems": "center",
                       "padding": [
@@ -368,7 +352,7 @@
                           "fill": "$colors:color.foreground",
                           "fontFamily": "$type:font.family",
                           "fontSize": "$type:font.size-md",
-                          "fontWeight": "400"
+                          "fontWeight": "normal"
                         }
                       ]
                     },
@@ -376,7 +360,6 @@
                       "id": "dropdown-menu-1",
                       "type": "frame",
                       "name": "Duplicate",
-                      "layout": "horizontal",
                       "width": "fill_container",
                       "alignItems": "center",
                       "padding": [
@@ -393,7 +376,7 @@
                           "fill": "$colors:color.foreground",
                           "fontFamily": "$type:font.family",
                           "fontSize": "$type:font.size-md",
-                          "fontWeight": "400"
+                          "fontWeight": "normal"
                         }
                       ]
                     },
@@ -401,7 +384,6 @@
                       "id": "dropdown-menu-2",
                       "type": "frame",
                       "name": "Archive",
-                      "layout": "horizontal",
                       "width": "fill_container",
                       "alignItems": "center",
                       "padding": [
@@ -418,7 +400,7 @@
                           "fill": "$colors:color.foreground",
                           "fontFamily": "$type:font.family",
                           "fontSize": "$type:font.size-md",
-                          "fontWeight": "400"
+                          "fontWeight": "normal"
                         }
                       ]
                     },
@@ -426,7 +408,6 @@
                       "id": "dropdown-menu-3",
                       "type": "frame",
                       "name": "Delete",
-                      "layout": "horizontal",
                       "width": "fill_container",
                       "alignItems": "center",
                       "padding": [
@@ -443,7 +424,7 @@
                           "fill": "$colors:color.foreground",
                           "fontFamily": "$type:font.family",
                           "fontSize": "$type:font.size-md",
-                          "fontWeight": "400"
+                          "fontWeight": "normal"
                         }
                       ]
                     }
@@ -466,5 +447,10 @@
         }
       ]
     }
-  ]
+  ],
+  "imports": {
+    "colors": "../foundations/colors.lib.pen",
+    "type": "../foundations/typography.lib.pen",
+    "grids": "../foundations/grids.lib.pen"
+  }
 }

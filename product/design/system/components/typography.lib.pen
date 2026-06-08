@@ -1,10 +1,5 @@
 {
-  "version": "2.11",
-  "imports": {
-    "colors": "../foundations/colors.lib.pen",
-    "type": "../foundations/typography.lib.pen",
-    "grids": "../foundations/grids.lib.pen"
-  },
+  "version": "2.13",
   "children": [
     {
       "id": "core-typography",
@@ -31,16 +26,15 @@
           "type": "frame",
           "name": "Items",
           "layout": "vertical",
-          "width": "fit_content",
+          "width": "fit_content(0)",
           "gap": 16,
           "children": [
             {
               "id": "kbd",
               "type": "frame",
               "name": "Kbd",
-              "layout": "horizontal",
-              "width": "fit_content",
-              "height": "fit_content",
+              "width": "fit_content(0)",
+              "height": "fit_content(0)",
               "alignItems": "center",
               "justifyContent": "center",
               "padding": [
@@ -49,10 +43,9 @@
               ],
               "cornerRadius": "$grids:radius.sm",
               "fill": "$colors:color.surface",
-              "stroke": {
-                "thickness": "$grids:border.width",
-                "fill": "$colors:color.border"
-              },
+              "stroke": "$colors:color.border",
+              "strokeWidth": "$grids:border.width",
+              "strokeAlignment": "inner",
               "children": [
                 {
                   "id": "kbd-label",
@@ -81,7 +74,7 @@
               "type": "frame",
               "name": "Typography",
               "layout": "vertical",
-              "width": "fit_content",
+              "width": "fit_content(0)",
               "gap": 8,
               "children": [
                 {
@@ -99,7 +92,8 @@
                   "content": "Body text that explains the heading above.",
                   "fill": "$colors:color.foreground",
                   "fontFamily": "$type:font.family",
-                  "fontSize": "$type:font.size-md"
+                  "fontSize": "$type:font.size-md",
+                  "fontWeight": "normal"
                 },
                 {
                   "id": "typography-c",
@@ -127,5 +121,10 @@
         }
       ]
     }
-  ]
+  ],
+  "imports": {
+    "colors": "../foundations/colors.lib.pen",
+    "type": "../foundations/typography.lib.pen",
+    "grids": "../foundations/grids.lib.pen"
+  }
 }

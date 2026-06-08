@@ -1,10 +1,5 @@
 {
-  "version": "2.11",
-  "imports": {
-    "colors": "../foundations/colors.lib.pen",
-    "type": "../foundations/typography.lib.pen",
-    "grids": "../foundations/grids.lib.pen"
-  },
+  "version": "2.13",
   "children": [
     {
       "id": "core-forms",
@@ -31,16 +26,15 @@
           "type": "frame",
           "name": "Items",
           "layout": "vertical",
-          "width": "fit_content",
+          "width": "fit_content(0)",
           "gap": 16,
           "children": [
             {
               "id": "label",
               "type": "frame",
               "name": "Label",
-              "layout": "horizontal",
-              "width": "fit_content",
-              "height": "fit_content",
+              "width": "fit_content(0)",
+              "height": "fit_content(0)",
               "children": [
                 {
                   "id": "label-text",
@@ -68,9 +62,8 @@
               "id": "description",
               "type": "frame",
               "name": "Description",
-              "layout": "horizontal",
-              "width": "fit_content",
-              "height": "fit_content",
+              "width": "fit_content(0)",
+              "height": "fit_content(0)",
               "children": [
                 {
                   "id": "description-text",
@@ -78,7 +71,8 @@
                   "content": "We never share your email.",
                   "fill": "$colors:color.muted",
                   "fontFamily": "$type:font.family",
-                  "fontSize": "$type:font.size-sm"
+                  "fontSize": "$type:font.size-sm",
+                  "fontWeight": "normal"
                 }
               ],
               "reusable": true,
@@ -99,7 +93,6 @@
               "name": "Checkbox",
               "width": 20,
               "height": 20,
-              "layout": "horizontal",
               "alignItems": "center",
               "justifyContent": "center",
               "fill": "$colors:color.accent",
@@ -131,8 +124,7 @@
               "id": "error-message",
               "type": "frame",
               "name": "ErrorMessage",
-              "layout": "horizontal",
-              "width": "fit_content",
+              "width": "fit_content(0)",
               "children": [
                 {
                   "id": "error-message-text",
@@ -140,7 +132,8 @@
                   "content": "Something went wrong.",
                   "fill": "$colors:color.danger",
                   "fontFamily": "$type:font.family",
-                  "fontSize": "$type:font.size-sm"
+                  "fontSize": "$type:font.size-sm",
+                  "fontWeight": "normal"
                 }
               ],
               "reusable": true,
@@ -159,8 +152,7 @@
               "id": "field-error",
               "type": "frame",
               "name": "FieldError",
-              "layout": "horizontal",
-              "width": "fit_content",
+              "width": "fit_content(0)",
               "alignItems": "center",
               "gap": 6,
               "children": [
@@ -170,7 +162,8 @@
                   "content": "⚠",
                   "fill": "$colors:color.danger",
                   "fontFamily": "$type:font.family",
-                  "fontSize": "$type:font.size-sm"
+                  "fontSize": "$type:font.size-sm",
+                  "fontWeight": "normal"
                 },
                 {
                   "id": "field-error-text",
@@ -178,7 +171,8 @@
                   "content": "This field is required",
                   "fill": "$colors:color.danger",
                   "fontFamily": "$type:font.family",
-                  "fontSize": "$type:font.size-sm"
+                  "fontSize": "$type:font.size-sm",
+                  "fontWeight": "normal"
                 }
               ],
               "reusable": true,
@@ -199,7 +193,6 @@
               "name": "Input",
               "width": 280,
               "height": 40,
-              "layout": "horizontal",
               "alignItems": "center",
               "padding": [
                 12,
@@ -207,10 +200,9 @@
               ],
               "fill": "$colors:color.field-background",
               "cornerRadius": "$grids:radius.md",
-              "stroke": {
-                "thickness": "$grids:border.width",
-                "fill": "$colors:color.border"
-              },
+              "stroke": "$colors:color.border",
+              "strokeWidth": "$grids:border.width",
+              "strokeAlignment": "inner",
               "children": [
                 {
                   "id": "input-text",
@@ -218,7 +210,8 @@
                   "content": "Placeholder",
                   "fill": "$colors:color.field-placeholder",
                   "fontFamily": "$type:font.family",
-                  "fontSize": "$type:font.size-md"
+                  "fontSize": "$type:font.size-md",
+                  "fontWeight": "normal"
                 }
               ],
               "reusable": true,
@@ -243,10 +236,9 @@
               "padding": 12,
               "cornerRadius": "$grids:radius.md",
               "fill": "$colors:color.field-background",
-              "stroke": {
-                "thickness": "$grids:border.width",
-                "fill": "$colors:color.border"
-              },
+              "stroke": "$colors:color.border",
+              "strokeWidth": "$grids:border.width",
+              "strokeAlignment": "inner",
               "children": [
                 {
                   "id": "text-area-text",
@@ -254,7 +246,8 @@
                   "content": "Write something…",
                   "fill": "$colors:color.field-placeholder",
                   "fontFamily": "$type:font.family",
-                  "fontSize": "$type:font.size-md"
+                  "fontSize": "$type:font.size-md",
+                  "fontWeight": "normal"
                 }
               ],
               "reusable": true,
@@ -292,7 +285,6 @@
                   "name": "Field",
                   "width": "fill_container",
                   "height": 40,
-                  "layout": "horizontal",
                   "alignItems": "center",
                   "padding": [
                     12,
@@ -300,10 +292,9 @@
                   ],
                   "cornerRadius": "$grids:radius.md",
                   "fill": "$colors:color.field-background",
-                  "stroke": {
-                    "thickness": "$grids:border.width",
-                    "fill": "$colors:color.border"
-                  },
+                  "stroke": "$colors:color.border",
+                  "strokeWidth": "$grids:border.width",
+                  "strokeAlignment": "inner",
                   "children": [
                     {
                       "id": "text-field-input-text",
@@ -311,7 +302,8 @@
                       "content": "you@example.com",
                       "fill": "$colors:color.field-placeholder",
                       "fontFamily": "$type:font.family",
-                      "fontSize": "$type:font.size-md"
+                      "fontSize": "$type:font.size-md",
+                      "fontWeight": "normal"
                     }
                   ]
                 },
@@ -321,7 +313,8 @@
                   "content": "We never share your email.",
                   "fill": "$colors:color.muted",
                   "fontFamily": "$type:font.family",
-                  "fontSize": 12
+                  "fontSize": 12,
+                  "fontWeight": "normal"
                 }
               ],
               "reusable": true,
@@ -342,7 +335,6 @@
               "name": "SearchField",
               "width": 300,
               "height": 40,
-              "layout": "horizontal",
               "alignItems": "center",
               "gap": 8,
               "padding": [
@@ -351,10 +343,9 @@
               ],
               "cornerRadius": "$grids:radius.md",
               "fill": "$colors:color.field-background",
-              "stroke": {
-                "thickness": "$grids:border.width",
-                "fill": "$colors:color.border"
-              },
+              "stroke": "$colors:color.border",
+              "strokeWidth": "$grids:border.width",
+              "strokeAlignment": "inner",
               "children": [
                 {
                   "id": "search-field-icon",
@@ -371,7 +362,8 @@
                   "content": "Search",
                   "fill": "$colors:color.field-placeholder",
                   "fontFamily": "$type:font.family",
-                  "fontSize": "$type:font.size-md"
+                  "fontSize": "$type:font.size-md",
+                  "fontWeight": "normal"
                 }
               ],
               "reusable": true,
@@ -392,7 +384,6 @@
               "name": "NumberField",
               "width": 180,
               "height": 40,
-              "layout": "horizontal",
               "alignItems": "center",
               "padding": [
                 12,
@@ -400,10 +391,9 @@
               ],
               "cornerRadius": "$grids:radius.md",
               "fill": "$colors:color.field-background",
-              "stroke": {
-                "thickness": "$grids:border.width",
-                "fill": "$colors:color.border"
-              },
+              "stroke": "$colors:color.border",
+              "strokeWidth": "$grids:border.width",
+              "strokeAlignment": "inner",
               "children": [
                 {
                   "id": "number-field-value",
@@ -413,14 +403,15 @@
                   "fontFamily": "$type:font.family",
                   "fontSize": "$type:font.size-md",
                   "width": "fill_container",
-                  "textGrowth": "fixed-width"
+                  "textGrowth": "fixed-width",
+                  "fontWeight": "normal"
                 },
                 {
                   "id": "number-field-step",
                   "type": "frame",
                   "name": "Steppers",
                   "layout": "vertical",
-                  "width": "fit_content",
+                  "width": "fit_content(0)",
                   "children": [
                     {
                       "id": "number-field-up",
@@ -428,7 +419,8 @@
                       "content": "▴",
                       "fill": "$colors:color.muted",
                       "fontFamily": "$type:font.family",
-                      "fontSize": 10
+                      "fontSize": 10,
+                      "fontWeight": "normal"
                     },
                     {
                       "id": "number-field-down",
@@ -436,7 +428,8 @@
                       "content": "▾",
                       "fill": "$colors:color.muted",
                       "fontFamily": "$type:font.family",
-                      "fontSize": 10
+                      "fontSize": 10,
+                      "fontWeight": "normal"
                     }
                   ]
                 }
@@ -459,7 +452,6 @@
               "name": "InputGroup",
               "width": 320,
               "height": 40,
-              "layout": "horizontal",
               "alignItems": "center",
               "children": [
                 {
@@ -467,7 +459,6 @@
                   "type": "frame",
                   "name": "Addon",
                   "height": 40,
-                  "layout": "horizontal",
                   "alignItems": "center",
                   "padding": [
                     12,
@@ -487,7 +478,8 @@
                       "content": "https://",
                       "fill": "$colors:color.muted",
                       "fontFamily": "$type:font.family",
-                      "fontSize": "$type:font.size-md"
+                      "fontSize": "$type:font.size-md",
+                      "fontWeight": "normal"
                     }
                   ]
                 },
@@ -497,23 +489,21 @@
                   "name": "Input",
                   "width": "fill_container",
                   "height": 40,
-                  "layout": "horizontal",
                   "alignItems": "center",
                   "padding": [
                     12,
                     0
                   ],
                   "fill": "$colors:color.field-background",
-                  "stroke": {
-                    "thickness": "$grids:border.width",
-                    "fill": "$colors:color.border"
-                  },
                   "cornerRadius": [
                     0,
                     "$grids:radius.md",
                     "$grids:radius.md",
                     0
                   ],
+                  "stroke": "$colors:color.border",
+                  "strokeWidth": "$grids:border.width",
+                  "strokeAlignment": "inner",
                   "children": [
                     {
                       "id": "input-group-input-text",
@@ -521,7 +511,8 @@
                       "content": "your-site",
                       "fill": "$colors:color.field-placeholder",
                       "fontFamily": "$type:font.family",
-                      "fontSize": "$type:font.size-md"
+                      "fontSize": "$type:font.size-md",
+                      "fontWeight": "normal"
                     }
                   ]
                 }
@@ -542,8 +533,7 @@
               "id": "input-otp",
               "type": "frame",
               "name": "InputOTP",
-              "layout": "horizontal",
-              "width": "fit_content",
+              "width": "fit_content(0)",
               "gap": 8,
               "children": [
                 {
@@ -552,15 +542,13 @@
                   "name": "Cell 0",
                   "width": 44,
                   "height": 48,
-                  "layout": "horizontal",
                   "alignItems": "center",
                   "justifyContent": "center",
                   "cornerRadius": "$grids:radius.md",
                   "fill": "$colors:color.field-background",
-                  "stroke": {
-                    "thickness": "$grids:border.width",
-                    "fill": "$colors:color.border"
-                  },
+                  "stroke": "$colors:color.border",
+                  "strokeWidth": "$grids:border.width",
+                  "strokeAlignment": "inner",
                   "children": [
                     {
                       "id": "input-otp-0-d",
@@ -579,15 +567,13 @@
                   "name": "Cell 1",
                   "width": 44,
                   "height": 48,
-                  "layout": "horizontal",
                   "alignItems": "center",
                   "justifyContent": "center",
                   "cornerRadius": "$grids:radius.md",
                   "fill": "$colors:color.field-background",
-                  "stroke": {
-                    "thickness": "$grids:border.width",
-                    "fill": "$colors:color.border"
-                  },
+                  "stroke": "$colors:color.border",
+                  "strokeWidth": "$grids:border.width",
+                  "strokeAlignment": "inner",
                   "children": [
                     {
                       "id": "input-otp-1-d",
@@ -606,20 +592,17 @@
                   "name": "Cell 2",
                   "width": 44,
                   "height": 48,
-                  "layout": "horizontal",
                   "alignItems": "center",
                   "justifyContent": "center",
                   "cornerRadius": "$grids:radius.md",
                   "fill": "$colors:color.field-background",
-                  "stroke": {
-                    "thickness": 2,
-                    "fill": "$colors:color.accent"
-                  },
+                  "stroke": "$colors:color.accent",
+                  "strokeWidth": 2,
+                  "strokeAlignment": "inner",
                   "children": [
                     {
                       "id": "input-otp-2-d",
                       "type": "text",
-                      "content": "",
                       "fill": "$colors:color.foreground",
                       "fontFamily": "$type:font.family",
                       "fontSize": 20,
@@ -633,20 +616,17 @@
                   "name": "Cell 3",
                   "width": 44,
                   "height": 48,
-                  "layout": "horizontal",
                   "alignItems": "center",
                   "justifyContent": "center",
                   "cornerRadius": "$grids:radius.md",
                   "fill": "$colors:color.field-background",
-                  "stroke": {
-                    "thickness": "$grids:border.width",
-                    "fill": "$colors:color.border"
-                  },
+                  "stroke": "$colors:color.border",
+                  "strokeWidth": "$grids:border.width",
+                  "strokeAlignment": "inner",
                   "children": [
                     {
                       "id": "input-otp-3-d",
                       "type": "text",
-                      "content": "",
                       "fill": "$colors:color.foreground",
                       "fontFamily": "$type:font.family",
                       "fontSize": 20,
@@ -676,10 +656,9 @@
               "gap": 12,
               "padding": 16,
               "cornerRadius": "$grids:radius.md",
-              "stroke": {
-                "thickness": "$grids:border.width",
-                "fill": "$colors:color.border"
-              },
+              "stroke": "$colors:color.border",
+              "strokeWidth": "$grids:border.width",
+              "strokeAlignment": "inner",
               "children": [
                 {
                   "id": "fieldset-legend",
@@ -696,7 +675,6 @@
                   "name": "Field",
                   "width": "fill_container",
                   "height": 40,
-                  "layout": "horizontal",
                   "alignItems": "center",
                   "padding": [
                     12,
@@ -704,10 +682,9 @@
                   ],
                   "cornerRadius": "$grids:radius.md",
                   "fill": "$colors:color.field-background",
-                  "stroke": {
-                    "thickness": "$grids:border.width",
-                    "fill": "$colors:color.border"
-                  },
+                  "stroke": "$colors:color.border",
+                  "strokeWidth": "$grids:border.width",
+                  "strokeAlignment": "inner",
                   "children": [
                     {
                       "id": "fieldset-field-1-text",
@@ -715,7 +692,8 @@
                       "content": "Email",
                       "fill": "$colors:color.field-placeholder",
                       "fontFamily": "$type:font.family",
-                      "fontSize": "$type:font.size-md"
+                      "fontSize": "$type:font.size-md",
+                      "fontWeight": "normal"
                     }
                   ]
                 },
@@ -725,7 +703,6 @@
                   "name": "Field",
                   "width": "fill_container",
                   "height": 40,
-                  "layout": "horizontal",
                   "alignItems": "center",
                   "padding": [
                     12,
@@ -733,10 +710,9 @@
                   ],
                   "cornerRadius": "$grids:radius.md",
                   "fill": "$colors:color.field-background",
-                  "stroke": {
-                    "thickness": "$grids:border.width",
-                    "fill": "$colors:color.border"
-                  },
+                  "stroke": "$colors:color.border",
+                  "strokeWidth": "$grids:border.width",
+                  "strokeAlignment": "inner",
                   "children": [
                     {
                       "id": "fieldset-field-2-text",
@@ -744,7 +720,8 @@
                       "content": "SMS",
                       "fill": "$colors:color.field-placeholder",
                       "fontFamily": "$type:font.family",
-                      "fontSize": "$type:font.size-md"
+                      "fontSize": "$type:font.size-md",
+                      "fontWeight": "normal"
                     }
                   ]
                 }
@@ -766,15 +743,14 @@
               "type": "frame",
               "name": "CheckboxGroup",
               "layout": "vertical",
-              "width": "fit_content",
+              "width": "fit_content(0)",
               "gap": 12,
               "children": [
                 {
                   "id": "checkbox-group-0",
                   "type": "frame",
                   "name": "Newsletter",
-                  "layout": "horizontal",
-                  "width": "fit_content",
+                  "width": "fit_content(0)",
                   "alignItems": "center",
                   "gap": 10,
                   "children": [
@@ -784,7 +760,6 @@
                       "name": "Box",
                       "width": 18,
                       "height": 18,
-                      "layout": "horizontal",
                       "alignItems": "center",
                       "justifyContent": "center",
                       "cornerRadius": "$grids:radius.sm",
@@ -807,7 +782,8 @@
                       "content": "Newsletter",
                       "fill": "$colors:color.foreground",
                       "fontFamily": "$type:font.family",
-                      "fontSize": "$type:font.size-md"
+                      "fontSize": "$type:font.size-md",
+                      "fontWeight": "normal"
                     }
                   ]
                 },
@@ -815,8 +791,7 @@
                   "id": "checkbox-group-1",
                   "type": "frame",
                   "name": "Product updates",
-                  "layout": "horizontal",
-                  "width": "fit_content",
+                  "width": "fit_content(0)",
                   "alignItems": "center",
                   "gap": 10,
                   "children": [
@@ -826,15 +801,13 @@
                       "name": "Box",
                       "width": 18,
                       "height": 18,
-                      "layout": "horizontal",
                       "alignItems": "center",
                       "justifyContent": "center",
                       "cornerRadius": "$grids:radius.sm",
                       "fill": "$colors:color.surface",
-                      "stroke": {
-                        "thickness": "$grids:border.width",
-                        "fill": "$colors:color.border"
-                      }
+                      "stroke": "$colors:color.border",
+                      "strokeWidth": "$grids:border.width",
+                      "strokeAlignment": "inner"
                     },
                     {
                       "id": "checkbox-group-1-label",
@@ -842,7 +815,8 @@
                       "content": "Product updates",
                       "fill": "$colors:color.foreground",
                       "fontFamily": "$type:font.family",
-                      "fontSize": "$type:font.size-md"
+                      "fontSize": "$type:font.size-md",
+                      "fontWeight": "normal"
                     }
                   ]
                 }
@@ -864,15 +838,14 @@
               "type": "frame",
               "name": "RadioGroup",
               "layout": "vertical",
-              "width": "fit_content",
+              "width": "fit_content(0)",
               "gap": 12,
               "children": [
                 {
                   "id": "radio-group-0",
                   "type": "frame",
                   "name": "Monthly",
-                  "layout": "horizontal",
-                  "width": "fit_content",
+                  "width": "fit_content(0)",
                   "alignItems": "center",
                   "gap": 10,
                   "children": [
@@ -882,15 +855,13 @@
                       "name": "O",
                       "width": 18,
                       "height": 18,
-                      "layout": "horizontal",
                       "alignItems": "center",
                       "justifyContent": "center",
                       "cornerRadius": 9999,
                       "fill": "$colors:color.surface",
-                      "stroke": {
-                        "thickness": 2,
-                        "fill": "$colors:color.accent"
-                      },
+                      "stroke": "$colors:color.accent",
+                      "strokeWidth": 2,
+                      "strokeAlignment": "inner",
                       "children": [
                         {
                           "id": "radio-group-0-dot",
@@ -909,7 +880,8 @@
                       "content": "Monthly",
                       "fill": "$colors:color.foreground",
                       "fontFamily": "$type:font.family",
-                      "fontSize": "$type:font.size-md"
+                      "fontSize": "$type:font.size-md",
+                      "fontWeight": "normal"
                     }
                   ]
                 },
@@ -917,8 +889,7 @@
                   "id": "radio-group-1",
                   "type": "frame",
                   "name": "Yearly",
-                  "layout": "horizontal",
-                  "width": "fit_content",
+                  "width": "fit_content(0)",
                   "alignItems": "center",
                   "gap": 10,
                   "children": [
@@ -928,15 +899,13 @@
                       "name": "O",
                       "width": 18,
                       "height": 18,
-                      "layout": "horizontal",
                       "alignItems": "center",
                       "justifyContent": "center",
                       "cornerRadius": 9999,
                       "fill": "$colors:color.surface",
-                      "stroke": {
-                        "thickness": 2,
-                        "fill": "$colors:color.border"
-                      }
+                      "stroke": "$colors:color.border",
+                      "strokeWidth": 2,
+                      "strokeAlignment": "inner"
                     },
                     {
                       "id": "radio-group-1-label",
@@ -944,7 +913,8 @@
                       "content": "Yearly",
                       "fill": "$colors:color.foreground",
                       "fontFamily": "$type:font.family",
-                      "fontSize": "$type:font.size-md"
+                      "fontSize": "$type:font.size-md",
+                      "fontWeight": "normal"
                     }
                   ]
                 }
@@ -990,7 +960,6 @@
                       "type": "frame",
                       "width": "fill_container",
                       "height": 40,
-                      "layout": "horizontal",
                       "alignItems": "center",
                       "padding": [
                         12,
@@ -998,10 +967,9 @@
                       ],
                       "cornerRadius": "$grids:radius.md",
                       "fill": "$colors:color.field-background",
-                      "stroke": {
-                        "thickness": "$grids:border.width",
-                        "fill": "$colors:color.border"
-                      },
+                      "stroke": "$colors:color.border",
+                      "strokeWidth": "$grids:border.width",
+                      "strokeAlignment": "inner",
                       "children": [
                         {
                           "id": "form-name-in-t",
@@ -1009,7 +977,8 @@
                           "content": "Ada Lovelace",
                           "fill": "$colors:color.field-placeholder",
                           "fontFamily": "$type:font.family",
-                          "fontSize": "$type:font.size-md"
+                          "fontSize": "$type:font.size-md",
+                          "fontWeight": "normal"
                         }
                       ]
                     }
@@ -1036,7 +1005,6 @@
                       "type": "frame",
                       "width": "fill_container",
                       "height": 40,
-                      "layout": "horizontal",
                       "alignItems": "center",
                       "padding": [
                         12,
@@ -1044,10 +1012,9 @@
                       ],
                       "cornerRadius": "$grids:radius.md",
                       "fill": "$colors:color.field-background",
-                      "stroke": {
-                        "thickness": "$grids:border.width",
-                        "fill": "$colors:color.border"
-                      },
+                      "stroke": "$colors:color.border",
+                      "strokeWidth": "$grids:border.width",
+                      "strokeAlignment": "inner",
                       "children": [
                         {
                           "id": "form-email-in-t",
@@ -1055,7 +1022,8 @@
                           "content": "ada@example.com",
                           "fill": "$colors:color.field-placeholder",
                           "fontFamily": "$type:font.family",
-                          "fontSize": "$type:font.size-md"
+                          "fontSize": "$type:font.size-md",
+                          "fontWeight": "normal"
                         }
                       ]
                     }
@@ -1064,7 +1032,6 @@
                 {
                   "id": "form-actions",
                   "type": "frame",
-                  "layout": "horizontal",
                   "width": "fill_container",
                   "justifyContent": "end",
                   "gap": 12,
@@ -1073,8 +1040,7 @@
                       "id": "form-cancel",
                       "type": "frame",
                       "name": "Cancel",
-                      "layout": "horizontal",
-                      "width": "fit_content",
+                      "width": "fit_content(0)",
                       "alignItems": "center",
                       "justifyContent": "center",
                       "padding": [
@@ -1083,10 +1049,9 @@
                       ],
                       "cornerRadius": "$grids:radius.md",
                       "fill": "$colors:color.surface",
-                      "stroke": {
-                        "thickness": "$grids:border.width",
-                        "fill": "$colors:color.border"
-                      },
+                      "stroke": "$colors:color.border",
+                      "strokeWidth": "$grids:border.width",
+                      "strokeAlignment": "inner",
                       "children": [
                         {
                           "id": "form-cancel-l",
@@ -1103,8 +1068,7 @@
                       "id": "form-submit",
                       "type": "frame",
                       "name": "Submit",
-                      "layout": "horizontal",
-                      "width": "fit_content",
+                      "width": "fit_content(0)",
                       "alignItems": "center",
                       "justifyContent": "center",
                       "padding": [
@@ -1144,5 +1108,10 @@
         }
       ]
     }
-  ]
+  ],
+  "imports": {
+    "colors": "../foundations/colors.lib.pen",
+    "type": "../foundations/typography.lib.pen",
+    "grids": "../foundations/grids.lib.pen"
+  }
 }

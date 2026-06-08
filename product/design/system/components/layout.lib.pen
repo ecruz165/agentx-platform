@@ -1,10 +1,5 @@
 {
-  "version": "2.11",
-  "imports": {
-    "colors": "../foundations/colors.lib.pen",
-    "type": "../foundations/typography.lib.pen",
-    "grids": "../foundations/grids.lib.pen"
-  },
+  "version": "2.13",
   "children": [
     {
       "id": "core-layout",
@@ -31,7 +26,7 @@
           "type": "frame",
           "name": "Items",
           "layout": "vertical",
-          "width": "fit_content",
+          "width": "fit_content(0)",
           "gap": 16,
           "children": [
             {
@@ -59,15 +54,10 @@
               "name": "Surface",
               "width": 240,
               "height": 120,
-              "layout": "horizontal",
               "alignItems": "center",
               "justifyContent": "center",
               "fill": "$colors:color.surface",
               "cornerRadius": "$grids:radius.lg",
-              "stroke": {
-                "thickness": "$grids:border.width",
-                "fill": "$colors:color.border"
-              },
               "effect": {
                 "type": "shadow",
                 "shadowType": "outer",
@@ -76,9 +66,11 @@
                   "y": 2
                 },
                 "blur": 10,
-                "spread": 0,
                 "color": "#0000001f"
               },
+              "stroke": "$colors:color.border",
+              "strokeWidth": "$grids:border.width",
+              "strokeAlignment": "inner",
               "children": [
                 {
                   "id": "surface-label",
@@ -86,7 +78,8 @@
                   "content": "Surface",
                   "fill": "$colors:color.muted",
                   "fontFamily": "$type:font.family",
-                  "fontSize": "$type:font.size-sm"
+                  "fontSize": "$type:font.size-sm",
+                  "fontWeight": "normal"
                 }
               ],
               "reusable": true,
@@ -108,10 +101,6 @@
               "width": 360,
               "fill": "$colors:color.surface",
               "cornerRadius": "$grids:radius.lg",
-              "stroke": {
-                "thickness": "$grids:border.width",
-                "fill": "$colors:color.border"
-              },
               "effect": {
                 "type": "shadow",
                 "shadowType": "outer",
@@ -120,12 +109,14 @@
                   "y": 2
                 },
                 "blur": 8,
-                "spread": 0,
                 "color": "#0000001f"
               },
               "layout": "vertical",
               "gap": 16,
               "clip": true,
+              "stroke": "$colors:color.border",
+              "strokeWidth": "$grids:border.width",
+              "strokeAlignment": "inner",
               "children": [
                 {
                   "id": "card-header",
@@ -156,7 +147,8 @@
                       "content": "Supporting copy goes here.",
                       "fill": "$colors:color.muted",
                       "fontFamily": "$type:font.family",
-                      "fontSize": "$type:font.size-sm"
+                      "fontSize": "$type:font.size-sm",
+                      "fontWeight": "normal"
                     }
                   ]
                 },
@@ -175,7 +167,8 @@
                       "content": "Body content.",
                       "fill": "$colors:color.muted",
                       "fontFamily": "$type:font.family",
-                      "fontSize": "$type:font.size-sm"
+                      "fontSize": "$type:font.size-sm",
+                      "fontWeight": "normal"
                     }
                   ]
                 },
@@ -190,7 +183,6 @@
                     20,
                     20
                   ],
-                  "layout": "horizontal",
                   "justifyContent": "end",
                   "gap": "$grids:space.unit"
                 }
@@ -211,24 +203,21 @@
               "id": "toolbar",
               "type": "frame",
               "name": "Toolbar",
-              "layout": "horizontal",
-              "width": "fit_content",
+              "width": "fit_content(0)",
               "alignItems": "center",
               "gap": 4,
               "padding": 6,
               "fill": "$colors:color.surface",
               "cornerRadius": "$grids:radius.md",
-              "stroke": {
-                "thickness": "$grids:border.width",
-                "fill": "$colors:color.border"
-              },
+              "stroke": "$colors:color.border",
+              "strokeWidth": "$grids:border.width",
+              "strokeAlignment": "inner",
               "children": [
                 {
                   "id": "toolbar-b",
                   "type": "frame",
                   "width": 32,
                   "height": 32,
-                  "layout": "horizontal",
                   "alignItems": "center",
                   "justifyContent": "center",
                   "cornerRadius": "$grids:radius.sm",
@@ -240,7 +229,8 @@
                       "content": "B",
                       "fill": "$colors:color.foreground",
                       "fontFamily": "$type:font.family",
-                      "fontSize": "$type:font.size-md"
+                      "fontSize": "$type:font.size-md",
+                      "fontWeight": "normal"
                     }
                   ]
                 },
@@ -249,7 +239,6 @@
                   "type": "frame",
                   "width": 32,
                   "height": 32,
-                  "layout": "horizontal",
                   "alignItems": "center",
                   "justifyContent": "center",
                   "cornerRadius": "$grids:radius.sm",
@@ -261,7 +250,8 @@
                       "content": "I",
                       "fill": "$colors:color.foreground",
                       "fontFamily": "$type:font.family",
-                      "fontSize": "$type:font.size-md"
+                      "fontSize": "$type:font.size-md",
+                      "fontWeight": "normal"
                     }
                   ]
                 },
@@ -270,7 +260,6 @@
                   "type": "frame",
                   "width": 32,
                   "height": 32,
-                  "layout": "horizontal",
                   "alignItems": "center",
                   "justifyContent": "center",
                   "cornerRadius": "$grids:radius.sm",
@@ -282,7 +271,8 @@
                       "content": "U",
                       "fill": "$colors:color.foreground",
                       "fontFamily": "$type:font.family",
-                      "fontSize": "$type:font.size-md"
+                      "fontSize": "$type:font.size-md",
+                      "fontWeight": "normal"
                     }
                   ]
                 },
@@ -298,7 +288,6 @@
                   "type": "frame",
                   "width": 32,
                   "height": 32,
-                  "layout": "horizontal",
                   "alignItems": "center",
                   "justifyContent": "center",
                   "cornerRadius": "$grids:radius.sm",
@@ -310,7 +299,8 @@
                       "content": "≣",
                       "fill": "$colors:color.foreground",
                       "fontFamily": "$type:font.family",
-                      "fontSize": "$type:font.size-md"
+                      "fontSize": "$type:font.size-md",
+                      "fontWeight": "normal"
                     }
                   ]
                 },
@@ -319,7 +309,6 @@
                   "type": "frame",
                   "width": 32,
                   "height": 32,
-                  "layout": "horizontal",
                   "alignItems": "center",
                   "justifyContent": "center",
                   "cornerRadius": "$grids:radius.sm",
@@ -331,7 +320,8 @@
                       "content": "≡",
                       "fill": "$colors:color.foreground",
                       "fontFamily": "$type:font.family",
-                      "fontSize": "$type:font.size-md"
+                      "fontSize": "$type:font.size-md",
+                      "fontWeight": "normal"
                     }
                   ]
                 }
@@ -352,5 +342,10 @@
         }
       ]
     }
-  ]
+  ],
+  "imports": {
+    "colors": "../foundations/colors.lib.pen",
+    "type": "../foundations/typography.lib.pen",
+    "grids": "../foundations/grids.lib.pen"
+  }
 }

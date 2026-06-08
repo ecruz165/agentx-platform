@@ -1,10 +1,5 @@
 {
-  "version": "2.11",
-  "imports": {
-    "colors": "../foundations/colors.lib.pen",
-    "type": "../foundations/typography.lib.pen",
-    "grids": "../foundations/grids.lib.pen"
-  },
+  "version": "2.13",
   "children": [
     {
       "id": "core-feedback",
@@ -31,7 +26,7 @@
           "type": "frame",
           "name": "Items",
           "layout": "vertical",
-          "width": "fit_content",
+          "width": "fit_content(0)",
           "gap": 16,
           "children": [
             {
@@ -49,8 +44,8 @@
                   "height": 32,
                   "fill": "$colors:color.border",
                   "innerRadius": 0.8,
-                  "startAngle": 0,
-                  "sweepAngle": 360
+                  "x": 0,
+                  "y": 0
                 },
                 {
                   "id": "spinner-arc",
@@ -60,7 +55,9 @@
                   "fill": "$colors:color.accent",
                   "innerRadius": 0.8,
                   "startAngle": 90,
-                  "sweepAngle": 280
+                  "sweepAngle": 280,
+                  "x": 0,
+                  "y": 0
                 }
               ],
               "reusable": true,
@@ -174,7 +171,6 @@
                 {
                   "id": "progress-bar-row",
                   "type": "frame",
-                  "layout": "horizontal",
                   "width": "fill_container",
                   "justifyContent": "space_between",
                   "children": [
@@ -193,7 +189,8 @@
                       "content": "60%",
                       "fill": "$colors:color.muted",
                       "fontFamily": "$type:font.family",
-                      "fontSize": "$type:font.size-sm"
+                      "fontSize": "$type:font.size-sm",
+                      "fontWeight": "normal"
                     }
                   ]
                 },
@@ -247,8 +244,8 @@
                   "height": 64,
                   "fill": "$colors:color.border",
                   "innerRadius": 0.8,
-                  "startAngle": 0,
-                  "sweepAngle": 360
+                  "x": 0,
+                  "y": 0
                 },
                 {
                   "id": "progress-circle-arc",
@@ -258,7 +255,9 @@
                   "fill": "$colors:color.accent",
                   "innerRadius": 0.8,
                   "startAngle": 90,
-                  "sweepAngle": 252
+                  "sweepAngle": 252,
+                  "x": 0,
+                  "y": 0
                 },
                 {
                   "id": "progress-circle-text",
@@ -289,8 +288,6 @@
               "type": "frame",
               "name": "Alert",
               "width": 380,
-              "layout": "horizontal",
-              "alignItems": "start",
               "gap": 12,
               "padding": 16,
               "fill": "$colors:color.accent-soft",
@@ -330,7 +327,8 @@
                       "fontFamily": "$type:font.family",
                       "fontSize": "$type:font.size-sm",
                       "textGrowth": "fixed-width",
-                      "width": "fill_container"
+                      "width": "fill_container",
+                      "fontWeight": "normal"
                     }
                   ]
                 }
@@ -351,5 +349,10 @@
         }
       ]
     }
-  ]
+  ],
+  "imports": {
+    "colors": "../foundations/colors.lib.pen",
+    "type": "../foundations/typography.lib.pen",
+    "grids": "../foundations/grids.lib.pen"
+  }
 }

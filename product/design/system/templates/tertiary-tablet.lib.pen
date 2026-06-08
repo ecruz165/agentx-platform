@@ -1,10 +1,5 @@
 {
-  "version": "2.11",
-  "imports": {
-    "colors": "../foundations/colors.lib.pen",
-    "grids": "../foundations/grids.lib.pen",
-    "type": "../foundations/typography.lib.pen"
-  },
+  "version": "2.13",
   "children": [
     {
       "id": "tpl-tertiary-tablet-components",
@@ -24,10 +19,6 @@
           "width": 360,
           "fill": "$colors:color.surface",
           "cornerRadius": "$grids:radius.lg",
-          "stroke": {
-            "thickness": "$grids:border.width",
-            "fill": "$colors:color.border"
-          },
           "effect": {
             "type": "shadow",
             "shadowType": "outer",
@@ -36,12 +27,14 @@
               "y": 2
             },
             "blur": 8,
-            "spread": 0,
             "color": "#0000001f"
           },
           "layout": "vertical",
           "gap": 16,
           "clip": true,
+          "stroke": "$colors:color.border",
+          "strokeWidth": "$grids:border.width",
+          "strokeAlignment": "inner",
           "children": [
             {
               "id": "card-header",
@@ -72,7 +65,8 @@
                   "content": "Supporting copy goes here.",
                   "fill": "$colors:color.muted",
                   "fontFamily": "$type:font.family",
-                  "fontSize": "$type:font.size-sm"
+                  "fontSize": "$type:font.size-sm",
+                  "fontWeight": "normal"
                 }
               ]
             },
@@ -91,7 +85,8 @@
                   "content": "Body content.",
                   "fill": "$colors:color.muted",
                   "fontFamily": "$type:font.family",
-                  "fontSize": "$type:font.size-sm"
+                  "fontSize": "$type:font.size-sm",
+                  "fontWeight": "normal"
                 }
               ]
             },
@@ -106,7 +101,6 @@
                 20,
                 20
               ],
-              "layout": "horizontal",
               "justifyContent": "end",
               "gap": "$grids:space.unit"
             }
@@ -130,7 +124,6 @@
           "height": 40,
           "fill": "$colors:color.accent",
           "cornerRadius": "$grids:radius.md",
-          "layout": "horizontal",
           "gap": "$grids:space.2",
           "padding": [
             "$grids:space.3",
@@ -143,7 +136,7 @@
               "id": "button-icon",
               "type": "path",
               "name": "plus",
-              "geometry": "M256 80c0-17.7-14.3-32-32-32s-32 14.3-32 32l0 144L48 224c-17.7 0-32 14.3-32 32s14.3 32 32 32l144 0 0 144c0 17.7 14.3 32 32 32s32-14.3 32-32l0-144 144 0c17.7 0 32-14.3 32-32s-14.3-32-32-32l-144 0 0-144z",
+              "geometry": "m256 80c0-17.7-14.3-32-32-32s-32 14.3-32 32l0 144l-144 0c-17.7 0-32 14.3-32 32s14.3 32 32 32l144 0l0 144c0 17.7 14.3 32 32 32s32-14.3 32-32l0-144l144 0c17.7 0 32-14.3 32-32s-14.3-32-32-32l-144 0l0-144z",
               "viewBox": [
                 0,
                 0,
@@ -185,17 +178,12 @@
       "width": 834,
       "height": 1112,
       "fill": "$colors:color.background",
-      "theme": {
-        "mode": "light"
-      },
       "layout": "vertical",
-      "gap": 0,
       "children": [
         {
           "id": "tertiary-tablet-topbar-5",
           "type": "frame",
           "name": "TopBar",
-          "layout": "horizontal",
           "width": "fill_container",
           "height": 56,
           "fill": "$colors:color.surface",
@@ -250,7 +238,6 @@
               "id": "tertiary-tablet-actions-3",
               "type": "frame",
               "name": "Actions",
-              "layout": "horizontal",
               "gap": "$grids:space.3",
               "alignItems": "center",
               "children": [
@@ -268,5 +255,10 @@
       "x": 0,
       "y": 0
     }
-  ]
+  ],
+  "imports": {
+    "colors": "../foundations/colors.lib.pen",
+    "grids": "../foundations/grids.lib.pen",
+    "type": "../foundations/typography.lib.pen"
+  }
 }
