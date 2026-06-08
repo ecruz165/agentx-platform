@@ -1,7 +1,0 @@
-{
-  "name": "@ecruz165/design-system",
-  "version": "0.0.0",
-  "private": true,
-  "type": "module",
-  "description": "AgentX design system — placeholder. Source of truth is the .pen/.lib.pen design files under product/design/system. Code artifacts (Tailwind v4 theme.css + framework plugin) are generated here only once the .pen design is executed into components and a UI framework is chosen."
-}
