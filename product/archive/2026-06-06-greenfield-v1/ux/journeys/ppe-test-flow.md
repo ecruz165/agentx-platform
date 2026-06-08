@@ -40,5 +40,5 @@ user-flow
 
 ## Notes
 - "Sandbox / no-publish mode" is the single highest-value affordance here — without it, nobody can safely test a flow that ends in `publish-merge`. It probably needs to be a first-class run mode (alongside "real"), surfaced anywhere a job is submitted, not just in Compose's test button.
-- This flow loops with [Author a Flow](./ppe-author-flow.md) step 2 — test → fix → test. The flow version should be the anchor: each test run records against a version, so "which version is known-good" is answerable.
+- This flow loops with [Author a Flow](ppe-author-flow.md) step 2 — test → fix → test. The flow version should be the anchor: each test run records against a version, so "which version is known-good" is answerable.
 - Steps 2–3 overlap heavily with the Outcome Engineer's own watch/validate flow (different intent, similar screens). Confirms the earlier note: Jobs/Sessions/Proposals need per-persona lenses, not duplicate screens.

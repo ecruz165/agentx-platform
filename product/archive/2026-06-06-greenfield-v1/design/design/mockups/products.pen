@@ -1,0 +1,7 @@
+{
+  "version": "2.11",
+  "children": [],
+  "imports": {
+    "o": "../design-system.lib.pen"
+  }
+}

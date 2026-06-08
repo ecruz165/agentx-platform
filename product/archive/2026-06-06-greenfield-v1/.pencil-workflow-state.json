@@ -1,0 +1,370 @@
+{
+  "version": 1,
+  "active": {
+    "id": "product-greenfield-2026-05-12-023902",
+    "workflow": "product:greenfield",
+    "startedAt": "2026-05-12T02:39:02Z",
+    "lastActivity": "2026-05-16T00:00:00Z",
+    "currentPhase": 4,
+    "currentStep": "UX TRACK → LOW-FI WIREFRAMES (v1 screen set DONE — 7 screens; awaiting user review before resuming foundation rendering + components). Done earlier: 3 personas; ALL 9 user-flows; ~34 pain points; 33 user stories; STORY MAP map-agentx-control-plane-v1 (10-step backbone, 2 slices: v1 walking skeleton=18 stories, v1.1+ depth=15) → product/.pencil-ux.json + product/ux/{personas,journeys,story-maps}/*.md (story-map markdown verified on disk). Screen inventory: Intake, Compose, Specs/Feature-Kits (NEW), SubmitJob, Jobs, Sessions, Proposals, Catalog, Benchmarks/BenchmarkRun, NavShell. Cross-cutting widgets: flow-graph (tag=flow-graph-widget), acceptance-criteria checklist (tag=checklist-widget). Provenance spine: spec-kit version ↔ job ↔ produced feature. NOTE: pain-point .addressedBy backrefs NOT written (forward refs present). PENCIL: reconnected 2026-05-12. WIREFRAME FILE: product/design/wireframes/control-plane-v1.pen (per user — wireframes live in agentx-platform under product/design/, NOT agentx-studio; bootstrapped by copying agentx-studio/.agentx/wireframes/entry.pen ONLY for its design tokens — the `mode` dark/light theme + ~20 color tokens [$bg-*, $accent*, $text-*, $status-*, $border*] + JetBrains Mono / Inter. The two 'Entry Screen' frames that came along in that copy were removed — per user, the entry/dashboard screen is a separate prior artifact that still lives in agentx-studio/.agentx/wireframes/entry.pen and is NOT part of this v1 set; do not re-add it). control-plane-v1.pen now holds the v1 wireframes (left→right on canvas): 'Entry Screen — Dark' (lmqnz — NEW, simple launcher per user: topbar = [☰ hamburger][● AgentX Studio logo] left, profile right; a HIDDEN NAV DRAWER (absolute-positioned left overlay, 248px, shown OPEN on the Entry screen as the demo — toggled by ☰, hidden by default; the ☰ hamburger is in the topbar Toolbar-Left of ALL 8 screens, before the logo): MENU + ✕, then Home[selected] · Products · Jobs · Benchmarks · —CATALOG— · Agents · Skills · Flows, each w/ a Material Symbol icon; centered column behind it = greeting 'How can we help you today?' + sub, a Job Input Card: big textarea + attachments row [📎 file chip / 🔗 url chip / dashed '+ Add context — files or URLs' button] + bottom row [product selector 'for: SkoolScout Platform ▾' | 'Start job →'] — nothing below the card (clean launcher; jobs live in the nav drawer / Jobs screen)]. This is the front door to W2 — type intent + attach context → Start job → coordinator routes or launches Compose. The OLD agentx-studio portfolio-dashboard 'entry' screen is unrelated and stays in agentx-studio/.agentx/wireframes/entry.pen). Then the 7 backbone screens: 'Compose Screen — Dark' (t67st — flows panel + flow-coverage matrix + flow-graph node chain + validation strip; backbone step 2 / journey-ppe-author-flow / roadmap W3), 'Confirm Job Screen — Dark' (C8SxM, was 'Submit Job' — refactored per user into a CONFIRMATION screen for the Entry screen: after 'Start job' on Entry you land here. No sidebar (centered ~720px column). Topbar = ☰ + crumb 'Confirm & start'. Main = title 'Confirm & start' + 'review what agentx will do, then confirm — or go back to edit'; 'WHAT YOU ASKED · paraphrased by the coordinator · Edit ↩' card [PRIMARY = the coordinator's paraphrase of your intent+context (a fuller structured restatement, pulls in attached docs, resolves scope) — this is what gets passed as the job's input if confirmed; below it '▸ your exact words: <terse original>' for cross-check; then a Context row of the attached files/URLs chips + '+ add'. Confirm is a comprehension check (did the coordinator understand?) as much as a cost check — Edit ↩ goes back to Entry]; COORDINATOR strip [Routed → workflow X / 'Not right → Compose a new one']; RUN CONFIG card [PRODUCT (headline — 'SkoolScout Platform' + 'ⓘ N repos' chip → hover pops a floating Repos-detail card: per-repo branch + publish target, with the note 'repos aren't a primary field — the product is; download publish type ⇒ no repos at all') · WORKFLOW (v3 ▾) · WHEN ([Run now] | [Schedule…] | [Due by…] toggle — 'Schedule = run at a set time; Due by = set a deadline, the agent queues + prioritizes to land before it')] — removed per user: Mode/sandbox-real toggle + Model-overrides (unclear) + Iteration-note (covered by Entry's intent box); ESTIMATE card [4 stat cells, story-point-led — STORY POINTS ~N (sub: 'est. by <flow> · actuals avg X / M runs', accent-colored) · AVG HITL THIS FLOW ~N (sub: '~1–2 pauses per run — plan a check-in') · COST ~$ (+ range) · TIME ~min (wall-clock incl. HITL waits); note: story-point + HITL numbers are this Flow's running averages over its history, re-estimated after the coordinator routes, actuals tracked against it; tokens (in/out) + agent names mentioned in the note; a 'Due by' deadline lets the scheduler trade cost↔speed against the slack. Connects Confirm → Jobs (actuals) → Benchmarks (aggregate)]; bottom bar [← Back to edit | 'costs apply (see estimate above)' ........ Confirm & start →]. Sits on canvas right after Entry; flow = Entry (intent + context + Start job) → Confirm (review + confirm) → Run (watch). Covers roadmap W2 / backbone step 6 — the OE-kit-queue variant of submission folds into the Entry+Confirm pair for the MVP), 'Jobs Screen — Dark' (YJ0XH — jobs panel [running/awaiting-approval/completed/failed badges] + main = job_id header + Stop/Re-submit w/ effect hint + FLOW card [status'd node chain ✓done/●running/faded-pending + progress bar] + CURRENT STEP card [becomes WHY-IT-FAILED on failure] + COST/TIME card + EVENTS feed; backbone step 7 / journey-oe-watch-run / roadmap W4), 'Proposals Screen — Dark' (NNqk8 — proposals panel [needs-review/accepted/rejected→flow badges] + main = title/PR header + split body [left: PRODUCED-DIFF card w/ file tabs + colored diff lines; right: SPEC-ACCEPTANCE-CRITERIA checklist widget w/ ✓auto-pass/✓human-checked/✗auto-fail/?needs-review states, diff-anchor links] + decision bar [Reject→flow / Reject→Product / Accept & merge] + audit note + 'accept→publish-merge under GitHub App token' caption; backbone step 9 / journey-oe-validate-feature + journey-product-review-vs-spec / roadmap W5), 'Intake — Register Product — Dark' (cCWyF — products panel [active/draft] + main = IDENTITY card [name/slug/desc] then a 2-col body — LEFT: CONTEXT SOURCES card [typed list: website / external repo / openDoc spec, each w/ ✓indexed status, + an Index config row [code-full·embedder·backend] + Preview] and PRODUCT REPOS card [the repos work happens in, each w/ ✓App-installed / ⚠not-installed+Install]; RIGHT: PUBLISHING TARGETS card [radio-default + per-target access status — ● File download 'no auth·default', ○ GitHub PR ✓App-installed, ○ GitHub merge ✓App-installed, ○ Dropbox ⚠not-connected+Connect, ○ OneDrive ⚠+Connect, ○ Publish as Confluence ⚠+Connect, ○ Publish as Jira ⚠+Connect — all but download need access validation] — then activation warning '⚠ no flows yet — can activate but jobs won't run' + Save-draft/Activate bar; backbone step 1 / journey-ppe-register-product. Restructured per user: a product = name + context sources [websites/external repos/openDoc specs] + product repos + publishing targets w/ a default), 'Skills Screen — Dark' (xxxmB, was 'Catalog' — reworked per user's skillzkit taxonomy: skillzkit 'skills' = 4 kinds — workflows / tasks / tools(CLI) / integrations(REST); a workflow has many tasks w/ persistence points between them, usable inside a Flow [often triggers HITL] OR promoted here to a Flow / part of one. Left nav = 'SKILLS — KINDS' tabs [Workflows[sel] · Tasks · Tools(CLI) · Integrations(REST)] + skillzkit-upstream note; main = search bar + workflow cards [name + 'workflow · N tasks' tag + step-chain w/ persistence-point note + Enabled-pill/[Enable] + '↗ Promote to Flow' link]; backbone step 3 / story-catalog-browse-and-enable. NAV: 'Skills' stays one item in the drawer [umbrella over the 4 kinds, which are tabs inside this screen]; 'Agents' and 'Flows' are separate nav destinations. ), 'Agents Screen — Dark' (tA1Hn — left nav [AGENTS·8 + New agent + filters All/Enabled/System + 'agents = LLM executors that flow agent nodes use' note] + main = search + agent cards [name (+ 'system' tag for system agents) + description + a meta line 'accepts: <skills> · binding: <pref → fallback> · effort: <low/med/high>' + Enabled-pill/[Enable] + Edit link]; backbone step 3 / nav 'Agents'), 'Flows Screen — Dark' (X3pwV9 — left nav [FLOWS·12 + 'New (Compose)' + filters All/Work/Job-definition/Post-job + 'FlowDefs the harness runs · authored in Compose or promoted from a skillzkit workflow' note] + main = search + flow cards [name + kind-tag (work / job-definition[accent] / post-job) + meta line 'v3 · serves X · N nodes · node→chain' + provenance line ('authored in Compose' OR '↗ promoted from skillzkit workflow `name`') + ✓valid/⚠issue badge + 'Open in Compose →']; backbone step 2-ish / nav 'Flows'). 'Benchmarks Screen — Dark' (KeO2S — NEW per user; also added 'Benchmarks' to the nav drawer after Jobs [icon: leaderboard]. Left nav = BENCHMARKS·N + '+ New run' [cyan] + filters [All runs / by-suite] + 'run an agent+config (or whole flow) against a suite of N inputs · compare score/cost/latency/story-pt-error across runs · pick a winner to set as a flow's default' note. Main = title + a Runs Table Card ['RUNS — SUITE: <name> · N inputs each' + a comparison table: cols ☐|RUN|JOBS(✓/✗)|AVG SCORE|P50 TIME|STORY-PT MAE|$/JOB; rows = runs (model × config × flow), e.g. 'haiku-4-5 · default-flow ★ current default', 'opus-4-7 · default-flow' (0.94 ▲ best, $1.10 red), 'qwen-0.6b · default-flow baseline' (0.78 amber, $0.12 ▲ cheapest), 'haiku-4-5 · 2-agent-flow' (7m ▲ fastest); ▲ = best-per-column markers; checked rows highlighted; footer: tick 2 → side-by-side compare, 'Set as default' promotes a winning config onto the flow → Confirm-screen estimates update] + a 'Compare 2 selected →' header button. This is backbone step 10 (was out of v1 scope — now wireframed). Connects Confirm (estimate) ↔ Jobs (actuals) ↔ Benchmarks (aggregate)). 'Run Screen — Dark' (MQzvw — NEW per user, the post-'Start job' live-work view: topbar = ☰ + crumb 'Run · <flow> · <jobId>' + 'running · Nm Ns' pill + [Stop] + profile; body = 3 columns — LEFT (fill): ARTIFACT VIEWER [header: selected file name + meta + Diff|Content toggle; a live diff code block (red removed / green added / context); footer 'Latest snapshot — updates live as the agent edits']; MIDDLE (480px) split vertically — TOP: ARTIFACTS tree [grouped by repo/worktree → file rows w/ M/A/D/✦ change badges + diff-stats; selected row highlighted; plus an 'outputs' group for non-code artifacts]; BOTTOM: AGENT UPDATES [agent chips (done ✓ / active ●) + event stream (timestamp · agent · message) + a prominent amber HITL CARD (agent-needs-you prompt + verdict buttons + 'Add a note ↩') + a persistent STEERING INPUT footer ('Add steering for the agents…' + Send)]; RIGHT (48px): VSCODE-LIKE ACTIVITY BAR — vertical icon strip; clicking an icon de/activates that right-side panel; currently active = Artifacts (folder_open) + Agents (smart_toy) [both highlighted, both panels shown stacked], available-but-off = Steering (forum) · Events (receipt_long) · Run-config (tune) · Job-info (info, bottom). This is the proper version of backbone step 8 'Sessions'. THREE VARIANTS by artifact type, stacked vertically below 'Run Screen — Dark' on the canvas (x=4678): 'Run Screen — Dark' (MQzvw, y=-1318 — artifact = code → DIFF view, red/green lines), 'Run Screen — Markdown Artifact — Dark' (Kx3SA, y=-298 — artifact = .md → RENDERED markdown on a document surface, H1/H2/para/code-block/regulated-data-callout, w/ a Rendered|Source toggle), 'Run Screen — Mockup Artifact (canvas) — Dark' (B23fO, y=722 — artifact = .pen → CANVAS view: the agent's pencil PNG @2x export floating on a dark canvas w/ a drop shadow + a floating zoom toolbar [− 75% + · Fit · 100%] + a 'scroll=zoom · space-drag=pan' hint, w/ a Canvas|Source(.pen) toggle). All three share the right column [Artifacts tree (the selected artifact differs per variant) + Agent Updates (events + inline HITL cards + steering input)] + the right Activity Bar. So the Artifact Viewer is polymorphic: code→diff, markdown→rendered, .pen→zoomable canvas.). v1 SCREEN SET = 14 frames now: 12 distinct screens (Entry · Confirm[was SubmitJob] · Run · Compose · Jobs · Proposals · Intake · Skills · FeatureKit · Agents · Flows · Benchmarks) + 2 Run-variant frames (Markdown-artifact, Mockup-artifact-canvas) stacked under Run. Canvas top row L→R: Entry → Confirm → Run → Compose → Jobs → Proposals → Intake → Skills → FeatureKit → Agents → Flows → Benchmarks (all at y=-1318). Below Run (x=4678): the markdown variant at y=-298, the mockup-canvas variant at y=722. The ☰ hidden nav drawer + activity-bar are reusable design-system pieces. NOTE: 'Run' is the live working view; 'Jobs' is the list+status-overview; reachable both ways (Start job → Run; Jobs list → click running job → Run).), 'Feature Kit Screen — Dark' (EhJ27 — kits panel [handed-off/accepted/in-review/draft badges] + main = title/serves header + sections-completeness strip [Research/Wireframes/Feature-spec/Acceptance-criteria/Stories ✓ + 'Run generate-* flow'] + RESEARCH card [findings w/ §-cite anchors] + WIREFRAMES card [.pen thumbnails ↔ §-mapping] + FEATURE-SPEC card [§1-4, §3 flagged regulated-data FERPA/COPPA] + ACCEPTANCE-CRITERIA card [→ Proposals checklist] + Package/Hand-off bar; backbone step 4 / journey-product-spec-feature). v1 SCREEN SET COMPLETE — 7 screens (Sessions: existing basic streaming view = good-enough per story map; Benchmarks: out of v1 scope). LEFTOVER: agentx-studio/.agentx/wireframes/entry.pen is now a stale copy — delete it. NEXT: user review of the 7 screens → then resume Phase 4 foundation rendering (visual .pen renders of colors/typography/icons/imagery/logos/spaces/grids) → Phase 5 component generation in packages/design-system.",
+    "blockedOn": null,
+    "metadata": {
+      "framework": "heroui-v3",
+      "targetPackage": "packages/design-system",
+      "consumers": [
+        "packages/controlplane-ui"
+      ],
+      "brand": "AgentX",
+      "mode": "universal (no research)",
+      "audienceRegulation": "regulated (FERPA/COPPA/GDPR/CCPA) — guardian consent + stricter a11y variants pulled in downstream",
+      "notes": "Monorepo path map lives in product/.pencil-brand.json meta.pathMap. User also wants low-fi wireframes (product:design:explore) and user story maps (product:ux:story-maps:build) layered in before/around Phase 10. Pencil structured work goes via the Pencil MCP, not a `pencil --tasks` runner — run commands phase-by-phase."
+    },
+    "decisions": {
+      "research": "skip"
+    },
+    "phases": [
+      {
+        "phase": 1,
+        "name": "Brand foundation",
+        "status": "complete",
+        "completedAt": "2026-05-12T02:55:00Z",
+        "outputs": [
+          "product/.pencil-brand.json"
+        ]
+      },
+      {
+        "phase": 2,
+        "name": "Research",
+        "status": "skipped",
+        "completedAt": "2026-05-12T02:55:00Z",
+        "note": "universal mode — no competitor research"
+      },
+      {
+        "phase": 3,
+        "name": "Foundation selection",
+        "status": "complete",
+        "completedAt": "2026-05-12T03:40:00Z",
+        "steps": [
+          {
+            "step": "colors-select",
+            "status": "complete",
+            "completedAt": "2026-05-12T03:10:00Z",
+            "choice": "monochromatic navy (Palette A)",
+            "outputs": [
+              "product/.pencil-brand.json#colors",
+              "packages/design-system/src/theme.css",
+              "packages/design-system/package.json",
+              "packages/design-system/src/hero.ts"
+            ]
+          },
+          {
+            "step": "fonts-select",
+            "status": "complete",
+            "completedAt": "2026-05-12T03:20:00Z",
+            "choice": "Inter + JetBrains Mono (self-hosted, SIL OFL)",
+            "outputs": [
+              "product/.pencil-brand.json#typography",
+              "packages/design-system/src/theme.css#typography"
+            ]
+          },
+          {
+            "step": "icons-select",
+            "status": "complete",
+            "completedAt": "2026-05-12T03:30:00Z",
+            "choice": "Font Awesome Pro — Sharp Solid (+Brands); iconMap + AgentX domain extensions",
+            "outputs": [
+              "product/.pencil-brand.json#icons",
+              "packages/design-system/src/theme.css#icons"
+            ]
+          },
+          {
+            "step": "imagery-select",
+            "status": "complete",
+            "completedAt": "2026-05-12T03:40:00Z",
+            "choice": "Pure Abstract / Icon-Led (Hero Patterns + FA Sharp + CSS; no illustration deps)",
+            "outputs": [
+              "product/.pencil-brand.json#imagery"
+            ]
+          }
+        ]
+      },
+      {
+        "phase": 4,
+        "name": "Foundation rendering",
+        "status": "in-progress",
+        "note": "token-writers (motion/z-index/a11y/density/i18n → theme.css) are pure code; .pen visual renders (colors/typography/icons/imagery/logos/spaces/grids) need the Pencil MCP — checkpoint with user on cadence."
+      },
+      {
+        "phase": 5,
+        "name": "Component generation",
+        "status": "in-progress",
+        "note": "Decision 2026-05-16: build reusable atomic-component library in product/design/design-system.pen (HeroUI-v3-mapped + AgentX composites) then retrofit all 15 control-plane-v1.pen frames to instantiate it; library = design source of truth, then emit React into packages/design-system/src/components/. ARCHITECTURE VERIFIED: cross-file component refs resolve (tested Button/Primary HhTG5 ref from control-plane-v1.pen → expands; shadow path <inst>/<childId>). design-system.pen created (lib frame N6ilfL + Button/Primary HhTG5). Inventory + 6-batch build/retrofit plan: product/design/design-system-plan.md. Story map + pencil-ux.json reconciled same day (35 stories, 20/15 slices, step6=Entry→Confirm, step8=Run, step3=Skills). NEXT: build batch 1 (scaffold + atoms), checkpoint."
+      },
+      {
+        "phase": 6,
+        "name": "Pattern + template selection",
+        "status": "pending"
+      },
+      {
+        "phase": 7,
+        "name": "Pattern generation",
+        "status": "pending"
+      },
+      {
+        "phase": 8,
+        "name": "Template generation",
+        "status": "pending"
+      },
+      {
+        "phase": 9,
+        "name": "Audit",
+        "status": "pending"
+      },
+      {
+        "phase": 10,
+        "name": "First production page (+ ux:personas, ux:story-maps, low-fi wireframes via design:explore)",
+        "status": "pending"
+      }
+    ],
+    "adHocActivity": [
+      {
+        "at": "2026-05-16",
+        "type": "wireframe-added",
+        "frame": "Run Screen — Schema Change — Dark",
+        "frameId": "xqq2j",
+        "file": "product/design/wireframes/control-plane-v1.pen",
+        "note": "4th polymorphic Artifact-Viewer variant on the Run screen (schema → structural diff), stacked under Run at x=4678,y=1742 below the .pen-canvas variant (B23fO). Copied whole from base Run (MQzvw) then swapped: header file = a Flyway migration .sql + a [Diagram | SQL | Changelog] segmented toggle (Changelog active); body = STRUCTURED CHANGELOG (table-by-table — users/enrollments altered, audit_log_archive dropped, +TYPE/+INDEX) with destructive rows on the in-system red diff wash #2A1212/#F87171; topbar run pill recolored amber 'paused · awaiting approval'. Right column: Artifacts tree retargeted to migration + paired rollback + a cross-repo IMPACTED query (data-pipeline/etl/enrollments_sync.sql); the shared HITL card reused as the destructive-schema approval gate carrying two impact panels — DATA-LOSS FLAGS (red) + BREAKING / APP-IMPACT (amber, ↗ link to producing job) — and domain verdict buttons [Approve & apply on deploy | Request changes | Reject migration]. User decisions: placement=Run-variant, schema-view=all-three-w/-toggle, impact-panels=destructive+breaking-query ONLY (deliberately excluded lock/rollback + PII/FERPA panels — do not re-add). v1 SCREEN SET is now 15 frames (13 distinct screens incl. Run + 3 Run-variant frames: markdown, mockup-canvas, schema-change). NOT yet user-reviewed."
+      },
+      {
+        "at": "2026-05-16",
+        "type": "phase5-started",
+        "note": "Phase 5 component-generation started. Verified Pencil cross-file reusable-component refs resolve, so design-system.pen (separate library) can be instantiated across control-plane-v1.pen. Created design-system.pen with starter Button/Primary (HhTG5). Wrote product/design/design-system-plan.md (component inventory + build order: atoms → molecules → shells → domain organisms → retrofit 15 frames → React). Also reconciled product/.pencil-ux.json to the synced story map. Checkpointing with user before building."
+      },
+      {
+        "at": "2026-05-16",
+        "type": "phase5-progress",
+        "note": "Phase 5 Batches 1-3 complete in design-system.pen (~30 reusable components, on corrected token contract: navy $brand, cyan $accent, BLACK $bg-sidebar/$bg-topbar #000000, very-dark-navy $bg-surface #0E1A30, +status/warning/danger subtle tokens). ATOMS: Button x6 (Accent/Brand/Secondary/Outline/Ghost/Destructive), IconButton, Input, Textarea, Select, Chip, ContextChip, StatusBadge x5 (Active/Running/Failed/Awaiting/Draft), TabItem x2, Segment x2, Avatar, Divider. MOLECULES: Card (header/content/actions slots), StatCell, EstimateCard (composed of StatCell refs), Breadcrumb, SearchBar, ListRail + ListRailItem +/Selected, DataTable (self-contained). SHELLS: TopBar (black, hamburger/logo/brand/crumb/avatar), NavDrawer (black, 8 NavItem refs Home/Products/Jobs/Benchmarks/CATALOG/Agents/Skills/Flows), ActivityBar (black VSCode strip, 2 active cyan), NavItem +/Selected. Cross-file refs + variable resolution verified (component carries home-file tokens). Architecture confirmed by user: keep separate product/design/design-system.pen. Brand-surface checkpoint screenshots taken (black bars + navy cards verified). NEXT: Batch 4 domain organisms (FlowGraph, AcceptanceChecklist, ArtifactViewer, EventFeed, HITLCard, DiffBlock) then Batch 5 retrofit 15 frames. Icon note: Material Symbols Sharp lacks expand_more (use keyboard_arrow_down); text nodes reject padding (wrap in frame); alignItems no stretch; no wrap prop."
+      },
+      {
+        "at": "2026-05-16",
+        "type": "phase5-library-complete",
+        "note": "design-system.pen LIBRARY COMPLETE (~38 reusable components, Batches 1-4). DOMAIN organisms added: FlowGraph (GNzjy), DiffBlock (E1CIbI), AcceptanceChecklist (eD2sI), ArtifactViewer (fAnVj, polymorphic shell w/ bodySlot defaulting to DiffBlock ref), EventFeed (R0e6y, StatusBadge chips), HITLCard (sSuOP, Button-ref verdicts). All on approved brand, screenshot-verified, no glitches. Composition proven (EstimateCard=4 StatCell refs, ArtifactViewer slot=DiffBlock, HITLCard=Button refs). NEXT: Batch 5 retrofit 15 control-plane-v1.pen frames to cross-file refs (largest batch, modifies real wireframes). Tasks #1-4 complete; #5 (retrofit) #6 (React gen) pending."
+      },
+      {
+        "at": "2026-05-16",
+        "type": "CRITICAL-persistence-finding",
+        "note": "CRITICAL: Pencil MCP edits live IN-MEMORY only; NOT written to disk. control-plane-v1.pen on disk = May-12 version (740359 bytes, git-clean), but live Pencil app session has N6ilfL + 43 reusable components built this session (Batches 1-4). No MCP save tool exists; persistence owned by Pencil desktop app (user Cmd+S). My earlier cross-file/variable-resolution verification was an INVALID same-file false positive (only one in-memory doc ever existed) — RETRACTED. design-system.pen never created on disk. User decision: wants DS in its OWN file; will Cmd+S to persist, then I run a CORRECT separate-file test (two real on-disk files, distinguishing token values, ref target only in other file). NO Pencil mutations until user saves. Component name->id map recorded for reconstruction.",
+        "componentMap": {
+          "Button/Accent": "XRsMq",
+          "Button/Brand": "omedi",
+          "Button/Secondary": "sPqW6",
+          "Button/Outline": "czhXj",
+          "Button/Ghost": "V7JVK0",
+          "Button/Destructive": "ZgZSD",
+          "IconButton": "iqVhA",
+          "Input": "Xx3X6",
+          "Textarea": "rHphO",
+          "Select": "V5cks",
+          "Chip": "UVvUL",
+          "ContextChip": "Vn8xg",
+          "StatusBadge/Active": "bYwbl",
+          "StatusBadge/Running": "W7edTH",
+          "StatusBadge/Failed": "X64PEe",
+          "StatusBadge/Awaiting": "Y7INN",
+          "StatusBadge/Draft": "Ana1n",
+          "TabItem/Active": "efYKL",
+          "TabItem/Inactive": "F5xNZ4",
+          "Segment/Active": "A3Npk4",
+          "Segment/Inactive": "gn7br",
+          "Avatar": "d5IYBb",
+          "Divider": "TOxFy",
+          "Card": "v78nt",
+          "StatCell": "dunMV",
+          "EstimateCard": "HRvC9",
+          "Breadcrumb": "Z017Xa",
+          "SearchBar": "SBCom",
+          "ListRail": "WGcIu",
+          "ListRailItem": "aO76K",
+          "ListRailItem/Selected": "uj2by",
+          "DataTable": "ktFgO",
+          "TopBar": "VDouh",
+          "NavItem": "C5p9Kw",
+          "NavItem/Selected": "tY6nl",
+          "NavDrawer": "vRgC0",
+          "ActivityBar": "CdP7Q",
+          "FlowGraph": "GNzjy",
+          "DiffBlock": "E1CIbI",
+          "AcceptanceChecklist": "eD2sI",
+          "ArtifactViewer": "fAnVj",
+          "EventFeed": "R0e6y",
+          "HITLCard": "sSuOP",
+          "LibraryFrame": "N6ilfL"
+        },
+        "tokenContract": {
+          "brand": "navy #5E76B0/#3F5694",
+          "brand-deep": "#0F1E3D",
+          "accent": "cyan #22D3EE/#0891B2",
+          "bg-sidebar/topbar": "#000000 black",
+          "bg-surface": "very-dark-navy #0E1A30",
+          "bg-primary": "#070B16"
+        }
+      },
+      {
+        "at": "2026-05-16",
+        "type": "agreed-restructure-plan",
+        "note": "AGREED PLAN (user-confirmed): (1) USER does Pencil app File>Save As -> product/design/design-system.pen (persists the 43 in-memory components AND creates the separate library file in one step; original on-disk control-plane-v1.pen = untouched May-12 version stays as the SCREENS file). (2) ME: validate cross-file refs CORRECTLY (probe component only in design-system.pen, ref from control-plane-v1.pen, distinguishing token value, read back resolveInstances+resolveVariables). (3) If valid: strip the 15 old screen frames out of design-system.pen leaving pure library (N6ilfL + 43 comps); then I REBUILD all 15 screens in control-plane-v1.pen via batch_design from the per-screen specs in this workflow-state + componentMap, wiring cross-file refs, checkpoint+screenshot per screen. (4) If cross-file invalid: report honestly, consolidate instead, no wasted rebuild. BLOCKED until user confirms Save As done. Per-screen specs for the 15 frames are in earlier currentStep notes (Entry lmqnz, Confirm C8SxM, Run MQzvw +3 variants Kx3SA/B23fO/xqq2j, Compose t67st, Jobs YJ0XH, Proposals NNqk8, Intake cCWyF, Skills xxxmB, FeatureKit EhJ27, Agents tA1Hn, Flows X3pwV9, Benchmarks KeO2S)."
+      },
+      {
+        "at": "2026-05-16",
+        "type": "design-system-pen-REAL-partial-rebuild",
+        "note": "design-system.pen is now a REAL active in-memory doc at the correct path (created via open_document with non-existent path = the correct file-create primitive; batch_design filePath alone silently falls back). Tokens set + ~26 components rebuilt from known-good recipes (NEW ids below; the previous componentMap is STALE - that doc was lost when active editor switched). STILL IN-MEMORY/UNSAVED - no MCP save tool; user must Cmd+S. Cross-file refs STILL NOT validated. Breaking the rebuild loop to require a save before (a) validating cross-file and (b) the 15-screen rebuild, to avoid re-losing work and avoid building screens on an unproven assumption.",
+        "newComponentMap": {
+          "lib_root": "eBE3I",
+          "Button/Accent": "V1yPO (label N49H7)",
+          "Button/Brand": "nhNuA",
+          "Button/Secondary": "f7mVG",
+          "Button/Outline": "D5YIYO (label LMqTj)",
+          "Button/Ghost": "OLQQI",
+          "Button/Destructive": "Ua3vr (label P9Cqk)",
+          "IconButton": "iyWIB (icon ysaIC)",
+          "Input": "iy2iv",
+          "Textarea": "JEikU",
+          "Select": "K8VOUO",
+          "Chip": "uoWqf",
+          "ContextChip": "T9AEtm (icon PFBcX,label r9Utiz,x hMUOc)",
+          "StatusBadge/Active": "pWwQw",
+          "StatusBadge/Running": "o5Y48",
+          "StatusBadge/Failed": "BeG0r",
+          "StatusBadge/Awaiting": "t1vI7N",
+          "StatusBadge/Draft": "uVvVE",
+          "TabItem/Active": "VRWhj",
+          "TabItem/Inactive": "SIeDq",
+          "Segment/Active": "n8RhuF",
+          "Segment/Inactive": "F95kg",
+          "Avatar": "hfN19",
+          "Divider": "X14JYr",
+          "Card": "yKOhd (hdrSlot nHDK4[title d7yjnU,desc aq4N9], contentSlot X3SoQ[ph m8SMnI], actionsSlot D8hXl)",
+          "StatCell": "l2i6mE (label ktOwh,value X6W58,sub LY8wY)"
+        },
+        "pendingComponents": [
+          "EstimateCard",
+          "Breadcrumb",
+          "SearchBar",
+          "ListRail",
+          "ListRailItem",
+          "ListRailItem/Selected",
+          "DataTable",
+          "TopBar",
+          "NavItem",
+          "NavItem/Selected",
+          "NavDrawer",
+          "ActivityBar",
+          "FlowGraph",
+          "DiffBlock",
+          "AcceptanceChecklist",
+          "ArtifactViewer",
+          "EventFeed",
+          "HITLCard"
+        ],
+        "tokenContract": "brand navy #5E76B0 · accent cyan #22D3EE · bg-sidebar/topbar #000000 · bg-surface #0E1A30 · bg-primary #070B16"
+      },
+      {
+        "at": "2026-05-16",
+        "type": "DEFINITIVE-cross-file-refs-DO-NOT-WORK",
+        "note": "SETTLED HARD CONSTRAINT: Pencil MCP reusable components are FILE-SCOPED. Valid test: from control-plane-v1.pen (active), I(\"...\",{type:\"ref\",ref:\"V1yPO\"}) where V1yPO is a Button/Accent that exists ONLY in design-system.pen -> hard error \"Tried to reference non-existent node V1yPO\", batch rolled back. Therefore a separate design-system.pen library CANNOT be referenced cross-file by a screens .pen. The earlier HhTG5 \"cross-file works\" claim was a same-file FALSE POSITIVE (retracted). CONSEQUENCE: design system + the screens that consume it MUST live in ONE .pen file. CURRENT GOOD STATE ON DISK: control-plane-v1.pen (git M, saved) already contains the COMPLETE verified 43-component library (N6ilfL frame + comps XRsMq..sSuOP) + all 15 screens. design-system.pen (untracked, saved) holds a redundant PARTIAL ~26-component rebuild (ids V1yPO.. ; now obsolete given cross-file is impossible). Recommended: consolidate in control-plane-v1.pen, delete redundant design-system.pen, retrofit the 15 (still hand-drawn) screens to SAME-FILE refs of the 43 comps (that works). Awaiting user decision on consolidation given separate-file is tool-impossible."
+      },
+      {
+        "at": "2026-05-16",
+        "type": "LIBRARY-COMPLETE-in-design-system-lib-pen",
+        "note": "design-system.lib.pen now holds the COMPLETE 43-component library (rebuilt from recipes; screenshot-verified, on-brand, no glitches). Architecture SOLVED via Pencil Library feature: lib added as a Library in the app -> components appear in control-plane-v2.pen as o:<id> refs (e.g. o:V1yPO). control-plane-v2.pen = new screens file (currently 1 empty frame bi8Au). NEXT: (1) USER Cmd+S design-system.lib.pen to persist the 18 new comps, then RE-SYNC/refresh the Library link in the app so v2 sees all 43 (currently only sees 25). (2) Optionally add view-shell TEMPLATES (AppShell=TopBar+NavDrawer+contentSlot, CenteredColumn, ThreePaneRun) into design-system.lib.pen per user request. (3) Build the 15 screens in control-plane-v2.pen via o: refs + shell templates, per per-screen specs in earlier currentStep notes. fullComponentMap recorded (design-system.lib.pen-local ids; prefix with o: when referenced from control-plane-v2.pen).",
+        "fullComponentMap": {
+          "lib_root": "eBE3I",
+          "Button/Accent": "V1yPO(lbl N49H7)",
+          "Button/Brand": "nhNuA",
+          "Button/Secondary": "f7mVG",
+          "Button/Outline": "D5YIYO(lbl LMqTj)",
+          "Button/Ghost": "OLQQI",
+          "Button/Destructive": "Ua3vr(lbl P9Cqk)",
+          "IconButton": "iyWIB(icon ysaIC)",
+          "Input": "iy2iv",
+          "Textarea": "JEikU",
+          "Select": "K8VOUO",
+          "Chip": "uoWqf",
+          "ContextChip": "T9AEtm(icon PFBcX,lbl r9Utiz,x hMUOc)",
+          "StatusBadge/Active": "pWwQw",
+          "StatusBadge/Running": "o5Y48",
+          "StatusBadge/Failed": "BeG0r",
+          "StatusBadge/Awaiting": "t1vI7N",
+          "StatusBadge/Draft": "uVvVE",
+          "TabItem/Active": "VRWhj",
+          "TabItem/Inactive": "SIeDq",
+          "Segment/Active": "n8RhuF",
+          "Segment/Inactive": "F95kg",
+          "Avatar": "hfN19",
+          "Divider": "X14JYr",
+          "Card": "yKOhd(hdr nHDK4[title d7yjnU,desc aq4N9],content X3SoQ[ph m8SMnI],actions D8hXl)",
+          "StatCell": "l2i6mE(lbl ktOwh,val X6W58,sub LY8wY)",
+          "EstimateCard": "OJiCp(4x StatCell refs)",
+          "Breadcrumb": "qcpeu(crumb n05dk,sep ixrrX,current m0NDsp)",
+          "SearchBar": "o1pX22(icon jKfom,val WjH1Q)",
+          "ListRail": "YthXi(hdr xBSmD,listSlot i0vLtp)",
+          "ListRailItem": "J9oSb(dot Mr6gI,title hLdrD,meta ulrc1)",
+          "ListRailItem/Selected": "e7Oj9k(title y7D7k,meta IeqtD)",
+          "DataTable": "dOhHm",
+          "TopBar": "igu8C(burger KjIEe,logo OJvpJ,brand SDrPP,crumb BctUC,avatarRef NkqwM)",
+          "NavItem": "q2zwa(icon c3jXQm,lbl z9tpLN)",
+          "NavItem/Selected": "aRUkA(icon Wu2xp,lbl s4He6W)",
+          "NavDrawer": "QroiQ",
+          "ActivityBar": "npN5m",
+          "FlowGraph": "SbZXi",
+          "DiffBlock": "F76L5v",
+          "AcceptanceChecklist": "g7Ikrv",
+          "ArtifactViewer": "pojIK(bodySlot CLcL7)",
+          "EventFeed": "dKA6d",
+          "HITLCard": "t9lrHv(verdicts pmfiD)"
+        }
+      },
+      {
+        "at": "2026-05-16",
+        "type": "appshell-template-added",
+        "note": "Added Template/AppShell (v4K2TZ) to design-system.lib.pen: refs TopBar (igu8C, width fill_container) + empty contentSlot (AEniJ, fill_container, slot:[]). Screenshot-verified: black topbar + empty body, on-brand. This is the first view-shell template per user request \"base app shell with top bar + empty bottom\". Library now = 43 components + 1 template. STILL IN-MEMORY in design-system.lib.pen until user Cmd+S; AND user must RE-SYNC the Library link in Pencil app so control-plane-v2.pen sees the 18 new comps + AppShell (v2 currently only sees the original 25). Possible next shell templates per earlier user intent: AppShell+NavDrawer (drawer open), CenteredColumn (Confirm/FeatureKit), ThreePaneRun (Run screen). Then build 15 screens in control-plane-v2.pen from o: refs + shell templates."
+      },
+      {
+        "at": "2026-05-16",
+        "type": "page-template-pattern-VALIDATED",
+        "note": "PILOT VALIDATED: Page/Home (Ps1OU) in design-system.lib.pen composes Template/AppShellDrawer (tt83Y) and fills its contentSlot (path shellRef/Uh9mP) with the Entry launcher content (greeting + JobInputCard using Textarea/ContextChip/Select/Button-Accent refs). Screenshot-verified: black shell + navdrawer + launcher, on-brand, no glitches. Full chain works: Page -> Template -> components, all token-bound, same-file refs within lib. Templates in lib: AppShell v4K2TZ, AppShellDrawer tt83Y(slot Uh9mP), CenteredColumn H0DYE2(slot e6naa), ThreePaneRun ucrbQ(leftSlot Lbmw9,midSlot gv0cg). 7 page templates total wanted (nav sections): Home[DONE Ps1OU], Products, Jobs, Benchmarks, Agents, Skills, Flows [6 PENDING]. ALL of this (18 comps + 4 templates + Page/Home) is IN-MEMORY/UNSAVED in design-system.lib.pen. REQUIRED: user Cmd+S design-system.lib.pen, then re-sync Library link so control-plane-v2.pen sees everything. THEN build remaining 6 page templates (same pattern: ref a shell template, fill its slot per per-screen specs in earlier notes). control-plane-v2.pen still ~empty (frame bi8Au)."
+      },
+      {
+        "at": "2026-05-16",
+        "type": "7-page-templates-COMPLETE",
+        "note": "design-system.lib.pen COMPLETE: 43 components + 4 shell templates + 7 page templates (nav sections). Pages compose AppShellDrawer(tt83Y) + fill contentSlot via path shellRef/Uh9mP with library component refs. Page/Jobs screenshot-verified at full complexity (topbar+navdrawer+listrail+flowgraph+cards+eventfeed) - on-brand, no glitches. STATE: all IN-MEMORY since last save at 22:38:57 (which captured comps+templates+Page/Home); the 6 new pages (Products/Jobs/Benchmarks/Agents/Skills/Flows) are UNSAVED. REQUIRED next: user Cmd+S design-system.lib.pen, then re-sync Library link so control-plane-v2.pen sees all 43 comps + 4 templates + 7 pages as o:<id>. THEN control-plane-v2.pen screens = trivially instance o:Page/* (one ref per nav screen). control-plane-v2.pen currently empty (frame bi8Au, 316 bytes). Phase 5 nearly done; remaining: persist+resync, build v2 screens (thin), then Batch 6 React generation.",
+        "pageTemplateIds": {
+          "Page/Home": "Ps1OU",
+          "Page/Products": "peECu",
+          "Page/Jobs": "QplC0",
+          "Page/Benchmarks": "mWVx5",
+          "Page/Agents": "u5CgIM",
+          "Page/Skills": "f0Yay",
+          "Page/Flows": "bHWDV"
+        },
+        "shellTemplateIds": {
+          "Template/AppShell": "v4K2TZ",
+          "Template/AppShellDrawer": "tt83Y (contentSlot Uh9mP)",
+          "Template/CenteredColumn": "H0DYE2 (slot via centerWrap w0wXDQ)",
+          "Template/ThreePaneRun": "ucrbQ (leftSlot Lbmw9,midSlot gv0cg)"
+        }
+      },
+      {
+        "at": "2026-05-16",
+        "type": "per-section-appshell-variants",
+        "note": "User: need a Template/AppShellDrawer instance per main menu item to highlight the correct section (selection is STRUCTURAL in Pencil - NavItem vs NavItem/Selected components - not a toggleable prop, so per-section variants required). Pattern: Template/AppShellDrawer/<Section> = TopBar ref igu8C + inline navDrawer (8 NavItem refs: q2zwa default / aRUkA selected for the active one; icons home/inventory_2/work/leaderboard/smart_toy/build/account_tree) + contentSlot. Then Page/<Section> rebuilt to ref the variant and fill its (new) contentSlot id. DONE+screenshot-verified: AppShellDrawer/Jobs=ekGMB(slot YKFyR)->Page/Jobs=PKCyh; AppShellDrawer/Home=y3flj(slot yvaG2)->Page/Home=oEw0T. REMAINING 5: Products, Benchmarks, Agents, Skills, Flows (same pattern; page content recipes are deterministic, captured in this session conversation + earlier adHoc notes). NavItem q2zwa children: icon c3jXQm,label z9tpLN. NavItem/Selected aRUkA children: icon Wu2xp,label s4He6W. All in-memory in design-system.lib.pen until user Cmd+S; reconstructible from recipes if lost."
+      },
+      {
+        "at": "2026-05-16",
+        "type": "B1-clean-structure-VALIDATED",
+        "note": "FINAL factoring (user-chosen B1, validated+screenshot): generic Template/AppShellDrawer tt83Y = TopBar ref pp60F + body BckTx{ navSlot PQIPy (slot, 248w, bg-sidebar) + contentSlot eb3pB }. Each Page/<Section> = ref tt83Y, fill shellRef/PQIPy with NavDrawer/<Section> variant ref, fill shellRef/eb3pB with page content. NavDrawer/<Section> variant = full drawer (MENU head + 8 NavItem refs: q2zwa default / aRUkA selected for active; icons home/inventory_2/work/leaderboard/smart_toy/build/account_tree + CATALOG label between Benchmarks and Agents). DONE: NavDrawer/Jobs=aJBn6 ; Page/Jobs=PagKq (refs tt83Y, nav=aJBn6, content rebuilt). REMAINING 6 NavDrawer variants + Page rebuilds: Home,Products,Benchmarks,Agents,Skills,Flows (page content recipes are deterministic - in this session conversation + earlier adHoc per-screen notes). OBSOLETE - DELETE: inline shell variants Template/AppShellDrawer/Jobs=ekGMB, /Home=y3flj, /Products=t9SiPE ; obsolete pages Page/Home=oEw0T (on y3flj), and old tt83Y-based pages Page/Products=peECu, Page/Benchmarks=mWVx5, Page/Agents=u5CgIM, Page/Skills=f0Yay, Page/Flows=bHWDV (all to be replaced by clean rebuilds). NavItem q2zwa{icon c3jXQm,label z9tpLN}; NavItem/Selected aRUkA{icon Wu2xp,label s4He6W}. ALL in-memory/unsaved in design-system.lib.pen."
+      }
+    ]
+  },
+  "history": []
+}

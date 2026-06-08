@@ -47,4 +47,4 @@ user-flow
 ## Notes
 - The "spec kit" object should *be* the skillz `product:` artifacts, packaged: `product/.pencil-ux.json` slices (the personas/journeys/stories for this feature) + the `.pen` wireframes + a feature-spec markdown doc, all version-pinned together. Don't invent a new format.
 - Steps 2 and 3 can each be a `generate-*` flow (the recursion) — Product *runs* AgentX flows to produce parts of the spec kit that AgentX will then implement. The Specs surface needs to embed job-watching, not just be a static editor.
-- The wireframe ↔ spec-section mapping (step 3) is what prevents drift — and it's what the Outcome Engineer's review checklist (see [product-review-vs-spec](./product-review-vs-spec.md)) keys off.
+- The wireframe ↔ spec-section mapping (step 3) is what prevents drift — and it's what the Outcome Engineer's review checklist (see [product-review-vs-spec](product-review-vs-spec.md)) keys off.

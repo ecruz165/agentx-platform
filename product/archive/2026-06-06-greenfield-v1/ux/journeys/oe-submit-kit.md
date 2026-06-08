@@ -33,6 +33,6 @@ user-flow
 3 distinct (2 new) — all moderate.
 
 ## Notes
-- This is the OE's entry point into the pipeline. The "Queue" is the join with Product's [hand-off](./product-handoff-kit.md) flow — handed-off kits land here.
-- "Sandbox vs real" run mode (shared with the PPE's [test-flow](./ppe-test-flow.md)) is a first-class config knob, not a hidden flag — an OE iterating on a feature wants sandbox runs that don't open real PRs until they're confident.
-- Re-submitting after a reject carries an **iteration note** — but that's a weak signal; the real fix is the structured corrections payload (see [oe-validate-feature](./oe-validate-feature.md) `pain-no-corrections-payload`).
+- This is the OE's entry point into the pipeline. The "Queue" is the join with Product's [hand-off](product-handoff-kit.md) flow — handed-off kits land here.
+- "Sandbox vs real" run mode (shared with the PPE's [test-flow](ppe-test-flow.md)) is a first-class config knob, not a hidden flag — an OE iterating on a feature wants sandbox runs that don't open real PRs until they're confident.
+- Re-submitting after a reject carries an **iteration note** — but that's a weak signal; the real fix is the structured corrections payload (see [oe-validate-feature](oe-validate-feature.md) `pain-no-corrections-payload`).

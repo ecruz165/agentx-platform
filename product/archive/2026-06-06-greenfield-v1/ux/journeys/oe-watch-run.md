@@ -1,7 +1,7 @@
 # Watch the implementation run
 
 ## Summary
-Outcome Engineer monitors a running job: open it (flow graph, current node) → inspect live agent work (Sessions: streaming logs, worktree diffs, agent state) → intervene if needed (stop / retry node / re-submit) → see the outcome summary when it completes. Shares its shape with the Principal Product Engineer's [test-flow](./ppe-test-flow.md).
+Outcome Engineer monitors a running job: open it (flow graph, current node) → inspect live agent work (Sessions: streaming logs, worktree diffs, agent state) → intervene if needed (stop / retry node / re-submit) → see the outcome summary when it completes. Shares its shape with the Principal Product Engineer's [test-flow](ppe-test-flow.md).
 
 ## Type
 user-flow
@@ -39,6 +39,6 @@ user-flow
 5 distinct (3 new) — 3 major, 2 moderate.
 
 ## Notes
-- The flow graph with a highlighted current node is the spine of this screen — it ties the abstract FlowDef (from [author-flow](./ppe-author-flow.md)) to the live execution. Same widget the Compose canvas uses, in "running" mode.
+- The flow graph with a highlighted current node is the spine of this screen — it ties the abstract FlowDef (from [author-flow](ppe-author-flow.md)) to the live execution. Same widget the Compose canvas uses, in "running" mode.
 - `pain-log-firehose` is the deepest one here: an agent log stream is mostly tool-call noise; what the watcher needs is a *decision trace* (the agent chose X because Y), surfaced above the raw stream. That's a design problem the Sessions screen has to solve, not just a "tail -f" view.
 - This flow is shared near-verbatim with the PPE's test-flow steps 2–3 — same screens, different intent (OE: "is my feature getting built?", PPE: "does my flow work?"). Story map encodes one backbone column, two persona stories.
