@@ -1,0 +1,1117 @@
+{
+  "version": "2.13",
+  "children": [
+    {
+      "id": "core-forms",
+      "type": "frame",
+      "name": "Forms · HeroUI v3",
+      "x": 0,
+      "y": 0,
+      "layout": "vertical",
+      "gap": 24,
+      "padding": 32,
+      "fill": "$colors:color.background",
+      "children": [
+        {
+          "id": "core-forms-h",
+          "type": "text",
+          "content": "Forms · HeroUI v3",
+          "fill": "$colors:color.foreground",
+          "fontFamily": "$type:font.family",
+          "fontSize": 24,
+          "fontWeight": "700"
+        },
+        {
+          "id": "core-forms-items",
+          "type": "frame",
+          "name": "Items",
+          "layout": "vertical",
+          "width": "fit_content(0)",
+          "gap": 16,
+          "children": [
+            {
+              "id": "label",
+              "type": "frame",
+              "name": "Label",
+              "width": "fit_content(0)",
+              "height": "fit_content(0)",
+              "children": [
+                {
+                  "id": "label-text",
+                  "type": "text",
+                  "content": "Email address",
+                  "fill": "$colors:color.foreground",
+                  "fontFamily": "$type:font.family",
+                  "fontSize": "$type:font.size-sm",
+                  "fontWeight": "600"
+                }
+              ],
+              "reusable": true,
+              "metadata": {
+                "type": "component",
+                "framework": "heroui",
+                "atomic": "atom",
+                "fidelity": "full",
+                "react": "Label",
+                "package": "@heroui/react",
+                "slug": "label",
+                "category": "Forms"
+              }
+            },
+            {
+              "id": "description",
+              "type": "frame",
+              "name": "Description",
+              "width": "fit_content(0)",
+              "height": "fit_content(0)",
+              "children": [
+                {
+                  "id": "description-text",
+                  "type": "text",
+                  "content": "We never share your email.",
+                  "fill": "$colors:color.muted",
+                  "fontFamily": "$type:font.family",
+                  "fontSize": "$type:font.size-sm",
+                  "fontWeight": "normal"
+                }
+              ],
+              "reusable": true,
+              "metadata": {
+                "type": "component",
+                "framework": "heroui",
+                "atomic": "atom",
+                "fidelity": "full",
+                "react": "Description",
+                "package": "@heroui/react",
+                "slug": "description",
+                "category": "Forms"
+              }
+            },
+            {
+              "id": "checkbox",
+              "type": "frame",
+              "name": "Checkbox",
+              "width": 20,
+              "height": 20,
+              "alignItems": "center",
+              "justifyContent": "center",
+              "fill": "$colors:color.accent",
+              "cornerRadius": "$grids:radius.sm",
+              "children": [
+                {
+                  "id": "checkbox-check",
+                  "type": "text",
+                  "content": "✓",
+                  "fill": "$colors:color.accent-foreground",
+                  "fontFamily": "$type:font.family",
+                  "fontSize": 14,
+                  "fontWeight": "700"
+                }
+              ],
+              "reusable": true,
+              "metadata": {
+                "type": "component",
+                "framework": "heroui",
+                "atomic": "atom",
+                "fidelity": "full",
+                "react": "Checkbox",
+                "package": "@heroui/react",
+                "slug": "checkbox",
+                "category": "Forms"
+              }
+            },
+            {
+              "id": "error-message",
+              "type": "frame",
+              "name": "ErrorMessage",
+              "width": "fit_content(0)",
+              "children": [
+                {
+                  "id": "error-message-text",
+                  "type": "text",
+                  "content": "Something went wrong.",
+                  "fill": "$colors:color.danger",
+                  "fontFamily": "$type:font.family",
+                  "fontSize": "$type:font.size-sm",
+                  "fontWeight": "normal"
+                }
+              ],
+              "reusable": true,
+              "metadata": {
+                "type": "component",
+                "framework": "heroui",
+                "atomic": "atom",
+                "fidelity": "full",
+                "react": "ErrorMessage",
+                "package": "@heroui/react",
+                "slug": "error-message",
+                "category": "Forms"
+              }
+            },
+            {
+              "id": "field-error",
+              "type": "frame",
+              "name": "FieldError",
+              "width": "fit_content(0)",
+              "alignItems": "center",
+              "gap": 6,
+              "children": [
+                {
+                  "id": "field-error-icon",
+                  "type": "text",
+                  "content": "⚠",
+                  "fill": "$colors:color.danger",
+                  "fontFamily": "$type:font.family",
+                  "fontSize": "$type:font.size-sm",
+                  "fontWeight": "normal"
+                },
+                {
+                  "id": "field-error-text",
+                  "type": "text",
+                  "content": "This field is required",
+                  "fill": "$colors:color.danger",
+                  "fontFamily": "$type:font.family",
+                  "fontSize": "$type:font.size-sm",
+                  "fontWeight": "normal"
+                }
+              ],
+              "reusable": true,
+              "metadata": {
+                "type": "component",
+                "framework": "heroui",
+                "atomic": "atom",
+                "fidelity": "full",
+                "react": "FieldError",
+                "package": "@heroui/react",
+                "slug": "field-error",
+                "category": "Forms"
+              }
+            },
+            {
+              "id": "input",
+              "type": "frame",
+              "name": "Input",
+              "width": 280,
+              "height": 40,
+              "alignItems": "center",
+              "padding": [
+                12,
+                0
+              ],
+              "fill": "$colors:color.field-background",
+              "cornerRadius": "$grids:radius.md",
+              "stroke": "$colors:color.border",
+              "strokeWidth": "$grids:border.width",
+              "strokeAlignment": "inner",
+              "children": [
+                {
+                  "id": "input-text",
+                  "type": "text",
+                  "content": "Placeholder",
+                  "fill": "$colors:color.field-placeholder",
+                  "fontFamily": "$type:font.family",
+                  "fontSize": "$type:font.size-md",
+                  "fontWeight": "normal"
+                }
+              ],
+              "reusable": true,
+              "metadata": {
+                "type": "component",
+                "framework": "heroui",
+                "atomic": "atom",
+                "fidelity": "full",
+                "react": "Input",
+                "package": "@heroui/react",
+                "slug": "input",
+                "category": "Forms"
+              }
+            },
+            {
+              "id": "text-area",
+              "type": "frame",
+              "name": "TextArea",
+              "width": 300,
+              "height": 110,
+              "layout": "vertical",
+              "padding": 12,
+              "cornerRadius": "$grids:radius.md",
+              "fill": "$colors:color.field-background",
+              "stroke": "$colors:color.border",
+              "strokeWidth": "$grids:border.width",
+              "strokeAlignment": "inner",
+              "children": [
+                {
+                  "id": "text-area-text",
+                  "type": "text",
+                  "content": "Write something…",
+                  "fill": "$colors:color.field-placeholder",
+                  "fontFamily": "$type:font.family",
+                  "fontSize": "$type:font.size-md",
+                  "fontWeight": "normal"
+                }
+              ],
+              "reusable": true,
+              "metadata": {
+                "type": "component",
+                "framework": "heroui",
+                "atomic": "atom",
+                "fidelity": "full",
+                "react": "TextArea",
+                "package": "@heroui/react",
+                "slug": "text-area",
+                "category": "Forms"
+              }
+            },
+            {
+              "id": "text-field",
+              "type": "frame",
+              "name": "TextField",
+              "width": 300,
+              "layout": "vertical",
+              "gap": 6,
+              "children": [
+                {
+                  "id": "text-field-label",
+                  "type": "text",
+                  "content": "Email",
+                  "fill": "$colors:color.foreground",
+                  "fontFamily": "$type:font.family",
+                  "fontSize": "$type:font.size-sm",
+                  "fontWeight": "600"
+                },
+                {
+                  "id": "text-field-input",
+                  "type": "frame",
+                  "name": "Field",
+                  "width": "fill_container",
+                  "height": 40,
+                  "alignItems": "center",
+                  "padding": [
+                    12,
+                    0
+                  ],
+                  "cornerRadius": "$grids:radius.md",
+                  "fill": "$colors:color.field-background",
+                  "stroke": "$colors:color.border",
+                  "strokeWidth": "$grids:border.width",
+                  "strokeAlignment": "inner",
+                  "children": [
+                    {
+                      "id": "text-field-input-text",
+                      "type": "text",
+                      "content": "you@example.com",
+                      "fill": "$colors:color.field-placeholder",
+                      "fontFamily": "$type:font.family",
+                      "fontSize": "$type:font.size-md",
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "id": "text-field-help",
+                  "type": "text",
+                  "content": "We never share your email.",
+                  "fill": "$colors:color.muted",
+                  "fontFamily": "$type:font.family",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                }
+              ],
+              "reusable": true,
+              "metadata": {
+                "type": "component",
+                "framework": "heroui",
+                "atomic": "molecule",
+                "fidelity": "full",
+                "react": "TextField",
+                "package": "@heroui/react",
+                "slug": "text-field",
+                "category": "Forms"
+              }
+            },
+            {
+              "id": "search-field",
+              "type": "frame",
+              "name": "SearchField",
+              "width": 300,
+              "height": 40,
+              "alignItems": "center",
+              "gap": 8,
+              "padding": [
+                12,
+                0
+              ],
+              "cornerRadius": "$grids:radius.md",
+              "fill": "$colors:color.field-background",
+              "stroke": "$colors:color.border",
+              "strokeWidth": "$grids:border.width",
+              "strokeAlignment": "inner",
+              "children": [
+                {
+                  "id": "search-field-icon",
+                  "type": "text",
+                  "content": "⌕",
+                  "fill": "$colors:color.muted",
+                  "fontFamily": "$type:font.family",
+                  "fontSize": "$type:font.size-md",
+                  "fontWeight": "700"
+                },
+                {
+                  "id": "search-field-text",
+                  "type": "text",
+                  "content": "Search",
+                  "fill": "$colors:color.field-placeholder",
+                  "fontFamily": "$type:font.family",
+                  "fontSize": "$type:font.size-md",
+                  "fontWeight": "normal"
+                }
+              ],
+              "reusable": true,
+              "metadata": {
+                "type": "component",
+                "framework": "heroui",
+                "atomic": "molecule",
+                "fidelity": "full",
+                "react": "SearchField",
+                "package": "@heroui/react",
+                "slug": "search-field",
+                "category": "Forms"
+              }
+            },
+            {
+              "id": "number-field",
+              "type": "frame",
+              "name": "NumberField",
+              "width": 180,
+              "height": 40,
+              "alignItems": "center",
+              "padding": [
+                12,
+                0
+              ],
+              "cornerRadius": "$grids:radius.md",
+              "fill": "$colors:color.field-background",
+              "stroke": "$colors:color.border",
+              "strokeWidth": "$grids:border.width",
+              "strokeAlignment": "inner",
+              "children": [
+                {
+                  "id": "number-field-value",
+                  "type": "text",
+                  "content": "12",
+                  "fill": "$colors:color.foreground",
+                  "fontFamily": "$type:font.family",
+                  "fontSize": "$type:font.size-md",
+                  "width": "fill_container",
+                  "textGrowth": "fixed-width",
+                  "fontWeight": "normal"
+                },
+                {
+                  "id": "number-field-step",
+                  "type": "frame",
+                  "name": "Steppers",
+                  "layout": "vertical",
+                  "width": "fit_content(0)",
+                  "children": [
+                    {
+                      "id": "number-field-up",
+                      "type": "text",
+                      "content": "▴",
+                      "fill": "$colors:color.muted",
+                      "fontFamily": "$type:font.family",
+                      "fontSize": 10,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "id": "number-field-down",
+                      "type": "text",
+                      "content": "▾",
+                      "fill": "$colors:color.muted",
+                      "fontFamily": "$type:font.family",
+                      "fontSize": 10,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ],
+              "reusable": true,
+              "metadata": {
+                "type": "component",
+                "framework": "heroui",
+                "atomic": "molecule",
+                "fidelity": "full",
+                "react": "NumberField",
+                "package": "@heroui/react",
+                "slug": "number-field",
+                "category": "Forms"
+              }
+            },
+            {
+              "id": "input-group",
+              "type": "frame",
+              "name": "InputGroup",
+              "width": 320,
+              "height": 40,
+              "alignItems": "center",
+              "children": [
+                {
+                  "id": "input-group-addon",
+                  "type": "frame",
+                  "name": "Addon",
+                  "height": 40,
+                  "alignItems": "center",
+                  "padding": [
+                    12,
+                    0
+                  ],
+                  "fill": "$colors:color.accent-soft",
+                  "cornerRadius": [
+                    "$grids:radius.md",
+                    0,
+                    0,
+                    "$grids:radius.md"
+                  ],
+                  "children": [
+                    {
+                      "id": "input-group-addon-text",
+                      "type": "text",
+                      "content": "https://",
+                      "fill": "$colors:color.muted",
+                      "fontFamily": "$type:font.family",
+                      "fontSize": "$type:font.size-md",
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "id": "input-group-input",
+                  "type": "frame",
+                  "name": "Input",
+                  "width": "fill_container",
+                  "height": 40,
+                  "alignItems": "center",
+                  "padding": [
+                    12,
+                    0
+                  ],
+                  "fill": "$colors:color.field-background",
+                  "cornerRadius": [
+                    0,
+                    "$grids:radius.md",
+                    "$grids:radius.md",
+                    0
+                  ],
+                  "stroke": "$colors:color.border",
+                  "strokeWidth": "$grids:border.width",
+                  "strokeAlignment": "inner",
+                  "children": [
+                    {
+                      "id": "input-group-input-text",
+                      "type": "text",
+                      "content": "your-site",
+                      "fill": "$colors:color.field-placeholder",
+                      "fontFamily": "$type:font.family",
+                      "fontSize": "$type:font.size-md",
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ],
+              "reusable": true,
+              "metadata": {
+                "type": "component",
+                "framework": "heroui",
+                "atomic": "molecule",
+                "fidelity": "full",
+                "react": "InputGroup",
+                "package": "@heroui/react",
+                "slug": "input-group",
+                "category": "Forms"
+              }
+            },
+            {
+              "id": "input-otp",
+              "type": "frame",
+              "name": "InputOTP",
+              "width": "fit_content(0)",
+              "gap": 8,
+              "children": [
+                {
+                  "id": "input-otp-0",
+                  "type": "frame",
+                  "name": "Cell 0",
+                  "width": 44,
+                  "height": 48,
+                  "alignItems": "center",
+                  "justifyContent": "center",
+                  "cornerRadius": "$grids:radius.md",
+                  "fill": "$colors:color.field-background",
+                  "stroke": "$colors:color.border",
+                  "strokeWidth": "$grids:border.width",
+                  "strokeAlignment": "inner",
+                  "children": [
+                    {
+                      "id": "input-otp-0-d",
+                      "type": "text",
+                      "content": "4",
+                      "fill": "$colors:color.foreground",
+                      "fontFamily": "$type:font.family",
+                      "fontSize": 20,
+                      "fontWeight": "600"
+                    }
+                  ]
+                },
+                {
+                  "id": "input-otp-1",
+                  "type": "frame",
+                  "name": "Cell 1",
+                  "width": 44,
+                  "height": 48,
+                  "alignItems": "center",
+                  "justifyContent": "center",
+                  "cornerRadius": "$grids:radius.md",
+                  "fill": "$colors:color.field-background",
+                  "stroke": "$colors:color.border",
+                  "strokeWidth": "$grids:border.width",
+                  "strokeAlignment": "inner",
+                  "children": [
+                    {
+                      "id": "input-otp-1-d",
+                      "type": "text",
+                      "content": "2",
+                      "fill": "$colors:color.foreground",
+                      "fontFamily": "$type:font.family",
+                      "fontSize": 20,
+                      "fontWeight": "600"
+                    }
+                  ]
+                },
+                {
+                  "id": "input-otp-2",
+                  "type": "frame",
+                  "name": "Cell 2",
+                  "width": 44,
+                  "height": 48,
+                  "alignItems": "center",
+                  "justifyContent": "center",
+                  "cornerRadius": "$grids:radius.md",
+                  "fill": "$colors:color.field-background",
+                  "stroke": "$colors:color.accent",
+                  "strokeWidth": 2,
+                  "strokeAlignment": "inner",
+                  "children": [
+                    {
+                      "id": "input-otp-2-d",
+                      "type": "text",
+                      "fill": "$colors:color.foreground",
+                      "fontFamily": "$type:font.family",
+                      "fontSize": 20,
+                      "fontWeight": "600"
+                    }
+                  ]
+                },
+                {
+                  "id": "input-otp-3",
+                  "type": "frame",
+                  "name": "Cell 3",
+                  "width": 44,
+                  "height": 48,
+                  "alignItems": "center",
+                  "justifyContent": "center",
+                  "cornerRadius": "$grids:radius.md",
+                  "fill": "$colors:color.field-background",
+                  "stroke": "$colors:color.border",
+                  "strokeWidth": "$grids:border.width",
+                  "strokeAlignment": "inner",
+                  "children": [
+                    {
+                      "id": "input-otp-3-d",
+                      "type": "text",
+                      "fill": "$colors:color.foreground",
+                      "fontFamily": "$type:font.family",
+                      "fontSize": 20,
+                      "fontWeight": "600"
+                    }
+                  ]
+                }
+              ],
+              "reusable": true,
+              "metadata": {
+                "type": "component",
+                "framework": "heroui",
+                "atomic": "molecule",
+                "fidelity": "full",
+                "react": "InputOTP",
+                "package": "@heroui/react",
+                "slug": "input-otp",
+                "category": "Forms"
+              }
+            },
+            {
+              "id": "fieldset",
+              "type": "frame",
+              "name": "Fieldset",
+              "width": 320,
+              "layout": "vertical",
+              "gap": 12,
+              "padding": 16,
+              "cornerRadius": "$grids:radius.md",
+              "stroke": "$colors:color.border",
+              "strokeWidth": "$grids:border.width",
+              "strokeAlignment": "inner",
+              "children": [
+                {
+                  "id": "fieldset-legend",
+                  "type": "text",
+                  "content": "Notifications",
+                  "fill": "$colors:color.foreground",
+                  "fontFamily": "$type:font.family",
+                  "fontSize": "$type:font.size-md",
+                  "fontWeight": "600"
+                },
+                {
+                  "id": "fieldset-field-1",
+                  "type": "frame",
+                  "name": "Field",
+                  "width": "fill_container",
+                  "height": 40,
+                  "alignItems": "center",
+                  "padding": [
+                    12,
+                    0
+                  ],
+                  "cornerRadius": "$grids:radius.md",
+                  "fill": "$colors:color.field-background",
+                  "stroke": "$colors:color.border",
+                  "strokeWidth": "$grids:border.width",
+                  "strokeAlignment": "inner",
+                  "children": [
+                    {
+                      "id": "fieldset-field-1-text",
+                      "type": "text",
+                      "content": "Email",
+                      "fill": "$colors:color.field-placeholder",
+                      "fontFamily": "$type:font.family",
+                      "fontSize": "$type:font.size-md",
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "id": "fieldset-field-2",
+                  "type": "frame",
+                  "name": "Field",
+                  "width": "fill_container",
+                  "height": 40,
+                  "alignItems": "center",
+                  "padding": [
+                    12,
+                    0
+                  ],
+                  "cornerRadius": "$grids:radius.md",
+                  "fill": "$colors:color.field-background",
+                  "stroke": "$colors:color.border",
+                  "strokeWidth": "$grids:border.width",
+                  "strokeAlignment": "inner",
+                  "children": [
+                    {
+                      "id": "fieldset-field-2-text",
+                      "type": "text",
+                      "content": "SMS",
+                      "fill": "$colors:color.field-placeholder",
+                      "fontFamily": "$type:font.family",
+                      "fontSize": "$type:font.size-md",
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ],
+              "reusable": true,
+              "metadata": {
+                "type": "component",
+                "framework": "heroui",
+                "atomic": "molecule",
+                "fidelity": "full",
+                "react": "Fieldset",
+                "package": "@heroui/react",
+                "slug": "fieldset",
+                "category": "Forms"
+              }
+            },
+            {
+              "id": "checkbox-group",
+              "type": "frame",
+              "name": "CheckboxGroup",
+              "layout": "vertical",
+              "width": "fit_content(0)",
+              "gap": 12,
+              "children": [
+                {
+                  "id": "checkbox-group-0",
+                  "type": "frame",
+                  "name": "Newsletter",
+                  "width": "fit_content(0)",
+                  "alignItems": "center",
+                  "gap": 10,
+                  "children": [
+                    {
+                      "id": "checkbox-group-0-box",
+                      "type": "frame",
+                      "name": "Box",
+                      "width": 18,
+                      "height": 18,
+                      "alignItems": "center",
+                      "justifyContent": "center",
+                      "cornerRadius": "$grids:radius.sm",
+                      "fill": "$colors:color.accent",
+                      "children": [
+                        {
+                          "id": "checkbox-group-0-chk",
+                          "type": "text",
+                          "content": "✓",
+                          "fill": "$colors:color.accent-foreground",
+                          "fontFamily": "$type:font.family",
+                          "fontSize": 12,
+                          "fontWeight": "700"
+                        }
+                      ]
+                    },
+                    {
+                      "id": "checkbox-group-0-label",
+                      "type": "text",
+                      "content": "Newsletter",
+                      "fill": "$colors:color.foreground",
+                      "fontFamily": "$type:font.family",
+                      "fontSize": "$type:font.size-md",
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "id": "checkbox-group-1",
+                  "type": "frame",
+                  "name": "Product updates",
+                  "width": "fit_content(0)",
+                  "alignItems": "center",
+                  "gap": 10,
+                  "children": [
+                    {
+                      "id": "checkbox-group-1-box",
+                      "type": "frame",
+                      "name": "Box",
+                      "width": 18,
+                      "height": 18,
+                      "alignItems": "center",
+                      "justifyContent": "center",
+                      "cornerRadius": "$grids:radius.sm",
+                      "fill": "$colors:color.surface",
+                      "stroke": "$colors:color.border",
+                      "strokeWidth": "$grids:border.width",
+                      "strokeAlignment": "inner"
+                    },
+                    {
+                      "id": "checkbox-group-1-label",
+                      "type": "text",
+                      "content": "Product updates",
+                      "fill": "$colors:color.foreground",
+                      "fontFamily": "$type:font.family",
+                      "fontSize": "$type:font.size-md",
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ],
+              "reusable": true,
+              "metadata": {
+                "type": "component",
+                "framework": "heroui",
+                "atomic": "molecule",
+                "fidelity": "full",
+                "react": "CheckboxGroup",
+                "package": "@heroui/react",
+                "slug": "checkbox-group",
+                "category": "Forms"
+              }
+            },
+            {
+              "id": "radio-group",
+              "type": "frame",
+              "name": "RadioGroup",
+              "layout": "vertical",
+              "width": "fit_content(0)",
+              "gap": 12,
+              "children": [
+                {
+                  "id": "radio-group-0",
+                  "type": "frame",
+                  "name": "Monthly",
+                  "width": "fit_content(0)",
+                  "alignItems": "center",
+                  "gap": 10,
+                  "children": [
+                    {
+                      "id": "radio-group-0-o",
+                      "type": "frame",
+                      "name": "O",
+                      "width": 18,
+                      "height": 18,
+                      "alignItems": "center",
+                      "justifyContent": "center",
+                      "cornerRadius": 9999,
+                      "fill": "$colors:color.surface",
+                      "stroke": "$colors:color.accent",
+                      "strokeWidth": 2,
+                      "strokeAlignment": "inner",
+                      "children": [
+                        {
+                          "id": "radio-group-0-dot",
+                          "type": "frame",
+                          "name": "Dot",
+                          "width": 8,
+                          "height": 8,
+                          "cornerRadius": 9999,
+                          "fill": "$colors:color.accent"
+                        }
+                      ]
+                    },
+                    {
+                      "id": "radio-group-0-label",
+                      "type": "text",
+                      "content": "Monthly",
+                      "fill": "$colors:color.foreground",
+                      "fontFamily": "$type:font.family",
+                      "fontSize": "$type:font.size-md",
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "id": "radio-group-1",
+                  "type": "frame",
+                  "name": "Yearly",
+                  "width": "fit_content(0)",
+                  "alignItems": "center",
+                  "gap": 10,
+                  "children": [
+                    {
+                      "id": "radio-group-1-o",
+                      "type": "frame",
+                      "name": "O",
+                      "width": 18,
+                      "height": 18,
+                      "alignItems": "center",
+                      "justifyContent": "center",
+                      "cornerRadius": 9999,
+                      "fill": "$colors:color.surface",
+                      "stroke": "$colors:color.border",
+                      "strokeWidth": 2,
+                      "strokeAlignment": "inner"
+                    },
+                    {
+                      "id": "radio-group-1-label",
+                      "type": "text",
+                      "content": "Yearly",
+                      "fill": "$colors:color.foreground",
+                      "fontFamily": "$type:font.family",
+                      "fontSize": "$type:font.size-md",
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ],
+              "reusable": true,
+              "metadata": {
+                "type": "component",
+                "framework": "heroui",
+                "atomic": "molecule",
+                "fidelity": "full",
+                "react": "RadioGroup",
+                "package": "@heroui/react",
+                "slug": "radio-group",
+                "category": "Forms"
+              }
+            },
+            {
+              "id": "form",
+              "type": "frame",
+              "name": "Form",
+              "width": 360,
+              "layout": "vertical",
+              "gap": 16,
+              "children": [
+                {
+                  "id": "form-name",
+                  "type": "frame",
+                  "layout": "vertical",
+                  "width": "fill_container",
+                  "gap": 6,
+                  "children": [
+                    {
+                      "id": "form-name-lab",
+                      "type": "text",
+                      "content": "Full name",
+                      "fill": "$colors:color.foreground",
+                      "fontFamily": "$type:font.family",
+                      "fontSize": "$type:font.size-sm",
+                      "fontWeight": "600"
+                    },
+                    {
+                      "id": "form-name-in",
+                      "type": "frame",
+                      "width": "fill_container",
+                      "height": 40,
+                      "alignItems": "center",
+                      "padding": [
+                        12,
+                        0
+                      ],
+                      "cornerRadius": "$grids:radius.md",
+                      "fill": "$colors:color.field-background",
+                      "stroke": "$colors:color.border",
+                      "strokeWidth": "$grids:border.width",
+                      "strokeAlignment": "inner",
+                      "children": [
+                        {
+                          "id": "form-name-in-t",
+                          "type": "text",
+                          "content": "Ada Lovelace",
+                          "fill": "$colors:color.field-placeholder",
+                          "fontFamily": "$type:font.family",
+                          "fontSize": "$type:font.size-md",
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "id": "form-email",
+                  "type": "frame",
+                  "layout": "vertical",
+                  "width": "fill_container",
+                  "gap": 6,
+                  "children": [
+                    {
+                      "id": "form-email-lab",
+                      "type": "text",
+                      "content": "Email",
+                      "fill": "$colors:color.foreground",
+                      "fontFamily": "$type:font.family",
+                      "fontSize": "$type:font.size-sm",
+                      "fontWeight": "600"
+                    },
+                    {
+                      "id": "form-email-in",
+                      "type": "frame",
+                      "width": "fill_container",
+                      "height": 40,
+                      "alignItems": "center",
+                      "padding": [
+                        12,
+                        0
+                      ],
+                      "cornerRadius": "$grids:radius.md",
+                      "fill": "$colors:color.field-background",
+                      "stroke": "$colors:color.border",
+                      "strokeWidth": "$grids:border.width",
+                      "strokeAlignment": "inner",
+                      "children": [
+                        {
+                          "id": "form-email-in-t",
+                          "type": "text",
+                          "content": "ada@example.com",
+                          "fill": "$colors:color.field-placeholder",
+                          "fontFamily": "$type:font.family",
+                          "fontSize": "$type:font.size-md",
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "id": "form-actions",
+                  "type": "frame",
+                  "width": "fill_container",
+                  "justifyContent": "end",
+                  "gap": 12,
+                  "children": [
+                    {
+                      "id": "form-cancel",
+                      "type": "frame",
+                      "name": "Cancel",
+                      "width": "fit_content(0)",
+                      "alignItems": "center",
+                      "justifyContent": "center",
+                      "padding": [
+                        16,
+                        10
+                      ],
+                      "cornerRadius": "$grids:radius.md",
+                      "fill": "$colors:color.surface",
+                      "stroke": "$colors:color.border",
+                      "strokeWidth": "$grids:border.width",
+                      "strokeAlignment": "inner",
+                      "children": [
+                        {
+                          "id": "form-cancel-l",
+                          "type": "text",
+                          "content": "Cancel",
+                          "fill": "$colors:color.foreground",
+                          "fontFamily": "$type:font.family",
+                          "fontSize": "$type:font.size-md",
+                          "fontWeight": "600"
+                        }
+                      ]
+                    },
+                    {
+                      "id": "form-submit",
+                      "type": "frame",
+                      "name": "Submit",
+                      "width": "fit_content(0)",
+                      "alignItems": "center",
+                      "justifyContent": "center",
+                      "padding": [
+                        16,
+                        10
+                      ],
+                      "cornerRadius": "$grids:radius.md",
+                      "fill": "$colors:color.accent",
+                      "children": [
+                        {
+                          "id": "form-submit-l",
+                          "type": "text",
+                          "content": "Submit",
+                          "fill": "$colors:color.accent-foreground",
+                          "fontFamily": "$type:font.family",
+                          "fontSize": "$type:font.size-md",
+                          "fontWeight": "600"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "reusable": true,
+              "metadata": {
+                "type": "component",
+                "framework": "heroui",
+                "atomic": "organism",
+                "fidelity": "full",
+                "react": "Form",
+                "package": "@heroui/react",
+                "slug": "form",
+                "category": "Forms"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "imports": {
+    "colors": "../foundations/colors.lib.pen",
+    "type": "../foundations/typography.lib.pen",
+    "grids": "../foundations/grids.lib.pen"
+  }
+}

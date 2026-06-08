@@ -1,0 +1,459 @@
+{
+  "version": "2.13",
+  "children": [
+    {
+      "id": "core-data-display",
+      "type": "frame",
+      "name": "Data Display · HeroUI v3",
+      "x": 0,
+      "y": 0,
+      "layout": "vertical",
+      "gap": 24,
+      "padding": 32,
+      "fill": "$colors:color.background",
+      "children": [
+        {
+          "id": "core-data-display-h",
+          "type": "text",
+          "content": "Data Display · HeroUI v3",
+          "fill": "$colors:color.foreground",
+          "fontFamily": "$type:font.family",
+          "fontSize": 24,
+          "fontWeight": "700"
+        },
+        {
+          "id": "core-data-display-items",
+          "type": "frame",
+          "name": "Items",
+          "layout": "vertical",
+          "width": "fit_content(0)",
+          "gap": 16,
+          "children": [
+            {
+              "id": "badge",
+              "type": "frame",
+              "name": "Badge",
+              "width": "fit_content(0)",
+              "alignItems": "center",
+              "justifyContent": "center",
+              "padding": [
+                8,
+                3
+              ],
+              "fill": "$colors:color.accent",
+              "cornerRadius": 9999,
+              "children": [
+                {
+                  "id": "badge-label",
+                  "type": "text",
+                  "content": "New",
+                  "fill": "$colors:color.accent-foreground",
+                  "fontFamily": "$type:font.family",
+                  "fontSize": 12,
+                  "fontWeight": "600"
+                }
+              ],
+              "reusable": true,
+              "metadata": {
+                "type": "component",
+                "framework": "heroui",
+                "atomic": "atom",
+                "fidelity": "full",
+                "react": "Badge",
+                "package": "@heroui/react",
+                "slug": "badge",
+                "category": "Data Display"
+              }
+            },
+            {
+              "id": "chip",
+              "type": "frame",
+              "name": "Chip",
+              "width": "fit_content(0)",
+              "alignItems": "center",
+              "gap": "$grids:space.unit",
+              "padding": [
+                12,
+                6
+              ],
+              "fill": "$colors:color.accent-soft",
+              "cornerRadius": 9999,
+              "children": [
+                {
+                  "id": "chip-label",
+                  "type": "text",
+                  "content": "Chip",
+                  "fill": "$colors:color.accent",
+                  "fontFamily": "$type:font.family",
+                  "fontSize": "$type:font.size-sm",
+                  "fontWeight": "500"
+                }
+              ],
+              "reusable": true,
+              "metadata": {
+                "type": "component",
+                "framework": "heroui",
+                "atomic": "atom",
+                "fidelity": "full",
+                "react": "Chip",
+                "package": "@heroui/react",
+                "slug": "chip",
+                "category": "Data Display"
+              }
+            },
+            {
+              "id": "table",
+              "type": "frame",
+              "name": "Table",
+              "width": 520,
+              "layout": "vertical",
+              "cornerRadius": "$grids:radius.lg",
+              "clip": true,
+              "stroke": "$colors:color.border",
+              "strokeWidth": "$grids:border.width",
+              "strokeAlignment": "inner",
+              "children": [
+                {
+                  "id": "table-h",
+                  "type": "frame",
+                  "name": "Header",
+                  "width": "fill_container",
+                  "fill": "$colors:color.accent-soft",
+                  "stroke": "$colors:color.border",
+                  "strokeWidth": {
+                    "bottom": "$grids:border.width"
+                  },
+                  "strokeAlignment": "inner",
+                  "children": [
+                    {
+                      "id": "table-h-c0",
+                      "type": "frame",
+                      "name": "Cell",
+                      "width": "fill_container",
+                      "alignItems": "center",
+                      "padding": [
+                        16,
+                        12
+                      ],
+                      "children": [
+                        {
+                          "id": "table-h-c0-t",
+                          "type": "text",
+                          "content": "Name",
+                          "fill": "$colors:color.muted",
+                          "fontFamily": "$type:font.family",
+                          "fontSize": "$type:font.size-sm",
+                          "fontWeight": "600"
+                        }
+                      ]
+                    },
+                    {
+                      "id": "table-h-c1",
+                      "type": "frame",
+                      "name": "Cell",
+                      "width": "fill_container",
+                      "alignItems": "center",
+                      "padding": [
+                        16,
+                        12
+                      ],
+                      "children": [
+                        {
+                          "id": "table-h-c1-t",
+                          "type": "text",
+                          "content": "Email",
+                          "fill": "$colors:color.muted",
+                          "fontFamily": "$type:font.family",
+                          "fontSize": "$type:font.size-sm",
+                          "fontWeight": "600"
+                        }
+                      ]
+                    },
+                    {
+                      "id": "table-h-c2",
+                      "type": "frame",
+                      "name": "Cell",
+                      "width": "fill_container",
+                      "alignItems": "center",
+                      "padding": [
+                        16,
+                        12
+                      ],
+                      "children": [
+                        {
+                          "id": "table-h-c2-t",
+                          "type": "text",
+                          "content": "Role",
+                          "fill": "$colors:color.muted",
+                          "fontFamily": "$type:font.family",
+                          "fontSize": "$type:font.size-sm",
+                          "fontWeight": "600"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "id": "table-r0",
+                  "type": "frame",
+                  "name": "Row",
+                  "width": "fill_container",
+                  "fill": "$colors:color.surface",
+                  "stroke": "$colors:color.border",
+                  "strokeWidth": {
+                    "bottom": "$grids:border.width"
+                  },
+                  "strokeAlignment": "inner",
+                  "children": [
+                    {
+                      "id": "table-r0-c0",
+                      "type": "frame",
+                      "name": "Cell",
+                      "width": "fill_container",
+                      "alignItems": "center",
+                      "padding": [
+                        16,
+                        12
+                      ],
+                      "children": [
+                        {
+                          "id": "table-r0-c0-t",
+                          "type": "text",
+                          "content": "Ada Lovelace",
+                          "fill": "$colors:color.foreground",
+                          "fontFamily": "$type:font.family",
+                          "fontSize": "$type:font.size-md",
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "id": "table-r0-c1",
+                      "type": "frame",
+                      "name": "Cell",
+                      "width": "fill_container",
+                      "alignItems": "center",
+                      "padding": [
+                        16,
+                        12
+                      ],
+                      "children": [
+                        {
+                          "id": "table-r0-c1-t",
+                          "type": "text",
+                          "content": "ada@ex.com",
+                          "fill": "$colors:color.foreground",
+                          "fontFamily": "$type:font.family",
+                          "fontSize": "$type:font.size-md",
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "id": "table-r0-c2",
+                      "type": "frame",
+                      "name": "Cell",
+                      "width": "fill_container",
+                      "alignItems": "center",
+                      "padding": [
+                        16,
+                        12
+                      ],
+                      "children": [
+                        {
+                          "id": "table-r0-c2-t",
+                          "type": "text",
+                          "content": "Owner",
+                          "fill": "$colors:color.foreground",
+                          "fontFamily": "$type:font.family",
+                          "fontSize": "$type:font.size-md",
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "id": "table-r1",
+                  "type": "frame",
+                  "name": "Row",
+                  "width": "fill_container",
+                  "fill": "$colors:color.surface",
+                  "stroke": "$colors:color.border",
+                  "strokeWidth": {
+                    "bottom": "$grids:border.width"
+                  },
+                  "strokeAlignment": "inner",
+                  "children": [
+                    {
+                      "id": "table-r1-c0",
+                      "type": "frame",
+                      "name": "Cell",
+                      "width": "fill_container",
+                      "alignItems": "center",
+                      "padding": [
+                        16,
+                        12
+                      ],
+                      "children": [
+                        {
+                          "id": "table-r1-c0-t",
+                          "type": "text",
+                          "content": "Alan Turing",
+                          "fill": "$colors:color.foreground",
+                          "fontFamily": "$type:font.family",
+                          "fontSize": "$type:font.size-md",
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "id": "table-r1-c1",
+                      "type": "frame",
+                      "name": "Cell",
+                      "width": "fill_container",
+                      "alignItems": "center",
+                      "padding": [
+                        16,
+                        12
+                      ],
+                      "children": [
+                        {
+                          "id": "table-r1-c1-t",
+                          "type": "text",
+                          "content": "alan@ex.com",
+                          "fill": "$colors:color.foreground",
+                          "fontFamily": "$type:font.family",
+                          "fontSize": "$type:font.size-md",
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "id": "table-r1-c2",
+                      "type": "frame",
+                      "name": "Cell",
+                      "width": "fill_container",
+                      "alignItems": "center",
+                      "padding": [
+                        16,
+                        12
+                      ],
+                      "children": [
+                        {
+                          "id": "table-r1-c2-t",
+                          "type": "text",
+                          "content": "Admin",
+                          "fill": "$colors:color.foreground",
+                          "fontFamily": "$type:font.family",
+                          "fontSize": "$type:font.size-md",
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "id": "table-r2",
+                  "type": "frame",
+                  "name": "Row",
+                  "width": "fill_container",
+                  "fill": "$colors:color.surface",
+                  "stroke": "$colors:color.border",
+                  "strokeWidth": {
+                    "bottom": "$grids:border.width"
+                  },
+                  "strokeAlignment": "inner",
+                  "children": [
+                    {
+                      "id": "table-r2-c0",
+                      "type": "frame",
+                      "name": "Cell",
+                      "width": "fill_container",
+                      "alignItems": "center",
+                      "padding": [
+                        16,
+                        12
+                      ],
+                      "children": [
+                        {
+                          "id": "table-r2-c0-t",
+                          "type": "text",
+                          "content": "Grace Hopper",
+                          "fill": "$colors:color.foreground",
+                          "fontFamily": "$type:font.family",
+                          "fontSize": "$type:font.size-md",
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "id": "table-r2-c1",
+                      "type": "frame",
+                      "name": "Cell",
+                      "width": "fill_container",
+                      "alignItems": "center",
+                      "padding": [
+                        16,
+                        12
+                      ],
+                      "children": [
+                        {
+                          "id": "table-r2-c1-t",
+                          "type": "text",
+                          "content": "grace@ex.com",
+                          "fill": "$colors:color.foreground",
+                          "fontFamily": "$type:font.family",
+                          "fontSize": "$type:font.size-md",
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "id": "table-r2-c2",
+                      "type": "frame",
+                      "name": "Cell",
+                      "width": "fill_container",
+                      "alignItems": "center",
+                      "padding": [
+                        16,
+                        12
+                      ],
+                      "children": [
+                        {
+                          "id": "table-r2-c2-t",
+                          "type": "text",
+                          "content": "Member",
+                          "fill": "$colors:color.foreground",
+                          "fontFamily": "$type:font.family",
+                          "fontSize": "$type:font.size-md",
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "reusable": true,
+              "metadata": {
+                "type": "component",
+                "framework": "heroui",
+                "atomic": "organism",
+                "fidelity": "full",
+                "react": "Table",
+                "package": "@heroui/react",
+                "slug": "table",
+                "category": "Data Display"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "imports": {
+    "colors": "../foundations/colors.lib.pen",
+    "type": "../foundations/typography.lib.pen",
+    "grids": "../foundations/grids.lib.pen"
+  }
+}

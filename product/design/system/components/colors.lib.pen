@@ -1,0 +1,427 @@
+{
+  "version": "2.13",
+  "children": [
+    {
+      "id": "core-colors",
+      "type": "frame",
+      "name": "Colors · HeroUI v3",
+      "x": 0,
+      "y": 0,
+      "layout": "vertical",
+      "gap": 24,
+      "padding": 32,
+      "fill": "$colors:color.background",
+      "children": [
+        {
+          "id": "core-colors-h",
+          "type": "text",
+          "content": "Colors · HeroUI v3",
+          "fill": "$colors:color.foreground",
+          "fontFamily": "$type:font.family",
+          "fontSize": 24,
+          "fontWeight": "700"
+        },
+        {
+          "id": "core-colors-items",
+          "type": "frame",
+          "name": "Items",
+          "layout": "vertical",
+          "width": "fit_content(0)",
+          "gap": 16,
+          "children": [
+            {
+              "id": "color-swatch",
+              "type": "frame",
+              "name": "ColorSwatch",
+              "width": 40,
+              "height": 40,
+              "cornerRadius": "$grids:radius.md",
+              "fill": "$colors:color.accent",
+              "stroke": "$colors:color.border",
+              "strokeWidth": "$grids:border.width",
+              "strokeAlignment": "inner",
+              "reusable": true,
+              "metadata": {
+                "type": "component",
+                "framework": "heroui",
+                "atomic": "atom",
+                "fidelity": "full",
+                "react": "ColorSwatch",
+                "package": "@heroui/react",
+                "slug": "color-swatch",
+                "category": "Colors"
+              }
+            },
+            {
+              "id": "color-field",
+              "type": "frame",
+              "name": "ColorField",
+              "width": 220,
+              "height": 40,
+              "alignItems": "center",
+              "gap": 10,
+              "padding": [
+                12,
+                0
+              ],
+              "cornerRadius": "$grids:radius.md",
+              "fill": "$colors:color.field-background",
+              "stroke": "$colors:color.border",
+              "strokeWidth": "$grids:border.width",
+              "strokeAlignment": "inner",
+              "children": [
+                {
+                  "id": "color-field-sw",
+                  "type": "frame",
+                  "width": 20,
+                  "height": 20,
+                  "cornerRadius": "$grids:radius.sm",
+                  "fill": "$colors:color.accent"
+                },
+                {
+                  "id": "color-field-val",
+                  "type": "text",
+                  "content": "#3F5694",
+                  "fill": "$colors:color.foreground",
+                  "fontFamily": "$type:font.family",
+                  "fontSize": "$type:font.size-md",
+                  "fontWeight": "normal"
+                }
+              ],
+              "reusable": true,
+              "metadata": {
+                "type": "component",
+                "framework": "heroui",
+                "atomic": "molecule",
+                "fidelity": "full",
+                "react": "ColorField",
+                "package": "@heroui/react",
+                "slug": "color-field",
+                "category": "Colors"
+              }
+            },
+            {
+              "id": "color-slider",
+              "type": "frame",
+              "name": "ColorSlider",
+              "width": 240,
+              "height": 16,
+              "layout": "none",
+              "children": [
+                {
+                  "id": "color-slider-bar",
+                  "type": "frame",
+                  "x": 0,
+                  "y": 2,
+                  "width": 240,
+                  "height": 12,
+                  "cornerRadius": 9999,
+                  "fill": {
+                    "type": "gradient",
+                    "gradientType": "linear",
+                    "rotation": 90,
+                    "colors": [
+                      {
+                        "color": "#ff0000",
+                        "position": 0
+                      },
+                      {
+                        "color": "#00ff00",
+                        "position": 0.5
+                      },
+                      {
+                        "color": "#0000ff",
+                        "position": 1
+                      }
+                    ],
+                    "enabled": true,
+                    "size": {
+                      "height": 1
+                    }
+                  }
+                },
+                {
+                  "id": "color-slider-thumb",
+                  "type": "frame",
+                  "x": 150,
+                  "y": 0,
+                  "width": 16,
+                  "height": 16,
+                  "cornerRadius": 9999,
+                  "fill": "$colors:color.surface",
+                  "stroke": "$colors:color.border",
+                  "strokeWidth": 2,
+                  "strokeAlignment": "inner"
+                }
+              ],
+              "reusable": true,
+              "metadata": {
+                "type": "component",
+                "framework": "heroui",
+                "atomic": "molecule",
+                "fidelity": "full",
+                "react": "ColorSlider",
+                "package": "@heroui/react",
+                "slug": "color-slider",
+                "category": "Colors"
+              }
+            },
+            {
+              "id": "color-area",
+              "type": "frame",
+              "name": "ColorArea",
+              "width": 220,
+              "height": 140,
+              "cornerRadius": "$grids:radius.md",
+              "layout": "none",
+              "fill": {
+                "type": "gradient",
+                "gradientType": "linear",
+                "rotation": 90,
+                "colors": [
+                  {
+                    "color": "#ffffff",
+                    "position": 0
+                  },
+                  {
+                    "color": "$colors:color.accent",
+                    "position": 1
+                  }
+                ],
+                "enabled": true,
+                "size": {
+                  "height": 1
+                }
+              },
+              "children": [
+                {
+                  "id": "color-area-thumb",
+                  "type": "frame",
+                  "x": 150,
+                  "y": 40,
+                  "width": 16,
+                  "height": 16,
+                  "cornerRadius": 9999,
+                  "fill": "#00000000",
+                  "stroke": "#ffffff",
+                  "strokeWidth": 2,
+                  "strokeAlignment": "inner"
+                }
+              ],
+              "reusable": true,
+              "metadata": {
+                "type": "component",
+                "framework": "heroui",
+                "atomic": "molecule",
+                "fidelity": "full",
+                "react": "ColorArea",
+                "package": "@heroui/react",
+                "slug": "color-area",
+                "category": "Colors"
+              }
+            },
+            {
+              "id": "color-swatch-picker",
+              "type": "frame",
+              "name": "ColorSwatchPicker",
+              "width": "fit_content(0)",
+              "gap": 8,
+              "children": [
+                {
+                  "id": "color-swatch-picker-0",
+                  "type": "frame",
+                  "width": 28,
+                  "height": 28,
+                  "cornerRadius": "$grids:radius.sm",
+                  "fill": "#c2453f",
+                  "stroke": "$colors:color.border",
+                  "strokeWidth": "$grids:border.width",
+                  "strokeAlignment": "inner"
+                },
+                {
+                  "id": "color-swatch-picker-1",
+                  "type": "frame",
+                  "width": 28,
+                  "height": 28,
+                  "cornerRadius": "$grids:radius.sm",
+                  "fill": "#c98a2e",
+                  "stroke": "$colors:color.border",
+                  "strokeWidth": "$grids:border.width",
+                  "strokeAlignment": "inner"
+                },
+                {
+                  "id": "color-swatch-picker-2",
+                  "type": "frame",
+                  "width": 28,
+                  "height": 28,
+                  "cornerRadius": "$grids:radius.sm",
+                  "fill": "#2f9e6e",
+                  "stroke": "$colors:color.border",
+                  "strokeWidth": "$grids:border.width",
+                  "strokeAlignment": "inner"
+                },
+                {
+                  "id": "color-swatch-picker-3",
+                  "type": "frame",
+                  "width": 28,
+                  "height": 28,
+                  "cornerRadius": "$grids:radius.sm",
+                  "fill": "#3a72b8",
+                  "stroke": "$colors:color.border",
+                  "strokeWidth": "$grids:border.width",
+                  "strokeAlignment": "inner"
+                },
+                {
+                  "id": "color-swatch-picker-4",
+                  "type": "frame",
+                  "width": 28,
+                  "height": 28,
+                  "cornerRadius": "$grids:radius.sm",
+                  "fill": "#3f5694",
+                  "stroke": "$colors:color.foreground",
+                  "strokeWidth": 2,
+                  "strokeAlignment": "inner"
+                }
+              ],
+              "reusable": true,
+              "metadata": {
+                "type": "component",
+                "framework": "heroui",
+                "atomic": "molecule",
+                "fidelity": "full",
+                "react": "ColorSwatchPicker",
+                "package": "@heroui/react",
+                "slug": "color-swatch-picker",
+                "category": "Colors"
+              }
+            },
+            {
+              "id": "color-picker",
+              "type": "frame",
+              "name": "ColorPicker",
+              "width": 240,
+              "layout": "vertical",
+              "gap": 12,
+              "padding": 16,
+              "fill": "$colors:color.surface",
+              "cornerRadius": "$grids:radius.lg",
+              "effect": {
+                "type": "shadow",
+                "shadowType": "outer",
+                "offset": {
+                  "x": 0,
+                  "y": 8
+                },
+                "blur": 24,
+                "color": "#00000026"
+              },
+              "stroke": "$colors:color.border",
+              "strokeWidth": "$grids:border.width",
+              "strokeAlignment": "inner",
+              "children": [
+                {
+                  "id": "color-picker-area",
+                  "type": "frame",
+                  "width": "fill_container",
+                  "height": 120,
+                  "cornerRadius": "$grids:radius.md",
+                  "fill": {
+                    "type": "gradient",
+                    "gradientType": "linear",
+                    "rotation": 90,
+                    "colors": [
+                      {
+                        "color": "#ffffff",
+                        "position": 0
+                      },
+                      {
+                        "color": "$colors:color.accent",
+                        "position": 1
+                      }
+                    ],
+                    "enabled": true,
+                    "size": {
+                      "height": 1
+                    }
+                  }
+                },
+                {
+                  "id": "color-picker-hue",
+                  "type": "frame",
+                  "width": "fill_container",
+                  "height": 12,
+                  "cornerRadius": 9999,
+                  "fill": {
+                    "type": "gradient",
+                    "gradientType": "linear",
+                    "rotation": 90,
+                    "colors": [
+                      {
+                        "color": "#ff0000",
+                        "position": 0
+                      },
+                      {
+                        "color": "#00ff00",
+                        "position": 0.5
+                      },
+                      {
+                        "color": "#0000ff",
+                        "position": 1
+                      }
+                    ],
+                    "enabled": true,
+                    "size": {
+                      "height": 1
+                    }
+                  }
+                },
+                {
+                  "id": "color-picker-row",
+                  "type": "frame",
+                  "width": "fill_container",
+                  "alignItems": "center",
+                  "gap": 8,
+                  "children": [
+                    {
+                      "id": "color-picker-sw",
+                      "type": "frame",
+                      "width": 24,
+                      "height": 24,
+                      "cornerRadius": "$grids:radius.sm",
+                      "fill": "$colors:color.accent"
+                    },
+                    {
+                      "id": "color-picker-hex",
+                      "type": "text",
+                      "content": "#3F5694",
+                      "fill": "$colors:color.foreground",
+                      "fontFamily": "$type:font.family",
+                      "fontSize": "$type:font.size-md",
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ],
+              "reusable": true,
+              "metadata": {
+                "type": "component",
+                "framework": "heroui",
+                "atomic": "organism",
+                "fidelity": "full",
+                "react": "ColorPicker",
+                "package": "@heroui/react",
+                "slug": "color-picker",
+                "category": "Colors"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "imports": {
+    "colors": "../foundations/colors.lib.pen",
+    "type": "../foundations/typography.lib.pen",
+    "grids": "../foundations/grids.lib.pen"
+  }
+}

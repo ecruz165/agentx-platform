@@ -1,0 +1,122 @@
+{
+  "version": "2.13",
+  "variables": {
+    "space.unit": {
+      "type": "number",
+      "value": 4
+    },
+    "radius.base": {
+      "type": "number",
+      "value": 8
+    },
+    "radius.xs": {
+      "type": "number",
+      "value": 2
+    },
+    "radius.sm": {
+      "type": "number",
+      "value": 4
+    },
+    "radius.md": {
+      "type": "number",
+      "value": 6
+    },
+    "radius.lg": {
+      "type": "number",
+      "value": 8
+    },
+    "radius.xl": {
+      "type": "number",
+      "value": 12
+    },
+    "radius.2xl": {
+      "type": "number",
+      "value": 16
+    },
+    "radius.3xl": {
+      "type": "number",
+      "value": 24
+    },
+    "radius.4xl": {
+      "type": "number",
+      "value": 32
+    },
+    "radius.field": {
+      "type": "number",
+      "value": 12
+    },
+    "border.width": {
+      "type": "number",
+      "value": 1
+    },
+    "border.field-width": {
+      "type": "number",
+      "value": 0
+    },
+    "opacity.disabled": {
+      "type": "number",
+      "value": 0.5
+    },
+    "ring.offset-width": {
+      "type": "number",
+      "value": 2
+    },
+    "space.1": {
+      "type": "number",
+      "value": 4
+    },
+    "space.2": {
+      "type": "number",
+      "value": 8
+    },
+    "space.3": {
+      "type": "number",
+      "value": 12
+    },
+    "space.4": {
+      "type": "number",
+      "value": 16
+    },
+    "space.5": {
+      "type": "number",
+      "value": 20
+    },
+    "space.6": {
+      "type": "number",
+      "value": 24
+    },
+    "space.8": {
+      "type": "number",
+      "value": 32
+    },
+    "space.10": {
+      "type": "number",
+      "value": 40
+    },
+    "space.12": {
+      "type": "number",
+      "value": 48
+    },
+    "space.16": {
+      "type": "number",
+      "value": 64
+    },
+    "grid.columns": {
+      "type": "number",
+      "value": 12
+    },
+    "grid.gutter": {
+      "type": "number",
+      "value": 24
+    },
+    "grid.margin": {
+      "type": "number",
+      "value": 32
+    },
+    "grid.max": {
+      "type": "number",
+      "value": 1280
+    }
+  },
+  "children": []
+}

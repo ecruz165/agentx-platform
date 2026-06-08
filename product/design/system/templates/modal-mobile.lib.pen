@@ -1,0 +1,243 @@
+{
+  "version": "2.13",
+  "children": [
+    {
+      "id": "tpl-modal-mobile-components",
+      "type": "frame",
+      "name": "Components",
+      "x": 1600,
+      "y": 0,
+      "layout": "vertical",
+      "gap": 24,
+      "padding": 32,
+      "fill": "$colors:color.background",
+      "children": [
+        {
+          "id": "card",
+          "type": "frame",
+          "name": "Card",
+          "width": 360,
+          "fill": "$colors:color.surface",
+          "cornerRadius": "$grids:radius.lg",
+          "effect": {
+            "type": "shadow",
+            "shadowType": "outer",
+            "offset": {
+              "x": 0,
+              "y": 2
+            },
+            "blur": 8,
+            "color": "#0000001f"
+          },
+          "layout": "vertical",
+          "gap": 16,
+          "clip": true,
+          "stroke": "$colors:color.border",
+          "strokeWidth": "$grids:border.width",
+          "strokeAlignment": "inner",
+          "children": [
+            {
+              "id": "card-header",
+              "type": "frame",
+              "name": "Header",
+              "layout": "vertical",
+              "gap": "$grids:space.unit",
+              "width": "fill_container",
+              "padding": [
+                20,
+                20,
+                0,
+                20
+              ],
+              "children": [
+                {
+                  "id": "card-title",
+                  "type": "text",
+                  "content": "Card title",
+                  "fill": "$colors:color.surface-foreground",
+                  "fontFamily": "$type:font.family",
+                  "fontSize": "$type:font.size-lg",
+                  "fontWeight": "600"
+                },
+                {
+                  "id": "card-subtitle",
+                  "type": "text",
+                  "content": "Supporting copy goes here.",
+                  "fill": "$colors:color.muted",
+                  "fontFamily": "$type:font.family",
+                  "fontSize": "$type:font.size-sm",
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "id": "card-body",
+              "type": "frame",
+              "name": "Body",
+              "width": "fill_container",
+              "padding": 20,
+              "layout": "vertical",
+              "gap": "$grids:space.unit",
+              "children": [
+                {
+                  "id": "card-body-text",
+                  "type": "text",
+                  "content": "Body content.",
+                  "fill": "$colors:color.muted",
+                  "fontFamily": "$type:font.family",
+                  "fontSize": "$type:font.size-sm",
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "id": "card-footer",
+              "type": "frame",
+              "name": "Footer",
+              "width": "fill_container",
+              "padding": [
+                0,
+                20,
+                20,
+                20
+              ],
+              "justifyContent": "end",
+              "gap": "$grids:space.unit"
+            }
+          ],
+          "reusable": true,
+          "metadata": {
+            "type": "component",
+            "framework": "heroui",
+            "atomic": "molecule",
+            "fidelity": "full",
+            "react": "Card",
+            "package": "@heroui/react",
+            "slug": "card",
+            "category": "Layout"
+          }
+        },
+        {
+          "id": "button",
+          "type": "frame",
+          "name": "Button",
+          "height": 40,
+          "fill": "$colors:color.accent",
+          "cornerRadius": "$grids:radius.md",
+          "gap": "$grids:space.2",
+          "padding": [
+            "$grids:space.3",
+            "$grids:space.4"
+          ],
+          "justifyContent": "center",
+          "alignItems": "center",
+          "children": [
+            {
+              "id": "button-icon",
+              "type": "path",
+              "name": "plus",
+              "geometry": "m256 80c0-17.7-14.3-32-32-32s-32 14.3-32 32l0 144l-144 0c-17.7 0-32 14.3-32 32s14.3 32 32 32l144 0l0 144c0 17.7 14.3 32 32 32s32-14.3 32-32l0-144l144 0c17.7 0 32-14.3 32-32s-14.3-32-32-32l-144 0l0-144z",
+              "viewBox": [
+                0,
+                0,
+                448,
+                512
+              ],
+              "width": 16,
+              "height": 16,
+              "fill": "$colors:color.accent-foreground"
+            },
+            {
+              "id": "button-label",
+              "type": "text",
+              "content": "Button",
+              "fill": "$colors:color.accent-foreground",
+              "fontFamily": "$type:font.family",
+              "fontSize": "$type:font.body-md.size",
+              "fontWeight": "600"
+            }
+          ],
+          "reusable": true,
+          "metadata": {
+            "type": "component",
+            "framework": "heroui",
+            "atomic": "atom",
+            "fidelity": "full",
+            "react": "Button",
+            "package": "@heroui/react",
+            "slug": "button",
+            "category": "Buttons"
+          }
+        }
+      ]
+    },
+    {
+      "id": "modal-mobile-backdrop-5",
+      "type": "frame",
+      "name": "Backdrop",
+      "width": 390,
+      "height": 844,
+      "fill": "$colors:color.background",
+      "layout": "vertical",
+      "justifyContent": "center",
+      "alignItems": "center",
+      "padding": "$grids:space.6",
+      "children": [
+        {
+          "id": "modal-mobile-dialog-0",
+          "type": "frame",
+          "name": "Dialog",
+          "layout": "vertical",
+          "width": "fill_container",
+          "gap": "$grids:space.4",
+          "padding": "$grids:space.6",
+          "fill": "$colors:color.surface",
+          "cornerRadius": "$grids:radius.lg",
+          "children": [
+            {
+              "id": "modal-mobile-title-1",
+              "type": "text",
+              "content": "Confirm & start",
+              "fill": "$colors:color.foreground",
+              "fontFamily": "$type:font.display",
+              "fontSize": "$type:font.h3.size",
+              "fontWeight": "600"
+            },
+            {
+              "id": "modal-mobile-body-2",
+              "type": "text",
+              "content": "This will spin up agentx-job and open a PR when accepted.",
+              "fill": "$colors:color.muted",
+              "fontFamily": "$type:font.family",
+              "fontSize": "$type:font.body-md.size",
+              "fontWeight": "normal"
+            },
+            {
+              "id": "modal-mobile-actions-3",
+              "type": "frame",
+              "name": "Actions",
+              "gap": "$grids:space.3",
+              "justifyContent": "end",
+              "width": "fill_container",
+              "children": [
+                {
+                  "id": "modal-mobile-confirm-4",
+                  "type": "ref",
+                  "ref": "button"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "reusable": true,
+      "x": 0,
+      "y": 0
+    }
+  ],
+  "imports": {
+    "colors": "../foundations/colors.lib.pen",
+    "grids": "../foundations/grids.lib.pen",
+    "type": "../foundations/typography.lib.pen"
+  }
+}

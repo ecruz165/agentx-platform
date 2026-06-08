@@ -1,0 +1,4038 @@
+{
+  "version": "2.13",
+  "children": [
+    {
+      "id": "core-date-and-time",
+      "type": "frame",
+      "name": "Date and Time · HeroUI v3",
+      "x": 0,
+      "y": 0,
+      "layout": "vertical",
+      "gap": 24,
+      "padding": 32,
+      "fill": "$colors:color.background",
+      "children": [
+        {
+          "id": "core-date-and-time-h",
+          "type": "text",
+          "content": "Date and Time · HeroUI v3",
+          "fill": "$colors:color.foreground",
+          "fontFamily": "$type:font.family",
+          "fontSize": 24,
+          "fontWeight": "700"
+        },
+        {
+          "id": "core-date-and-time-items",
+          "type": "frame",
+          "name": "Items",
+          "layout": "vertical",
+          "width": "fit_content(0)",
+          "gap": 16,
+          "children": [
+            {
+              "id": "date-field",
+              "type": "frame",
+              "name": "DateField",
+              "width": 220,
+              "height": 40,
+              "alignItems": "center",
+              "justifyContent": "space_between",
+              "padding": [
+                12,
+                0
+              ],
+              "cornerRadius": "$grids:radius.md",
+              "fill": "$colors:color.field-background",
+              "stroke": "$colors:color.border",
+              "strokeWidth": "$grids:border.width",
+              "strokeAlignment": "inner",
+              "children": [
+                {
+                  "id": "date-field-val",
+                  "type": "text",
+                  "content": "MM / DD / YYYY",
+                  "fill": "$colors:color.field-placeholder",
+                  "fontFamily": "$type:font.family",
+                  "fontSize": "$type:font.size-md",
+                  "fontWeight": "normal"
+                },
+                {
+                  "id": "date-field-icon",
+                  "type": "text",
+                  "content": "▦",
+                  "fill": "$colors:color.muted",
+                  "fontFamily": "$type:font.family",
+                  "fontSize": "$type:font.size-md",
+                  "fontWeight": "normal"
+                }
+              ],
+              "reusable": true,
+              "metadata": {
+                "type": "component",
+                "framework": "heroui",
+                "atomic": "molecule",
+                "fidelity": "full",
+                "react": "DateField",
+                "package": "@heroui/react",
+                "slug": "date-field",
+                "category": "Date and Time"
+              }
+            },
+            {
+              "id": "time-field",
+              "type": "frame",
+              "name": "TimeField",
+              "width": 220,
+              "height": 40,
+              "alignItems": "center",
+              "justifyContent": "space_between",
+              "padding": [
+                12,
+                0
+              ],
+              "cornerRadius": "$grids:radius.md",
+              "fill": "$colors:color.field-background",
+              "stroke": "$colors:color.border",
+              "strokeWidth": "$grids:border.width",
+              "strokeAlignment": "inner",
+              "children": [
+                {
+                  "id": "time-field-val",
+                  "type": "text",
+                  "content": "HH : MM",
+                  "fill": "$colors:color.field-placeholder",
+                  "fontFamily": "$type:font.family",
+                  "fontSize": "$type:font.size-md",
+                  "fontWeight": "normal"
+                },
+                {
+                  "id": "time-field-icon",
+                  "type": "text",
+                  "content": "◷",
+                  "fill": "$colors:color.muted",
+                  "fontFamily": "$type:font.family",
+                  "fontSize": "$type:font.size-md",
+                  "fontWeight": "normal"
+                }
+              ],
+              "reusable": true,
+              "metadata": {
+                "type": "component",
+                "framework": "heroui",
+                "atomic": "molecule",
+                "fidelity": "full",
+                "react": "TimeField",
+                "package": "@heroui/react",
+                "slug": "time-field",
+                "category": "Date and Time"
+              }
+            },
+            {
+              "id": "calendar",
+              "type": "frame",
+              "name": "Calendar",
+              "layout": "vertical",
+              "width": "fit_content(0)",
+              "children": [
+                {
+                  "id": "calendar-cal",
+                  "type": "frame",
+                  "name": "Calendar",
+                  "layout": "vertical",
+                  "width": "fit_content(0)",
+                  "gap": 4,
+                  "padding": 12,
+                  "fill": "$colors:color.surface",
+                  "cornerRadius": "$grids:radius.lg",
+                  "stroke": "$colors:color.border",
+                  "strokeWidth": "$grids:border.width",
+                  "strokeAlignment": "inner",
+                  "children": [
+                    {
+                      "id": "calendar-head",
+                      "type": "frame",
+                      "width": "fill_container",
+                      "alignItems": "center",
+                      "justifyContent": "space_between",
+                      "padding": 4,
+                      "children": [
+                        {
+                          "id": "calendar-prev",
+                          "type": "text",
+                          "content": "‹",
+                          "fill": "$colors:color.muted",
+                          "fontFamily": "$type:font.family",
+                          "fontSize": "$type:font.size-md",
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "id": "calendar-mon",
+                          "type": "text",
+                          "content": "June 2026",
+                          "fill": "$colors:color.foreground",
+                          "fontFamily": "$type:font.family",
+                          "fontSize": "$type:font.size-md",
+                          "fontWeight": "600"
+                        },
+                        {
+                          "id": "calendar-next",
+                          "type": "text",
+                          "content": "›",
+                          "fill": "$colors:color.muted",
+                          "fontFamily": "$type:font.family",
+                          "fontSize": "$type:font.size-md",
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "id": "calendar-wk",
+                      "type": "frame",
+                      "width": "fill_container",
+                      "children": [
+                        {
+                          "id": "calendar-wk-0",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 28,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "children": [
+                            {
+                              "id": "calendar-wk-0-t",
+                              "type": "text",
+                              "content": "S",
+                              "fill": "$colors:color.muted",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": 12,
+                              "fontWeight": "600"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "calendar-wk-1",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 28,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "children": [
+                            {
+                              "id": "calendar-wk-1-t",
+                              "type": "text",
+                              "content": "M",
+                              "fill": "$colors:color.muted",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": 12,
+                              "fontWeight": "600"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "calendar-wk-2",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 28,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "children": [
+                            {
+                              "id": "calendar-wk-2-t",
+                              "type": "text",
+                              "content": "T",
+                              "fill": "$colors:color.muted",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": 12,
+                              "fontWeight": "600"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "calendar-wk-3",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 28,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "children": [
+                            {
+                              "id": "calendar-wk-3-t",
+                              "type": "text",
+                              "content": "W",
+                              "fill": "$colors:color.muted",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": 12,
+                              "fontWeight": "600"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "calendar-wk-4",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 28,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "children": [
+                            {
+                              "id": "calendar-wk-4-t",
+                              "type": "text",
+                              "content": "T",
+                              "fill": "$colors:color.muted",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": 12,
+                              "fontWeight": "600"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "calendar-wk-5",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 28,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "children": [
+                            {
+                              "id": "calendar-wk-5-t",
+                              "type": "text",
+                              "content": "F",
+                              "fill": "$colors:color.muted",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": 12,
+                              "fontWeight": "600"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "calendar-wk-6",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 28,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "children": [
+                            {
+                              "id": "calendar-wk-6-t",
+                              "type": "text",
+                              "content": "S",
+                              "fill": "$colors:color.muted",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": 12,
+                              "fontWeight": "600"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "id": "calendar-r0",
+                      "type": "frame",
+                      "width": "fill_container",
+                      "children": [
+                        {
+                          "id": "calendar-r0-0",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "calendar-r0-0-t",
+                              "type": "text",
+                              "fill": "$colors:color.muted",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "calendar-r0-1",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "calendar-r0-1-t",
+                              "type": "text",
+                              "fill": "$colors:color.muted",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "calendar-r0-2",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "calendar-r0-2-t",
+                              "type": "text",
+                              "fill": "$colors:color.muted",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "calendar-r0-3",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "calendar-r0-3-t",
+                              "type": "text",
+                              "content": "1",
+                              "fill": "$colors:color.foreground",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "calendar-r0-4",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "calendar-r0-4-t",
+                              "type": "text",
+                              "content": "2",
+                              "fill": "$colors:color.foreground",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "calendar-r0-5",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "calendar-r0-5-t",
+                              "type": "text",
+                              "content": "3",
+                              "fill": "$colors:color.foreground",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "calendar-r0-6",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "calendar-r0-6-t",
+                              "type": "text",
+                              "content": "4",
+                              "fill": "$colors:color.foreground",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "id": "calendar-r1",
+                      "type": "frame",
+                      "width": "fill_container",
+                      "children": [
+                        {
+                          "id": "calendar-r1-0",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "calendar-r1-0-t",
+                              "type": "text",
+                              "content": "5",
+                              "fill": "$colors:color.foreground",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "calendar-r1-1",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "calendar-r1-1-t",
+                              "type": "text",
+                              "content": "6",
+                              "fill": "$colors:color.foreground",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "calendar-r1-2",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "calendar-r1-2-t",
+                              "type": "text",
+                              "content": "7",
+                              "fill": "$colors:color.foreground",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "calendar-r1-3",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "calendar-r1-3-t",
+                              "type": "text",
+                              "content": "8",
+                              "fill": "$colors:color.foreground",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "calendar-r1-4",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "calendar-r1-4-t",
+                              "type": "text",
+                              "content": "9",
+                              "fill": "$colors:color.foreground",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "calendar-r1-5",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "calendar-r1-5-t",
+                              "type": "text",
+                              "content": "10",
+                              "fill": "$colors:color.foreground",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "calendar-r1-6",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "calendar-r1-6-t",
+                              "type": "text",
+                              "content": "11",
+                              "fill": "$colors:color.foreground",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "id": "calendar-r2",
+                      "type": "frame",
+                      "width": "fill_container",
+                      "children": [
+                        {
+                          "id": "calendar-r2-0",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "calendar-r2-0-t",
+                              "type": "text",
+                              "content": "12",
+                              "fill": "$colors:color.foreground",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "calendar-r2-1",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "calendar-r2-1-t",
+                              "type": "text",
+                              "content": "13",
+                              "fill": "$colors:color.foreground",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "calendar-r2-2",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "cornerRadius": 9999,
+                          "fill": "$colors:color.accent",
+                          "children": [
+                            {
+                              "id": "calendar-r2-2-t",
+                              "type": "text",
+                              "content": "14",
+                              "fill": "$colors:color.accent-foreground",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "calendar-r2-3",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "calendar-r2-3-t",
+                              "type": "text",
+                              "content": "15",
+                              "fill": "$colors:color.foreground",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "calendar-r2-4",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "calendar-r2-4-t",
+                              "type": "text",
+                              "content": "16",
+                              "fill": "$colors:color.foreground",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "calendar-r2-5",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "calendar-r2-5-t",
+                              "type": "text",
+                              "content": "17",
+                              "fill": "$colors:color.foreground",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "calendar-r2-6",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "calendar-r2-6-t",
+                              "type": "text",
+                              "content": "18",
+                              "fill": "$colors:color.foreground",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "id": "calendar-r3",
+                      "type": "frame",
+                      "width": "fill_container",
+                      "children": [
+                        {
+                          "id": "calendar-r3-0",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "calendar-r3-0-t",
+                              "type": "text",
+                              "content": "19",
+                              "fill": "$colors:color.foreground",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "calendar-r3-1",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "calendar-r3-1-t",
+                              "type": "text",
+                              "content": "20",
+                              "fill": "$colors:color.foreground",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "calendar-r3-2",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "calendar-r3-2-t",
+                              "type": "text",
+                              "content": "21",
+                              "fill": "$colors:color.foreground",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "calendar-r3-3",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "calendar-r3-3-t",
+                              "type": "text",
+                              "content": "22",
+                              "fill": "$colors:color.foreground",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "calendar-r3-4",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "calendar-r3-4-t",
+                              "type": "text",
+                              "content": "23",
+                              "fill": "$colors:color.foreground",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "calendar-r3-5",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "calendar-r3-5-t",
+                              "type": "text",
+                              "content": "24",
+                              "fill": "$colors:color.foreground",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "calendar-r3-6",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "calendar-r3-6-t",
+                              "type": "text",
+                              "content": "25",
+                              "fill": "$colors:color.foreground",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "id": "calendar-r4",
+                      "type": "frame",
+                      "width": "fill_container",
+                      "children": [
+                        {
+                          "id": "calendar-r4-0",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "calendar-r4-0-t",
+                              "type": "text",
+                              "content": "26",
+                              "fill": "$colors:color.foreground",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "calendar-r4-1",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "calendar-r4-1-t",
+                              "type": "text",
+                              "content": "27",
+                              "fill": "$colors:color.foreground",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "calendar-r4-2",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "calendar-r4-2-t",
+                              "type": "text",
+                              "content": "28",
+                              "fill": "$colors:color.foreground",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "calendar-r4-3",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "calendar-r4-3-t",
+                              "type": "text",
+                              "content": "29",
+                              "fill": "$colors:color.foreground",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "calendar-r4-4",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "calendar-r4-4-t",
+                              "type": "text",
+                              "content": "30",
+                              "fill": "$colors:color.foreground",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "calendar-r4-5",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "calendar-r4-5-t",
+                              "type": "text",
+                              "fill": "$colors:color.muted",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "calendar-r4-6",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "calendar-r4-6-t",
+                              "type": "text",
+                              "fill": "$colors:color.muted",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "reusable": true,
+              "metadata": {
+                "type": "component",
+                "framework": "heroui",
+                "atomic": "organism",
+                "fidelity": "full",
+                "react": "Calendar",
+                "package": "@heroui/react",
+                "slug": "calendar",
+                "category": "Date and Time"
+              }
+            },
+            {
+              "id": "range-calendar",
+              "type": "frame",
+              "name": "RangeCalendar",
+              "layout": "vertical",
+              "width": "fit_content(0)",
+              "children": [
+                {
+                  "id": "range-calendar-cal",
+                  "type": "frame",
+                  "name": "Calendar",
+                  "layout": "vertical",
+                  "width": "fit_content(0)",
+                  "gap": 4,
+                  "padding": 12,
+                  "fill": "$colors:color.surface",
+                  "cornerRadius": "$grids:radius.lg",
+                  "stroke": "$colors:color.border",
+                  "strokeWidth": "$grids:border.width",
+                  "strokeAlignment": "inner",
+                  "children": [
+                    {
+                      "id": "range-calendar-head",
+                      "type": "frame",
+                      "width": "fill_container",
+                      "alignItems": "center",
+                      "justifyContent": "space_between",
+                      "padding": 4,
+                      "children": [
+                        {
+                          "id": "range-calendar-prev",
+                          "type": "text",
+                          "content": "‹",
+                          "fill": "$colors:color.muted",
+                          "fontFamily": "$type:font.family",
+                          "fontSize": "$type:font.size-md",
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "id": "range-calendar-mon",
+                          "type": "text",
+                          "content": "June 2026",
+                          "fill": "$colors:color.foreground",
+                          "fontFamily": "$type:font.family",
+                          "fontSize": "$type:font.size-md",
+                          "fontWeight": "600"
+                        },
+                        {
+                          "id": "range-calendar-next",
+                          "type": "text",
+                          "content": "›",
+                          "fill": "$colors:color.muted",
+                          "fontFamily": "$type:font.family",
+                          "fontSize": "$type:font.size-md",
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "id": "range-calendar-wk",
+                      "type": "frame",
+                      "width": "fill_container",
+                      "children": [
+                        {
+                          "id": "range-calendar-wk-0",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 28,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "children": [
+                            {
+                              "id": "range-calendar-wk-0-t",
+                              "type": "text",
+                              "content": "S",
+                              "fill": "$colors:color.muted",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": 12,
+                              "fontWeight": "600"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "range-calendar-wk-1",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 28,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "children": [
+                            {
+                              "id": "range-calendar-wk-1-t",
+                              "type": "text",
+                              "content": "M",
+                              "fill": "$colors:color.muted",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": 12,
+                              "fontWeight": "600"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "range-calendar-wk-2",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 28,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "children": [
+                            {
+                              "id": "range-calendar-wk-2-t",
+                              "type": "text",
+                              "content": "T",
+                              "fill": "$colors:color.muted",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": 12,
+                              "fontWeight": "600"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "range-calendar-wk-3",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 28,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "children": [
+                            {
+                              "id": "range-calendar-wk-3-t",
+                              "type": "text",
+                              "content": "W",
+                              "fill": "$colors:color.muted",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": 12,
+                              "fontWeight": "600"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "range-calendar-wk-4",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 28,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "children": [
+                            {
+                              "id": "range-calendar-wk-4-t",
+                              "type": "text",
+                              "content": "T",
+                              "fill": "$colors:color.muted",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": 12,
+                              "fontWeight": "600"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "range-calendar-wk-5",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 28,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "children": [
+                            {
+                              "id": "range-calendar-wk-5-t",
+                              "type": "text",
+                              "content": "F",
+                              "fill": "$colors:color.muted",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": 12,
+                              "fontWeight": "600"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "range-calendar-wk-6",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 28,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "children": [
+                            {
+                              "id": "range-calendar-wk-6-t",
+                              "type": "text",
+                              "content": "S",
+                              "fill": "$colors:color.muted",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": 12,
+                              "fontWeight": "600"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "id": "range-calendar-r0",
+                      "type": "frame",
+                      "width": "fill_container",
+                      "children": [
+                        {
+                          "id": "range-calendar-r0-0",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "range-calendar-r0-0-t",
+                              "type": "text",
+                              "fill": "$colors:color.muted",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "range-calendar-r0-1",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "range-calendar-r0-1-t",
+                              "type": "text",
+                              "fill": "$colors:color.muted",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "range-calendar-r0-2",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "range-calendar-r0-2-t",
+                              "type": "text",
+                              "fill": "$colors:color.muted",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "range-calendar-r0-3",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "range-calendar-r0-3-t",
+                              "type": "text",
+                              "content": "1",
+                              "fill": "$colors:color.foreground",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "range-calendar-r0-4",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "range-calendar-r0-4-t",
+                              "type": "text",
+                              "content": "2",
+                              "fill": "$colors:color.foreground",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "range-calendar-r0-5",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "range-calendar-r0-5-t",
+                              "type": "text",
+                              "content": "3",
+                              "fill": "$colors:color.foreground",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "range-calendar-r0-6",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "range-calendar-r0-6-t",
+                              "type": "text",
+                              "content": "4",
+                              "fill": "$colors:color.foreground",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "id": "range-calendar-r1",
+                      "type": "frame",
+                      "width": "fill_container",
+                      "children": [
+                        {
+                          "id": "range-calendar-r1-0",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "range-calendar-r1-0-t",
+                              "type": "text",
+                              "content": "5",
+                              "fill": "$colors:color.foreground",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "range-calendar-r1-1",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "range-calendar-r1-1-t",
+                              "type": "text",
+                              "content": "6",
+                              "fill": "$colors:color.foreground",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "range-calendar-r1-2",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "range-calendar-r1-2-t",
+                              "type": "text",
+                              "content": "7",
+                              "fill": "$colors:color.foreground",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "range-calendar-r1-3",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "range-calendar-r1-3-t",
+                              "type": "text",
+                              "content": "8",
+                              "fill": "$colors:color.foreground",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "range-calendar-r1-4",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "range-calendar-r1-4-t",
+                              "type": "text",
+                              "content": "9",
+                              "fill": "$colors:color.foreground",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "range-calendar-r1-5",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "$colors:color.accent-soft",
+                          "children": [
+                            {
+                              "id": "range-calendar-r1-5-t",
+                              "type": "text",
+                              "content": "10",
+                              "fill": "$colors:color.accent",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "range-calendar-r1-6",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "$colors:color.accent-soft",
+                          "children": [
+                            {
+                              "id": "range-calendar-r1-6-t",
+                              "type": "text",
+                              "content": "11",
+                              "fill": "$colors:color.accent",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "id": "range-calendar-r2",
+                      "type": "frame",
+                      "width": "fill_container",
+                      "children": [
+                        {
+                          "id": "range-calendar-r2-0",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "$colors:color.accent-soft",
+                          "children": [
+                            {
+                              "id": "range-calendar-r2-0-t",
+                              "type": "text",
+                              "content": "12",
+                              "fill": "$colors:color.accent",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "range-calendar-r2-1",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "$colors:color.accent-soft",
+                          "children": [
+                            {
+                              "id": "range-calendar-r2-1-t",
+                              "type": "text",
+                              "content": "13",
+                              "fill": "$colors:color.accent",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "range-calendar-r2-2",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "$colors:color.accent-soft",
+                          "children": [
+                            {
+                              "id": "range-calendar-r2-2-t",
+                              "type": "text",
+                              "content": "14",
+                              "fill": "$colors:color.accent",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "range-calendar-r2-3",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "$colors:color.accent-soft",
+                          "children": [
+                            {
+                              "id": "range-calendar-r2-3-t",
+                              "type": "text",
+                              "content": "15",
+                              "fill": "$colors:color.accent",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "range-calendar-r2-4",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "$colors:color.accent-soft",
+                          "children": [
+                            {
+                              "id": "range-calendar-r2-4-t",
+                              "type": "text",
+                              "content": "16",
+                              "fill": "$colors:color.accent",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "range-calendar-r2-5",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "range-calendar-r2-5-t",
+                              "type": "text",
+                              "content": "17",
+                              "fill": "$colors:color.foreground",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "range-calendar-r2-6",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "range-calendar-r2-6-t",
+                              "type": "text",
+                              "content": "18",
+                              "fill": "$colors:color.foreground",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "id": "range-calendar-r3",
+                      "type": "frame",
+                      "width": "fill_container",
+                      "children": [
+                        {
+                          "id": "range-calendar-r3-0",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "range-calendar-r3-0-t",
+                              "type": "text",
+                              "content": "19",
+                              "fill": "$colors:color.foreground",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "range-calendar-r3-1",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "range-calendar-r3-1-t",
+                              "type": "text",
+                              "content": "20",
+                              "fill": "$colors:color.foreground",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "range-calendar-r3-2",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "range-calendar-r3-2-t",
+                              "type": "text",
+                              "content": "21",
+                              "fill": "$colors:color.foreground",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "range-calendar-r3-3",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "range-calendar-r3-3-t",
+                              "type": "text",
+                              "content": "22",
+                              "fill": "$colors:color.foreground",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "range-calendar-r3-4",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "range-calendar-r3-4-t",
+                              "type": "text",
+                              "content": "23",
+                              "fill": "$colors:color.foreground",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "range-calendar-r3-5",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "range-calendar-r3-5-t",
+                              "type": "text",
+                              "content": "24",
+                              "fill": "$colors:color.foreground",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "range-calendar-r3-6",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "range-calendar-r3-6-t",
+                              "type": "text",
+                              "content": "25",
+                              "fill": "$colors:color.foreground",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "id": "range-calendar-r4",
+                      "type": "frame",
+                      "width": "fill_container",
+                      "children": [
+                        {
+                          "id": "range-calendar-r4-0",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "range-calendar-r4-0-t",
+                              "type": "text",
+                              "content": "26",
+                              "fill": "$colors:color.foreground",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "range-calendar-r4-1",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "range-calendar-r4-1-t",
+                              "type": "text",
+                              "content": "27",
+                              "fill": "$colors:color.foreground",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "range-calendar-r4-2",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "range-calendar-r4-2-t",
+                              "type": "text",
+                              "content": "28",
+                              "fill": "$colors:color.foreground",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "range-calendar-r4-3",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "range-calendar-r4-3-t",
+                              "type": "text",
+                              "content": "29",
+                              "fill": "$colors:color.foreground",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "range-calendar-r4-4",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "range-calendar-r4-4-t",
+                              "type": "text",
+                              "content": "30",
+                              "fill": "$colors:color.foreground",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "range-calendar-r4-5",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "range-calendar-r4-5-t",
+                              "type": "text",
+                              "fill": "$colors:color.muted",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "range-calendar-r4-6",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "range-calendar-r4-6-t",
+                              "type": "text",
+                              "fill": "$colors:color.muted",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "reusable": true,
+              "metadata": {
+                "type": "component",
+                "framework": "heroui",
+                "atomic": "organism",
+                "fidelity": "full",
+                "react": "RangeCalendar",
+                "package": "@heroui/react",
+                "slug": "range-calendar",
+                "category": "Date and Time"
+              }
+            },
+            {
+              "id": "date-picker",
+              "type": "frame",
+              "name": "DatePicker",
+              "width": 280,
+              "layout": "vertical",
+              "gap": 8,
+              "children": [
+                {
+                  "id": "date-picker-f",
+                  "type": "frame",
+                  "name": "Field",
+                  "width": "fill_container",
+                  "height": 40,
+                  "alignItems": "center",
+                  "justifyContent": "space_between",
+                  "padding": [
+                    12,
+                    0
+                  ],
+                  "cornerRadius": "$grids:radius.md",
+                  "fill": "$colors:color.field-background",
+                  "stroke": "$colors:color.border",
+                  "strokeWidth": "$grids:border.width",
+                  "strokeAlignment": "inner",
+                  "children": [
+                    {
+                      "id": "date-picker-f-v",
+                      "type": "text",
+                      "content": "14 / 06 / 2026",
+                      "fill": "$colors:color.foreground",
+                      "fontFamily": "$type:font.family",
+                      "fontSize": "$type:font.size-md",
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "id": "date-picker-f-c",
+                      "type": "text",
+                      "content": "▾",
+                      "fill": "$colors:color.muted",
+                      "fontFamily": "$type:font.family",
+                      "fontSize": "$type:font.size-md",
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "id": "date-picker-cal",
+                  "type": "frame",
+                  "name": "Calendar",
+                  "layout": "vertical",
+                  "width": "fit_content(0)",
+                  "gap": 4,
+                  "padding": 12,
+                  "fill": "$colors:color.surface",
+                  "cornerRadius": "$grids:radius.lg",
+                  "stroke": "$colors:color.border",
+                  "strokeWidth": "$grids:border.width",
+                  "strokeAlignment": "inner",
+                  "children": [
+                    {
+                      "id": "date-picker-head",
+                      "type": "frame",
+                      "width": "fill_container",
+                      "alignItems": "center",
+                      "justifyContent": "space_between",
+                      "padding": 4,
+                      "children": [
+                        {
+                          "id": "date-picker-prev",
+                          "type": "text",
+                          "content": "‹",
+                          "fill": "$colors:color.muted",
+                          "fontFamily": "$type:font.family",
+                          "fontSize": "$type:font.size-md",
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "id": "date-picker-mon",
+                          "type": "text",
+                          "content": "June 2026",
+                          "fill": "$colors:color.foreground",
+                          "fontFamily": "$type:font.family",
+                          "fontSize": "$type:font.size-md",
+                          "fontWeight": "600"
+                        },
+                        {
+                          "id": "date-picker-next",
+                          "type": "text",
+                          "content": "›",
+                          "fill": "$colors:color.muted",
+                          "fontFamily": "$type:font.family",
+                          "fontSize": "$type:font.size-md",
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "id": "date-picker-wk",
+                      "type": "frame",
+                      "width": "fill_container",
+                      "children": [
+                        {
+                          "id": "date-picker-wk-0",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 28,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "children": [
+                            {
+                              "id": "date-picker-wk-0-t",
+                              "type": "text",
+                              "content": "S",
+                              "fill": "$colors:color.muted",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": 12,
+                              "fontWeight": "600"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "date-picker-wk-1",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 28,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "children": [
+                            {
+                              "id": "date-picker-wk-1-t",
+                              "type": "text",
+                              "content": "M",
+                              "fill": "$colors:color.muted",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": 12,
+                              "fontWeight": "600"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "date-picker-wk-2",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 28,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "children": [
+                            {
+                              "id": "date-picker-wk-2-t",
+                              "type": "text",
+                              "content": "T",
+                              "fill": "$colors:color.muted",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": 12,
+                              "fontWeight": "600"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "date-picker-wk-3",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 28,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "children": [
+                            {
+                              "id": "date-picker-wk-3-t",
+                              "type": "text",
+                              "content": "W",
+                              "fill": "$colors:color.muted",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": 12,
+                              "fontWeight": "600"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "date-picker-wk-4",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 28,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "children": [
+                            {
+                              "id": "date-picker-wk-4-t",
+                              "type": "text",
+                              "content": "T",
+                              "fill": "$colors:color.muted",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": 12,
+                              "fontWeight": "600"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "date-picker-wk-5",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 28,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "children": [
+                            {
+                              "id": "date-picker-wk-5-t",
+                              "type": "text",
+                              "content": "F",
+                              "fill": "$colors:color.muted",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": 12,
+                              "fontWeight": "600"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "date-picker-wk-6",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 28,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "children": [
+                            {
+                              "id": "date-picker-wk-6-t",
+                              "type": "text",
+                              "content": "S",
+                              "fill": "$colors:color.muted",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": 12,
+                              "fontWeight": "600"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "id": "date-picker-r0",
+                      "type": "frame",
+                      "width": "fill_container",
+                      "children": [
+                        {
+                          "id": "date-picker-r0-0",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "date-picker-r0-0-t",
+                              "type": "text",
+                              "fill": "$colors:color.muted",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "date-picker-r0-1",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "date-picker-r0-1-t",
+                              "type": "text",
+                              "fill": "$colors:color.muted",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "date-picker-r0-2",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "date-picker-r0-2-t",
+                              "type": "text",
+                              "fill": "$colors:color.muted",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "date-picker-r0-3",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "date-picker-r0-3-t",
+                              "type": "text",
+                              "content": "1",
+                              "fill": "$colors:color.foreground",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "date-picker-r0-4",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "date-picker-r0-4-t",
+                              "type": "text",
+                              "content": "2",
+                              "fill": "$colors:color.foreground",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "date-picker-r0-5",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "date-picker-r0-5-t",
+                              "type": "text",
+                              "content": "3",
+                              "fill": "$colors:color.foreground",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "date-picker-r0-6",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "date-picker-r0-6-t",
+                              "type": "text",
+                              "content": "4",
+                              "fill": "$colors:color.foreground",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "id": "date-picker-r1",
+                      "type": "frame",
+                      "width": "fill_container",
+                      "children": [
+                        {
+                          "id": "date-picker-r1-0",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "date-picker-r1-0-t",
+                              "type": "text",
+                              "content": "5",
+                              "fill": "$colors:color.foreground",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "date-picker-r1-1",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "date-picker-r1-1-t",
+                              "type": "text",
+                              "content": "6",
+                              "fill": "$colors:color.foreground",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "date-picker-r1-2",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "date-picker-r1-2-t",
+                              "type": "text",
+                              "content": "7",
+                              "fill": "$colors:color.foreground",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "date-picker-r1-3",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "date-picker-r1-3-t",
+                              "type": "text",
+                              "content": "8",
+                              "fill": "$colors:color.foreground",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "date-picker-r1-4",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "date-picker-r1-4-t",
+                              "type": "text",
+                              "content": "9",
+                              "fill": "$colors:color.foreground",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "date-picker-r1-5",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "date-picker-r1-5-t",
+                              "type": "text",
+                              "content": "10",
+                              "fill": "$colors:color.foreground",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "date-picker-r1-6",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "date-picker-r1-6-t",
+                              "type": "text",
+                              "content": "11",
+                              "fill": "$colors:color.foreground",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "id": "date-picker-r2",
+                      "type": "frame",
+                      "width": "fill_container",
+                      "children": [
+                        {
+                          "id": "date-picker-r2-0",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "date-picker-r2-0-t",
+                              "type": "text",
+                              "content": "12",
+                              "fill": "$colors:color.foreground",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "date-picker-r2-1",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "date-picker-r2-1-t",
+                              "type": "text",
+                              "content": "13",
+                              "fill": "$colors:color.foreground",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "date-picker-r2-2",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "cornerRadius": 9999,
+                          "fill": "$colors:color.accent",
+                          "children": [
+                            {
+                              "id": "date-picker-r2-2-t",
+                              "type": "text",
+                              "content": "14",
+                              "fill": "$colors:color.accent-foreground",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "date-picker-r2-3",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "date-picker-r2-3-t",
+                              "type": "text",
+                              "content": "15",
+                              "fill": "$colors:color.foreground",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "date-picker-r2-4",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "date-picker-r2-4-t",
+                              "type": "text",
+                              "content": "16",
+                              "fill": "$colors:color.foreground",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "date-picker-r2-5",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "date-picker-r2-5-t",
+                              "type": "text",
+                              "content": "17",
+                              "fill": "$colors:color.foreground",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "date-picker-r2-6",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "date-picker-r2-6-t",
+                              "type": "text",
+                              "content": "18",
+                              "fill": "$colors:color.foreground",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "id": "date-picker-r3",
+                      "type": "frame",
+                      "width": "fill_container",
+                      "children": [
+                        {
+                          "id": "date-picker-r3-0",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "date-picker-r3-0-t",
+                              "type": "text",
+                              "content": "19",
+                              "fill": "$colors:color.foreground",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "date-picker-r3-1",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "date-picker-r3-1-t",
+                              "type": "text",
+                              "content": "20",
+                              "fill": "$colors:color.foreground",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "date-picker-r3-2",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "date-picker-r3-2-t",
+                              "type": "text",
+                              "content": "21",
+                              "fill": "$colors:color.foreground",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "date-picker-r3-3",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "date-picker-r3-3-t",
+                              "type": "text",
+                              "content": "22",
+                              "fill": "$colors:color.foreground",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "date-picker-r3-4",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "date-picker-r3-4-t",
+                              "type": "text",
+                              "content": "23",
+                              "fill": "$colors:color.foreground",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "date-picker-r3-5",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "date-picker-r3-5-t",
+                              "type": "text",
+                              "content": "24",
+                              "fill": "$colors:color.foreground",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "date-picker-r3-6",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "date-picker-r3-6-t",
+                              "type": "text",
+                              "content": "25",
+                              "fill": "$colors:color.foreground",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "id": "date-picker-r4",
+                      "type": "frame",
+                      "width": "fill_container",
+                      "children": [
+                        {
+                          "id": "date-picker-r4-0",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "date-picker-r4-0-t",
+                              "type": "text",
+                              "content": "26",
+                              "fill": "$colors:color.foreground",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "date-picker-r4-1",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "date-picker-r4-1-t",
+                              "type": "text",
+                              "content": "27",
+                              "fill": "$colors:color.foreground",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "date-picker-r4-2",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "date-picker-r4-2-t",
+                              "type": "text",
+                              "content": "28",
+                              "fill": "$colors:color.foreground",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "date-picker-r4-3",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "date-picker-r4-3-t",
+                              "type": "text",
+                              "content": "29",
+                              "fill": "$colors:color.foreground",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "date-picker-r4-4",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "date-picker-r4-4-t",
+                              "type": "text",
+                              "content": "30",
+                              "fill": "$colors:color.foreground",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "date-picker-r4-5",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "date-picker-r4-5-t",
+                              "type": "text",
+                              "fill": "$colors:color.muted",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "date-picker-r4-6",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "date-picker-r4-6-t",
+                              "type": "text",
+                              "fill": "$colors:color.muted",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "reusable": true,
+              "metadata": {
+                "type": "component",
+                "framework": "heroui",
+                "atomic": "organism",
+                "fidelity": "full",
+                "react": "DatePicker",
+                "package": "@heroui/react",
+                "slug": "date-picker",
+                "category": "Date and Time"
+              }
+            },
+            {
+              "id": "date-range-picker",
+              "type": "frame",
+              "name": "DateRangePicker",
+              "width": 320,
+              "layout": "vertical",
+              "gap": 8,
+              "children": [
+                {
+                  "id": "date-range-picker-row",
+                  "type": "frame",
+                  "width": "fill_container",
+                  "gap": 8,
+                  "children": [
+                    {
+                      "id": "date-range-picker-s",
+                      "type": "frame",
+                      "name": "Field",
+                      "width": "fill_container",
+                      "height": 40,
+                      "alignItems": "center",
+                      "justifyContent": "space_between",
+                      "padding": [
+                        12,
+                        0
+                      ],
+                      "cornerRadius": "$grids:radius.md",
+                      "fill": "$colors:color.field-background",
+                      "stroke": "$colors:color.border",
+                      "strokeWidth": "$grids:border.width",
+                      "strokeAlignment": "inner",
+                      "children": [
+                        {
+                          "id": "date-range-picker-s-v",
+                          "type": "text",
+                          "content": "Jun 10",
+                          "fill": "$colors:color.foreground",
+                          "fontFamily": "$type:font.family",
+                          "fontSize": "$type:font.size-md",
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "id": "date-range-picker-s-c",
+                          "type": "text",
+                          "content": "▾",
+                          "fill": "$colors:color.muted",
+                          "fontFamily": "$type:font.family",
+                          "fontSize": "$type:font.size-md",
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "id": "date-range-picker-e",
+                      "type": "frame",
+                      "name": "Field",
+                      "width": "fill_container",
+                      "height": 40,
+                      "alignItems": "center",
+                      "justifyContent": "space_between",
+                      "padding": [
+                        12,
+                        0
+                      ],
+                      "cornerRadius": "$grids:radius.md",
+                      "fill": "$colors:color.field-background",
+                      "stroke": "$colors:color.border",
+                      "strokeWidth": "$grids:border.width",
+                      "strokeAlignment": "inner",
+                      "children": [
+                        {
+                          "id": "date-range-picker-e-v",
+                          "type": "text",
+                          "content": "Jun 16",
+                          "fill": "$colors:color.foreground",
+                          "fontFamily": "$type:font.family",
+                          "fontSize": "$type:font.size-md",
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "id": "date-range-picker-e-c",
+                          "type": "text",
+                          "content": "▾",
+                          "fill": "$colors:color.muted",
+                          "fontFamily": "$type:font.family",
+                          "fontSize": "$type:font.size-md",
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "id": "date-range-picker-cal",
+                  "type": "frame",
+                  "name": "Calendar",
+                  "layout": "vertical",
+                  "width": "fit_content(0)",
+                  "gap": 4,
+                  "padding": 12,
+                  "fill": "$colors:color.surface",
+                  "cornerRadius": "$grids:radius.lg",
+                  "stroke": "$colors:color.border",
+                  "strokeWidth": "$grids:border.width",
+                  "strokeAlignment": "inner",
+                  "children": [
+                    {
+                      "id": "date-range-picker-head",
+                      "type": "frame",
+                      "width": "fill_container",
+                      "alignItems": "center",
+                      "justifyContent": "space_between",
+                      "padding": 4,
+                      "children": [
+                        {
+                          "id": "date-range-picker-prev",
+                          "type": "text",
+                          "content": "‹",
+                          "fill": "$colors:color.muted",
+                          "fontFamily": "$type:font.family",
+                          "fontSize": "$type:font.size-md",
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "id": "date-range-picker-mon",
+                          "type": "text",
+                          "content": "June 2026",
+                          "fill": "$colors:color.foreground",
+                          "fontFamily": "$type:font.family",
+                          "fontSize": "$type:font.size-md",
+                          "fontWeight": "600"
+                        },
+                        {
+                          "id": "date-range-picker-next",
+                          "type": "text",
+                          "content": "›",
+                          "fill": "$colors:color.muted",
+                          "fontFamily": "$type:font.family",
+                          "fontSize": "$type:font.size-md",
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "id": "date-range-picker-wk",
+                      "type": "frame",
+                      "width": "fill_container",
+                      "children": [
+                        {
+                          "id": "date-range-picker-wk-0",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 28,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "children": [
+                            {
+                              "id": "date-range-picker-wk-0-t",
+                              "type": "text",
+                              "content": "S",
+                              "fill": "$colors:color.muted",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": 12,
+                              "fontWeight": "600"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "date-range-picker-wk-1",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 28,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "children": [
+                            {
+                              "id": "date-range-picker-wk-1-t",
+                              "type": "text",
+                              "content": "M",
+                              "fill": "$colors:color.muted",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": 12,
+                              "fontWeight": "600"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "date-range-picker-wk-2",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 28,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "children": [
+                            {
+                              "id": "date-range-picker-wk-2-t",
+                              "type": "text",
+                              "content": "T",
+                              "fill": "$colors:color.muted",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": 12,
+                              "fontWeight": "600"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "date-range-picker-wk-3",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 28,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "children": [
+                            {
+                              "id": "date-range-picker-wk-3-t",
+                              "type": "text",
+                              "content": "W",
+                              "fill": "$colors:color.muted",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": 12,
+                              "fontWeight": "600"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "date-range-picker-wk-4",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 28,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "children": [
+                            {
+                              "id": "date-range-picker-wk-4-t",
+                              "type": "text",
+                              "content": "T",
+                              "fill": "$colors:color.muted",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": 12,
+                              "fontWeight": "600"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "date-range-picker-wk-5",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 28,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "children": [
+                            {
+                              "id": "date-range-picker-wk-5-t",
+                              "type": "text",
+                              "content": "F",
+                              "fill": "$colors:color.muted",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": 12,
+                              "fontWeight": "600"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "date-range-picker-wk-6",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 28,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "children": [
+                            {
+                              "id": "date-range-picker-wk-6-t",
+                              "type": "text",
+                              "content": "S",
+                              "fill": "$colors:color.muted",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": 12,
+                              "fontWeight": "600"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "id": "date-range-picker-r0",
+                      "type": "frame",
+                      "width": "fill_container",
+                      "children": [
+                        {
+                          "id": "date-range-picker-r0-0",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "date-range-picker-r0-0-t",
+                              "type": "text",
+                              "fill": "$colors:color.muted",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "date-range-picker-r0-1",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "date-range-picker-r0-1-t",
+                              "type": "text",
+                              "fill": "$colors:color.muted",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "date-range-picker-r0-2",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "date-range-picker-r0-2-t",
+                              "type": "text",
+                              "fill": "$colors:color.muted",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "date-range-picker-r0-3",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "date-range-picker-r0-3-t",
+                              "type": "text",
+                              "content": "1",
+                              "fill": "$colors:color.foreground",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "date-range-picker-r0-4",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "date-range-picker-r0-4-t",
+                              "type": "text",
+                              "content": "2",
+                              "fill": "$colors:color.foreground",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "date-range-picker-r0-5",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "date-range-picker-r0-5-t",
+                              "type": "text",
+                              "content": "3",
+                              "fill": "$colors:color.foreground",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "date-range-picker-r0-6",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "date-range-picker-r0-6-t",
+                              "type": "text",
+                              "content": "4",
+                              "fill": "$colors:color.foreground",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "id": "date-range-picker-r1",
+                      "type": "frame",
+                      "width": "fill_container",
+                      "children": [
+                        {
+                          "id": "date-range-picker-r1-0",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "date-range-picker-r1-0-t",
+                              "type": "text",
+                              "content": "5",
+                              "fill": "$colors:color.foreground",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "date-range-picker-r1-1",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "date-range-picker-r1-1-t",
+                              "type": "text",
+                              "content": "6",
+                              "fill": "$colors:color.foreground",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "date-range-picker-r1-2",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "date-range-picker-r1-2-t",
+                              "type": "text",
+                              "content": "7",
+                              "fill": "$colors:color.foreground",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "date-range-picker-r1-3",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "date-range-picker-r1-3-t",
+                              "type": "text",
+                              "content": "8",
+                              "fill": "$colors:color.foreground",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "date-range-picker-r1-4",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "date-range-picker-r1-4-t",
+                              "type": "text",
+                              "content": "9",
+                              "fill": "$colors:color.foreground",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "date-range-picker-r1-5",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "$colors:color.accent-soft",
+                          "children": [
+                            {
+                              "id": "date-range-picker-r1-5-t",
+                              "type": "text",
+                              "content": "10",
+                              "fill": "$colors:color.accent",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "date-range-picker-r1-6",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "$colors:color.accent-soft",
+                          "children": [
+                            {
+                              "id": "date-range-picker-r1-6-t",
+                              "type": "text",
+                              "content": "11",
+                              "fill": "$colors:color.accent",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "id": "date-range-picker-r2",
+                      "type": "frame",
+                      "width": "fill_container",
+                      "children": [
+                        {
+                          "id": "date-range-picker-r2-0",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "$colors:color.accent-soft",
+                          "children": [
+                            {
+                              "id": "date-range-picker-r2-0-t",
+                              "type": "text",
+                              "content": "12",
+                              "fill": "$colors:color.accent",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "date-range-picker-r2-1",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "$colors:color.accent-soft",
+                          "children": [
+                            {
+                              "id": "date-range-picker-r2-1-t",
+                              "type": "text",
+                              "content": "13",
+                              "fill": "$colors:color.accent",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "date-range-picker-r2-2",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "$colors:color.accent-soft",
+                          "children": [
+                            {
+                              "id": "date-range-picker-r2-2-t",
+                              "type": "text",
+                              "content": "14",
+                              "fill": "$colors:color.accent",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "date-range-picker-r2-3",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "$colors:color.accent-soft",
+                          "children": [
+                            {
+                              "id": "date-range-picker-r2-3-t",
+                              "type": "text",
+                              "content": "15",
+                              "fill": "$colors:color.accent",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "date-range-picker-r2-4",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "$colors:color.accent-soft",
+                          "children": [
+                            {
+                              "id": "date-range-picker-r2-4-t",
+                              "type": "text",
+                              "content": "16",
+                              "fill": "$colors:color.accent",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "date-range-picker-r2-5",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "date-range-picker-r2-5-t",
+                              "type": "text",
+                              "content": "17",
+                              "fill": "$colors:color.foreground",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "date-range-picker-r2-6",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "date-range-picker-r2-6-t",
+                              "type": "text",
+                              "content": "18",
+                              "fill": "$colors:color.foreground",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "id": "date-range-picker-r3",
+                      "type": "frame",
+                      "width": "fill_container",
+                      "children": [
+                        {
+                          "id": "date-range-picker-r3-0",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "date-range-picker-r3-0-t",
+                              "type": "text",
+                              "content": "19",
+                              "fill": "$colors:color.foreground",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "date-range-picker-r3-1",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "date-range-picker-r3-1-t",
+                              "type": "text",
+                              "content": "20",
+                              "fill": "$colors:color.foreground",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "date-range-picker-r3-2",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "date-range-picker-r3-2-t",
+                              "type": "text",
+                              "content": "21",
+                              "fill": "$colors:color.foreground",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "date-range-picker-r3-3",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "date-range-picker-r3-3-t",
+                              "type": "text",
+                              "content": "22",
+                              "fill": "$colors:color.foreground",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "date-range-picker-r3-4",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "date-range-picker-r3-4-t",
+                              "type": "text",
+                              "content": "23",
+                              "fill": "$colors:color.foreground",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "date-range-picker-r3-5",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "date-range-picker-r3-5-t",
+                              "type": "text",
+                              "content": "24",
+                              "fill": "$colors:color.foreground",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "date-range-picker-r3-6",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "date-range-picker-r3-6-t",
+                              "type": "text",
+                              "content": "25",
+                              "fill": "$colors:color.foreground",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "id": "date-range-picker-r4",
+                      "type": "frame",
+                      "width": "fill_container",
+                      "children": [
+                        {
+                          "id": "date-range-picker-r4-0",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "date-range-picker-r4-0-t",
+                              "type": "text",
+                              "content": "26",
+                              "fill": "$colors:color.foreground",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "date-range-picker-r4-1",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "date-range-picker-r4-1-t",
+                              "type": "text",
+                              "content": "27",
+                              "fill": "$colors:color.foreground",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "date-range-picker-r4-2",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "date-range-picker-r4-2-t",
+                              "type": "text",
+                              "content": "28",
+                              "fill": "$colors:color.foreground",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "date-range-picker-r4-3",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "date-range-picker-r4-3-t",
+                              "type": "text",
+                              "content": "29",
+                              "fill": "$colors:color.foreground",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "date-range-picker-r4-4",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "date-range-picker-r4-4-t",
+                              "type": "text",
+                              "content": "30",
+                              "fill": "$colors:color.foreground",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "date-range-picker-r4-5",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "date-range-picker-r4-5-t",
+                              "type": "text",
+                              "fill": "$colors:color.muted",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "date-range-picker-r4-6",
+                          "type": "frame",
+                          "width": 32,
+                          "height": 32,
+                          "alignItems": "center",
+                          "justifyContent": "center",
+                          "fill": "transparent",
+                          "children": [
+                            {
+                              "id": "date-range-picker-r4-6-t",
+                              "type": "text",
+                              "fill": "$colors:color.muted",
+                              "fontFamily": "$type:font.family",
+                              "fontSize": "$type:font.size-sm",
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ],
+              "reusable": true,
+              "metadata": {
+                "type": "component",
+                "framework": "heroui",
+                "atomic": "organism",
+                "fidelity": "full",
+                "react": "DateRangePicker",
+                "package": "@heroui/react",
+                "slug": "date-range-picker",
+                "category": "Date and Time"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "imports": {
+    "colors": "../foundations/colors.lib.pen",
+    "type": "../foundations/typography.lib.pen",
+    "grids": "../foundations/grids.lib.pen"
+  }
+}

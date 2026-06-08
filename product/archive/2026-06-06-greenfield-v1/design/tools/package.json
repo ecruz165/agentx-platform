@@ -1,0 +1,11 @@
+{
+  "name": "@agentx/penmock",
+  "private": true,
+  "type": "module",
+  "description": "Scaffold + compose per-section mockup .pen files that reference design-system.lib.pen via the .pen `imports` mechanism.",
+  "bin": { "penmock": "./penmock.mts" },
+  "scripts": {
+    "scaffold": "node penmock.mts scaffold all",
+    "compose": "node penmock.mts compose all"
+  }
+}
